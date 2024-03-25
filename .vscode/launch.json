@@ -1,0 +1,64 @@
+{
+    "inputs": [
+        {
+            "id": "testsuiteFunction",
+            "type": "pickString",
+            "description": "Choose a function from the testsuite to run",
+            // Extracted with this command:
+            // rg " (Test[a-zA-Z0-9]+)\(\)" /path/to/testsuites.go -r '$1' -o --no-line-number
+            "options": [
+                "TestRootExists",
+                "TestValidPaths",
+                "TestInvalidPaths",
+                "TestWriteRead1",
+                "TestWriteRead2",
+                "TestWriteRead3",
+                "TestWriteRead4",
+                "TestWriteReadNonUTF8",
+                "TestTruncate",
+                "TestReadNonexistent",
+                "TestWriteReadStreams1",
+                "TestWriteReadStreams2",
+                "TestWriteReadStreams3",
+                "TestWriteReadStreams4",
+                "TestWriteReadStreamsNonUTF8",
+                "TestWriteReadLargeStreams",
+                "TestReaderWithOffset",
+                "TestContinueStreamAppendLarge",
+                "TestContinueStreamAppendSmall",
+                "TestReadNonexistentStream",
+                "TestWriteZeroByteStreamThenAppend",
+                "TestWriteZeroByteContentThenAppend",
+                "TestList",
+                "TestMove",
+                "TestMoveOverwrite",
+                "TestMoveNonexistent",
+                "TestMoveInvalid",
+                "TestDelete",
+                "TestRedirectURL",
+                "TestDeleteNonexistent",
+                "TestDeleteFolder",
+                "TestDeleteOnlyDeletesSubpaths",
+                "TestStatCall",
+                "TestPutContentMultipleTimes",
+                "TestConcurrentStreamReads",
+                "TestConcurrentFileStreams",
+            ]
+        }
+    ],
+    "configurations": [
+        {
+            "name": "Launch NATS Driver Test",
+            "type": "go",
+            "request": "launch",
+            "mode": "test",
+            "program": "registry/storage/driver/driver_test.go",
+            "args": [
+                "-test.run",
+                "^TestNATSDriverSuite$",
+                "-testify.m",
+                "^${input:testsuiteFunction}$"
+            ]
+        }
+    ]
+}
