@@ -104,36 +104,9 @@ func (d *driver) Name() string {
 // This should primarily be used for small objects.
 func (d *driver) GetContent(ctx context.Context, path string) ([]byte, error) {
 	dir, file := filepath.Split(path)
-	parts := strings.Split(dir[:len(dir)-1], sep)
-
-	workingStore := d.root
-	for i := 1; i < len(parts); i++ {
-		objs, err := workingStore.List(ctx)
-		if errors.Is(err, jetstream.ErrNoObjectsFound) {
-			return nil, storagedriver.PathNotFoundError{Path: path}
-		}
-		if err != nil {
-			return nil, err
-		}
-
-		found := false
-		for j := range objs {
-			if objs[j].Name == parts[i] {
-				if objs[j].Opts.Link == nil {
-					return nil, storagedriver.PathNotFoundError{Path: path}
-				}
-				bucket, err := d.js.ObjectStore(ctx, objs[j].Opts.Link.Bucket)
-				if err != nil {
-					return nil, err
-				}
-				workingStore = bucket
-				found = true
-				break
-			}
-		}
-		if !found {
-			return nil, storagedriver.PathNotFoundError{Path: path}
-		}
+	workingStore, err := d.findBucket(ctx, dir)
+	if err != nil {
+		return nil, err
 	}
 
 	data, err := workingStore.GetBytes(ctx, file)
@@ -186,36 +159,9 @@ func (d *driver) PutContent(ctx context.Context, path string, content []byte) er
 // May be used to resume reading a stream by providing a nonzero offset.
 func (d *driver) Reader(ctx context.Context, path string, offset int64) (io.ReadCloser, error) {
 	dir, file := filepath.Split(path)
-	parts := strings.Split(dir[:len(dir)-1], sep)
-
-	workingStore := d.root
-	for i := 1; i < len(parts); i++ {
-		objs, err := workingStore.List(ctx)
-		if errors.Is(err, jetstream.ErrNoObjectsFound) {
-			return nil, storagedriver.PathNotFoundError{Path: path}
-		}
-		if err != nil {
-			return nil, err
-		}
-
-		found := false
-		for j := range objs {
-			if objs[j].Name == parts[i] {
-				if objs[j].Opts.Link == nil {
-					return nil, storagedriver.PathNotFoundError{Path: path}
-				}
-				bucket, err := d.js.ObjectStore(ctx, objs[j].Opts.Link.Bucket)
-				if err != nil {
-					return nil, err
-				}
-				workingStore = bucket
-				found = true
-				break
-			}
-		}
-		if !found {
-			return nil, storagedriver.PathNotFoundError{Path: path}
-		}
+	workingStore, err := d.findBucket(ctx, dir)
+	if err != nil {
+		return nil, err
 	}
 
 	// TODO: Specify offset if store.Get ever supports it.
@@ -284,36 +230,9 @@ func (d *driver) Writer(ctx context.Context, path string, append bool) (storaged
 // size in bytes and the creation time.
 func (d *driver) Stat(ctx context.Context, path string) (storagedriver.FileInfo, error) {
 	dir, file := filepath.Split(path)
-	parts := strings.Split(dir[:len(dir)-1], sep)
-
-	workingStore := d.root
-	for i := 1; i < len(parts); i++ {
-		objs, err := workingStore.List(ctx)
-		if errors.Is(err, jetstream.ErrNoObjectsFound) {
-			return nil, storagedriver.PathNotFoundError{Path: path}
-		}
-		if err != nil {
-			return nil, err
-		}
-
-		found := false
-		for j := range objs {
-			if objs[j].Name == parts[i] {
-				if objs[j].Opts.Link == nil {
-					return nil, storagedriver.PathNotFoundError{Path: path}
-				}
-				bucket, err := d.js.ObjectStore(ctx, objs[j].Opts.Link.Bucket)
-				if err != nil {
-					return nil, err
-				}
-				workingStore = bucket
-				found = true
-				break
-			}
-		}
-		if !found {
-			return nil, storagedriver.PathNotFoundError{Path: path}
-		}
+	workingStore, err := d.findBucket(ctx, dir)
+	if err != nil {
+		return nil, err
 	}
 
 	// Now that we've arrived in the correct directory,
@@ -349,38 +268,9 @@ func (d *driver) Stat(ctx context.Context, path string) (storagedriver.FileInfo,
 // List returns a list of the objects that are direct descendants of the
 // given path.
 func (d *driver) List(ctx context.Context, path string) ([]string, error) {
-	parts := strings.Split(path, sep)
-
-	workingStore := d.root
-	if path != "/" {
-		for i := 1; i < len(parts); i++ {
-			objs, err := workingStore.List(ctx)
-			if errors.Is(err, jetstream.ErrNoObjectsFound) {
-				return nil, storagedriver.PathNotFoundError{Path: path}
-			}
-			if err != nil {
-				return nil, err
-			}
-
-			found := false
-			for j := range objs {
-				if objs[j].Name == parts[i] {
-					if objs[j].Opts.Link == nil {
-						return nil, storagedriver.PathNotFoundError{Path: path}
-					}
-					bucket, err := d.js.ObjectStore(ctx, objs[j].Opts.Link.Bucket)
-					if err != nil {
-						return nil, err
-					}
-					workingStore = bucket
-					found = true
-					break
-				}
-			}
-			if !found {
-				return nil, storagedriver.PathNotFoundError{Path: path}
-			}
-		}
+	workingStore, err := d.findBucket(ctx, path)
+	if err != nil {
+		return nil, err
 	}
 
 	objs, err := workingStore.List(ctx)
@@ -405,36 +295,9 @@ func (d *driver) List(ctx context.Context, path string) ([]string, error) {
 // many implementations.
 func (d *driver) Move(ctx context.Context, sourcePath string, destPath string) error {
 	sourceDir, sourceFile := filepath.Split(sourcePath)
-	sourceParts := strings.Split(sourceDir[:len(sourceDir)-1], sep)
-
-	sourceWorkingStore := d.root
-	for i := 1; i < len(sourceParts); i++ {
-		objs, err := sourceWorkingStore.List(ctx)
-		if errors.Is(err, jetstream.ErrNoObjectsFound) {
-			return storagedriver.PathNotFoundError{Path: sourcePath}
-		}
-		if err != nil {
-			return err
-		}
-
-		found := false
-		for j := range objs {
-			if objs[j].Name == sourceParts[i] {
-				if objs[j].Opts.Link == nil {
-					return storagedriver.PathNotFoundError{Path: sourcePath}
-				}
-				bucket, err := d.js.ObjectStore(ctx, objs[j].Opts.Link.Bucket)
-				if err != nil {
-					return err
-				}
-				sourceWorkingStore = bucket
-				found = true
-				break
-			}
-		}
-		if !found {
-			return storagedriver.PathNotFoundError{Path: sourcePath}
-		}
+	sourceWorkingStore, err := d.findBucket(ctx, sourceDir)
+	if err != nil {
+		return err
 	}
 
 	// TODO: Specify offset if store.Get ever supports it.
@@ -496,38 +359,9 @@ func (d *driver) Move(ctx context.Context, sourcePath string, destPath string) e
 // Delete recursively deletes all objects stored at "path" and its subpaths.
 func (d *driver) Delete(ctx context.Context, path string) error {
 	dir, file := filepath.Split(path)
-	parts := strings.Split(dir[:len(dir)-1], sep)
-
-	workingStore := d.root
-	if path != "/" {
-		for i := 1; i < len(parts); i++ {
-			objs, err := workingStore.List(ctx)
-			if errors.Is(err, jetstream.ErrNoObjectsFound) {
-				return storagedriver.PathNotFoundError{Path: path}
-			}
-			if err != nil {
-				return err
-			}
-
-			found := false
-			for j := range objs {
-				if objs[j].Name == parts[i] {
-					if objs[j].Opts.Link == nil {
-						return storagedriver.PathNotFoundError{Path: path}
-					}
-					bucket, err := d.js.ObjectStore(ctx, objs[j].Opts.Link.Bucket)
-					if err != nil {
-						return err
-					}
-					workingStore = bucket
-					found = true
-					break
-				}
-			}
-			if !found {
-				return storagedriver.PathNotFoundError{}
-			}
-		}
+	workingStore, err := d.findBucket(ctx, dir)
+	if err != nil {
+		return err
 	}
 
 	objInfo, err := workingStore.GetInfo(ctx, file)
@@ -595,6 +429,44 @@ func (d *driver) RedirectURL(r *http.Request, path string) (string, error) {
 func (d *driver) Walk(ctx context.Context, path string, f storagedriver.WalkFn, options ...func(*storagedriver.WalkOptions)) error {
 	// TODO: Should I implement something custom?
 	return storagedriver.WalkFallback(ctx, d, path, f, options...)
+}
+
+// findBucket finds the object store backing the given path.
+func (d *driver) findBucket(ctx context.Context, path string) (jetstream.ObjectStore, error) {
+	path = strings.TrimRight(path, "/")
+	parts := strings.Split(path, sep)
+
+	workingStore := d.root
+	for i := 1; i < len(parts); i++ {
+		objs, err := workingStore.List(ctx)
+		if errors.Is(err, jetstream.ErrNoObjectsFound) {
+			return nil, storagedriver.PathNotFoundError{Path: path}
+		}
+		if err != nil {
+			return nil, err
+		}
+
+		found := false
+		for j := range objs {
+			if objs[j].Name == parts[i] {
+				if objs[j].Opts.Link == nil {
+					return nil, storagedriver.PathNotFoundError{Path: path}
+				}
+				bucket, err := d.js.ObjectStore(ctx, objs[j].Opts.Link.Bucket)
+				if err != nil {
+					return nil, err
+				}
+				workingStore = bucket
+				found = true
+				break
+			}
+		}
+		if !found {
+			return nil, storagedriver.PathNotFoundError{Path: path}
+		}
+	}
+
+	return workingStore, nil
 }
 
 func newJetStream(params *Parameters) (jetstream.JetStream, error) {
