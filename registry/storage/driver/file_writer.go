@@ -20,8 +20,14 @@ import (
 	"github.com/nats-io/nats.go/jetstream"
 )
 
-func newFileWriter(ctx context.Context, store jetstream.ObjectStore, meta jetstream.ObjectMeta) (*FileWriter, error) {
-	obw, err := store.Writer(ctx, meta)
+func newFileWriter(ctx context.Context, store jetstream.ObjectStore, meta jetstream.ObjectMeta, append bool) (*FileWriter, error) {
+	var obw jetstream.ObjectStoreWriter
+	var err error
+	if !append {
+		obw, err = store.Writer(ctx, meta)
+	} else {
+		obw, err = store.AppendWriter(ctx, meta)
+	}
 
 	return &FileWriter{
 		ctx:  ctx,
@@ -42,7 +48,6 @@ var _ storagedriver.FileWriter = &FileWriter{}
 
 func (f *FileWriter) Write(data []byte) (int, error) {
 	n, err := f.obw.Write(data)
-	f.written += int64(n)
 	return n, err
 }
 
@@ -52,7 +57,7 @@ func (f *FileWriter) Close() error {
 
 // Size returns the number of bytes written to this FileWriter.
 func (f *FileWriter) Size() int64 {
-	return f.written
+	return int64(f.obw.Size())
 }
 
 // Cancel removes any written content from this FileWriter.

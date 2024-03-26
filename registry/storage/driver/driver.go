@@ -274,7 +274,7 @@ func (d *driver) Writer(ctx context.Context, path string, append bool) (storaged
 		Name: file,
 	}
 
-	return newFileWriter(ctx, workingStore, meta)
+	return newFileWriter(ctx, workingStore, meta, append)
 }
 
 // Stat retrieves the FileInfo for the given path, including the current

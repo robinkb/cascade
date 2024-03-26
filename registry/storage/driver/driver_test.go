@@ -29,6 +29,7 @@ var ns *server.Server
 func newDriverConstructor(tb testing.TB) testsuites.DriverConstructor {
 	opts := &server.Options{
 		JetStream: true,
+		Port:      0,
 		StoreDir:  tb.TempDir(),
 	}
 	ns, err := server.NewServer(opts)
