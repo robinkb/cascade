@@ -24,15 +24,11 @@ import (
 )
 
 func main() {
-	// startNats()
-	startRegistry()
-}
-
-func startRegistry() {
 	ctx := context.Background()
 	cfg := &configuration.Configuration{
 		Version: "0.1.0",
 		Auth:    configuration.Auth{},
+
 		Storage: configuration.Storage{
 			"nats": configuration.Parameters{},
 		},

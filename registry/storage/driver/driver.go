@@ -272,6 +272,9 @@ func (d *driver) Writer(ctx context.Context, path string, append bool) (storaged
 
 	meta := jetstream.ObjectMeta{
 		Name: file,
+		Opts: &jetstream.ObjectMetaOptions{
+			ChunkSize: 1 * 1024 * 1024,
+		},
 	}
 
 	return newFileWriter(ctx, workingStore, meta, append)
