@@ -36,6 +36,8 @@ const (
 	driverName = "nats"
 
 	sep = "/"
+
+	defaultChunkSize = 1024 * 1024 // 1 MiB, default max message size in NATS
 )
 
 // Ensure that we satisfy the interface.
@@ -123,30 +125,12 @@ func (d *driver) GetContent(ctx context.Context, path string) ([]byte, error) {
 // This should primarily be used for small objects.
 func (d *driver) PutContent(ctx context.Context, path string, content []byte) error {
 	dir, file := filepath.Split(path)
-	parts := strings.Split(dir[:len(dir)-1], sep)
-
-	workingStore := d.root
-	// Tracking working dir to construct bucket names
-	workingDir := ""
-	for i := 1; i < len(parts); i++ {
-		currentDir := strings.Join([]string{workingDir, parts[i]}, sep)
-		config := jetstream.ObjectStoreConfig{
-			Bucket:      hashPath(currentDir),
-			Description: currentDir,
-		}
-		bucket, err := d.js.CreateOrUpdateObjectStore(ctx, config)
-		if err != nil {
-			return err
-		}
-		_, err = workingStore.AddBucketLink(ctx, parts[i], bucket)
-		if err != nil {
-			return err
-		}
-		workingStore = bucket
-		workingDir = currentDir
+	workingStore, err := d.makeBucket(ctx, dir)
+	if err != nil {
+		return err
 	}
 
-	_, err := workingStore.PutBytes(ctx, file, content)
+	_, err = workingStore.PutBytes(ctx, file, content)
 	if err != nil {
 		return err
 	}
@@ -193,33 +177,15 @@ func (d *driver) Reader(ctx context.Context, path string, offset int64) (io.Read
 // undefined. Specific implementations may document their own behavior.
 func (d *driver) Writer(ctx context.Context, path string, append bool) (storagedriver.FileWriter, error) {
 	dir, file := filepath.Split(path)
-	parts := strings.Split(dir[:len(dir)-1], sep)
-
-	workingStore := d.root
-	// Tracking working dir to construct bucket names
-	workingDir := ""
-	for i := 1; i < len(parts); i++ {
-		currentDir := strings.Join([]string{workingDir, parts[i]}, sep)
-		config := jetstream.ObjectStoreConfig{
-			Bucket:      hashPath(currentDir),
-			Description: currentDir,
-		}
-		bucket, err := d.js.CreateOrUpdateObjectStore(ctx, config)
-		if err != nil {
-			return nil, err
-		}
-		_, err = workingStore.AddBucketLink(ctx, parts[i], bucket)
-		if err != nil {
-			return nil, err
-		}
-		workingStore = bucket
-		workingDir = currentDir
+	workingStore, err := d.makeBucket(ctx, dir)
+	if err != nil {
+		return nil, err
 	}
 
 	meta := jetstream.ObjectMeta{
 		Name: file,
 		Opts: &jetstream.ObjectMetaOptions{
-			ChunkSize: 1 * 1024 * 1024,
+			ChunkSize: defaultChunkSize,
 		},
 	}
 
@@ -300,7 +266,6 @@ func (d *driver) Move(ctx context.Context, sourcePath string, destPath string) e
 		return err
 	}
 
-	// TODO: Specify offset if store.Get ever supports it.
 	sourceObj, err := sourceWorkingStore.Get(ctx, sourceFile)
 	if errors.Is(err, jetstream.ErrObjectNotFound) {
 		return storagedriver.PathNotFoundError{Path: sourcePath}
@@ -311,6 +276,7 @@ func (d *driver) Move(ctx context.Context, sourcePath string, destPath string) e
 
 	destDir, destFile := filepath.Split(destPath)
 
+	// Fast path when source and dest are in the same bucket: rename the object.
 	if sourceDir == destDir {
 		err := sourceWorkingStore.UpdateMeta(ctx, sourceFile, jetstream.ObjectMeta{
 			Name: destFile,
@@ -321,26 +287,9 @@ func (d *driver) Move(ctx context.Context, sourcePath string, destPath string) e
 		return nil
 	}
 
-	destParts := strings.Split(destDir[:len(destDir)-1], sep)
-
-	destWorkingStore := d.root
-	// Tracking working dir to construct bucket names
-	destWorkingDir := ""
-	for i := 1; i < len(destParts); i++ {
-		currentDir := strings.Join([]string{destWorkingDir, destParts[i]}, sep)
-		config := jetstream.ObjectStoreConfig{
-			Bucket: hashPath(currentDir),
-		}
-		bucket, err := d.js.CreateOrUpdateObjectStore(ctx, config)
-		if err != nil {
-			return err
-		}
-		_, err = destWorkingStore.AddBucketLink(ctx, destParts[i], bucket)
-		if err != nil {
-			return err
-		}
-		destWorkingStore = bucket
-		destWorkingDir = currentDir
+	destWorkingStore, err := d.makeBucket(ctx, destDir)
+	if err != nil {
+		return err
 	}
 
 	meta := jetstream.ObjectMeta{Name: destFile}
@@ -404,6 +353,8 @@ func (d *driver) delete(ctx context.Context, bucket string) error {
 				return err
 			}
 		} else {
+			// TODO: Deleting files ourselves is probably not necessary.
+			// NATS should clean them up when the bucket gets deleted.
 			if err := store.Delete(ctx, objs[i].Name); err != nil {
 				return err
 			}
@@ -431,7 +382,7 @@ func (d *driver) Walk(ctx context.Context, path string, f storagedriver.WalkFn, 
 	return storagedriver.WalkFallback(ctx, d, path, f, options...)
 }
 
-// findBucket finds the object store backing the given path.
+// findBucket retrieves the object store backing the given path.
 func (d *driver) findBucket(ctx context.Context, path string) (jetstream.ObjectStore, error) {
 	path = strings.TrimRight(path, "/")
 	parts := strings.Split(path, sep)
@@ -464,6 +415,35 @@ func (d *driver) findBucket(ctx context.Context, path string) (jetstream.ObjectS
 		if !found {
 			return nil, storagedriver.PathNotFoundError{Path: path}
 		}
+	}
+
+	return workingStore, nil
+}
+
+// makeBucket finds or creates object stores to back the given path.
+func (d *driver) makeBucket(ctx context.Context, path string) (jetstream.ObjectStore, error) {
+	path = strings.TrimRight(path, "/")
+	parts := strings.Split(path, sep)
+
+	workingStore := d.root
+	// Tracking working dir to construct bucket names
+	workingDir := ""
+	for i := 1; i < len(parts); i++ {
+		currentDir := strings.Join([]string{workingDir, parts[i]}, sep)
+		config := jetstream.ObjectStoreConfig{
+			Bucket:      hashPath(currentDir),
+			Description: currentDir,
+		}
+		bucket, err := d.js.CreateOrUpdateObjectStore(ctx, config)
+		if err != nil {
+			return nil, err
+		}
+		_, err = workingStore.AddBucketLink(ctx, parts[i], bucket)
+		if err != nil {
+			return nil, err
+		}
+		workingStore = bucket
+		workingDir = currentDir
 	}
 
 	return workingStore, nil

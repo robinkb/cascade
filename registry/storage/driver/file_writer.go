@@ -37,11 +37,10 @@ func newFileWriter(ctx context.Context, store jetstream.ObjectStore, meta jetstr
 }
 
 type FileWriter struct {
-	ctx     context.Context
-	obs     jetstream.ObjectStore
-	name    string
-	obw     jetstream.ObjectStoreWriter
-	written int64
+	ctx  context.Context
+	obs  jetstream.ObjectStore
+	name string
+	obw  jetstream.ObjectStoreWriter
 }
 
 var _ storagedriver.FileWriter = &FileWriter{}
