@@ -89,7 +89,9 @@ func New(ctx context.Context, params *Parameters) (*Driver, error) {
 	return &Driver{
 		baseEmbed: baseEmbed{
 			Base: base.Base{
-				StorageDriver: d,
+				// TODO: Figure out why concurrency is a problem,
+				// and probably make this configurable.
+				StorageDriver: base.NewRegulator(d, 1),
 			},
 		},
 	}, nil
