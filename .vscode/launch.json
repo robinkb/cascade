@@ -48,7 +48,18 @@
     ],
     "configurations": [
         {
-            "name": "Launch NATS Driver Test",
+            "name": "Test NATS Driver (Suite)",
+            "type": "go",
+            "request": "launch",
+            "mode": "test",
+            "program": "registry/storage/driver/driver_test.go",
+            "args": [
+                "-test.run",
+                "^TestNATSDriverSuite$",
+            ]
+        },
+        {
+            "name": "Test NATS Driver (Specific)",
             "type": "go",
             "request": "launch",
             "mode": "test",
