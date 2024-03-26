@@ -15,6 +15,7 @@ package driver
 
 import (
 	"context"
+	"net"
 	"testing"
 	"time"
 
@@ -27,9 +28,13 @@ import (
 var ns *server.Server
 
 func newDriverConstructor(tb testing.TB) testsuites.DriverConstructor {
+	port, err := getFreePort()
+	if err != nil {
+		tb.Fatal(err)
+	}
 	opts := &server.Options{
 		JetStream: true,
-		Port:      0,
+		Port:      port,
 		StoreDir:  tb.TempDir(),
 	}
 	ns, err := server.NewServer(opts)
@@ -51,13 +56,8 @@ func newDriverConstructor(tb testing.TB) testsuites.DriverConstructor {
 	// 	ClientURL: "127.0.0.1:4222",
 	// }
 
-	driver, err := New(context.Background(), params)
-	if err != nil {
-		tb.Fatal(err)
-	}
-
 	return func() (storagedriver.StorageDriver, error) {
-		return driver, nil
+		return New(context.Background(), params)
 	}
 }
 
@@ -68,4 +68,18 @@ func TestNATSDriverSuite(t *testing.T) {
 
 func BenchmarkNATSDriverSuite(b *testing.B) {
 	testsuites.BenchDriver(b, newDriverConstructor(b))
+}
+
+func getFreePort() (int, error) {
+	addr, err := net.ResolveTCPAddr("tcp", "localhost:0")
+	if err != nil {
+		return 0, err
+	}
+
+	l, err := net.ListenTCP("tcp", addr)
+	if err != nil {
+		return 0, err
+	}
+	defer l.Close()
+	return l.Addr().(*net.TCPAddr).Port, nil
 }
