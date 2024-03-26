@@ -78,4 +78,4 @@ require (
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
 
-replace github.com/nats-io/nats.go => github.com/robinkb/nats.go v0.0.0-20240325020549-b683810b6bc8
+replace github.com/nats-io/nats.go => github.com/robinkb/nats.go v0.0.0-20240326164557-e7b4856d811b
