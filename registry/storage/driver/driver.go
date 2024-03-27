@@ -197,40 +197,41 @@ func (d *driver) Writer(ctx context.Context, path string, append bool) (storaged
 // Stat retrieves the FileInfo for the given path, including the current
 // size in bytes and the creation time.
 func (d *driver) Stat(ctx context.Context, path string) (storagedriver.FileInfo, error) {
+	// Root directory is a special case, because it is the only path
+	// allowed to end with a slash. We're still getting the info from
+	// the backend because the storage health check calls Stat("/"),
+	// and we should actually try to call the backend.
+	if path == "/" {
+		_, err := d.root.Status(ctx)
+		return &FileInfo{path: path, dir: true}, err
+	}
+
 	dir, file := filepath.Split(path)
 	workingStore, err := d.findBucket(ctx, dir)
 	if err != nil {
 		return nil, err
 	}
 
-	// Now that we've arrived in the correct directory,
-	// see if the file exists and what type it is.
-	objs, err := workingStore.List(ctx)
-	if errors.Is(err, jetstream.ErrNoObjectsFound) {
+	info, err := workingStore.GetInfo(ctx, file)
+	if errors.Is(err, jetstream.ErrObjectNotFound) {
 		return nil, storagedriver.PathNotFoundError{Path: path}
 	}
 	if err != nil {
 		return nil, err
 	}
 
-	for i := range objs {
-		if objs[i].Name == file {
-			if objs[i].Opts.Link != nil && objs[i].Opts.Link.Bucket != "" {
-				return &FileInfo{
-					path: path,
-					dir:  true,
-				}, nil
-			}
-
-			return &FileInfo{
-				path:    path,
-				size:    int64(objs[i].Size),
-				modTime: objs[i].ModTime,
-			}, nil
-		}
+	if isDirectory(info) {
+		return &FileInfo{
+			path: path,
+			dir:  true,
+		}, nil
 	}
 
-	return nil, storagedriver.PathNotFoundError{Path: path}
+	return &FileInfo{
+		path:    path,
+		size:    int64(info.Size),
+		modTime: info.ModTime,
+	}, nil
 }
 
 // List returns a list of the objects that are direct descendants of the
@@ -315,7 +316,7 @@ func (d *driver) Delete(ctx context.Context, path string) error {
 		return err
 	}
 
-	objInfo, err := workingStore.GetInfo(ctx, file)
+	info, err := workingStore.GetInfo(ctx, file)
 	if errors.Is(err, jetstream.ErrObjectNotFound) {
 		return storagedriver.PathNotFoundError{}
 	}
@@ -324,45 +325,18 @@ func (d *driver) Delete(ctx context.Context, path string) error {
 	}
 
 	// If it's a directory, we must recurse into it and delete it.
-	if objInfo.Opts.Link != nil && objInfo.Opts.Link.Bucket != "" {
-		if err := d.delete(ctx, objInfo.Opts.Link.Bucket); err != nil {
+	if isDirectory(info) {
+		if err := d.deleteBucket(ctx, info.Opts.Link.Bucket); err != nil {
 			return err
 		}
 	}
 
-	err = workingStore.Delete(ctx, objInfo.Name)
+	err = workingStore.Delete(ctx, info.Name)
 	if err != nil {
 		return err
 	}
 
 	return nil
-}
-
-func (d *driver) delete(ctx context.Context, bucket string) error {
-	store, err := d.js.ObjectStore(ctx, bucket)
-	if err != nil {
-		return err
-	}
-
-	objs, err := store.List(ctx)
-	if err != nil && !errors.Is(err, jetstream.ErrNoObjectsFound) {
-		return err
-	}
-
-	for i := range objs {
-		if objs[i].Opts.Link != nil && objs[i].Opts.Link.Bucket != "" {
-			if err := d.delete(ctx, objs[i].Opts.Link.Bucket); err != nil {
-				return err
-			}
-		} else {
-			// TODO: Deleting files ourselves is probably not necessary.
-			// NATS should clean them up when the bucket gets deleted.
-			if err := store.Delete(ctx, objs[i].Name); err != nil {
-				return err
-			}
-		}
-	}
-	return d.js.DeleteObjectStore(ctx, bucket)
 }
 
 // RedirectURL returns a URL which the client of the request r may use
@@ -402,7 +376,7 @@ func (d *driver) findBucket(ctx context.Context, path string) (jetstream.ObjectS
 		found := false
 		for j := range objs {
 			if objs[j].Name == parts[i] {
-				if objs[j].Opts.Link == nil {
+				if !isDirectory(objs[j]) {
 					return nil, storagedriver.PathNotFoundError{Path: path}
 				}
 				bucket, err := d.js.ObjectStore(ctx, objs[j].Opts.Link.Bucket)
@@ -428,7 +402,8 @@ func (d *driver) makeBucket(ctx context.Context, path string) (jetstream.ObjectS
 	parts := strings.Split(path, sep)
 
 	workingStore := d.root
-	// Tracking working dir to construct bucket names
+	// Tracking working dir to construct bucket names.
+	// Might be more efficient to keep this in a slice or something.
 	workingDir := ""
 	for i := 1; i < len(parts); i++ {
 		currentDir := strings.Join([]string{workingDir, parts[i]}, sep)
@@ -451,6 +426,35 @@ func (d *driver) makeBucket(ctx context.Context, path string) (jetstream.ObjectS
 	return workingStore, nil
 }
 
+// deleteBucket recursively removes all buckets under the given bucket.
+func (d *driver) deleteBucket(ctx context.Context, bucket string) error {
+	store, err := d.js.ObjectStore(ctx, bucket)
+	if err != nil {
+		return err
+	}
+
+	objs, err := store.List(ctx)
+	if err != nil && !errors.Is(err, jetstream.ErrNoObjectsFound) {
+		return err
+	}
+
+	for i := range objs {
+		if isDirectory(objs[i]) {
+			if err := d.deleteBucket(ctx, objs[i].Opts.Link.Bucket); err != nil {
+				return err
+			}
+		} else {
+			// TODO: Deleting files ourselves is probably not necessary.
+			// NATS should clean them up when the bucket gets deleted.
+			if err := store.Delete(ctx, objs[i].Name); err != nil {
+				return err
+			}
+		}
+	}
+
+	return d.js.DeleteObjectStore(ctx, bucket)
+}
+
 func newJetStream(params *Parameters) (jetstream.JetStream, error) {
 	nc, err := nats.Connect(params.ClientURL)
 	if err != nil {
@@ -467,4 +471,8 @@ func newJetStream(params *Parameters) (jetstream.JetStream, error) {
 
 func hashPath(path string) string {
 	return fmt.Sprintf("%x", sha256.Sum256([]byte(path)))
+}
+
+func isDirectory(info *jetstream.ObjectInfo) bool {
+	return info.Opts.Link != nil && info.Opts.Link.Bucket != ""
 }
