@@ -37,7 +37,7 @@ const (
 
 	sep = "/"
 
-	defaultChunkSize = 1024 * 1024 // 1 MiB, default max message size in NATS
+	defaultChunkSize = 1 * 1024 * 1024
 )
 
 // Ensure that we satisfy the interface.

@@ -33,9 +33,10 @@ func newDriverConstructor(tb testing.TB) testsuites.DriverConstructor {
 		tb.Fatal(err)
 	}
 	opts := &server.Options{
-		JetStream: true,
-		Port:      port,
-		StoreDir:  tb.TempDir(),
+		JetStream:  true,
+		Port:       port,
+		StoreDir:   tb.TempDir(),
+		MaxPayload: defaultChunkSize,
 	}
 	ns, err := server.NewServer(opts)
 	if err != nil {
