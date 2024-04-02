@@ -1,18 +1,11 @@
 version: 0.1
-log:
-  level: debug
-  fields:
-    service: registry
-    environment: development
 storage:
     delete:
       enabled: true
     cache:
         blobdescriptor: inmemory
-    nats: {}
-    maintenance:
-        uploadpurging:
-            enabled: false
+    nats:
+      clienturl: :4222
 http:
     addr: :5000
     debug:

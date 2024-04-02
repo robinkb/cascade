@@ -31,7 +31,7 @@ func FromParameters(ctx context.Context, parameters map[string]interface{}) (*Dr
 		ClientURL: defaultClientURL,
 	}
 
-	if v, ok := parameters["clientUrl"]; ok {
+	if v, ok := parameters["clienturl"]; ok {
 		params.ClientURL = fmt.Sprint(v)
 	}
 
