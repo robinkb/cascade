@@ -14,30 +14,15 @@
 package main
 
 import (
-	"context"
-	"os"
-
 	_ "github.com/robinkb/cascade-registry/registry/storage/driver"
 
-	"github.com/distribution/distribution/v3/configuration"
 	"github.com/distribution/distribution/v3/registry"
 )
 
 func main() {
-	ctx := context.Background()
-	cfg := &configuration.Configuration{
-		Version: "0.1.0",
-		Auth:    configuration.Auth{},
-
-		Storage: configuration.Storage{
-			"nats": configuration.Parameters{},
-		},
-	}
-
-	reg, err := registry.NewRegistry(ctx, cfg)
-	if err != nil {
-		os.Exit(1)
-	}
-
-	reg.ListenAndServe()
+	rootCmd := registry.RootCmd.Root()
+	rootCmd.Use = "cascade"
+	rootCmd.Short = "cascade"
+	rootCmd.Long = "cascade"
+	rootCmd.Execute()
 }
