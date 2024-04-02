@@ -1,0 +1,22 @@
+version: 0.1
+storage:
+    delete:
+      enabled: true
+    cache:
+        blobdescriptor: inmemory
+    nats:
+      clienturl: :4222
+http:
+    addr: :5000
+    debug:
+        addr: :5001
+        prometheus:
+            enabled: true
+            path: /metrics
+    headers:
+        X-Content-Type-Options: [nosniff]
+health:
+  storagedriver:
+    enabled: true
+    interval: 10s
+    threshold: 3
