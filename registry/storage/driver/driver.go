@@ -360,44 +360,28 @@ func (d *driver) Walk(ctx context.Context, path string, f storagedriver.WalkFn, 
 
 // findBucket retrieves the object store backing the given path.
 func (d *driver) findBucket(ctx context.Context, path string) (jetstream.ObjectStore, error) {
-	path = strings.TrimRight(path, "/")
-	parts := strings.Split(path, sep)
-
-	workingStore := d.root
-	for i := 1; i < len(parts); i++ {
-		objs, err := workingStore.List(ctx)
-		if errors.Is(err, jetstream.ErrNoObjectsFound) {
-			return nil, storagedriver.PathNotFoundError{Path: path}
-		}
-		if err != nil {
-			return nil, err
-		}
-
-		found := false
-		for j := range objs {
-			if objs[j].Name == parts[i] {
-				if !isDirectory(objs[j]) {
-					return nil, storagedriver.PathNotFoundError{Path: path}
-				}
-				bucket, err := d.js.ObjectStore(ctx, objs[j].Opts.Link.Bucket)
-				if err != nil {
-					return nil, err
-				}
-				workingStore = bucket
-				found = true
-				break
-			}
-		}
-		if !found {
-			return nil, storagedriver.PathNotFoundError{Path: path}
-		}
+	if path == "/" {
+		return d.root, nil
 	}
 
-	return workingStore, nil
+	path = strings.TrimRight(path, sep)
+	hash := hashPath(path)
+
+	store, err := d.js.ObjectStore(ctx, hash)
+	if errors.Is(err, jetstream.ErrBucketNotFound) {
+		return nil, storagedriver.PathNotFoundError{Path: path}
+	}
+
+	return store, err
 }
 
 // makeBucket finds or creates object stores to back the given path.
 func (d *driver) makeBucket(ctx context.Context, path string) (jetstream.ObjectStore, error) {
+	store, err := d.findBucket(ctx, path)
+	if err == nil {
+		return store, nil
+	}
+
 	path = strings.TrimRight(path, "/")
 	parts := strings.Split(path, sep)
 
