@@ -386,11 +386,8 @@ func (d *driver) makeBucket(ctx context.Context, path string) (jetstream.ObjectS
 	parts := strings.Split(path, sep)
 
 	workingStore := d.root
-	// Tracking working dir to construct bucket names.
-	// Might be more efficient to keep this in a slice or something.
-	workingDir := ""
 	for i := 1; i < len(parts); i++ {
-		currentDir := strings.Join([]string{workingDir, parts[i]}, sep)
+		currentDir := strings.Join(parts[:i+1], sep)
 		config := jetstream.ObjectStoreConfig{
 			Bucket:      hashPath(currentDir),
 			Description: currentDir,
@@ -404,7 +401,6 @@ func (d *driver) makeBucket(ctx context.Context, path string) (jetstream.ObjectS
 			return nil, err
 		}
 		workingStore = bucket
-		workingDir = currentDir
 	}
 
 	return workingStore, nil
