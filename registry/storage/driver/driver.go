@@ -14,7 +14,6 @@
 package driver
 
 import (
-	"bufio"
 	"context"
 	"crypto/sha256"
 	"errors"
@@ -113,14 +112,15 @@ func (d *driver) GetContent(ctx context.Context, path string) ([]byte, error) {
 		return nil, err
 	}
 
-	data, err := workingStore.GetBytes(ctx, file)
+	reader, err := NewFileReader(ctx, workingStore, file, 0)
 	if errors.Is(err, jetstream.ErrObjectNotFound) {
 		return nil, storagedriver.PathNotFoundError{Path: path}
 	}
 	if err != nil {
 		return nil, fmt.Errorf("failed to get content '%s': %w", path, err)
 	}
-	return data, nil
+
+	return io.ReadAll(reader)
 }
 
 // PutContent stores the []byte content at a location designated by "path".
@@ -132,9 +132,26 @@ func (d *driver) PutContent(ctx context.Context, path string, content []byte) er
 		return err
 	}
 
-	_, err = workingStore.PutBytes(ctx, file, content)
-	if err != nil {
-		return err
+	if len(content) != 0 {
+		_, err = workingStore.PutBytes(ctx, file, content)
+		if err != nil {
+			return err
+		}
+	} else {
+		// Zero-byte content is a special case, it may appended to later.
+		fw, err := d.Writer(ctx, path, false)
+		if err != nil {
+			return err
+		}
+		if _, err := fw.Write(content); err != nil {
+			return err
+		}
+		if err := fw.Commit(ctx); err != nil {
+			return err
+		}
+		if err := fw.Close(); err != nil {
+			return err
+		}
 	}
 
 	return nil
@@ -150,24 +167,14 @@ func (d *driver) Reader(ctx context.Context, path string, offset int64) (io.Read
 		return nil, err
 	}
 
-	// TODO: Specify offset if store.Get ever supports it.
-	obj, err := workingStore.Get(ctx, file)
+	fr, err := NewFileReader(ctx, workingStore, file, offset)
 	if errors.Is(err, jetstream.ErrObjectNotFound) {
 		return nil, storagedriver.PathNotFoundError{Path: path}
 	}
 	if err != nil {
 		return nil, fmt.Errorf("unexpected error getting reader for path '%s': %w", path, err)
 	}
-
-	// TODO: Can cut all this once jetstream.ObjectStore.Get supports specifying offset.
-	reader := bufio.NewReader(obj)
-	// Will this be a problem...?
-	_, err = reader.Discard(int(offset))
-	if err != nil {
-		return nil, fmt.Errorf("failed to skip in file '%s' to offset %d: %w", path, offset, err)
-	}
-
-	return io.NopCloser(reader), nil
+	return fr, err
 }
 
 // Writer returns a FileWriter which will store the content written to it
@@ -184,14 +191,7 @@ func (d *driver) Writer(ctx context.Context, path string, append bool) (storaged
 		return nil, err
 	}
 
-	meta := jetstream.ObjectMeta{
-		Name: file,
-		Opts: &jetstream.ObjectMetaOptions{
-			ChunkSize: defaultChunkSize,
-		},
-	}
-
-	return newFileWriter(ctx, workingStore, meta, append)
+	return newFileWriter(ctx, workingStore, file, append)
 }
 
 // Stat retrieves the FileInfo for the given path, including the current
@@ -220,18 +220,27 @@ func (d *driver) Stat(ctx context.Context, path string) (storagedriver.FileInfo,
 		return nil, err
 	}
 
+	fi := &FileInfo{path: path, modTime: info.ModTime}
+
 	if isDirectory(info) {
-		return &FileInfo{
-			path: path,
-			dir:  true,
-		}, nil
+		fi.dir = true
+	} else if isLink(info) {
+		// Stat also has to be link-aware.
+		var size uint64
+		for i := 0; true; i++ {
+			info, err := workingStore.GetInfo(ctx, fmt.Sprintf("%s/%d", info.Name, i))
+			if errors.Is(err, jetstream.ErrObjectNotFound) {
+				break
+			}
+			if err != nil {
+				return nil, err
+			}
+			size += info.Size
+		}
+		fi.size = int64(size)
 	}
 
-	return &FileInfo{
-		path:    path,
-		size:    int64(info.Size),
-		modTime: info.ModTime,
-	}, nil
+	return fi, nil
 }
 
 // List returns a list of the objects that are direct descendants of the
@@ -269,7 +278,8 @@ func (d *driver) Move(ctx context.Context, sourcePath string, destPath string) e
 		return err
 	}
 
-	sourceObj, err := sourceWorkingStore.Get(ctx, sourceFile)
+	// Have to use a FileReader because it can handle multi-part uploads.
+	sourceObj, err := NewFileReader(ctx, sourceWorkingStore, sourceFile, 0)
 	if errors.Is(err, jetstream.ErrObjectNotFound) {
 		return storagedriver.PathNotFoundError{Path: sourcePath}
 	}
@@ -278,18 +288,6 @@ func (d *driver) Move(ctx context.Context, sourcePath string, destPath string) e
 	}
 
 	destDir, destFile := filepath.Split(destPath)
-
-	// Fast path when source and dest are in the same bucket: rename the object.
-	if sourceDir == destDir {
-		err := sourceWorkingStore.UpdateMeta(ctx, sourceFile, jetstream.ObjectMeta{
-			Name: destFile,
-		})
-		if err != nil {
-			return fmt.Errorf("failed to move '%s' to '%s': %w", sourcePath, destPath, err)
-		}
-		return nil
-	}
-
 	destWorkingStore, err := d.makeBucket(ctx, destDir)
 	if err != nil {
 		return err
@@ -301,7 +299,8 @@ func (d *driver) Move(ctx context.Context, sourcePath string, destPath string) e
 		return err
 	}
 
-	if err := sourceWorkingStore.Delete(ctx, sourceFile); err != nil {
+	// Likewise, need to use Driver's Delete because it can handle multi-part uploads.
+	if err := d.Delete(ctx, sourcePath); err != nil {
 		return fmt.Errorf("failed to delete source file '%s' after move operation: %w", sourcePath, err)
 	}
 
@@ -328,6 +327,19 @@ func (d *driver) Delete(ctx context.Context, path string) error {
 	if isDirectory(info) {
 		if err := d.deleteBucket(ctx, info.Opts.Link.Bucket); err != nil {
 			return err
+		}
+	}
+
+	// If it's a link, we must also delete the parts.
+	if isLink(info) {
+		for i := 0; true; i++ {
+			err := workingStore.Delete(ctx, fmt.Sprintf("%s/%d", info.Name, i))
+			if errors.Is(err, jetstream.ErrObjectNotFound) {
+				break
+			}
+			if err != nil {
+				return err
+			}
 		}
 	}
 
@@ -423,12 +435,6 @@ func (d *driver) deleteBucket(ctx context.Context, bucket string) error {
 			if err := d.deleteBucket(ctx, objs[i].Opts.Link.Bucket); err != nil {
 				return err
 			}
-		} else {
-			// TODO: Deleting files ourselves is probably not necessary.
-			// NATS should clean them up when the bucket gets deleted.
-			if err := store.Delete(ctx, objs[i].Name); err != nil {
-				return err
-			}
 		}
 	}
 
@@ -454,5 +460,9 @@ func hashPath(path string) string {
 }
 
 func isDirectory(info *jetstream.ObjectInfo) bool {
-	return info.Opts.Link != nil && info.Opts.Link.Bucket != ""
+	return info.Opts.Link != nil && info.Opts.Link.Name == "" && info.Opts.Link.Bucket != ""
+}
+
+func isLink(info *jetstream.ObjectInfo) bool {
+	return info.Opts.Link != nil && info.Opts.Link.Name != "" && info.Opts.Link.Bucket != ""
 }
