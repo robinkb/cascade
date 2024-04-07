@@ -220,18 +220,27 @@ func (d *driver) Stat(ctx context.Context, path string) (storagedriver.FileInfo,
 		return nil, err
 	}
 
+	fi := &FileInfo{path: path, modTime: info.ModTime}
+
 	if isDirectory(info) {
-		return &FileInfo{
-			path: path,
-			dir:  true,
-		}, nil
+		fi.dir = true
+	} else if isLink(info) {
+		// Stat also has to be link-aware.
+		var size uint64
+		for i := 0; true; i++ {
+			info, err := workingStore.GetInfo(ctx, fmt.Sprintf("%s/%d", info.Name, i))
+			if errors.Is(err, jetstream.ErrObjectNotFound) {
+				break
+			}
+			if err != nil {
+				return nil, err
+			}
+			size += info.Size
+		}
+		fi.size = int64(size)
 	}
 
-	return &FileInfo{
-		path:    path,
-		size:    int64(info.Size),
-		modTime: info.ModTime,
-	}, nil
+	return fi, nil
 }
 
 // List returns a list of the objects that are direct descendants of the
@@ -269,7 +278,8 @@ func (d *driver) Move(ctx context.Context, sourcePath string, destPath string) e
 		return err
 	}
 
-	sourceObj, err := sourceWorkingStore.Get(ctx, sourceFile)
+	// Have to use a FileReader because it can handle multi-part uploads.
+	sourceObj, err := NewFileReader(ctx, sourceWorkingStore, sourceFile, 0)
 	if errors.Is(err, jetstream.ErrObjectNotFound) {
 		return storagedriver.PathNotFoundError{Path: sourcePath}
 	}
@@ -278,18 +288,6 @@ func (d *driver) Move(ctx context.Context, sourcePath string, destPath string) e
 	}
 
 	destDir, destFile := filepath.Split(destPath)
-
-	// Fast path when source and dest are in the same bucket: rename the object.
-	if sourceDir == destDir {
-		err := sourceWorkingStore.UpdateMeta(ctx, sourceFile, jetstream.ObjectMeta{
-			Name: destFile,
-		})
-		if err != nil {
-			return fmt.Errorf("failed to move '%s' to '%s': %w", sourcePath, destPath, err)
-		}
-		return nil
-	}
-
 	destWorkingStore, err := d.makeBucket(ctx, destDir)
 	if err != nil {
 		return err
@@ -301,7 +299,8 @@ func (d *driver) Move(ctx context.Context, sourcePath string, destPath string) e
 		return err
 	}
 
-	if err := sourceWorkingStore.Delete(ctx, sourceFile); err != nil {
+	// Likewise, need to use Driver's Delete because it can handle multi-part uploads.
+	if err := d.Delete(ctx, sourcePath); err != nil {
 		return fmt.Errorf("failed to delete source file '%s' after move operation: %w", sourcePath, err)
 	}
 
