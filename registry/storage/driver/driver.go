@@ -14,7 +14,6 @@
 package driver
 
 import (
-	"bufio"
 	"context"
 	"crypto/sha256"
 	"errors"
@@ -113,14 +112,15 @@ func (d *driver) GetContent(ctx context.Context, path string) ([]byte, error) {
 		return nil, err
 	}
 
-	data, err := workingStore.GetBytes(ctx, file)
+	reader, err := NewFileReader(ctx, workingStore, file, 0)
 	if errors.Is(err, jetstream.ErrObjectNotFound) {
 		return nil, storagedriver.PathNotFoundError{Path: path}
 	}
 	if err != nil {
 		return nil, fmt.Errorf("failed to get content '%s': %w", path, err)
 	}
-	return data, nil
+
+	return io.ReadAll(reader)
 }
 
 // PutContent stores the []byte content at a location designated by "path".
@@ -150,24 +150,14 @@ func (d *driver) Reader(ctx context.Context, path string, offset int64) (io.Read
 		return nil, err
 	}
 
-	// TODO: Specify offset if store.Get ever supports it.
-	obj, err := workingStore.Get(ctx, file)
+	fr, err := NewFileReader(ctx, workingStore, file, offset)
 	if errors.Is(err, jetstream.ErrObjectNotFound) {
 		return nil, storagedriver.PathNotFoundError{Path: path}
 	}
 	if err != nil {
 		return nil, fmt.Errorf("unexpected error getting reader for path '%s': %w", path, err)
 	}
-
-	// TODO: Can cut all this once jetstream.ObjectStore.Get supports specifying offset.
-	reader := bufio.NewReader(obj)
-	// Will this be a problem...?
-	_, err = reader.Discard(int(offset))
-	if err != nil {
-		return nil, fmt.Errorf("failed to skip in file '%s' to offset %d: %w", path, offset, err)
-	}
-
-	return io.NopCloser(reader), nil
+	return fr, err
 }
 
 // Writer returns a FileWriter which will store the content written to it
@@ -184,14 +174,7 @@ func (d *driver) Writer(ctx context.Context, path string, append bool) (storaged
 		return nil, err
 	}
 
-	meta := jetstream.ObjectMeta{
-		Name: file,
-		Opts: &jetstream.ObjectMetaOptions{
-			ChunkSize: defaultChunkSize,
-		},
-	}
-
-	return newFileWriter(ctx, workingStore, meta, append)
+	return newFileWriter(ctx, workingStore, file, append)
 }
 
 // Stat retrieves the FileInfo for the given path, including the current
@@ -426,8 +409,10 @@ func (d *driver) deleteBucket(ctx context.Context, bucket string) error {
 		} else {
 			// TODO: Deleting files ourselves is probably not necessary.
 			// NATS should clean them up when the bucket gets deleted.
-			if err := store.Delete(ctx, objs[i].Name); err != nil {
-				return err
+			if !isLink(objs[i]) {
+				if err := store.Delete(ctx, objs[i].Name); err != nil {
+					return err
+				}
 			}
 		}
 	}
@@ -454,5 +439,9 @@ func hashPath(path string) string {
 }
 
 func isDirectory(info *jetstream.ObjectInfo) bool {
-	return info.Opts.Link != nil && info.Opts.Link.Bucket != ""
+	return info.Opts.Link != nil && info.Opts.Link.Name == "" && info.Opts.Link.Bucket != ""
+}
+
+func isLink(info *jetstream.ObjectInfo) bool {
+	return info.Opts.Link != nil && info.Opts.Link.Name != "" && info.Opts.Link.Bucket != ""
 }
