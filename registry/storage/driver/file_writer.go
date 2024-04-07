@@ -32,6 +32,11 @@ func newFileWriter(ctx context.Context, store jetstream.ObjectStore, name string
 	}
 
 	if append {
+		info, err := fw.obs.GetInfo(fw.ctx, fw.name)
+		if err == nil && info.Size != 0 {
+			return nil, errors.New("file already exists and is not zero-length")
+		}
+
 		for {
 			info, err := fw.obs.GetInfo(fw.ctx, fmt.Sprintf("%s/%d", fw.name, fw.index))
 			if errors.Is(err, jetstream.ErrObjectNotFound) {
@@ -109,7 +114,10 @@ func (f *FileWriter) flush() error {
 }
 
 func (f *FileWriter) Close() error {
-	return f.flush()
+	if f.buf.Len() != 0 {
+		return f.flush()
+	}
+	return nil
 }
 
 // Size returns the number of bytes written to this FileWriter.
@@ -145,6 +153,12 @@ func (f *FileWriter) Commit(context.Context) error {
 
 	info, err := f.obs.GetInfo(f.ctx, fmt.Sprintf("%s/%d", f.name, 0))
 	if err != nil {
+		return err
+	}
+
+	// Already checked that the file is safe to delete.
+	err = f.obs.Delete(f.ctx, f.name)
+	if err != nil && !errors.Is(err, jetstream.ErrObjectNotFound) {
 		return err
 	}
 

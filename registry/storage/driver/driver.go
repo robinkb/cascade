@@ -132,9 +132,26 @@ func (d *driver) PutContent(ctx context.Context, path string, content []byte) er
 		return err
 	}
 
-	_, err = workingStore.PutBytes(ctx, file, content)
-	if err != nil {
-		return err
+	if len(content) != 0 {
+		_, err = workingStore.PutBytes(ctx, file, content)
+		if err != nil {
+			return err
+		}
+	} else {
+		// Zero-byte content is a special case, it may appended to later.
+		fw, err := d.Writer(ctx, path, false)
+		if err != nil {
+			return err
+		}
+		if _, err := fw.Write(content); err != nil {
+			return err
+		}
+		if err := fw.Commit(ctx); err != nil {
+			return err
+		}
+		if err := fw.Close(); err != nil {
+			return err
+		}
 	}
 
 	return nil
