@@ -93,6 +93,12 @@ type FileReader struct {
 }
 
 func (fr *FileReader) Read(p []byte) (n int, err error) {
+	// Any attempts to read when all objects have already been read
+	// should result in 0 bytes read and EOF.
+	if len(fr.objs) <= fr.index {
+		return 0, io.EOF
+	}
+
 	n, err = fr.objs[fr.index].Read(p)
 
 	if err == io.EOF {

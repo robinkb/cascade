@@ -331,6 +331,19 @@ func (d *driver) Delete(ctx context.Context, path string) error {
 		}
 	}
 
+	// If it's a link, we must also delete the parts.
+	if isLink(info) {
+		for i := 0; true; i++ {
+			err := workingStore.Delete(ctx, fmt.Sprintf("%s/%d", info.Name, i))
+			if errors.Is(err, jetstream.ErrObjectNotFound) {
+				break
+			}
+			if err != nil {
+				return err
+			}
+		}
+	}
+
 	err = workingStore.Delete(ctx, info.Name)
 	if err != nil {
 		return err
@@ -422,14 +435,6 @@ func (d *driver) deleteBucket(ctx context.Context, bucket string) error {
 		if isDirectory(objs[i]) {
 			if err := d.deleteBucket(ctx, objs[i].Opts.Link.Bucket); err != nil {
 				return err
-			}
-		} else {
-			// TODO: Deleting files ourselves is probably not necessary.
-			// NATS should clean them up when the bucket gets deleted.
-			if !isLink(objs[i]) {
-				if err := store.Delete(ctx, objs[i].Name); err != nil {
-					return err
-				}
 			}
 		}
 	}
