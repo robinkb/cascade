@@ -273,9 +273,14 @@ func (d *driver) List(ctx context.Context, path string) ([]string, error) {
 	}
 
 	objs, err := store.List(ctx)
-	if errors.Is(err, jetstream.ErrNoObjectsFound) {
+	// TODO: Remove this when workaround obj is removed
+	if len(objs) == 1 && path == "/" {
 		return []string{}, nil
 	}
+	// TODO: This is what it should be.
+	// if errors.Is(err, jetstream.ErrNoObjectsFound) {
+	// 	return []string{}, nil
+	// }
 	if err != nil {
 		return nil, err
 	}
