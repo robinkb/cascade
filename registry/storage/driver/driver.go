@@ -36,6 +36,8 @@ const (
 
 	sep = "/"
 
+	rootStoreName = "cascade-registry-root"
+
 	defaultChunkSize = 1 * 1024 * 1024
 )
 
@@ -73,14 +75,20 @@ func New(ctx context.Context, params *Parameters) (*Driver, error) {
 		return nil, err
 	}
 
-	// The root store is a special bucket from which the directory tree begins.
 	config := jetstream.ObjectStoreConfig{
-		Bucket:      "root",
+		Bucket:      rootStoreName,
 		Description: "/",
 	}
 	root, err := js.CreateOrUpdateObjectStore(ctx, config)
 	if err != nil {
 		return nil, fmt.Errorf("failed to ensure root store exists: %w", err)
+	}
+
+	// Temporary workaround until this issue is resolved:
+	// https://github.com/nats-io/nats.go/issues/1610
+	_, err = root.PutBytes(ctx, ".", []byte{})
+	if err != nil {
+		panic(err)
 	}
 
 	d := &driver{js, root}
@@ -106,13 +114,12 @@ func (d *driver) Name() string {
 // GetContent retrieves the content stored at "path" as a []byte.
 // This should primarily be used for small objects.
 func (d *driver) GetContent(ctx context.Context, path string) ([]byte, error) {
-	dir, file := filepath.Split(path)
-	workingStore, err := d.findBucket(ctx, dir)
+	store, filename, err := d.findStore(ctx, path)
 	if err != nil {
 		return nil, err
 	}
 
-	reader, err := NewFileReader(ctx, workingStore, file, 0)
+	reader, err := NewFileReader(ctx, store, filename, 0)
 	if errors.Is(err, jetstream.ErrObjectNotFound) {
 		return nil, storagedriver.PathNotFoundError{Path: path}
 	}
@@ -126,14 +133,13 @@ func (d *driver) GetContent(ctx context.Context, path string) ([]byte, error) {
 // PutContent stores the []byte content at a location designated by "path".
 // This should primarily be used for small objects.
 func (d *driver) PutContent(ctx context.Context, path string, content []byte) error {
-	dir, file := filepath.Split(path)
-	workingStore, err := d.makeBucket(ctx, dir)
+	store, filename, err := d.makeStore(ctx, path)
 	if err != nil {
 		return err
 	}
 
 	if len(content) != 0 {
-		_, err = workingStore.PutBytes(ctx, file, content)
+		_, err = store.PutBytes(ctx, filename, content)
 		if err != nil {
 			return err
 		}
@@ -161,13 +167,12 @@ func (d *driver) PutContent(ctx context.Context, path string, content []byte) er
 // with a given byte offset.
 // May be used to resume reading a stream by providing a nonzero offset.
 func (d *driver) Reader(ctx context.Context, path string, offset int64) (io.ReadCloser, error) {
-	dir, file := filepath.Split(path)
-	workingStore, err := d.findBucket(ctx, dir)
+	store, filename, err := d.findStore(ctx, path)
 	if err != nil {
 		return nil, err
 	}
 
-	fr, err := NewFileReader(ctx, workingStore, file, offset)
+	fr, err := NewFileReader(ctx, store, filename, offset)
 	if errors.Is(err, jetstream.ErrObjectNotFound) {
 		return nil, storagedriver.PathNotFoundError{Path: path}
 	}
@@ -185,13 +190,12 @@ func (d *driver) Reader(ctx context.Context, path string, offset int64) (io.Read
 // The behaviour of appending to paths with non-empty committed content is
 // undefined. Specific implementations may document their own behavior.
 func (d *driver) Writer(ctx context.Context, path string, append bool) (storagedriver.FileWriter, error) {
-	dir, file := filepath.Split(path)
-	workingStore, err := d.makeBucket(ctx, dir)
+	store, filename, err := d.makeStore(ctx, path)
 	if err != nil {
 		return nil, err
 	}
 
-	return newFileWriter(ctx, workingStore, file, append)
+	return newFileWriter(ctx, store, filename, append)
 }
 
 // Stat retrieves the FileInfo for the given path, including the current
@@ -206,13 +210,12 @@ func (d *driver) Stat(ctx context.Context, path string) (storagedriver.FileInfo,
 		return &FileInfo{path: path, dir: true}, err
 	}
 
-	dir, file := filepath.Split(path)
-	workingStore, err := d.findBucket(ctx, dir)
+	store, filename, err := d.findStore(ctx, path)
 	if err != nil {
 		return nil, err
 	}
 
-	info, err := workingStore.GetInfo(ctx, file)
+	info, err := store.GetInfo(ctx, filename)
 	if errors.Is(err, jetstream.ErrObjectNotFound) {
 		return nil, storagedriver.PathNotFoundError{Path: path}
 	}
@@ -228,7 +231,7 @@ func (d *driver) Stat(ctx context.Context, path string) (storagedriver.FileInfo,
 		// Stat also has to be link-aware.
 		var size uint64
 		for i := 0; true; i++ {
-			info, err := workingStore.GetInfo(ctx, fmt.Sprintf("%s/%d", info.Name, i))
+			info, err := store.GetInfo(ctx, fmt.Sprintf("%s/%d", info.Name, i))
 			if errors.Is(err, jetstream.ErrObjectNotFound) {
 				break
 			}
@@ -246,12 +249,12 @@ func (d *driver) Stat(ctx context.Context, path string) (storagedriver.FileInfo,
 // List returns a list of the objects that are direct descendants of the
 // given path.
 func (d *driver) List(ctx context.Context, path string) ([]string, error) {
-	workingStore, err := d.findBucket(ctx, path)
+	store, _, err := d.findStore(ctx, path)
 	if err != nil {
 		return nil, err
 	}
 
-	objs, err := workingStore.List(ctx)
+	objs, err := store.List(ctx)
 	if errors.Is(err, jetstream.ErrNoObjectsFound) {
 		return []string{}, nil
 	}
@@ -272,14 +275,13 @@ func (d *driver) List(ctx context.Context, path string) ([]string, error) {
 // Note: This may be no more efficient than a copy followed by a delete for
 // many implementations.
 func (d *driver) Move(ctx context.Context, sourcePath string, destPath string) error {
-	sourceDir, sourceFile := filepath.Split(sourcePath)
-	sourceWorkingStore, err := d.findBucket(ctx, sourceDir)
+	sourceStore, sourceFilename, err := d.findStore(ctx, sourcePath)
 	if err != nil {
 		return err
 	}
 
 	// Have to use a FileReader because it can handle multi-part uploads.
-	sourceObj, err := NewFileReader(ctx, sourceWorkingStore, sourceFile, 0)
+	sourceObj, err := NewFileReader(ctx, sourceStore, sourceFilename, 0)
 	if errors.Is(err, jetstream.ErrObjectNotFound) {
 		return storagedriver.PathNotFoundError{Path: sourcePath}
 	}
@@ -287,14 +289,13 @@ func (d *driver) Move(ctx context.Context, sourcePath string, destPath string) e
 		return fmt.Errorf("unexpected error getting reader for path '%s': %w", sourcePath, err)
 	}
 
-	destDir, destFile := filepath.Split(destPath)
-	destWorkingStore, err := d.makeBucket(ctx, destDir)
+	destStore, destFilename, err := d.makeStore(ctx, destPath)
 	if err != nil {
 		return err
 	}
 
-	meta := jetstream.ObjectMeta{Name: destFile}
-	_, err = destWorkingStore.Put(ctx, meta, sourceObj)
+	meta := jetstream.ObjectMeta{Name: destFilename}
+	_, err = destStore.Put(ctx, meta, sourceObj)
 	if err != nil {
 		return err
 	}
@@ -309,43 +310,45 @@ func (d *driver) Move(ctx context.Context, sourcePath string, destPath string) e
 
 // Delete recursively deletes all objects stored at "path" and its subpaths.
 func (d *driver) Delete(ctx context.Context, path string) error {
-	dir, file := filepath.Split(path)
-	workingStore, err := d.findBucket(ctx, dir)
+	store, filename, err := d.findStore(ctx, path)
 	if err != nil {
 		return err
 	}
 
-	info, err := workingStore.GetInfo(ctx, file)
-	if errors.Is(err, jetstream.ErrObjectNotFound) {
-		return storagedriver.PathNotFoundError{}
-	}
-	if err != nil {
-		return err
-	}
-
-	// If it's a directory, we must recurse into it and delete it.
-	if isDirectory(info) {
-		if err := d.deleteBucket(ctx, info.Opts.Link.Bucket); err != nil {
-			return err
-		}
-	}
-
-	// If it's a link, we must also delete the parts.
-	if isLink(info) {
-		for i := 0; true; i++ {
-			err := workingStore.Delete(ctx, fmt.Sprintf("%s/%d", info.Name, i))
-			if errors.Is(err, jetstream.ErrObjectNotFound) {
-				break
+	info, err := store.GetInfo(ctx, filename)
+	if err == nil {
+		// If it's a link, we must also delete the parts.
+		if isLink(info) {
+			for i := 0; true; i++ {
+				err := store.Delete(ctx, fmt.Sprintf("%s/%d", info.Name, i))
+				if errors.Is(err, jetstream.ErrObjectNotFound) {
+					break
+				}
+				if err != nil {
+					return err
+				}
 			}
+		}
+
+		return store.Delete(ctx, info.Name)
+	}
+	if !errors.Is(err, jetstream.ErrObjectNotFound) {
+		return err
+	}
+
+	// Object not found, but the given path may be a directory.
+	objects, err := store.List(ctx)
+	if err != nil {
+		return err
+	}
+
+	for i := range objects {
+		if strings.HasPrefix(objects[i].Name, path) {
+			err := store.Delete(ctx, objects[i].Name)
 			if err != nil {
 				return err
 			}
 		}
-	}
-
-	err = workingStore.Delete(ctx, info.Name)
-	if err != nil {
-		return err
 	}
 
 	return nil
@@ -370,52 +373,14 @@ func (d *driver) Walk(ctx context.Context, path string, f storagedriver.WalkFn, 
 	return storagedriver.WalkFallback(ctx, d, path, f, options...)
 }
 
-// findBucket retrieves the object store backing the given path.
-func (d *driver) findBucket(ctx context.Context, path string) (jetstream.ObjectStore, error) {
-	if path == "/" {
-		return d.root, nil
-	}
-
-	path = strings.TrimRight(path, sep)
-	hash := hashPath(path)
-
-	store, err := d.js.ObjectStore(ctx, hash)
-	if errors.Is(err, jetstream.ErrBucketNotFound) {
-		return nil, storagedriver.PathNotFoundError{Path: path}
-	}
-
-	return store, err
+// findStore retrieves the object store backing the given path.
+func (d *driver) findStore(ctx context.Context, path string) (jetstream.ObjectStore, string, error) {
+	return d.root, path, nil
 }
 
 // makeBucket finds or creates object stores to back the given path.
-func (d *driver) makeBucket(ctx context.Context, path string) (jetstream.ObjectStore, error) {
-	store, err := d.findBucket(ctx, path)
-	if err == nil {
-		return store, nil
-	}
-
-	path = strings.TrimRight(path, "/")
-	parts := strings.Split(path, sep)
-
-	workingStore := d.root
-	for i := 1; i < len(parts); i++ {
-		currentDir := strings.Join(parts[:i+1], sep)
-		config := jetstream.ObjectStoreConfig{
-			Bucket:      hashPath(currentDir),
-			Description: currentDir,
-		}
-		bucket, err := d.js.CreateOrUpdateObjectStore(ctx, config)
-		if err != nil {
-			return nil, err
-		}
-		_, err = workingStore.AddBucketLink(ctx, parts[i], bucket)
-		if err != nil {
-			return nil, err
-		}
-		workingStore = bucket
-	}
-
-	return workingStore, nil
+func (d *driver) makeStore(ctx context.Context, path string) (jetstream.ObjectStore, string, error) {
+	return d.findStore(ctx, path)
 }
 
 // deleteBucket recursively removes all buckets under the given bucket.
