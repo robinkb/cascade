@@ -365,13 +365,19 @@ func (d *driver) Delete(ctx context.Context, path string) error {
 		return err
 	}
 
+	deleted := false
 	for i := range objects {
-		if strings.HasPrefix(objects[i].Name, path) {
+		if strings.HasPrefix(objects[i].Name, path+"/") {
 			err := store.Delete(ctx, objects[i].Name)
 			if err != nil {
 				return err
 			}
+			deleted = true
 		}
+	}
+
+	if !deleted {
+		return storagedriver.PathNotFoundError{Path: path}
 	}
 
 	return nil
