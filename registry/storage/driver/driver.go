@@ -265,8 +265,15 @@ func (d *driver) List(ctx context.Context, path string) ([]string, error) {
 	files := make([]string, 0)
 	for i := range objs {
 		if strings.HasPrefix(objs[i].Name, path) {
-			idx := strings.Index(objs[i].Name[len(path):], "/")
-			files = append(files, filepath.Join(path, objs[i].Name[len(path):idx+1]))
+			start := len(path) + 1
+			if path == "/" {
+				start = 1
+			}
+			idx := strings.Index(objs[i].Name[start:], "/")
+			if idx == -1 {
+				idx = len(objs[i].Name) - start
+			}
+			files = append(files, filepath.Join(path, objs[i].Name[len(path):start+idx]))
 		}
 	}
 
@@ -274,16 +281,16 @@ func (d *driver) List(ctx context.Context, path string) ([]string, error) {
 		return nil, storagedriver.PathNotFoundError{Path: path}
 	}
 
-	// keys := make(map[string]bool)
-	// distinct := make([]string, 0)
-	// for i := range files {
-	// 	if _, v := keys[files[i]]; !v {
-	// 		keys[files[i]] = true
-	// 		distinct = append(distinct, files[i])
-	// 	}
-	// }
+	keys := make(map[string]bool)
+	distinct := make([]string, 0)
+	for i := range files {
+		if _, v := keys[files[i]]; !v {
+			keys[files[i]] = true
+			distinct = append(distinct, files[i])
+		}
+	}
 
-	return files, nil
+	return distinct, nil
 }
 
 // Move moves an object stored at sourcePath to destPath, removing the
