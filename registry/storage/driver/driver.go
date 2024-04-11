@@ -262,10 +262,26 @@ func (d *driver) List(ctx context.Context, path string) ([]string, error) {
 		return nil, err
 	}
 
-	files := make([]string, len(objs))
+	files := make([]string, 0)
 	for i := range objs {
-		files[i] = filepath.Join(path, objs[i].Name)
+		if strings.HasPrefix(objs[i].Name, path) {
+			idx := strings.Index(objs[i].Name[len(path):], "/")
+			files = append(files, filepath.Join(path, objs[i].Name[len(path):idx+1]))
+		}
 	}
+
+	if len(files) == 0 {
+		return nil, storagedriver.PathNotFoundError{Path: path}
+	}
+
+	// keys := make(map[string]bool)
+	// distinct := make([]string, 0)
+	// for i := range files {
+	// 	if _, v := keys[files[i]]; !v {
+	// 		keys[files[i]] = true
+	// 		distinct = append(distinct, files[i])
+	// 	}
+	// }
 
 	return files, nil
 }
