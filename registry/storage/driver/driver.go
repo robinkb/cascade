@@ -15,7 +15,6 @@ package driver
 
 import (
 	"context"
-	"crypto/sha256"
 	"errors"
 	"fmt"
 	"io"
@@ -435,29 +434,6 @@ func (d *driver) makeStore(ctx context.Context, path string) (jetstream.ObjectSt
 	return d.findStore(ctx, path)
 }
 
-// deleteBucket recursively removes all buckets under the given bucket.
-func (d *driver) deleteBucket(ctx context.Context, bucket string) error {
-	store, err := d.js.ObjectStore(ctx, bucket)
-	if err != nil {
-		return err
-	}
-
-	objs, err := store.List(ctx)
-	if err != nil && !errors.Is(err, jetstream.ErrNoObjectsFound) {
-		return err
-	}
-
-	for i := range objs {
-		if isDirectory(objs[i]) {
-			if err := d.deleteBucket(ctx, objs[i].Opts.Link.Bucket); err != nil {
-				return err
-			}
-		}
-	}
-
-	return d.js.DeleteObjectStore(ctx, bucket)
-}
-
 func newJetStream(params *Parameters) (jetstream.JetStream, error) {
 	nc, err := nats.Connect(params.ClientURL)
 	if err != nil {
@@ -470,14 +446,6 @@ func newJetStream(params *Parameters) (jetstream.JetStream, error) {
 	}
 
 	return js, err
-}
-
-func hashPath(path string) string {
-	return fmt.Sprintf("%x", sha256.Sum256([]byte(path)))
-}
-
-func isDirectory(info *jetstream.ObjectInfo) bool {
-	return info.Opts.Link != nil && info.Opts.Link.Name == "" && info.Opts.Link.Bucket != ""
 }
 
 func isLink(info *jetstream.ObjectInfo) bool {
