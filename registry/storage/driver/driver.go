@@ -216,34 +216,52 @@ func (d *driver) Stat(ctx context.Context, path string) (storagedriver.FileInfo,
 	}
 
 	info, err := store.GetInfo(ctx, filename)
-	if errors.Is(err, jetstream.ErrObjectNotFound) {
+	if err == nil {
+		fi := &FileInfo{path: path, modTime: info.ModTime}
+
+		if isLink(info) {
+			// Find all the parts and add their sizes.
+			var size uint64
+			for i := 0; true; i++ {
+				info, err := store.GetInfo(ctx, fmt.Sprintf("%s/%d", info.Name, i))
+				if errors.Is(err, jetstream.ErrObjectNotFound) {
+					break
+				}
+				if err != nil {
+					return nil, err
+				}
+				size += info.Size
+			}
+			fi.size = int64(size)
+		} else {
+			fi.size = int64(info.Size)
+		}
+
+		return fi, nil
+	}
+	if !errors.Is(err, jetstream.ErrObjectNotFound) {
+		return nil, err
+	}
+
+	files, err := store.List(ctx)
+	if errors.Is(err, jetstream.ErrNoObjectsFound) {
 		return nil, storagedriver.PathNotFoundError{Path: path}
 	}
 	if err != nil {
 		return nil, err
 	}
 
-	fi := &FileInfo{path: path, modTime: info.ModTime}
-
-	if isDirectory(info) {
-		fi.dir = true
-	} else if isLink(info) {
-		// Stat also has to be link-aware.
-		var size uint64
-		for i := 0; true; i++ {
-			info, err := store.GetInfo(ctx, fmt.Sprintf("%s/%d", info.Name, i))
-			if errors.Is(err, jetstream.ErrObjectNotFound) {
-				break
-			}
-			if err != nil {
-				return nil, err
-			}
-			size += info.Size
+	dirName := path + sep
+	for i := range files {
+		if strings.HasPrefix(files[i].Name, dirName) {
+			return &FileInfo{
+				path: path,
+				dir:  true,
+			}, nil
 		}
-		fi.size = int64(size)
 	}
 
-	return fi, nil
+	return nil, storagedriver.PathNotFoundError{Path: path}
 }
 
 // List returns a list of the objects that are direct descendants of the
