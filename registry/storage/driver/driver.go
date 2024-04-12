@@ -113,17 +113,12 @@ func (d *driver) Name() string {
 // GetContent retrieves the content stored at "path" as a []byte.
 // This should primarily be used for small objects.
 func (d *driver) GetContent(ctx context.Context, path string) ([]byte, error) {
-	store, filename, err := d.findStore(ctx, path)
+	// GetContent may be used to fetch a multipart object,
+	// so we must use the objectReader to handle that,
+	// exactly like driver.Reader().
+	reader, err := d.Reader(ctx, path, 0)
 	if err != nil {
 		return nil, err
-	}
-
-	reader, err := newObjectReader(ctx, store, filename, 0)
-	if errors.Is(err, jetstream.ErrObjectNotFound) {
-		return nil, storagedriver.PathNotFoundError{Path: path}
-	}
-	if err != nil {
-		return nil, fmt.Errorf("failed to get content '%s': %w", path, err)
 	}
 
 	return io.ReadAll(reader)
