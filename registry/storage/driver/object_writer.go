@@ -61,12 +61,24 @@ type objectWriter struct {
 	buf   *bytes.Buffer
 	index int
 	size  int64
+
+	committed bool
+	cancelled bool
+	closed    bool
 }
 
 // Make sure that we satisfy the interface.
 var _ storagedriver.FileWriter = &objectWriter{}
 
 func (obw *objectWriter) Write(data []byte) (int, error) {
+	if obw.closed {
+		return 0, fmt.Errorf("already closed")
+	} else if obw.committed {
+		return 0, fmt.Errorf("already committed")
+	} else if obw.cancelled {
+		return 0, fmt.Errorf("already cancelled")
+	}
+
 	// n is the amount of bytes written during this Write call
 	var n int
 	// w is the bytes written in a loop
@@ -115,6 +127,11 @@ func (obw *objectWriter) flush() error {
 }
 
 func (obw *objectWriter) Close() error {
+	if obw.closed {
+		return fmt.Errorf("already closed")
+	}
+	obw.closed = true
+
 	if obw.buf.Len() != 0 {
 		return obw.flush()
 	}
@@ -128,6 +145,13 @@ func (obw *objectWriter) Size() int64 {
 
 // Cancel removes any written content from this FileWriter.
 func (obw *objectWriter) Cancel(ctx context.Context) error {
+	if obw.closed {
+		return fmt.Errorf("already closed")
+	} else if obw.committed {
+		return fmt.Errorf("already committed")
+	}
+	obw.cancelled = true
+
 	errs := make([]error, 0)
 	for i := 0; i < obw.index; i++ {
 		err := obw.obs.Delete(ctx, fmt.Sprintf("%s/%d", obw.name, i))
@@ -148,6 +172,15 @@ func (obw *objectWriter) Cancel(ctx context.Context) error {
 // available for future calls to StorageDriver.GetContent and
 // StorageDriver.Reader.
 func (obw *objectWriter) Commit(context.Context) error {
+	if obw.closed {
+		return fmt.Errorf("already closed")
+	} else if obw.committed {
+		return fmt.Errorf("already committed")
+	} else if obw.cancelled {
+		return fmt.Errorf("already cancelled")
+	}
+	obw.committed = true
+
 	if err := obw.flush(); err != nil {
 		return err
 	}
