@@ -33,8 +33,8 @@ func newFileWriter(ctx context.Context, store jetstream.ObjectStore, name string
 
 	if append {
 		info, err := fw.obs.GetInfo(fw.ctx, fw.name)
-		if err == nil && info.Size != 0 {
-			return nil, errors.New("file already exists and is not zero-length")
+		if err == nil && !isLink(info) {
+			return nil, errors.New("file already exists and is not a link")
 		}
 
 		for {
