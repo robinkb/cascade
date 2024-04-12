@@ -23,15 +23,15 @@ import (
 	"github.com/nats-io/nats.go/jetstream"
 )
 
-func NewFileReader(ctx context.Context, obs jetstream.ObjectStore, name string, offset int64) (*FileReader, error) {
-	fr := &FileReader{
+func newObjectReader(ctx context.Context, obs jetstream.ObjectStore, name string, offset int64) (*objectReader, error) {
+	obr := &objectReader{
 		ctx:  ctx,
 		obs:  obs,
 		name: name,
 		objs: make([]jetstream.ObjectResult, 0),
 	}
 
-	info, err := obs.GetInfo(fr.ctx, fr.name)
+	info, err := obs.GetInfo(ctx, name)
 	if err != nil {
 		return nil, err
 	}
@@ -39,7 +39,7 @@ func NewFileReader(ctx context.Context, obs jetstream.ObjectStore, name string, 
 	if isLink(info) {
 		var index int
 		for {
-			obj, err := obs.Get(ctx, fmt.Sprintf("%s/%d", fr.name, index))
+			obj, err := obs.Get(ctx, fmt.Sprintf("%s/%d", name, index))
 			if errors.Is(err, jetstream.ErrObjectNotFound) {
 				// No more parts to find.
 				break
@@ -48,38 +48,38 @@ func NewFileReader(ctx context.Context, obs jetstream.ObjectStore, name string, 
 				return nil, err
 			}
 			index++
-			fr.objs = append(fr.objs, obj)
+			obr.objs = append(obr.objs, obj)
 		}
 	} else {
 		obj, err := obs.Get(ctx, name)
 		if err != nil {
 			return nil, err
 		}
-		fr.objs = []jetstream.ObjectResult{obj}
+		obr.objs = []jetstream.ObjectResult{obj}
 	}
 
 	if offset != 0 {
 		var seek int64
-		for i := range fr.objs {
-			info, err := fr.objs[i].Info()
+		for i := range obr.objs {
+			info, err := obr.objs[i].Info()
 			if err != nil {
 				return nil, err
 			}
 
 			if seek+int64(info.Size) > offset {
-				io.CopyN(io.Discard, fr.objs[i], offset-seek)
+				io.CopyN(io.Discard, obr.objs[i], offset-seek)
 			} else {
 				seek += int64(info.Size)
-				fr.index++
+				obr.index++
 				continue
 			}
 		}
 	}
 
-	return fr, nil
+	return obr, nil
 }
 
-type FileReader struct {
+type objectReader struct {
 	io.ReadCloser
 
 	ctx  context.Context
@@ -92,23 +92,23 @@ type FileReader struct {
 	errs []error
 }
 
-func (fr *FileReader) Read(p []byte) (n int, err error) {
+func (obr *objectReader) Read(p []byte) (n int, err error) {
 	// Any attempts to read when all objects have already been read
 	// should result in 0 bytes read and EOF.
-	if len(fr.objs) <= fr.index {
+	if len(obr.objs) <= obr.index {
 		return 0, io.EOF
 	}
 
-	n, err = fr.objs[fr.index].Read(p)
+	n, err = obr.objs[obr.index].Read(p)
 
 	if err == io.EOF {
-		if err := fr.objs[fr.index].Close(); err != nil {
-			fr.errs = append(fr.errs, err)
+		if err := obr.objs[obr.index].Close(); err != nil {
+			obr.errs = append(obr.errs, err)
 		}
 
-		fr.index++
+		obr.index++
 		// If there are more objects to read, clear the EOF error
-		if len(fr.objs) != fr.index {
+		if len(obr.objs) != obr.index {
 			err = nil
 		}
 	}
@@ -116,10 +116,10 @@ func (fr *FileReader) Read(p []byte) (n int, err error) {
 	return n, err
 }
 
-func (fr *FileReader) Close() error {
-	if len(fr.errs) > 0 {
-		fr.errs = append([]error{errors.New("failed to close object")}, fr.errs...)
-		return errors.Join(fr.errs...)
+func (obr *objectReader) Close() error {
+	if len(obr.errs) > 0 {
+		obr.errs = append([]error{errors.New("failed to close object")}, obr.errs...)
+		return errors.Join(obr.errs...)
 	}
 
 	return nil

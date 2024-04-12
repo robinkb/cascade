@@ -118,7 +118,7 @@ func (d *driver) GetContent(ctx context.Context, path string) ([]byte, error) {
 		return nil, err
 	}
 
-	reader, err := NewFileReader(ctx, store, filename, 0)
+	reader, err := newObjectReader(ctx, store, filename, 0)
 	if errors.Is(err, jetstream.ErrObjectNotFound) {
 		return nil, storagedriver.PathNotFoundError{Path: path}
 	}
@@ -171,7 +171,7 @@ func (d *driver) Reader(ctx context.Context, path string, offset int64) (io.Read
 		return nil, err
 	}
 
-	fr, err := NewFileReader(ctx, store, filename, offset)
+	fr, err := newObjectReader(ctx, store, filename, offset)
 	if errors.Is(err, jetstream.ErrObjectNotFound) {
 		return nil, storagedriver.PathNotFoundError{Path: path}
 	}
@@ -194,7 +194,7 @@ func (d *driver) Writer(ctx context.Context, path string, append bool) (storaged
 		return nil, err
 	}
 
-	return newFileWriter(ctx, store, filename, append)
+	return newObjectWriter(ctx, store, filename, append)
 }
 
 // Stat retrieves the FileInfo for the given path, including the current
@@ -204,9 +204,16 @@ func (d *driver) Stat(ctx context.Context, path string) (storagedriver.FileInfo,
 	// allowed to end with a slash. We're still getting the info from
 	// the backend because the storage health check calls Stat("/"),
 	// and we should actually try to call the backend.
+	fi := storagedriver.FileInfoInternal{
+		FileInfoFields: storagedriver.FileInfoFields{
+			Path: path,
+		},
+	}
+
 	if path == "/" {
 		_, err := d.root.Status(ctx)
-		return &FileInfo{path: path, dir: true}, err
+		fi.FileInfoFields.IsDir = true
+		return fi, err
 	}
 
 	store, filename, err := d.findStore(ctx, path)
@@ -216,7 +223,7 @@ func (d *driver) Stat(ctx context.Context, path string) (storagedriver.FileInfo,
 
 	info, err := store.GetInfo(ctx, filename)
 	if err == nil {
-		fi := &FileInfo{path: path, modTime: info.ModTime}
+		fi.FileInfoFields.ModTime = info.ModTime
 
 		if isLink(info) {
 			// Find all the parts and add their sizes.
@@ -231,9 +238,9 @@ func (d *driver) Stat(ctx context.Context, path string) (storagedriver.FileInfo,
 				}
 				size += info.Size
 			}
-			fi.size = int64(size)
+			fi.FileInfoFields.Size = int64(size)
 		} else {
-			fi.size = int64(info.Size)
+			fi.FileInfoFields.Size = int64(info.Size)
 		}
 
 		return fi, nil
@@ -253,10 +260,8 @@ func (d *driver) Stat(ctx context.Context, path string) (storagedriver.FileInfo,
 	dirName := path + sep
 	for i := range files {
 		if strings.HasPrefix(files[i].Name, dirName) {
-			return &FileInfo{
-				path: path,
-				dir:  true,
-			}, nil
+			fi.FileInfoFields.IsDir = true
+			return fi, nil
 		}
 	}
 
@@ -326,7 +331,7 @@ func (d *driver) Move(ctx context.Context, sourcePath string, destPath string) e
 	}
 
 	// Have to use a FileReader because it can handle multi-part uploads.
-	sourceObj, err := NewFileReader(ctx, sourceStore, sourceFilename, 0)
+	sourceObj, err := newObjectReader(ctx, sourceStore, sourceFilename, 0)
 	if errors.Is(err, jetstream.ErrObjectNotFound) {
 		return storagedriver.PathNotFoundError{Path: sourcePath}
 	}

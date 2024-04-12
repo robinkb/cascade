@@ -23,8 +23,8 @@ import (
 	"github.com/nats-io/nats.go/jetstream"
 )
 
-func newFileWriter(ctx context.Context, store jetstream.ObjectStore, name string, append bool) (*FileWriter, error) {
-	fw := &FileWriter{
+func newObjectWriter(ctx context.Context, store jetstream.ObjectStore, name string, append bool) (*objectWriter, error) {
+	fw := &objectWriter{
 		ctx:  ctx,
 		obs:  store,
 		name: name,
@@ -53,7 +53,7 @@ func newFileWriter(ctx context.Context, store jetstream.ObjectStore, name string
 	return fw, nil
 }
 
-type FileWriter struct {
+type objectWriter struct {
 	ctx  context.Context
 	obs  jetstream.ObjectStore
 	name string
@@ -63,24 +63,25 @@ type FileWriter struct {
 	size  int64
 }
 
-var _ storagedriver.FileWriter = &FileWriter{}
+// Make sure that we satisfy the interface.
+var _ storagedriver.FileWriter = &objectWriter{}
 
-func (f *FileWriter) Write(data []byte) (int, error) {
+func (obw *objectWriter) Write(data []byte) (int, error) {
 	// n is the amount of bytes written during this Write call
 	var n int
 	// w is the bytes written in a loop
 	var w int
 	for {
-		if f.buf.Available() < len(data)-n {
-			w, _ = f.buf.Write(data[n : n+f.buf.Available()])
+		if obw.buf.Available() < len(data)-n {
+			w, _ = obw.buf.Write(data[n : n+obw.buf.Available()])
 		} else {
-			w, _ = f.buf.Write(data[n:])
+			w, _ = obw.buf.Write(data[n:])
 		}
 		n += w
 
 		// Add chunk if the buffer is full
-		if f.buf.Available() == 0 {
-			err := f.flush()
+		if obw.buf.Available() == 0 {
+			err := obw.flush()
 			if err != nil {
 				return 0, err
 			}
@@ -94,42 +95,42 @@ func (f *FileWriter) Write(data []byte) (int, error) {
 	return w, nil
 }
 
-func (f *FileWriter) flush() error {
+func (obw *objectWriter) flush() error {
 	meta := jetstream.ObjectMeta{
-		Name: fmt.Sprintf("%s/%d", f.name, f.index),
+		Name: fmt.Sprintf("%s/%d", obw.name, obw.index),
 		Opts: &jetstream.ObjectMetaOptions{
 			ChunkSize: defaultChunkSize,
 		},
 	}
 
-	info, err := f.obs.Put(f.ctx, meta, f.buf)
+	info, err := obw.obs.Put(obw.ctx, meta, obw.buf)
 	if err != nil {
 		return err
 	}
-	f.index++
-	f.size += int64(info.Size)
-	f.buf.Reset()
+	obw.index++
+	obw.size += int64(info.Size)
+	obw.buf.Reset()
 
 	return nil
 }
 
-func (f *FileWriter) Close() error {
-	if f.buf.Len() != 0 {
-		return f.flush()
+func (obw *objectWriter) Close() error {
+	if obw.buf.Len() != 0 {
+		return obw.flush()
 	}
 	return nil
 }
 
 // Size returns the number of bytes written to this FileWriter.
-func (f *FileWriter) Size() int64 {
-	return f.size
+func (obw *objectWriter) Size() int64 {
+	return obw.size
 }
 
 // Cancel removes any written content from this FileWriter.
-func (f *FileWriter) Cancel(ctx context.Context) error {
+func (obw *objectWriter) Cancel(ctx context.Context) error {
 	errs := make([]error, 0)
-	for i := 0; i < f.index; i++ {
-		err := f.obs.Delete(ctx, fmt.Sprintf("%s/%d", f.name, i))
+	for i := 0; i < obw.index; i++ {
+		err := obw.obs.Delete(ctx, fmt.Sprintf("%s/%d", obw.name, i))
 		if err != nil {
 			errs = append(errs, err)
 		}
@@ -146,22 +147,22 @@ func (f *FileWriter) Cancel(ctx context.Context) error {
 // Commit flushes all content written to this FileWriter and makes it
 // available for future calls to StorageDriver.GetContent and
 // StorageDriver.Reader.
-func (f *FileWriter) Commit(context.Context) error {
-	if err := f.flush(); err != nil {
+func (obw *objectWriter) Commit(context.Context) error {
+	if err := obw.flush(); err != nil {
 		return err
 	}
 
-	info, err := f.obs.GetInfo(f.ctx, fmt.Sprintf("%s/%d", f.name, 0))
+	info, err := obw.obs.GetInfo(obw.ctx, fmt.Sprintf("%s/%d", obw.name, 0))
 	if err != nil {
 		return err
 	}
 
 	// Already checked that the file is safe to delete.
-	err = f.obs.Delete(f.ctx, f.name)
+	err = obw.obs.Delete(obw.ctx, obw.name)
 	if err != nil && !errors.Is(err, jetstream.ErrObjectNotFound) {
 		return err
 	}
 
-	_, err = f.obs.AddLink(f.ctx, f.name, info)
+	_, err = obw.obs.AddLink(obw.ctx, obw.name, info)
 	return err
 }
