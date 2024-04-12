@@ -17,7 +17,9 @@ package driver
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
+	"strconv"
 
 	"github.com/nats-io/nats.go/jetstream"
 )
@@ -35,11 +37,15 @@ func newObjectReader(ctx context.Context, obs jetstream.ObjectStore, name string
 	}
 
 	if isMultipart(info) {
-		parts := info.Headers.Values(multipartHeader)
-		obr.objs = make([]jetstream.ObjectResult, len(parts))
+		parts, err := strconv.Atoi(info.Headers.Get(multipartHeader))
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse multipart header: %w", err)
+		}
 
-		for i, part := range parts {
-			obj, err := obs.Get(ctx, part)
+		obr.objs = make([]jetstream.ObjectResult, parts)
+
+		for i := 0; i < parts; i++ {
+			obj, err := obs.Get(ctx, fmt.Sprintf(multipartTemplate, obr.name, i))
 			if err != nil {
 				return nil, err
 			}
@@ -54,7 +60,7 @@ func newObjectReader(ctx context.Context, obs jetstream.ObjectStore, name string
 	}
 
 	if offset != 0 {
-		// An ObjectReader may consistent of multiple parts.
+		// An ObjectReader may consist of multiple parts.
 		// When reading from an offset, we need to find in which part
 		// the offset falls in, and start reading from there.
 		// If the offset is greater than the multipart length,

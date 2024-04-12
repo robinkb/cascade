@@ -18,6 +18,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strconv"
 
 	storagedriver "github.com/distribution/distribution/v3/registry/storage/driver"
 	"github.com/nats-io/nats.go"
@@ -27,7 +28,7 @@ import (
 const (
 	multipartHeader   = "Cascade-Registry-Multipart"
 	multipartTemplate = "%s/%d"
-	writeBufferSize   = 32 * 1024 * 1024
+	writeBufferSize   = 64 * 1024 * 1024
 )
 
 func newObjectWriter(ctx context.Context, store jetstream.ObjectStore, name string, append bool) (*objectWriter, error) {
@@ -47,10 +48,13 @@ func newObjectWriter(ctx context.Context, store jetstream.ObjectStore, name stri
 			return nil, errors.New("file already exists and is not a multipart file")
 		}
 
-		parts := info.Headers.Values(multipartHeader)
+		parts, err := strconv.Atoi(info.Headers.Get(multipartHeader))
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse multipart header: %w", err)
+		}
 
-		for _, part := range parts {
-			info, err := fw.obs.GetInfo(fw.ctx, part)
+		for i := 0; i < parts; i++ {
+			info, err := fw.obs.GetInfo(fw.ctx, fmt.Sprintf(multipartTemplate, name, i))
 			if err != nil {
 				return nil, err
 			}
@@ -147,9 +151,7 @@ func (obw *objectWriter) Close() error {
 	}
 
 	headers := nats.Header{}
-	for i := 0; i < obw.index; i++ {
-		headers.Add(multipartHeader, fmt.Sprintf(multipartTemplate, obw.name, i))
-	}
+	headers.Set(multipartHeader, strconv.Itoa(obw.index))
 	meta := jetstream.ObjectMeta{
 		Name:    obw.name,
 		Headers: headers,
