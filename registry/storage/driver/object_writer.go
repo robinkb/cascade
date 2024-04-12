@@ -27,6 +27,7 @@ import (
 const (
 	multipartHeader   = "Cascade-Registry-Multipart"
 	multipartTemplate = "%s/%d"
+	writeBufferSize   = 32 * 1024 * 1024
 )
 
 func newObjectWriter(ctx context.Context, store jetstream.ObjectStore, name string, append bool) (*objectWriter, error) {
@@ -34,7 +35,7 @@ func newObjectWriter(ctx context.Context, store jetstream.ObjectStore, name stri
 		ctx:  ctx,
 		obs:  store,
 		name: name,
-		buf:  bytes.NewBuffer(make([]byte, 0, 32*1024*1024)),
+		buf:  bytes.NewBuffer(make([]byte, 0, writeBufferSize)),
 	}
 
 	if append {
@@ -127,6 +128,7 @@ func (obw *objectWriter) flush() error {
 	if err != nil {
 		return err
 	}
+
 	obw.index++
 	obw.size += int64(info.Size)
 	obw.buf.Reset()
@@ -140,10 +142,20 @@ func (obw *objectWriter) Close() error {
 	}
 	obw.closed = true
 
-	if obw.buf.Len() != 0 {
-		return obw.flush()
+	if err := obw.flush(); err != nil {
+		return err
 	}
-	return nil
+
+	headers := nats.Header{}
+	for i := 0; i < obw.index; i++ {
+		headers.Add(multipartHeader, fmt.Sprintf(multipartTemplate, obw.name, i))
+	}
+	meta := jetstream.ObjectMeta{
+		Name:    obw.name,
+		Headers: headers,
+	}
+	_, err := obw.obs.Put(obw.ctx, meta, bytes.NewReader(nil))
+	return err
 }
 
 // Size returns the number of bytes written to this FileWriter.
@@ -179,6 +191,8 @@ func (obw *objectWriter) Cancel(ctx context.Context) error {
 // Commit flushes all content written to this FileWriter and makes it
 // available for future calls to StorageDriver.GetContent and
 // StorageDriver.Reader.
+//
+// Having a separate commit call does not really make sense for my implementation.
 func (obw *objectWriter) Commit(context.Context) error {
 	if obw.closed {
 		return fmt.Errorf("already closed")
@@ -189,20 +203,7 @@ func (obw *objectWriter) Commit(context.Context) error {
 	}
 	obw.committed = true
 
-	if err := obw.flush(); err != nil {
-		return err
-	}
-
-	headers := nats.Header{}
-	for i := 0; i < obw.index; i++ {
-		headers.Add(multipartHeader, fmt.Sprintf(multipartTemplate, obw.name, i))
-	}
-	meta := jetstream.ObjectMeta{
-		Name:    obw.name,
-		Headers: headers,
-	}
-	_, err := obw.obs.Put(obw.ctx, meta, bytes.NewReader(nil))
-	return err
+	return nil
 }
 
 func isMultipart(info *jetstream.ObjectInfo) bool {

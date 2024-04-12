@@ -27,7 +27,6 @@ func newObjectReader(ctx context.Context, obs jetstream.ObjectStore, name string
 		ctx:  ctx,
 		obs:  obs,
 		name: name,
-		objs: make([]jetstream.ObjectResult, 0),
 	}
 
 	info, err := obs.GetInfo(ctx, name)
@@ -37,13 +36,14 @@ func newObjectReader(ctx context.Context, obs jetstream.ObjectStore, name string
 
 	if isMultipart(info) {
 		parts := info.Headers.Values(multipartHeader)
+		obr.objs = make([]jetstream.ObjectResult, len(parts))
 
-		for _, part := range parts {
+		for i, part := range parts {
 			obj, err := obs.Get(ctx, part)
 			if err != nil {
 				return nil, err
 			}
-			obr.objs = append(obr.objs, obj)
+			obr.objs[i] = obj
 		}
 	} else {
 		obj, err := obs.Get(ctx, name)
@@ -54,19 +54,32 @@ func newObjectReader(ctx context.Context, obs jetstream.ObjectStore, name string
 	}
 
 	if offset != 0 {
+		// An ObjectReader may consistent of multiple parts.
+		// When reading from an offset, we need to find in which part
+		// the offset falls in, and start reading from there.
+		// If the offset is greater than the multipart length,
+		// this loop will ensure that len(objectReader.objs) <= objectReader.index,
+		// and reads will return (0, io.EOF) as expected.
 		var seek int64
-		for i := range obr.objs {
-			info, err := obr.objs[i].Info()
+		for _, obj := range obr.objs {
+			info, err := obj.Info()
 			if err != nil {
 				return nil, err
 			}
 
 			if seek+int64(info.Size) > offset {
-				io.CopyN(io.Discard, obr.objs[i], offset-seek)
+				// Offset falls within this part. Read until the offset,
+				// discarding any bytes found.
+				if _, err := io.CopyN(io.Discard, obj, offset-seek); err != nil {
+					return nil, err
+				}
 			} else {
+				// Offset does not fall within this part; skip and close it.
 				seek += int64(info.Size)
 				obr.index++
-				continue
+				if err := obj.Close(); err != nil {
+					return nil, err
+				}
 			}
 		}
 	}
