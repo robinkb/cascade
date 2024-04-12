@@ -17,7 +17,6 @@ package driver
 import (
 	"context"
 	"errors"
-	"fmt"
 	"io"
 
 	"github.com/nats-io/nats.go/jetstream"
@@ -36,18 +35,14 @@ func newObjectReader(ctx context.Context, obs jetstream.ObjectStore, name string
 		return nil, err
 	}
 
-	if isLink(info) {
-		var index int
-		for {
-			obj, err := obs.Get(ctx, fmt.Sprintf("%s/%d", name, index))
-			if errors.Is(err, jetstream.ErrObjectNotFound) {
-				// No more parts to find.
-				break
-			}
+	if isMultipart(info) {
+		parts := info.Headers.Values(multipartHeader)
+
+		for _, part := range parts {
+			obj, err := obs.Get(ctx, part)
 			if err != nil {
 				return nil, err
 			}
-			index++
 			obr.objs = append(obr.objs, obj)
 		}
 	} else {
