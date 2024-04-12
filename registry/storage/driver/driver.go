@@ -78,7 +78,7 @@ func New(ctx context.Context, params *Parameters) (*Driver, error) {
 
 	config := jetstream.ObjectStoreConfig{
 		Bucket:      rootStoreName,
-		Description: root,
+		Description: rootPath,
 	}
 	root, err := js.CreateOrUpdateObjectStore(ctx, config)
 	if err != nil {
