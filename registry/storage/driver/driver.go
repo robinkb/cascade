@@ -37,6 +37,7 @@ const (
 	sep = "/"
 
 	rootStoreName = "cascade-registry-root"
+	rootPath      = "/"
 
 	defaultChunkSize = 1 * 1024 * 1024
 )
@@ -77,7 +78,7 @@ func New(ctx context.Context, params *Parameters) (*Driver, error) {
 
 	config := jetstream.ObjectStoreConfig{
 		Bucket:      rootStoreName,
-		Description: "/",
+		Description: root,
 	}
 	root, err := js.CreateOrUpdateObjectStore(ctx, config)
 	if err != nil {
@@ -128,13 +129,13 @@ func (d *driver) GetContent(ctx context.Context, path string) ([]byte, error) {
 // PutContent stores the []byte content at a location designated by "path".
 // This should primarily be used for small objects.
 func (d *driver) PutContent(ctx context.Context, path string, content []byte) error {
-	store, filename, err := d.makeStore(ctx, path)
+	obs, filename, err := d.makeStore(ctx, path)
 	if err != nil {
 		return err
 	}
 
 	if len(content) != 0 {
-		_, err = store.PutBytes(ctx, filename, content)
+		_, err = obs.PutBytes(ctx, filename, content)
 		if err != nil {
 			return err
 		}
@@ -159,19 +160,19 @@ func (d *driver) PutContent(ctx context.Context, path string, content []byte) er
 // with a given byte offset.
 // May be used to resume reading a stream by providing a nonzero offset.
 func (d *driver) Reader(ctx context.Context, path string, offset int64) (io.ReadCloser, error) {
-	store, filename, err := d.findStore(ctx, path)
+	obs, filename, err := d.findStore(ctx, path)
 	if err != nil {
 		return nil, err
 	}
 
-	fr, err := newObjectReader(ctx, store, filename, offset)
+	obr, err := newObjectReader(ctx, obs, filename, offset)
 	if errors.Is(err, jetstream.ErrObjectNotFound) {
 		return nil, storagedriver.PathNotFoundError{Path: path}
 	}
 	if err != nil {
 		return nil, fmt.Errorf("unexpected error getting reader for path '%s': %w", path, err)
 	}
-	return fr, err
+	return obr, err
 }
 
 // Writer returns a FileWriter which will store the content written to it
@@ -182,12 +183,12 @@ func (d *driver) Reader(ctx context.Context, path string, offset int64) (io.Read
 // The behaviour of appending to paths with non-empty committed content is
 // undefined. Specific implementations may document their own behavior.
 func (d *driver) Writer(ctx context.Context, path string, append bool) (storagedriver.FileWriter, error) {
-	store, filename, err := d.makeStore(ctx, path)
+	obs, filename, err := d.makeStore(ctx, path)
 	if err != nil {
 		return nil, err
 	}
 
-	return newObjectWriter(ctx, store, filename, append)
+	return newObjectWriter(ctx, obs, filename, append)
 }
 
 // Stat retrieves the FileInfo for the given path, including the current
@@ -203,18 +204,18 @@ func (d *driver) Stat(ctx context.Context, path string) (storagedriver.FileInfo,
 		},
 	}
 
-	if path == "/" {
+	if path == rootPath {
 		_, err := d.root.Status(ctx)
 		fi.FileInfoFields.IsDir = true
 		return fi, err
 	}
 
-	store, filename, err := d.findStore(ctx, path)
+	obs, filename, err := d.findStore(ctx, path)
 	if err != nil {
 		return nil, err
 	}
 
-	info, err := store.GetInfo(ctx, filename)
+	info, err := obs.GetInfo(ctx, filename)
 	if err == nil {
 		fi.FileInfoFields.ModTime = info.ModTime
 
@@ -233,7 +234,7 @@ func (d *driver) Stat(ctx context.Context, path string) (storagedriver.FileInfo,
 		return nil, err
 	}
 
-	files, err := store.List(ctx)
+	files, err := obs.List(ctx)
 	if errors.Is(err, jetstream.ErrNoObjectsFound) {
 		return nil, storagedriver.PathNotFoundError{Path: path}
 	}
@@ -255,14 +256,14 @@ func (d *driver) Stat(ctx context.Context, path string) (storagedriver.FileInfo,
 // List returns a list of the objects that are direct descendants of the
 // given path.
 func (d *driver) List(ctx context.Context, path string) ([]string, error) {
-	store, _, err := d.findStore(ctx, path)
+	obs, _, err := d.findStore(ctx, path)
 	if err != nil {
 		return nil, err
 	}
 
-	objs, err := store.List(ctx)
+	objs, err := obs.List(ctx)
 	// TODO: Remove this when workaround obj is removed
-	if len(objs) == 1 && path == "/" {
+	if len(objs) == 1 && path == rootPath {
 		return []string{}, nil
 	}
 	// TODO: This is what it should be.
@@ -277,10 +278,10 @@ func (d *driver) List(ctx context.Context, path string) ([]string, error) {
 	for i := range objs {
 		if strings.HasPrefix(objs[i].Name, path) {
 			start := len(path) + 1
-			if path == "/" {
+			if path == rootPath {
 				start = 1
 			}
-			end := strings.Index(objs[i].Name[start:], "/")
+			end := strings.Index(objs[i].Name[start:], sep)
 			if end == -1 {
 				end = len(objs[i].Name) - start
 			}
@@ -309,13 +310,13 @@ func (d *driver) List(ctx context.Context, path string) ([]string, error) {
 // Note: This may be no more efficient than a copy followed by a delete for
 // many implementations.
 func (d *driver) Move(ctx context.Context, sourcePath string, destPath string) error {
-	sourceStore, sourceFilename, err := d.findStore(ctx, sourcePath)
+	sourceObs, sourceFilename, err := d.findStore(ctx, sourcePath)
 	if err != nil {
 		return err
 	}
 
 	// Have to use a FileReader because it can handle multi-part uploads.
-	sourceObj, err := newObjectReader(ctx, sourceStore, sourceFilename, 0)
+	sourceObj, err := newObjectReader(ctx, sourceObs, sourceFilename, 0)
 	if errors.Is(err, jetstream.ErrObjectNotFound) {
 		return storagedriver.PathNotFoundError{Path: sourcePath}
 	}
@@ -323,13 +324,13 @@ func (d *driver) Move(ctx context.Context, sourcePath string, destPath string) e
 		return fmt.Errorf("unexpected error getting reader for path '%s': %w", sourcePath, err)
 	}
 
-	destStore, destFilename, err := d.makeStore(ctx, destPath)
+	destObs, destFilename, err := d.makeStore(ctx, destPath)
 	if err != nil {
 		return err
 	}
 
 	meta := jetstream.ObjectMeta{Name: destFilename}
-	_, err = destStore.Put(ctx, meta, sourceObj)
+	_, err = destObs.Put(ctx, meta, sourceObj)
 	if err != nil {
 		return err
 	}
@@ -344,29 +345,29 @@ func (d *driver) Move(ctx context.Context, sourcePath string, destPath string) e
 
 // Delete recursively deletes all objects stored at "path" and its subpaths.
 func (d *driver) Delete(ctx context.Context, path string) error {
-	store, filename, err := d.findStore(ctx, path)
+	obs, filename, err := d.findStore(ctx, path)
 	if err != nil {
 		return err
 	}
 
-	info, err := store.GetInfo(ctx, filename)
+	info, err := obs.GetInfo(ctx, filename)
 	if err == nil {
-		return store.Delete(ctx, info.Name)
+		return obs.Delete(ctx, info.Name)
 	}
 	if !errors.Is(err, jetstream.ErrObjectNotFound) {
 		return err
 	}
 
 	// Object not found, but the given path may be a directory.
-	objects, err := store.List(ctx)
+	objects, err := obs.List(ctx)
 	if err != nil {
 		return err
 	}
 
 	deleted := false
 	for i := range objects {
-		if strings.HasPrefix(objects[i].Name, path+"/") {
-			err := store.Delete(ctx, objects[i].Name)
+		if strings.HasPrefix(objects[i].Name, path+sep) {
+			err := obs.Delete(ctx, objects[i].Name)
 			if err != nil {
 				return err
 			}
@@ -405,7 +406,7 @@ func (d *driver) findStore(ctx context.Context, path string) (jetstream.ObjectSt
 	return d.root, path, nil
 }
 
-// makeBucket finds or creates object stores to back the given path.
+// makeStore finds or creates object stores to back the given path.
 func (d *driver) makeStore(ctx context.Context, path string) (jetstream.ObjectStore, string, error) {
 	return d.findStore(ctx, path)
 }

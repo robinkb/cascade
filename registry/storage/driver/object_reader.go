@@ -24,21 +24,21 @@ import (
 	"github.com/nats-io/nats.go/jetstream"
 )
 
-func newObjectReader(ctx context.Context, obs jetstream.ObjectStore, name string, offset int64) (*objectReader, error) {
+func newObjectReader(ctx context.Context, obs jetstream.ObjectStore, filename string, offset int64) (*objectReader, error) {
 	obr := &objectReader{
-		ctx:  ctx,
-		obs:  obs,
-		name: name,
+		ctx:      ctx,
+		obs:      obs,
+		filename: filename,
 	}
 
-	info, err := obs.GetInfo(ctx, name)
+	info, err := obs.GetInfo(ctx, filename)
 	if err != nil {
 		return nil, err
 	}
 
 	if !isMultipart(info) {
 		obr.objs = 1
-		obr.current, err = obs.Get(ctx, name)
+		obr.current, err = obs.Get(ctx, filename)
 		if err != nil {
 			return nil, err
 		}
@@ -55,7 +55,7 @@ func newObjectReader(ctx context.Context, obs jetstream.ObjectStore, name string
 		}
 
 		if offset == 0 {
-			obr.current, err = obs.Get(ctx, fmt.Sprintf(multipartTemplate, name, 0))
+			obr.current, err = obs.Get(ctx, fmt.Sprintf(multipartTemplate, filename, 0))
 			if err != nil {
 				return nil, err
 			}
@@ -68,7 +68,7 @@ func newObjectReader(ctx context.Context, obs jetstream.ObjectStore, name string
 			// and reads will return (0, io.EOF) as expected.
 			var seek int64
 			for i := 0; i < obr.objs; i++ {
-				info, err := obs.GetInfo(ctx, fmt.Sprintf(multipartTemplate, name, i))
+				info, err := obs.GetInfo(ctx, fmt.Sprintf(multipartTemplate, filename, i))
 				if err != nil {
 					return nil, err
 				}
@@ -76,7 +76,7 @@ func newObjectReader(ctx context.Context, obs jetstream.ObjectStore, name string
 				if seek+int64(info.Size) > offset {
 					// Offset falls within this part. Read until the offset,
 					// discarding any bytes found.
-					obr.current, err = obs.Get(ctx, name)
+					obr.current, err = obs.Get(ctx, filename)
 					if err != nil {
 						return nil, err
 					}
@@ -96,9 +96,9 @@ func newObjectReader(ctx context.Context, obs jetstream.ObjectStore, name string
 }
 
 type objectReader struct {
-	ctx  context.Context
-	obs  jetstream.ObjectStore
-	name string
+	ctx      context.Context
+	obs      jetstream.ObjectStore
+	filename string
 
 	objs    int
 	index   int
@@ -124,7 +124,7 @@ func (obr *objectReader) Read(p []byte) (n int, err error) {
 		obr.index++
 		// Open the next object for reading
 		if obr.objs != obr.index {
-			obr.current, err = obr.obs.Get(obr.ctx, fmt.Sprintf(multipartTemplate, obr.name, obr.index))
+			obr.current, err = obr.obs.Get(obr.ctx, fmt.Sprintf(multipartTemplate, obr.filename, obr.index))
 			if err != nil {
 				return n, err
 			}

@@ -32,16 +32,16 @@ const (
 	writeBufferSize      = 64 * 1024 * 1024
 )
 
-func newObjectWriter(ctx context.Context, store jetstream.ObjectStore, name string, append bool) (*objectWriter, error) {
+func newObjectWriter(ctx context.Context, obs jetstream.ObjectStore, filename string, append bool) (*objectWriter, error) {
 	fw := &objectWriter{
-		ctx:  ctx,
-		obs:  store,
-		name: name,
-		buf:  bytes.NewBuffer(make([]byte, 0, writeBufferSize)),
+		ctx:      ctx,
+		obs:      obs,
+		filename: filename,
+		buf:      bytes.NewBuffer(make([]byte, 0, writeBufferSize)),
 	}
 
 	if append {
-		info, err := fw.obs.GetInfo(fw.ctx, fw.name)
+		info, err := fw.obs.GetInfo(ctx, filename)
 		if err != nil {
 			return nil, err
 		}
@@ -55,7 +55,7 @@ func newObjectWriter(ctx context.Context, store jetstream.ObjectStore, name stri
 		}
 
 		for i := 0; i < parts; i++ {
-			info, err := fw.obs.GetInfo(fw.ctx, fmt.Sprintf(multipartTemplate, name, i))
+			info, err := fw.obs.GetInfo(ctx, fmt.Sprintf(multipartTemplate, filename, i))
 			if err != nil {
 				return nil, err
 			}
@@ -68,9 +68,9 @@ func newObjectWriter(ctx context.Context, store jetstream.ObjectStore, name stri
 }
 
 type objectWriter struct {
-	ctx  context.Context
-	obs  jetstream.ObjectStore
-	name string
+	ctx      context.Context
+	obs      jetstream.ObjectStore
+	filename string
 
 	buf   *bytes.Buffer
 	index int
@@ -123,7 +123,7 @@ func (obw *objectWriter) Write(data []byte) (int, error) {
 
 func (obw *objectWriter) flush() error {
 	meta := jetstream.ObjectMeta{
-		Name: fmt.Sprintf(multipartTemplate, obw.name, obw.index),
+		Name: fmt.Sprintf(multipartTemplate, obw.filename, obw.index),
 		Opts: &jetstream.ObjectMetaOptions{
 			ChunkSize: defaultChunkSize,
 		},
@@ -154,8 +154,9 @@ func (obw *objectWriter) Close() error {
 	headers := nats.Header{}
 	headers.Set(headerMultipartCount, strconv.Itoa(obw.index))
 	headers.Set(headerMultipartSize, strconv.FormatInt(obw.size, 10))
+
 	meta := jetstream.ObjectMeta{
-		Name:    obw.name,
+		Name:    obw.filename,
 		Headers: headers,
 	}
 	_, err := obw.obs.Put(obw.ctx, meta, bytes.NewReader(nil))
@@ -178,7 +179,7 @@ func (obw *objectWriter) Cancel(ctx context.Context) error {
 
 	errs := make([]error, 0)
 	for i := 0; i < obw.index; i++ {
-		err := obw.obs.Delete(ctx, fmt.Sprintf(multipartTemplate, obw.name, i))
+		err := obw.obs.Delete(ctx, fmt.Sprintf(multipartTemplate, obw.filename, i))
 		if err != nil {
 			errs = append(errs, err)
 		}
