@@ -49,12 +49,11 @@ func newObjectReader(ctx context.Context, obs jetstream.ObjectStore, name string
 			}
 		}
 	} else {
-		objs, err := strconv.Atoi(info.Headers.Get(multipartHeader))
+		obr.objs, err = strconv.Atoi(info.Headers.Get(headerMultipartCount))
 		if err != nil {
 			return nil, fmt.Errorf("failed to parse multipart header: %w", err)
 		}
 
-		obr.objs = objs
 		if offset == 0 {
 			obr.current, err = obs.Get(ctx, fmt.Sprintf(multipartTemplate, name, 0))
 			if err != nil {

@@ -26,9 +26,10 @@ import (
 )
 
 const (
-	multipartHeader   = "Cascade-Registry-Multipart"
-	multipartTemplate = "%s/%d"
-	writeBufferSize   = 64 * 1024 * 1024
+	headerMultipartCount = "Cascade-Registry-Multipart-Count"
+	headerMultipartSize  = "Cascade-Registry-Multipart-Size"
+	multipartTemplate    = "%s/%d"
+	writeBufferSize      = 64 * 1024 * 1024
 )
 
 func newObjectWriter(ctx context.Context, store jetstream.ObjectStore, name string, append bool) (*objectWriter, error) {
@@ -48,7 +49,7 @@ func newObjectWriter(ctx context.Context, store jetstream.ObjectStore, name stri
 			return nil, errors.New("file already exists and is not a multipart file")
 		}
 
-		parts, err := strconv.Atoi(info.Headers.Get(multipartHeader))
+		parts, err := strconv.Atoi(info.Headers.Get(headerMultipartCount))
 		if err != nil {
 			return nil, fmt.Errorf("failed to parse multipart header: %w", err)
 		}
@@ -151,7 +152,8 @@ func (obw *objectWriter) Close() error {
 	}
 
 	headers := nats.Header{}
-	headers.Set(multipartHeader, strconv.Itoa(obw.index))
+	headers.Set(headerMultipartCount, strconv.Itoa(obw.index))
+	headers.Set(headerMultipartSize, strconv.FormatInt(obw.size, 10))
 	meta := jetstream.ObjectMeta{
 		Name:    obw.name,
 		Headers: headers,
@@ -209,5 +211,5 @@ func (obw *objectWriter) Commit(context.Context) error {
 }
 
 func isMultipart(info *jetstream.ObjectInfo) bool {
-	return info.Size == 0 && info.Headers.Get(multipartHeader) != ""
+	return info.Size == 0 && info.Headers.Get(headerMultipartCount) != ""
 }

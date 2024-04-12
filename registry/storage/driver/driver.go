@@ -20,6 +20,7 @@ import (
 	"io"
 	"net/http"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	storagedriver "github.com/distribution/distribution/v3/registry/storage/driver"
@@ -217,22 +218,13 @@ func (d *driver) Stat(ctx context.Context, path string) (storagedriver.FileInfo,
 	if err == nil {
 		fi.FileInfoFields.ModTime = info.ModTime
 
-		if isLink(info) {
-			// Find all the parts and add their sizes.
-			var size uint64
-			for i := 0; true; i++ {
-				info, err := store.GetInfo(ctx, fmt.Sprintf("%s/%d", info.Name, i))
-				if errors.Is(err, jetstream.ErrObjectNotFound) {
-					break
-				}
-				if err != nil {
-					return nil, err
-				}
-				size += info.Size
-			}
-			fi.FileInfoFields.Size = int64(size)
-		} else {
+		if !isMultipart(info) {
 			fi.FileInfoFields.Size = int64(info.Size)
+		} else {
+			fi.FileInfoFields.Size, err = strconv.ParseInt(info.Headers.Get(headerMultipartSize), 0, 64)
+			if err != nil {
+				return nil, fmt.Errorf("failed to parse multipart header: %w", err)
+			}
 		}
 
 		return fi, nil
@@ -359,19 +351,6 @@ func (d *driver) Delete(ctx context.Context, path string) error {
 
 	info, err := store.GetInfo(ctx, filename)
 	if err == nil {
-		// If it's a link, we must also delete the parts.
-		if isLink(info) {
-			for i := 0; true; i++ {
-				err := store.Delete(ctx, fmt.Sprintf("%s/%d", info.Name, i))
-				if errors.Is(err, jetstream.ErrObjectNotFound) {
-					break
-				}
-				if err != nil {
-					return err
-				}
-			}
-		}
-
 		return store.Delete(ctx, info.Name)
 	}
 	if !errors.Is(err, jetstream.ErrObjectNotFound) {
@@ -443,8 +422,4 @@ func newJetStream(params *Parameters) (jetstream.JetStream, error) {
 	}
 
 	return js, err
-}
-
-func isLink(info *jetstream.ObjectInfo) bool {
-	return info.Opts.Link != nil && info.Opts.Link.Name != "" && info.Opts.Link.Bucket != ""
 }
