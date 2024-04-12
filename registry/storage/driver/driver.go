@@ -38,8 +38,6 @@ const (
 
 	rootStoreName = "cascade-registry-root"
 	rootPath      = "/"
-
-	defaultChunkSize = 1 * 1024 * 1024
 )
 
 // Ensure that we satisfy the interface.

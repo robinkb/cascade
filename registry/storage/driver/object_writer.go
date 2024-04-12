@@ -29,7 +29,9 @@ const (
 	headerMultipartCount = "Cascade-Registry-Multipart-Count"
 	headerMultipartSize  = "Cascade-Registry-Multipart-Size"
 	multipartTemplate    = "%s/%d"
-	writeBufferSize      = 64 * 1024 * 1024
+
+	writeBufferSize  = 64 * 1024 * 1024
+	defaultChunkSize = 1 * 1024 * 1024
 )
 
 func newObjectWriter(ctx context.Context, obs jetstream.ObjectStore, filename string, append bool) (*objectWriter, error) {
