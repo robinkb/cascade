@@ -143,7 +143,7 @@ func (d *driver) PutContent(ctx context.Context, path string, content []byte) er
 			return err
 		}
 	} else {
-		// Zero-byte content is a special case, it may appended to later.
+		// Zero-byte content is a special case, it may be appended to later.
 		fw, err := d.Writer(ctx, path, false)
 		if err != nil {
 			return err
@@ -291,11 +291,11 @@ func (d *driver) List(ctx context.Context, path string) ([]string, error) {
 			if path == "/" {
 				start = 1
 			}
-			idx := strings.Index(objs[i].Name[start:], "/")
-			if idx == -1 {
-				idx = len(objs[i].Name) - start
+			end := strings.Index(objs[i].Name[start:], "/")
+			if end == -1 {
+				end = len(objs[i].Name) - start
 			}
-			files = append(files, filepath.Join(path, objs[i].Name[len(path):start+idx]))
+			files = append(files, filepath.Join(path, objs[i].Name[len(path):start+end]))
 		}
 	}
 
