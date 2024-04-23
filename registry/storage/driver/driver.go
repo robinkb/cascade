@@ -127,13 +127,8 @@ func (d *driver) GetContent(ctx context.Context, path string) ([]byte, error) {
 // PutContent stores the []byte content at a location designated by "path".
 // This should primarily be used for small objects.
 func (d *driver) PutContent(ctx context.Context, path string, content []byte) error {
-	obs, filename, err := d.makeStore(ctx, path)
-	if err != nil {
-		return err
-	}
-
 	if len(content) != 0 {
-		_, err = obs.PutBytes(ctx, filename, content)
+		_, err := d.root.PutBytes(ctx, path, content)
 		if err != nil {
 			return err
 		}
@@ -158,12 +153,7 @@ func (d *driver) PutContent(ctx context.Context, path string, content []byte) er
 // with a given byte offset.
 // May be used to resume reading a stream by providing a nonzero offset.
 func (d *driver) Reader(ctx context.Context, path string, offset int64) (io.ReadCloser, error) {
-	obs, filename, err := d.findStore(ctx, path)
-	if err != nil {
-		return nil, err
-	}
-
-	obr, err := newObjectReader(ctx, obs, filename, offset)
+	obr, err := newObjectReader(ctx, d.root, path, offset)
 	if errors.Is(err, jetstream.ErrObjectNotFound) {
 		return nil, storagedriver.PathNotFoundError{Path: path}
 	}
@@ -181,12 +171,7 @@ func (d *driver) Reader(ctx context.Context, path string, offset int64) (io.Read
 // The behaviour of appending to paths with non-empty committed content is
 // undefined. Specific implementations may document their own behavior.
 func (d *driver) Writer(ctx context.Context, path string, append bool) (storagedriver.FileWriter, error) {
-	obs, filename, err := d.makeStore(ctx, path)
-	if err != nil {
-		return nil, err
-	}
-
-	return newObjectWriter(ctx, obs, filename, append)
+	return newObjectWriter(ctx, d.root, path, append)
 }
 
 // Stat retrieves the FileInfo for the given path, including the current
@@ -208,12 +193,7 @@ func (d *driver) Stat(ctx context.Context, path string) (storagedriver.FileInfo,
 		return fi, err
 	}
 
-	obs, filename, err := d.findStore(ctx, path)
-	if err != nil {
-		return nil, err
-	}
-
-	info, err := obs.GetInfo(ctx, filename)
+	info, err := d.root.GetInfo(ctx, path)
 	if err == nil {
 		fi.FileInfoFields.ModTime = info.ModTime
 
@@ -232,7 +212,7 @@ func (d *driver) Stat(ctx context.Context, path string) (storagedriver.FileInfo,
 		return nil, err
 	}
 
-	files, err := obs.List(ctx)
+	files, err := d.root.List(ctx)
 	if errors.Is(err, jetstream.ErrNoObjectsFound) {
 		return nil, storagedriver.PathNotFoundError{Path: path}
 	}
@@ -254,12 +234,7 @@ func (d *driver) Stat(ctx context.Context, path string) (storagedriver.FileInfo,
 // List returns a list of the objects that are direct descendants of the
 // given path.
 func (d *driver) List(ctx context.Context, path string) ([]string, error) {
-	obs, _, err := d.findStore(ctx, path)
-	if err != nil {
-		return nil, err
-	}
-
-	objs, err := obs.List(ctx)
+	objs, err := d.root.List(ctx)
 	// TODO: Remove this when workaround obj is removed
 	if len(objs) == 1 && path == rootPath {
 		return []string{}, nil
@@ -308,13 +283,8 @@ func (d *driver) List(ctx context.Context, path string) ([]string, error) {
 // Note: This may be no more efficient than a copy followed by a delete for
 // many implementations.
 func (d *driver) Move(ctx context.Context, sourcePath string, destPath string) error {
-	sourceObs, sourceFilename, err := d.findStore(ctx, sourcePath)
-	if err != nil {
-		return err
-	}
-
-	// Have to use a FileReader because it can handle multi-part uploads.
-	sourceObj, err := newObjectReader(ctx, sourceObs, sourceFilename, 0)
+	// Have to use an ObjectReader because it can handle multi-part uploads.
+	sourceObj, err := newObjectReader(ctx, d.root, sourcePath, 0)
 	if errors.Is(err, jetstream.ErrObjectNotFound) {
 		return storagedriver.PathNotFoundError{Path: sourcePath}
 	}
@@ -322,13 +292,8 @@ func (d *driver) Move(ctx context.Context, sourcePath string, destPath string) e
 		return fmt.Errorf("unexpected error getting reader for path '%s': %w", sourcePath, err)
 	}
 
-	destObs, destFilename, err := d.makeStore(ctx, destPath)
-	if err != nil {
-		return err
-	}
-
-	meta := jetstream.ObjectMeta{Name: destFilename}
-	_, err = destObs.Put(ctx, meta, sourceObj)
+	meta := jetstream.ObjectMeta{Name: destPath}
+	_, err = d.root.Put(ctx, meta, sourceObj)
 	if err != nil {
 		return err
 	}
@@ -343,21 +308,16 @@ func (d *driver) Move(ctx context.Context, sourcePath string, destPath string) e
 
 // Delete recursively deletes all objects stored at "path" and its subpaths.
 func (d *driver) Delete(ctx context.Context, path string) error {
-	obs, filename, err := d.findStore(ctx, path)
-	if err != nil {
-		return err
-	}
-
-	info, err := obs.GetInfo(ctx, filename)
+	info, err := d.root.GetInfo(ctx, path)
 	if err == nil {
-		return obs.Delete(ctx, info.Name)
+		return d.root.Delete(ctx, info.Name)
 	}
 	if !errors.Is(err, jetstream.ErrObjectNotFound) {
 		return err
 	}
 
 	// Object not found, but the given path may be a directory.
-	objects, err := obs.List(ctx)
+	objects, err := d.root.List(ctx)
 	if err != nil {
 		return err
 	}
@@ -365,7 +325,7 @@ func (d *driver) Delete(ctx context.Context, path string) error {
 	deleted := false
 	for i := range objects {
 		if strings.HasPrefix(objects[i].Name, path+sep) {
-			err := obs.Delete(ctx, objects[i].Name)
+			err := d.root.Delete(ctx, objects[i].Name)
 			if err != nil {
 				return err
 			}
@@ -397,16 +357,6 @@ func (d *driver) RedirectURL(r *http.Request, path string) (string, error) {
 func (d *driver) Walk(ctx context.Context, path string, f storagedriver.WalkFn, options ...func(*storagedriver.WalkOptions)) error {
 	// TODO: Should I implement something custom?
 	return storagedriver.WalkFallback(ctx, d, path, f, options...)
-}
-
-// findStore retrieves the object store backing the given path.
-func (d *driver) findStore(ctx context.Context, path string) (jetstream.ObjectStore, string, error) {
-	return d.root, path, nil
-}
-
-// makeStore finds or creates object stores to back the given path.
-func (d *driver) makeStore(ctx context.Context, path string) (jetstream.ObjectStore, string, error) {
-	return d.findStore(ctx, path)
 }
 
 func newJetStream(params *Parameters) (jetstream.JetStream, error) {
