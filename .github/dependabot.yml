@@ -17,3 +17,5 @@ updates:
     groups:
       actions:
         applies-to: version-updates
+        patterns:
+          - "*"
