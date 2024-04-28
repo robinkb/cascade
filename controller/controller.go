@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"os"
 	"os/signal"
 	"syscall"
@@ -52,6 +53,7 @@ func (c *controller) startNats() error {
 		JetStream: true,
 	}
 	ns, err := nats.NewServer(opts)
+	ns.ConfigureLogger()
 	if err != nil {
 		return err
 	}
@@ -100,7 +102,16 @@ func (c *controller) handleSignals() {
 
 	done := make(chan bool, 1)
 	go func() {
-		<-sigs
+		sig := <-sigs
+		switch sig {
+		case syscall.SIGINT, syscall.SIGTERM:
+			if err := c.rg.Shutdown(); err != nil {
+				// TODO: Forward this to a proper logger.
+				fmt.Printf("failed to gracefully shutdown embedded registry: %s", err)
+			}
+			c.ns.Shutdown()
+			c.ns.WaitForShutdown()
+		}
 		done <- true
 	}()
 
