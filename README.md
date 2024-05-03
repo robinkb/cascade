@@ -42,14 +42,16 @@ nats-server --jetstream
 cascade serve cmd/cascade/config-dev.yaml
 ```
 
+<!-- TODO: Fix this example
 Or with the container images:
 
 ```shell
 # Run the NATS server.
-podman run --rm -ti -p 4222:4222 docker.io/library/nats
+podman run --rm -d -ti -p 4222:4222 docker.io/library/nats --jetstream
 # Run cascade with the example configuration.
-podman run --rm -ti -p 5000:5000 ghcr.io/robinkb/cascade serve /usr/local/etc/config-dev.yaml
+podman run --rm -d -ti -p 5000:5000 ghcr.io/robinkb/cascade serve /usr/local/etc/config-dev.yaml
 ```
+ -->
 
 You can now push images to `localhost:5000`.
 
