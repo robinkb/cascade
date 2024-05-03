@@ -11,4 +11,5 @@ RUN CGO_ENABLED=0 go build -v -o /usr/local/bin/cascade ./cmd/cascade
 
 FROM gcr.io/distroless/static-debian12
 COPY --from=builder /usr/local/bin/cascade /usr/local/bin/
+COPY ./cmd/cascade/config-dev.yaml /usr/local/etc/
 ENTRYPOINT ["cascade"]

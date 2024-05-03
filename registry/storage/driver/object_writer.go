@@ -26,8 +26,8 @@ import (
 )
 
 const (
-	headerMultipartCount = "Cascade-Registry-Multipart-Count"
-	headerMultipartSize  = "Cascade-Registry-Multipart-Size"
+	headerMultipartCount = "Cascade-Multipart-Count"
+	headerMultipartSize  = "Cascade-Multipart-Size"
 	multipartTemplate    = "%s/%d"
 
 	writeBufferSize  = 64 * 1024 * 1024
