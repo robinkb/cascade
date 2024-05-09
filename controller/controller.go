@@ -32,7 +32,7 @@ import (
 	_ "github.com/robinkb/cascade/registry/storage/driver"
 )
 
-func NewController() *controller {
+func New() *controller {
 	c := &controller{}
 	c.errs = make(chan error, 1)
 	return c
@@ -120,7 +120,7 @@ func (c *controller) handleSignals() {
 		sig := <-sigs
 		switch sig {
 		case syscall.SIGINT, syscall.SIGTERM:
-			if err := c.rg.Shutdown(); err != nil {
+			if err := c.rg.Shutdown(context.Background()); err != nil {
 				// TODO: Forward this to a proper logger.
 				fmt.Printf("failed to gracefully shutdown embedded registry: %s", err)
 			}
