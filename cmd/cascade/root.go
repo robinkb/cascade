@@ -14,7 +14,7 @@
 package main
 
 import (
-	_ "github.com/robinkb/cascade-registry/registry/storage/driver"
+	_ "github.com/robinkb/cascade/registry/storage/driver"
 
 	"github.com/distribution/distribution/v3/registry"
 )

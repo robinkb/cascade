@@ -1,6 +1,6 @@
-module github.com/robinkb/cascade-registry
+module github.com/robinkb/cascade
 
-go 1.21.8
+go 1.22
 
 require (
 	github.com/distribution/distribution/v3 v3.0.0-alpha.1
