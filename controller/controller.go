@@ -29,7 +29,7 @@ import (
 	"github.com/distribution/distribution/v3/registry"
 	nats "github.com/nats-io/nats-server/v2/server"
 
-	_ "github.com/robinkb/cascade-registry/registry/storage/driver"
+	_ "github.com/robinkb/cascade/registry/storage/driver"
 )
 
 func NewController() *controller {

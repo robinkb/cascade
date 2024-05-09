@@ -3,9 +3,11 @@ module github.com/robinkb/cascade
 go 1.22
 
 require (
-	github.com/distribution/distribution/v3 v3.0.0-alpha.1
+	github.com/distribution/distribution/v3 v3.0.0-alpha.1.0.20240504143225-c49220d49223
 	github.com/nats-io/nats-server/v2 v2.10.14
 	github.com/nats-io/nats.go v1.34.1
+	github.com/spf13/cobra v1.8.0
+	github.com/spf13/viper v1.18.2
 )
 
 require (
@@ -55,9 +57,7 @@ require (
 	github.com/sourcegraph/conc v0.3.0 // indirect
 	github.com/spf13/afero v1.11.0 // indirect
 	github.com/spf13/cast v1.6.0 // indirect
-	github.com/spf13/cobra v1.8.0 // indirect
 	github.com/spf13/pflag v1.0.5 // indirect
-	github.com/spf13/viper v1.18.2 // indirect
 	github.com/stretchr/testify v1.9.0 // indirect
 	github.com/subosito/gotenv v1.6.0 // indirect
 	go.opentelemetry.io/contrib/exporters/autoexport v0.50.0 // indirect
@@ -93,5 +93,3 @@ require (
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
-
-replace github.com/distribution/distribution/v3 v3.0.0-alpha.1 => github.com/robinkb/distribution/v3 v3.0.0-20240428181229-d4a3696c23a8

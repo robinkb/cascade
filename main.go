@@ -15,7 +15,7 @@ limitations under the License.
 */
 package main
 
-import "github.com/robinkb/cascade-registry/cmd"
+import "github.com/robinkb/cascade/cmd"
 
 func main() {
 	cmd.Execute()
