@@ -16,10 +16,10 @@ limitations under the License.
 package controller
 
 import (
-	"bytes"
 	"context"
 	"errors"
 	"fmt"
+	"net/url"
 	"os"
 	"os/signal"
 	"syscall"
@@ -32,26 +32,49 @@ import (
 	_ "github.com/robinkb/cascade/registry/storage/driver"
 )
 
-func New() *controller {
-	c := &controller{}
+func New(dc *discoveryClient, natsOptions *nats.Options, registryConfig *configuration.Configuration) *controller {
+	c := &controller{
+		dc:  dc,
+		nso: natsOptions,
+		rgc: registryConfig,
+	}
 	c.errs = make(chan error, 1)
 	return c
 }
 
 type controller struct {
-	ns *nats.Server
-	rg *registry.Registry
+	dc  *discoveryClient
+	ns  *nats.Server
+	nso *nats.Options
+	rg  *registry.Registry
+	rgc *configuration.Configuration
 
 	errs chan error
 }
 
 func (c *controller) Start() error {
+	u := &url.URL{
+		Host: fmt.Sprintf("%s:%d", c.nso.Cluster.Host, c.nso.Cluster.Port),
+	}
+	c.dc.AddEndpoint(c.nso.ServerName, u)
+
+	var endpoints []*url.URL
+	for {
+		endpoints = c.dc.Endpoints()
+		if len(endpoints) == 3 {
+			break
+		}
+		time.Sleep(1 * time.Second)
+	}
+
+	c.nso.Routes = endpoints
+
 	if err := c.startNats(); err != nil {
 		return err
 	}
 
-	if !c.ns.ReadyForConnections(4 * time.Second) {
-		return errors.New("nats start timeout")
+	c.rgc.Storage["nats"] = configuration.Parameters{
+		"clienturl": c.ns.ClientURL(),
 	}
 
 	if err := c.startRegistry(); err != nil {
@@ -64,38 +87,25 @@ func (c *controller) Start() error {
 }
 
 func (c *controller) startNats() error {
-	opts := &nats.Options{
-		JetStream: true,
-	}
-	ns, err := nats.NewServer(opts)
-	ns.ConfigureLogger()
+	ns, err := nats.NewServer(c.nso)
 	if err != nil {
 		return err
 	}
+	ns.ConfigureLogger()
 	c.ns = ns
 
-	go ns.Start()
+	go c.ns.Start()
+	if !c.ns.ReadyForConnections(4 * time.Second) {
+		return errors.New("nats start timeout")
+	}
+
 	return nil
 }
-
-// I swear that this is the easiest way to do it.
-const registryConf = `
-version: 0.1
-http:
-  addr: ":5000"
-storage:
-  nats: {}
-`
 
 func (c *controller) startRegistry() error {
 	ctx := context.Background()
 
-	config, err := configuration.Parse(bytes.NewReader([]byte(registryConf)))
-	if err != nil {
-		return err
-	}
-
-	rg, err := registry.NewRegistry(ctx, config)
+	rg, err := registry.NewRegistry(ctx, c.rgc)
 	if err != nil {
 		return err
 	}
