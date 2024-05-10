@@ -17,6 +17,7 @@ package cmd
 
 import (
 	"github.com/distribution/distribution/v3/registry"
+	_ "github.com/robinkb/cascade/registry/storage/driver"
 )
 
 func init() {
