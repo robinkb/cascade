@@ -16,7 +16,6 @@ limitations under the License.
 package controller
 
 import (
-	"context"
 	"fmt"
 	"log"
 	"net/url"
@@ -39,7 +38,7 @@ func NewController(dc *discoveryClient, natsOptions *nats.Options, registryConfi
 		nso: natsOptions,
 		rgc: registryConfig,
 
-		quitCh:           make(chan struct{}),
+		quit:             make(chan struct{}),
 		shutdownComplete: make(chan struct{}),
 		errs:             make(chan error, 1),
 	}
@@ -56,7 +55,7 @@ type controller struct {
 	rg  *registry.Registry
 	rgc *configuration.Configuration
 
-	quitCh           chan struct{}
+	quit             chan struct{}
 	shutdownComplete chan struct{}
 	errs             chan error
 }
@@ -78,7 +77,7 @@ func (c *controller) Run() {
 
 func (c *controller) Shutdown() {
 	// Stops various go routines waiting for this channel.
-	close(c.quitCh)
+	close(c.quit)
 
 	// if err := c.rg.Shutdown(context.Background()); err != nil {
 	// 	// TODO: Forward this to a proper logger.
@@ -114,10 +113,12 @@ func (c *controller) discoveryManagement() {
 			c.endpoints = c.dc.Endpoints()
 
 			select {
-			case <-c.quitCh:
+			case <-c.quit:
 				return
-			case <-time.After(5 * time.Second):
-
+			case <-c.dc.Refresh():
+				// continue
+			case <-time.After(60 * time.Second):
+				// continue
 			}
 		}
 	}()
@@ -159,33 +160,33 @@ func (c *controller) natsManagement() {
 			c.ns = ns
 
 			select {
-			case <-c.quitCh:
+			case <-c.quit:
 				return
-			case <-time.After(10 * time.Second):
+			case <-time.After(60 * time.Second):
 				continue
 			}
 		}
 	}()
 }
 
-func (c *controller) startRegistry() error {
-	ctx := context.Background()
+// func (c *controller) startRegistry() error {
+// 	ctx := context.Background()
 
-	rg, err := registry.NewRegistry(ctx, c.rgc)
-	if err != nil {
-		return err
-	}
-	c.rg = rg
+// 	rg, err := registry.NewRegistry(ctx, c.rgc)
+// 	if err != nil {
+// 		return err
+// 	}
+// 	c.rg = rg
 
-	go func() {
-		err := rg.ListenAndServe()
-		if err != nil {
-			c.errs <- err
-		}
-	}()
+// 	go func() {
+// 		err := rg.ListenAndServe()
+// 		if err != nil {
+// 			c.errs <- err
+// 		}
+// 	}()
 
-	return nil
-}
+// 	return nil
+// }
 
 func (c *controller) handleSignals() {
 	sigs := make(chan os.Signal, 1)

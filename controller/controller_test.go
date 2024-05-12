@@ -47,6 +47,8 @@ func TestClusterFormation(t *testing.T) {
 		c.Run()
 	}
 
+	// Wait for all NATS servers to have started.
+	// Maybe this should be a StatusNATS call on the controller.
 	for _, c := range controllers {
 		for {
 			if c.ns == nil {
@@ -62,12 +64,14 @@ func TestClusterFormation(t *testing.T) {
 		}
 	}
 
+	// Check if all of them are clustered. Not sure if this is a good check.
 	for _, c := range controllers {
 		if !c.ns.JetStreamIsClustered() {
 			t.Error("not clustered")
 		}
 	}
 
+	// Shut it all down.
 	for _, c := range controllers {
 		c.Shutdown()
 		c.WaitForShutdown()
