@@ -41,7 +41,7 @@ func newDriverConstructor(tb testing.TB) testsuites.DriverConstructor {
 		tb.Fatal(err)
 	}
 
-	go ns.Start()
+	ns.Start()
 
 	if !ns.ReadyForConnections(4 * time.Second) {
 		tb.Fatal("server not ready for connections")

@@ -18,14 +18,19 @@ type discoveryClient struct {
 	endpoints map[string]*url.URL
 }
 
-func (c *discoveryClient) AddEndpoint(id string, url *url.URL) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	c.endpoints[id] = url
+func (dc *discoveryClient) Registered(id string) bool {
+	_, ok := dc.endpoints[id]
+	return ok
 }
 
-func (c *discoveryClient) Endpoints() []*url.URL {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	return maps.Values(c.endpoints)
+func (dc *discoveryClient) SetEndpoint(id string, url *url.URL) {
+	dc.mu.Lock()
+	defer dc.mu.Unlock()
+	dc.endpoints[id] = url
+}
+
+func (dc *discoveryClient) Endpoints() []*url.URL {
+	dc.mu.Lock()
+	defer dc.mu.Unlock()
+	return maps.Values(dc.endpoints)
 }

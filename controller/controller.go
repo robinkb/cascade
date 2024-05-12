@@ -17,11 +17,12 @@ package controller
 
 import (
 	"context"
-	"errors"
 	"fmt"
+	"log"
 	"net/url"
 	"os"
 	"os/signal"
+	"slices"
 	"syscall"
 	"time"
 
@@ -32,74 +33,139 @@ import (
 	_ "github.com/robinkb/cascade/registry/storage/driver"
 )
 
-func New(dc *discoveryClient, natsOptions *nats.Options, registryConfig *configuration.Configuration) *controller {
+func NewController(dc *discoveryClient, natsOptions *nats.Options, registryConfig *configuration.Configuration) *controller {
 	c := &controller{
 		dc:  dc,
 		nso: natsOptions,
 		rgc: registryConfig,
+
+		quitCh:           make(chan struct{}),
+		shutdownComplete: make(chan struct{}),
+		errs:             make(chan error, 1),
 	}
-	c.errs = make(chan error, 1)
 	return c
 }
 
 type controller struct {
-	dc  *discoveryClient
+	dc        *discoveryClient
+	endpoints []*url.URL
+
 	ns  *nats.Server
 	nso *nats.Options
+
 	rg  *registry.Registry
 	rgc *configuration.Configuration
 
-	errs chan error
+	quitCh           chan struct{}
+	shutdownComplete chan struct{}
+	errs             chan error
 }
 
-func (c *controller) Start() error {
+func (c *controller) Run() {
+	log.Print("starting discovery management")
+	c.discoveryManagement()
+	log.Print("starting nats management")
+	c.natsManagement()
+
+	// Should wait for NATS to be running before we start the registry.
+	// c.rgc.Storage["nats"] = configuration.Parameters{
+	// 	"clienturl": c.ns.ClientURL(),
+	// }
+
+	log.Print("handling signals")
+	c.handleSignals()
+}
+
+func (c *controller) Shutdown() {
+	// Stops various go routines waiting for this channel.
+	close(c.quitCh)
+
+	// if err := c.rg.Shutdown(context.Background()); err != nil {
+	// 	// TODO: Forward this to a proper logger.
+	// 	fmt.Printf("failed to gracefully shutdown embedded registry: %s", err)
+	// }
+	if c.ns != nil && c.ns.Running() {
+		c.ns.Shutdown()
+		c.ns.WaitForShutdown()
+	}
+
+	close(c.shutdownComplete)
+}
+
+// WaitForShutdown will block until the server has been fully shutdown.
+func (c *controller) WaitForShutdown() {
+	<-c.shutdownComplete
+}
+
+func (c *controller) discoveryManagement() {
+	id := c.nso.ServerName
 	u := &url.URL{
 		Host: fmt.Sprintf("%s:%d", c.nso.Cluster.Host, c.nso.Cluster.Port),
 	}
-	c.dc.AddEndpoint(c.nso.ServerName, u)
 
-	var endpoints []*url.URL
-	for {
-		endpoints = c.dc.Endpoints()
-		if len(endpoints) == 3 {
-			break
+	go func() {
+		for {
+			// Should maybe just call `AddEndpoint` every time,
+			// in case the URL ever changes?
+			if !c.dc.Registered(id) {
+				c.dc.SetEndpoint(id, u)
+			}
+
+			c.endpoints = c.dc.Endpoints()
+
+			select {
+			case <-c.quitCh:
+				return
+			case <-time.After(5 * time.Second):
+
+			}
 		}
-		time.Sleep(1 * time.Second)
-	}
-
-	c.nso.Routes = endpoints
-
-	if err := c.startNats(); err != nil {
-		return err
-	}
-
-	c.rgc.Storage["nats"] = configuration.Parameters{
-		"clienturl": c.ns.ClientURL(),
-	}
-
-	if err := c.startRegistry(); err != nil {
-		return err
-	}
-
-	c.handleSignals()
-
-	return nil
+	}()
 }
 
-func (c *controller) startNats() error {
-	ns, err := nats.NewServer(c.nso)
-	if err != nil {
-		return err
-	}
-	ns.ConfigureLogger()
-	c.ns = ns
+func (c *controller) natsManagement() {
+	go func() {
+		for {
+			time.Sleep(1 * time.Second)
 
-	go c.ns.Start()
-	if !c.ns.ReadyForConnections(4 * time.Second) {
-		return errors.New("nats start timeout")
-	}
+			if len(c.endpoints) != 3 {
+				continue
+			}
 
-	return nil
+			if slices.Equal(c.endpoints, c.nso.Routes) {
+				continue
+			}
+
+			c.nso.Routes = c.endpoints
+
+			if c.ns != nil && c.ns.Running() {
+				c.ns.Shutdown()
+				c.ns.WaitForShutdown()
+			}
+
+			ns, err := nats.NewServer(c.nso)
+			if err != nil {
+				log.Print(err)
+				continue
+			}
+
+			ns.ConfigureLogger()
+
+			if err := nats.Run(ns); err != nil {
+				log.Print(err)
+				continue
+			}
+
+			c.ns = ns
+
+			select {
+			case <-c.quitCh:
+				return
+			case <-time.After(10 * time.Second):
+				continue
+			}
+		}
+	}()
 }
 
 func (c *controller) startRegistry() error {
@@ -125,20 +191,11 @@ func (c *controller) handleSignals() {
 	sigs := make(chan os.Signal, 1)
 	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
 
-	done := make(chan bool, 1)
 	go func() {
 		sig := <-sigs
 		switch sig {
 		case syscall.SIGINT, syscall.SIGTERM:
-			if err := c.rg.Shutdown(context.Background()); err != nil {
-				// TODO: Forward this to a proper logger.
-				fmt.Printf("failed to gracefully shutdown embedded registry: %s", err)
-			}
-			c.ns.Shutdown()
-			c.ns.WaitForShutdown()
+			c.Shutdown()
 		}
-		done <- true
 	}()
-
-	<-done
 }

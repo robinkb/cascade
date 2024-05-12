@@ -2,11 +2,12 @@ package controller
 
 import (
 	"bytes"
+	"fmt"
 	"testing"
 	"time"
 
 	"github.com/distribution/distribution/v3/configuration"
-	nats "github.com/nats-io/nats-server/v2/server"
+	"github.com/nats-io/nats-server/v2/server"
 )
 
 // I swear that this is the easiest way to do it.
@@ -23,61 +24,54 @@ func TestClusterFormation(t *testing.T) {
 	}
 
 	dc := NewDiscoveryClient()
-	ctl1 := New(dc, &nats.Options{
-		JetStream:  true,
-		StoreDir:   t.TempDir(),
-		Port:       -1,
-		ServerName: "ctl1",
-		Cluster: nats.ClusterOpts{
-			Name: "cascade",
-			Host: "localhost",
-			Port: 6222,
-		},
-	}, rgc)
-	go func() {
-		err := ctl1.Start()
-		if err != nil {
-			t.Error(err)
-		}
-	}()
+	controllers := []*controller{}
 
-	ctl2 := New(dc, &nats.Options{
-		JetStream:  true,
-		StoreDir:   t.TempDir(),
-		Port:       -1,
-		ServerName: "ctl2",
-		Cluster: nats.ClusterOpts{
-			Name: "cascade",
-			Host: "localhost",
-			Port: 6223,
-		},
-	}, rgc)
-	go func() {
-		err := ctl2.Start()
-		if err != nil {
-			t.Error(err)
-		}
-	}()
+	// Initialize the controllers
+	for i := 0; i < 3; i++ {
+		controllers = append(controllers, NewController(dc, &server.Options{
+			JetStream:  true,
+			StoreDir:   t.TempDir(),
+			Port:       -1,
+			ServerName: fmt.Sprintf("n%d", i),
+			Cluster: server.ClusterOpts{
+				Name: "cascade",
+				Host: "localhost",
+				Port: 6222 + i,
+			},
+		}, rgc))
+	}
 
-	ctl3 := New(dc, &nats.Options{
-		JetStream:  true,
-		StoreDir:   t.TempDir(),
-		Port:       -1,
-		ServerName: "ctl3",
-		Cluster: nats.ClusterOpts{
-			Name: "cascade",
-			Host: "localhost",
-			Port: 6224,
-		},
-	}, rgc)
-	go func() {
-		err := ctl3.Start()
-		if err != nil {
-			t.Error(err)
-		}
-	}()
+	// Start all of them
+	for _, c := range controllers {
+		t.Logf("starting %s", c.nso.ServerName)
+		c.Run()
+	}
 
-	time.Sleep(15 * time.Second)
-	t.Log("first 15 seconds passed")
-	time.Sleep(30 * time.Second)
+	for _, c := range controllers {
+		for {
+			if c.ns == nil {
+				time.Sleep(100 * time.Millisecond)
+				continue
+			}
+
+			if !c.ns.ReadyForConnections(4 * time.Second) {
+				continue
+			}
+
+			break
+		}
+	}
+
+	for _, c := range controllers {
+		if !c.ns.JetStreamIsClustered() {
+			t.Error("not clustered")
+		}
+	}
+
+	for _, c := range controllers {
+		c.Shutdown()
+		c.WaitForShutdown()
+	}
+
+	t.Log("shutdown complete")
 }
