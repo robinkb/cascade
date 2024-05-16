@@ -3,6 +3,7 @@ package controller
 import (
 	"net/url"
 	"sync"
+	"time"
 
 	"golang.org/x/exp/maps"
 )
@@ -32,7 +33,7 @@ func (dc *discoveryClient) Set(id string, url *url.URL) {
 	dc.endpoints[id] = url
 	dc.mu.Unlock()
 
-	// dc.sendRefreshes()
+	dc.sendRefreshes()
 }
 
 func (dc *discoveryClient) Delete(id string) {
@@ -40,19 +41,21 @@ func (dc *discoveryClient) Delete(id string) {
 	delete(dc.endpoints, id)
 	dc.mu.Unlock()
 
-	// dc.sendRefreshes()
+	dc.sendRefreshes()
 }
 
 func (dc *discoveryClient) Refresh() <-chan struct{} {
 	return dc.refresh
 }
 
-// TODO: This blocks if no one is listening...
 func (dc *discoveryClient) sendRefreshes() {
 	dc.mu.Lock()
 	defer dc.mu.Unlock()
 	for range len(dc.endpoints) - 1 {
-		dc.refresh <- struct{}{}
+		select {
+		case dc.refresh <- struct{}{}:
+		case <-time.After(1 * time.Second):
+		}
 	}
 }
 
