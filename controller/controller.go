@@ -107,10 +107,10 @@ func (c *controller) discoveryManagement() {
 			// Should maybe just call `AddEndpoint` every time,
 			// in case the URL ever changes?
 			if !c.dc.Registered(id) {
-				c.dc.SetEndpoint(id, u)
+				c.dc.Set(id, u)
 			}
 
-			c.endpoints = c.dc.Endpoints()
+			c.endpoints = c.dc.Routes()
 
 			select {
 			case <-c.quit:

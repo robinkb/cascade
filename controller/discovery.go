@@ -27,24 +27,36 @@ func (dc *discoveryClient) Registered(id string) bool {
 	return ok
 }
 
-func (dc *discoveryClient) SetEndpoint(id string, url *url.URL) {
+func (dc *discoveryClient) Set(id string, url *url.URL) {
 	dc.mu.Lock()
 	dc.endpoints[id] = url
 	dc.mu.Unlock()
 
-	// Send refreshes for every registered endpoint.
-	// Does not account for endpoints going away atm,
-	// but it's good enough for now.
-	for range len(dc.endpoints) {
-		dc.refresh <- struct{}{}
-	}
+	// dc.sendRefreshes()
+}
+
+func (dc *discoveryClient) Delete(id string) {
+	dc.mu.Lock()
+	delete(dc.endpoints, id)
+	dc.mu.Unlock()
+
+	// dc.sendRefreshes()
 }
 
 func (dc *discoveryClient) Refresh() <-chan struct{} {
 	return dc.refresh
 }
 
-func (dc *discoveryClient) Endpoints() []*url.URL {
+// TODO: This blocks if no one is listening...
+func (dc *discoveryClient) sendRefreshes() {
+	dc.mu.Lock()
+	defer dc.mu.Unlock()
+	for range len(dc.endpoints) - 1 {
+		dc.refresh <- struct{}{}
+	}
+}
+
+func (dc *discoveryClient) Routes() []*url.URL {
 	dc.mu.Lock()
 	defer dc.mu.Unlock()
 	return maps.Values(dc.endpoints)

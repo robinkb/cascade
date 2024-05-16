@@ -91,114 +91,61 @@ func TestClusterFormation(t *testing.T) {
 // 4. Second real node joins the cluster
 // 5. Virtual node is removed
 
-// Maybe do the following, or maybe leave it:
-// * Tag-based placements are removed from streams (can we do this?)
-// * Tags are removed from the first actual node
-
 // This works!! 🎉
-func TestClusterUpgradeWithVirtualNode(t *testing.T) {
-	primeroOpts := &server.Options{
-		ServerName: "primero",
-		Port:       4222,
-		JetStream:  true,
-		StoreDir:   t.TempDir(),
-		Routes: []*url.URL{
-			{Host: "localhost:6221"},
-		},
-		Tags: jwt.TagList{"app:cascade"},
-		Cluster: server.ClusterOpts{
-			Name: "cascade",
-			Host: "localhost",
-			Port: 6222,
-		},
-		// SystemAccount: "$SYS",
-		// Accounts: []*server.Account{
-		// 	{
-		// 		Name: "$SYS",
-		// 	},
-		// },
-		// Users: []*server.User{
-		// 	{
-		// 		Username: "admin",
-		// 		Password: "admin",
-		// 		Account:  &server.Account{Name: "$SYS"},
-		// 	},
-		// },
-	}
-	primero, err := server.NewServer(primeroOpts)
-	if err != nil {
-		t.Fatal(err)
-	}
-	primero.ConfigureLogger()
+func TestClusterBootstrap(t *testing.T) {
+	dc := NewDiscoveryClient()
 
-	if err := server.Run(primero); err != nil {
-		t.Fatal(err)
-	}
+	virtualOpts := makeNATSTestOptions(t, 0)
+	virtualOpts.Tags = nil // Virtual server should be untagged.
+	dc.Set(virtualOpts.ServerName, makeRouteURL(virtualOpts))
 
-	virtualOpts := &server.Options{
-		ServerName: "virtual",
-		Port:       4221,
-		JetStream:  true,
-		// Virtual server must persist cluster info to disk to survive reboots.
-		StoreDir: t.TempDir(),
-		Routes: []*url.URL{
-			{Host: "localhost:6222"},
-		},
-		Cluster: server.ClusterOpts{
-			Name: "cascade",
-			Host: "localhost",
-			Port: 6221,
-		},
-		// SystemAccount: "$SYS",
-		// Accounts: []*server.Account{
-		// 	{
-		// 		Name: "$SYS",
-		// 	},
-		// },
-		// Users: []*server.User{
-		// 	{
-		// 		Username: "admin",
-		// 		Password: "admin",
-		// 		Account:  &server.Account{Name: "$SYS"},
-		// 	},
-		// },
-	}
+	server1Opts := makeNATSTestOptions(t, 1)
+	dc.Set(server1Opts.ServerName, makeRouteURL(server1Opts))
+
+	virtualOpts.Routes = dc.Routes()
+	server1Opts.Routes = dc.Routes()
+
 	virtual, err := server.NewServer(virtualOpts)
 	if err != nil {
 		t.Fatal(err)
 	}
 	virtual.ConfigureLogger()
+	virtual.Start()
 
-	if err := server.Run(virtual); err != nil {
+	server1, err := server.NewServer(server1Opts)
+	if err != nil {
 		t.Fatal(err)
 	}
-
-	if !primero.ReadyForConnections(10 * time.Second) {
-		t.Fatal("primero not ready")
-	}
+	server1.ConfigureLogger()
+	server1.Start()
 
 	if !virtual.ReadyForConnections(10 * time.Second) {
-		t.Fatal("primero not ready")
+		t.Fatal("server1 not ready")
 	}
 
-	if !primero.JetStreamIsClustered() {
-		t.Fatal("primero is not clustered")
+	if !server1.ReadyForConnections(10 * time.Second) {
+		t.Fatal("server1 not ready")
+	}
+
+	if !server1.JetStreamIsClustered() {
+		t.Fatal("server1 is not clustered")
 	}
 
 	// How can I check if the servers are _really_ ready?
 	time.Sleep(8 * time.Second)
 
-	nc, err := nats.Connect(primero.ClientURL())
+	nc1, err := nats.Connect(server1.ClientURL())
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	jsp, err := jetstream.New(nc)
+	js1, err := jetstream.New(nc1)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	_, err = jsp.CreateObjectStore(context.Background(), jetstream.ObjectStoreConfig{
+	// TODO: Also put some objects in here.
+	_, err = js1.CreateObjectStore(context.Background(), jetstream.ObjectStoreConfig{
 		Bucket:   "testing",
 		Replicas: 1,
 		Placement: &jetstream.Placement{
@@ -209,53 +156,40 @@ func TestClusterUpgradeWithVirtualNode(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	segundoOpts := &server.Options{
-		ServerName: "segundo",
-		Port:       4223,
-		JetStream:  true,
-		StoreDir:   t.TempDir(),
-		Routes: []*url.URL{
-			{Host: "localhost:6222"},
-		},
-		Tags: jwt.TagList{"app:cascade"},
-		Cluster: server.ClusterOpts{
-			Name: "cascade",
-			Host: "localhost",
-			Port: 6223,
-		},
-	}
+	server2Opts := makeNATSTestOptions(t, 2)
+	dc.Set(server2Opts.ServerName, makeRouteURL(server2Opts))
 
-	segundo, err := server.NewServer(segundoOpts)
+	server2Opts.Routes = dc.Routes()
+
+	server2, err := server.NewServer(server2Opts)
 	if err != nil {
 		t.Fatal(err)
 	}
-	segundo.ConfigureLogger()
-
-	if err := server.Run(segundo); err != nil {
-		t.Fatal(err)
-	}
+	server2.ConfigureLogger()
+	server2.Start()
 
 	time.Sleep(8 * time.Second)
+	dc.Delete(virtualOpts.ServerName)
 	if err := virtual.DisableJetStream(); err != nil {
 		t.Fatal(err)
 	}
 
-	primeroOpts.Routes = []*url.URL{{Host: "localhost:6223"}}
-	segundoOpts.Routes = []*url.URL{{Host: "localhost:6222"}}
+	server1Opts.Routes = dc.Routes()
+	server2Opts.Routes = dc.Routes()
 
-	if err := primero.ReloadOptions(primeroOpts); err != nil {
+	if err := server1.ReloadOptions(server1Opts); err != nil {
 		t.Fatal(err)
 	}
-	if err := segundo.ReloadOptions(segundoOpts); err != nil {
+	if err := server2.ReloadOptions(server2Opts); err != nil {
 		t.Fatal(err)
 	}
 
 	virtual.Shutdown()
 	virtual.WaitForShutdown()
 
-	_, err = jsp.UpdateObjectStore(context.Background(), jetstream.ObjectStoreConfig{
+	_, err = js1.UpdateObjectStore(context.Background(), jetstream.ObjectStoreConfig{
 		Bucket:   "testing",
-		Replicas: 3,
+		Replicas: 2,
 		Placement: &jetstream.Placement{
 			Tags: []string{"app:cascade"},
 		},
@@ -264,46 +198,34 @@ func TestClusterUpgradeWithVirtualNode(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	terceroOpts := &server.Options{
-		ServerName: "tercero",
-		Port:       4224,
-		JetStream:  true,
-		StoreDir:   t.TempDir(),
-		Routes: []*url.URL{
-			{Host: "localhost:6222"},
-			{Host: "localhost:6223"},
-		},
-		Tags: jwt.TagList{"app:cascade"},
-		Cluster: server.ClusterOpts{
-			Name: "cascade",
-			Host: "localhost",
-			Port: 6224,
-		},
-	}
+	server3Opts := makeNATSTestOptions(t, 3)
+	dc.Set(server3Opts.ServerName, makeRouteURL(server3Opts))
 
-	tercero, err := server.NewServer(terceroOpts)
+	server3Opts.Routes = dc.Routes()
+
+	server3, err := server.NewServer(server3Opts)
 	if err != nil {
 		t.Fatal(err)
 	}
-	tercero.ConfigureLogger()
+	server3.ConfigureLogger()
 
-	if err := server.Run(tercero); err != nil {
+	if err := server.Run(server3); err != nil {
+		t.Fatal(err)
+	}
+
+	server1Opts.Routes = dc.Routes()
+	server2Opts.Routes = dc.Routes()
+
+	if err := server1.ReloadOptions(server1Opts); err != nil {
+		t.Fatal(err)
+	}
+	if err := server2.ReloadOptions(server2Opts); err != nil {
 		t.Fatal(err)
 	}
 
 	time.Sleep(8 * time.Second)
 
-	primeroOpts.Routes = []*url.URL{{Host: "localhost:6223"}, {Host: "localhost:6224"}}
-	segundoOpts.Routes = []*url.URL{{Host: "localhost:6222"}, {Host: "localhost:6224"}}
-
-	if err := primero.ReloadOptions(primeroOpts); err != nil {
-		t.Fatal(err)
-	}
-	if err := segundo.ReloadOptions(segundoOpts); err != nil {
-		t.Fatal(err)
-	}
-
-	_, err = jsp.UpdateObjectStore(context.Background(), jetstream.ObjectStoreConfig{
+	_, err = js1.UpdateObjectStore(context.Background(), jetstream.ObjectStoreConfig{
 		Bucket:   "testing",
 		Replicas: 3,
 		Placement: &jetstream.Placement{
@@ -314,5 +236,45 @@ func TestClusterUpgradeWithVirtualNode(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	time.Sleep(300 * time.Second)
+	time.Sleep(10 * time.Second)
+
+}
+
+// makeNATSTestOptions returns NATS Server options suitable for testing.
+func makeNATSTestOptions(t *testing.T, index int) *server.Options {
+	return &server.Options{
+		ServerName: fmt.Sprintf("s%d", index),
+		Port:       4222 + index,
+		JetStream:  true,
+		StoreDir:   t.TempDir(),
+		Tags:       jwt.TagList{"app:cascade"},
+		Cluster: server.ClusterOpts{
+			Name: "cascade",
+			Host: "localhost",
+			Port: 6222 + index,
+		},
+		// SystemAccount: "$SYS",
+		// Accounts: []*server.Account{
+		// 	{
+		// 		Name: "$SYS",
+		// 	},
+		// },
+		// Users: []*server.User{
+		// 	{
+		// 		Username: "admin",
+		// 		Password: "admin",
+		// 		Account:  &server.Account{Name: "$SYS"},
+		// 	},
+		// },
+	}
+}
+
+func makeRouteURL(opts *server.Options) *url.URL {
+	return &url.URL{
+		Host: fmt.Sprintf(
+			"%s:%d",
+			opts.Cluster.Host,
+			opts.Cluster.Port,
+		),
+	}
 }
