@@ -5,7 +5,7 @@ go 1.22
 require (
 	github.com/distribution/distribution/v3 v3.0.0-alpha.1
 	github.com/nats-io/nats-server/v2 v2.10.14
-	github.com/nats-io/nats.go v1.34.1
+	github.com/nats-io/nats.go v1.35.0
 )
 
 require (
