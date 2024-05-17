@@ -92,6 +92,11 @@ func TestClusterFormation(t *testing.T) {
 // 5. Virtual node is removed
 
 // This works!! 🎉
+// TODO:
+//   - Generate admin and registry users
+//   - Cascade in its own NATS account
+//   - mTLS certs
+//   - Check how many peers the cluster has
 func TestClusterBootstrap(t *testing.T) {
 	dc := NewDiscoveryClient()
 
@@ -242,6 +247,7 @@ func TestClusterBootstrap(t *testing.T) {
 
 // makeNATSTestOptions returns NATS Server options suitable for testing.
 func makeNATSTestOptions(t *testing.T, index int) *server.Options {
+	t.Helper()
 	return &server.Options{
 		ServerName: fmt.Sprintf("s%d", index),
 		Port:       4222 + index,
