@@ -4,15 +4,20 @@ import (
 	"context"
 	"fmt"
 	"testing"
+	"time"
 
 	corev1 "k8s.io/api/core/v1"
 	discoveryv1 "k8s.io/api/discovery/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/apimachinery/pkg/selection"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	applycorev1 "k8s.io/client-go/applyconfigurations/core/v1"
 	applydiscoveryv1 "k8s.io/client-go/applyconfigurations/discovery/v1"
+	"k8s.io/client-go/informers"
 	clientset "k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
+	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/klog/v2"
 )
@@ -40,13 +45,58 @@ func TestServiceManager(t *testing.T) {
 		klog.Fatal(err)
 	}
 	client := clientset.NewForConfigOrDie(config)
-	ctx := context.Background()
 	applyOpts := metav1.ApplyOptions{
 		Force:        true,
 		FieldManager: "cascade-controller",
 	}
 	namespace := "kube-system"
 
+	// Start Informer for logging
+	requirement, err := labels.NewRequirement(discoveryv1.LabelServiceName, selection.Equals, []string{"cascade"})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	informerFactory := informers.NewSharedInformerFactoryWithOptions(
+		client,
+		10*time.Second,
+		informers.WithNamespace("kube-system"),
+		informers.WithTweakListOptions(func(lo *metav1.ListOptions) {
+			lo.LabelSelector = requirement.String()
+		}),
+	)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	endpointSliceInformer := informerFactory.Discovery().V1().EndpointSlices()
+	endpointSliceInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
+		// Added to the informer, _not_ to the cluster.
+		AddFunc: func(obj interface{}) {
+			slice := obj.(*discoveryv1.EndpointSlice)
+			t.Log("endpointslice added", slice.GetObjectMeta().GetName())
+		},
+		// Updated in the informer, not necessarily in the cluster.
+		UpdateFunc: func(oldObj, newObj interface{}) {
+			oldSlice := oldObj.(*discoveryv1.EndpointSlice)
+			newSlice := newObj.(*discoveryv1.EndpointSlice)
+			if oldSlice.ResourceVersion == newSlice.ResourceVersion {
+				t.Log("endpointslice not changed", newSlice.GetObjectMeta().GetName())
+			} else {
+				t.Log("endpointslice changed", newSlice.GetObjectMeta().GetName())
+			}
+
+		},
+		// Deleted in the informer, which likely coincides with a delete in the cluster.
+		DeleteFunc: func(obj interface{}) {
+			slice := obj.(*discoveryv1.EndpointSlice)
+			t.Log("endpointslice deleted", slice.GetObjectMeta().GetName())
+		},
+	})
+
+	informerFactory.Start(ctx.Done())
+
+	// Creating Service
 	serviceDef := applycorev1.Service("cascade", namespace).
 		WithSpec(applycorev1.ServiceSpec().
 			WithClusterIP("None").
@@ -64,6 +114,7 @@ func TestServiceManager(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	// Creating EndpointSlices
 	endpointSlicePrimero := applydiscoveryv1.EndpointSlice("cascade-primero", namespace).
 		WithLabels(map[string]string{
 			discoveryv1.LabelServiceName: serviceObj.Name,
@@ -139,6 +190,8 @@ func TestServiceManager(t *testing.T) {
 				),
 		)
 
+	t.Log("going to add EndpointSlices")
+
 	_, err = client.DiscoveryV1().EndpointSlices(namespace).Apply(ctx, endpointSlicePrimero, applyOpts)
 	if err != nil {
 		t.Fatal(err)
@@ -167,4 +220,6 @@ func TestServiceManager(t *testing.T) {
 			t.Log(endpoint.Addresses)
 		}
 	}
+
+	time.Sleep(60 * time.Second)
 }
