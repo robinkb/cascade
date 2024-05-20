@@ -52,17 +52,19 @@ func TestServiceManager(t *testing.T) {
 	namespace := "kube-system"
 
 	// Start Informer for logging
+	selector := labels.NewSelector()
 	requirement, err := labels.NewRequirement(discoveryv1.LabelServiceName, selection.Equals, []string{"cascade"})
 	if err != nil {
 		t.Fatal(err)
 	}
+	selector.Add(*requirement)
 
 	informerFactory := informers.NewSharedInformerFactoryWithOptions(
 		client,
 		10*time.Second,
 		informers.WithNamespace("kube-system"),
 		informers.WithTweakListOptions(func(lo *metav1.ListOptions) {
-			lo.LabelSelector = requirement.String()
+			lo.LabelSelector = selector.String()
 		}),
 	)
 
