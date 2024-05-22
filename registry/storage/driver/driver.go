@@ -83,13 +83,6 @@ func New(ctx context.Context, params *Parameters) (*Driver, error) {
 		return nil, fmt.Errorf("failed to ensure root store exists: %w", err)
 	}
 
-	// Temporary workaround until this issue is resolved:
-	// https://github.com/nats-io/nats.go/issues/1610
-	_, err = root.PutBytes(ctx, ".", []byte{})
-	if err != nil {
-		panic(err)
-	}
-
 	d := &driver{js, root}
 
 	return &Driver{
@@ -235,15 +228,13 @@ func (d *driver) Stat(ctx context.Context, path string) (storagedriver.FileInfo,
 // given path.
 func (d *driver) List(ctx context.Context, path string) ([]string, error) {
 	objs, err := d.root.List(ctx)
-	// TODO: Remove this when workaround obj is removed
-	if len(objs) == 1 && path == rootPath {
-		return []string{}, nil
-	}
-	// TODO: This is what it should be.
-	// if errors.Is(err, jetstream.ErrNoObjectsFound) {
-	// 	return []string{}, nil
-	// }
 	if err != nil {
+		if errors.Is(err, jetstream.ErrNoObjectsFound) {
+			if path == rootPath {
+				return []string{}, nil
+			}
+			return nil, storagedriver.PathNotFoundError{Path: path}
+		}
 		return nil, err
 	}
 
@@ -319,6 +310,12 @@ func (d *driver) Delete(ctx context.Context, path string) error {
 	// Object not found, but the given path may be a directory.
 	objects, err := d.root.List(ctx)
 	if err != nil {
+		if errors.Is(err, jetstream.ErrNoObjectsFound) {
+			if path == rootPath {
+				return nil
+			}
+			return storagedriver.PathNotFoundError{Path: path}
+		}
 		return err
 	}
 
