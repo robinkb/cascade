@@ -23,7 +23,7 @@ import (
 	"golang.org/x/exp/maps"
 )
 
-func NewDiscoveryClient() *discoveryClient {
+func NewInMemoryDiscoveryClient() *discoveryClient {
 	return &discoveryClient{
 		endpoints: make(map[string]*url.URL),
 		refresh:   make(chan struct{}, 1),

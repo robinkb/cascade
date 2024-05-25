@@ -43,7 +43,7 @@ func TestClusterFormation(t *testing.T) {
 		t.Error(err)
 	}
 
-	dc := NewDiscoveryClient()
+	dc := NewInMemoryDiscoveryClient()
 	controllers := []*controller{}
 
 	// Initialize the controllers
@@ -113,7 +113,7 @@ func TestClusterFormation(t *testing.T) {
 //   - mTLS certs
 //   - Check how many peers the cluster has
 func TestClusterBootstrap(t *testing.T) {
-	dc := NewDiscoveryClient()
+	dc := NewInMemoryDiscoveryClient()
 
 	virtualOpts := makeNATSTestOptions(t, 0)
 	virtualOpts.Tags = nil // Virtual server should be untagged.
