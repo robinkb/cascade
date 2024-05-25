@@ -23,4 +23,11 @@ type (
 		Routes() ([]*url.URL, error)
 		Refresh() <-chan struct{}
 	}
+
+	ClusterRoute struct {
+		ServerName  string
+		ClusterName string
+		IPAddr      string
+		Port        int32
+	}
 )

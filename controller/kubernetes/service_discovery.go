@@ -1,4 +1,19 @@
-package controller
+/*
+Copyright © 2024 Robin Ketelbuters
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+package kubernetes
 
 import (
 	"context"
@@ -8,6 +23,7 @@ import (
 	"net/url"
 	"time"
 
+	"github.com/robinkb/cascade/controller"
 	corev1 "k8s.io/api/core/v1"
 	discoveryv1 "k8s.io/api/discovery/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -21,51 +37,52 @@ import (
 	"k8s.io/client-go/tools/cache"
 )
 
-func NewKubernetesDiscoveryClient(ctx context.Context, client kubernetes.Interface, serverName, namespace string) (*kubernetesDiscoveryClient, error) {
+func NewKubernetesDiscoveryClient(ctx context.Context, client kubernetes.Interface, namespace string, clusterRoute *controller.ClusterRoute) (*kubernetesDiscoveryClient, error) {
 	dc := &kubernetesDiscoveryClient{
-		client:    client,
-		namespace: namespace,
+		client:       client,
+		namespace:    namespace,
+		clusterRoute: clusterRoute,
 		applyOpts: metav1.ApplyOptions{
 			Force:        true,
 			FieldManager: "cascade-controller",
 		},
+		refresh: make(chan struct{}, 1),
 	}
 
-	selector := labels.NewSelector()
-	requirement, err := labels.NewRequirement("app.kubernetes.io/name", selection.Equals, []string{"cascade"})
+	nameLabel, err := labels.NewRequirement("app.kubernetes.io/name", selection.Equals, []string{"cascade"})
 	if err != nil {
 		return nil, err
 	}
-	selector = selector.Add(*requirement)
-
-	// Feels like I should not be getting the IP here.
-	ipAddr, err := getLocalIP()
+	instanceLabel, err := labels.NewRequirement("app.kubernetes.io/instance", selection.Equals, []string{clusterRoute.ClusterName})
 	if err != nil {
 		return nil, err
 	}
+	selector := labels.NewSelector().
+		Add(*nameLabel).
+		Add(*instanceLabel)
 
-	// TODO: Should use the cluster name in the endpoint slice name, and probably in the labels too.
-	endpointSlice := applydiscoveryv1.EndpointSlice(fmt.Sprintf("cascade-%s", serverName), namespace).
+	endpointSlice := applydiscoveryv1.EndpointSlice(fmt.Sprintf("%s-%s", clusterRoute.ClusterName, clusterRoute.ServerName), namespace).
 		WithLabels(map[string]string{
-			"app.kubernetes.io/name": "cascade",
+			"app.kubernetes.io/name":     "cascade",
+			"app.kubernetes.io/instance": clusterRoute.ClusterName,
 		}).
 		WithAddressType(discoveryv1.AddressTypeIPv4).
 		WithPorts(
 			applydiscoveryv1.EndpointPort().
 				WithName("nats-cluster").
 				WithProtocol(corev1.ProtocolTCP).
-				WithPort(6222),
+				WithPort(clusterRoute.Port),
 		).
 		WithEndpoints(
 			applydiscoveryv1.Endpoint().
-				WithHostname(serverName).
-				WithNodeName(serverName).
-				WithAddresses(ipAddr).
+				WithHostname(clusterRoute.ServerName).
+				WithNodeName(clusterRoute.ServerName).
+				WithAddresses(clusterRoute.IPAddr).
 				WithTargetRef(
 					applycorev1.ObjectReference().
 						WithAPIVersion("v1").
 						WithKind("Pod").
-						WithName(serverName).
+						WithName(clusterRoute.ServerName).
 						WithNamespace(namespace),
 				),
 		)
@@ -100,6 +117,7 @@ type kubernetesDiscoveryClient struct {
 	namespace       string
 	applyOpts       metav1.ApplyOptions
 	refresh         chan struct{}
+	clusterRoute    *controller.ClusterRoute
 }
 
 func (dc *kubernetesDiscoveryClient) Start(stopCh <-chan struct{}) {
@@ -145,6 +163,13 @@ func (dc *kubernetesDiscoveryClient) Refresh() <-chan struct{} {
 	return dc.refresh
 }
 
+func (dc *kubernetesDiscoveryClient) sendRefresh() {
+	select {
+	case dc.refresh <- struct{}{}:
+	case <-time.After(1 * time.Millisecond):
+	}
+}
+
 func (dc *kubernetesDiscoveryClient) reconcile() {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -154,13 +179,13 @@ func (dc *kubernetesDiscoveryClient) reconcile() {
 		log.Print(err)
 	}
 
-	select {
-	case dc.refresh <- struct{}{}:
-	case <-time.After(1 * time.Millisecond):
-	}
+	dc.sendRefresh()
 }
 
-func (dc *kubernetesDiscoveryClient) add(obj any) {}
+func (dc *kubernetesDiscoveryClient) add(obj any) {
+	dc.sendRefresh()
+}
+
 func (dc *kubernetesDiscoveryClient) update(oldObj, newObj any) {
 	newSlice := newObj.(*discoveryv1.EndpointSlice)
 	if newSlice.GetObjectMeta().GetName() != *dc.endpointSlice.Name {
@@ -174,6 +199,7 @@ func (dc *kubernetesDiscoveryClient) update(oldObj, newObj any) {
 
 	dc.reconcile()
 }
+
 func (dc *kubernetesDiscoveryClient) delete(obj any) {
 	slice := obj.(*discoveryv1.EndpointSlice)
 	if slice.ObjectMeta.Name != *dc.endpointSlice.Name {

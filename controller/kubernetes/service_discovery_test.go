@@ -13,13 +13,14 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
-package controller
+package kubernetes
 
 import (
 	"context"
-	"math/rand"
 	"testing"
 
+	"github.com/robinkb/cascade/controller"
+	"github.com/robinkb/cascade/controller/testsuites"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/uuid"
@@ -28,10 +29,7 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 )
 
-func TestKubernetesDiscoveryClient(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
+func TestKubernetesServiceDiscovery(t *testing.T) {
 	config, err := clientcmd.BuildConfigFromFlags("", "/home/robinkb/.kube/config")
 	if err != nil {
 		t.Fatal(err)
@@ -42,50 +40,12 @@ func TestKubernetesDiscoveryClient(t *testing.T) {
 	}
 
 	namespace := createTestingNamespace(t, client)
-	hosts := []struct {
-		name string
-		host string
-		port int32
-	}{
-		{
-			name: "s1",
-			host: "192.168.0.10",
-			port: rand.Int31(),
-		},
-		{
-			name: "s2",
-			host: "192.168.0.11",
-			port: rand.Int31(),
-		},
-		{
-			name: "s3",
-			host: "192.168.0.12",
-			port: rand.Int31(),
-		},
+
+	serviceDiscoveryConstructor := func(clusterRoute *controller.ClusterRoute) (controller.ServiceDiscovery, error) {
+		return NewKubernetesDiscoveryClient(context.TODO(), client, namespace, clusterRoute)
 	}
 
-	sds := make([]ServiceDiscovery, 0)
-	for _, host := range hosts {
-		sd, err := NewKubernetesDiscoveryClient(ctx, client, host.name, namespace)
-		if err != nil {
-			t.Fatal(err)
-		}
-
-		sd.Start(ctx.Done())
-		sds = append(sds, sd)
-	}
-
-	for _, sd := range sds {
-		routes, err := sd.Routes()
-		if err != nil {
-			t.Fatal(err)
-		}
-
-		// TODO: Better check here
-		if len(routes) != len(hosts) {
-			t.Errorf("unexpected amount of routes returned; found %d, want %d", len(routes), len(hosts))
-		}
-	}
+	testsuites.ServiceDiscovery(t, serviceDiscoveryConstructor)
 }
 
 func createTestingNamespace(t *testing.T, client kubernetes.Interface) string {
