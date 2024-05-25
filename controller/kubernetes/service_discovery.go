@@ -37,8 +37,8 @@ import (
 	"k8s.io/client-go/tools/cache"
 )
 
-func NewKubernetesDiscoveryClient(ctx context.Context, client kubernetes.Interface, namespace string, clusterRoute *controller.ClusterRoute) (*kubernetesDiscoveryClient, error) {
-	dc := &kubernetesDiscoveryClient{
+func NewServiceDiscovery(ctx context.Context, client kubernetes.Interface, namespace string, clusterRoute *controller.ClusterRoute) (controller.ServiceDiscovery, error) {
+	dc := &serviceDiscovery{
 		client:       client,
 		namespace:    namespace,
 		clusterRoute: clusterRoute,
@@ -109,7 +109,7 @@ func NewKubernetesDiscoveryClient(ctx context.Context, client kubernetes.Interfa
 	return dc, nil
 }
 
-type kubernetesDiscoveryClient struct {
+type serviceDiscovery struct {
 	client          kubernetes.Interface
 	informerFactory informers.SharedInformerFactory
 	informer        v1.EndpointSliceInformer
@@ -120,14 +120,14 @@ type kubernetesDiscoveryClient struct {
 	clusterRoute    *controller.ClusterRoute
 }
 
-func (dc *kubernetesDiscoveryClient) Start(stopCh <-chan struct{}) {
-	dc.informerFactory.Start(stopCh)
-	dc.reconcile()
-	cache.WaitForCacheSync(stopCh, dc.informer.Informer().HasSynced)
+func (sd *serviceDiscovery) Start(stopCh <-chan struct{}) {
+	sd.informerFactory.Start(stopCh)
+	sd.reconcile()
+	cache.WaitForCacheSync(stopCh, sd.informer.Informer().HasSynced)
 }
 
-func (dc *kubernetesDiscoveryClient) Routes() ([]*url.URL, error) {
-	slices, err := dc.informer.Lister().EndpointSlices(dc.namespace).List(labels.Everything())
+func (sd *serviceDiscovery) Routes() ([]*url.URL, error) {
+	slices, err := sd.informer.Lister().EndpointSlices(sd.namespace).List(labels.Everything())
 	if err != nil {
 		return nil, err
 	}
@@ -159,36 +159,36 @@ func (dc *kubernetesDiscoveryClient) Routes() ([]*url.URL, error) {
 	return urls, nil
 }
 
-func (dc *kubernetesDiscoveryClient) Refresh() <-chan struct{} {
-	return dc.refresh
+func (sd *serviceDiscovery) Refresh() <-chan struct{} {
+	return sd.refresh
 }
 
-func (dc *kubernetesDiscoveryClient) sendRefresh() {
+func (sd *serviceDiscovery) sendRefresh() {
 	select {
-	case dc.refresh <- struct{}{}:
+	case sd.refresh <- struct{}{}:
 	case <-time.After(1 * time.Millisecond):
 	}
 }
 
-func (dc *kubernetesDiscoveryClient) reconcile() {
+func (sd *serviceDiscovery) reconcile() {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	_, err := dc.client.DiscoveryV1().EndpointSlices(dc.namespace).Apply(ctx, dc.endpointSlice, dc.applyOpts)
+	_, err := sd.client.DiscoveryV1().EndpointSlices(sd.namespace).Apply(ctx, sd.endpointSlice, sd.applyOpts)
 	if err != nil {
 		log.Print(err)
 	}
 
-	dc.sendRefresh()
+	sd.sendRefresh()
 }
 
-func (dc *kubernetesDiscoveryClient) add(obj any) {
-	dc.sendRefresh()
+func (sd *serviceDiscovery) add(obj any) {
+	sd.sendRefresh()
 }
 
-func (dc *kubernetesDiscoveryClient) update(oldObj, newObj any) {
+func (sd *serviceDiscovery) update(oldObj, newObj any) {
 	newSlice := newObj.(*discoveryv1.EndpointSlice)
-	if newSlice.GetObjectMeta().GetName() != *dc.endpointSlice.Name {
+	if newSlice.GetObjectMeta().GetName() != *sd.endpointSlice.Name {
 		return
 	}
 
@@ -197,14 +197,14 @@ func (dc *kubernetesDiscoveryClient) update(oldObj, newObj any) {
 		return
 	}
 
-	dc.reconcile()
+	sd.reconcile()
 }
 
-func (dc *kubernetesDiscoveryClient) delete(obj any) {
+func (sd *serviceDiscovery) delete(obj any) {
 	slice := obj.(*discoveryv1.EndpointSlice)
-	if slice.ObjectMeta.Name != *dc.endpointSlice.Name {
+	if slice.ObjectMeta.Name != *sd.endpointSlice.Name {
 		return
 	}
 
-	dc.reconcile()
+	sd.reconcile()
 }

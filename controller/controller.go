@@ -17,15 +17,11 @@ package controller
 
 import (
 	"errors"
-	"fmt"
 	"log"
 	"net"
-	"net/url"
 	"os"
 	"os/signal"
-	"slices"
 	"syscall"
-	"time"
 
 	"github.com/distribution/distribution/v3/configuration"
 	"github.com/distribution/distribution/v3/registry"
@@ -34,11 +30,9 @@ import (
 	_ "github.com/robinkb/cascade/registry/storage/driver"
 )
 
-func NewController(dc *discoveryClient, natsOptions *nats.Options, registryConfig *configuration.Configuration) *controller {
+func NewController(sd ServiceDiscovery) Controller {
 	c := &controller{
-		dc:  dc,
-		nso: natsOptions,
-		rgc: registryConfig,
+		sd: sd,
 
 		quit:             make(chan struct{}),
 		shutdownComplete: make(chan struct{}),
@@ -48,8 +42,7 @@ func NewController(dc *discoveryClient, natsOptions *nats.Options, registryConfi
 }
 
 type controller struct {
-	dc        *discoveryClient
-	endpoints []*url.URL
+	sd ServiceDiscovery
 
 	ns  *nats.Server
 	nso *nats.Options
@@ -62,11 +55,11 @@ type controller struct {
 	errs             chan error
 }
 
-func (c *controller) Run() {
-	log.Print("starting discovery management")
-	c.discoveryManagement()
-	log.Print("starting nats management")
-	c.natsManagement()
+func (c *controller) Start() {
+	// log.Print("starting discovery management")
+	// c.discoveryManagement()
+	// log.Print("starting nats management")
+	// c.natsManagement()
 
 	// Should wait for NATS to be running before we start the registry.
 	// c.rgc.Storage["nats"] = configuration.Parameters{
@@ -98,78 +91,78 @@ func (c *controller) WaitForShutdown() {
 	<-c.shutdownComplete
 }
 
-func (c *controller) discoveryManagement() {
-	id := c.nso.ServerName
-	u := &url.URL{
-		Host: fmt.Sprintf("%s:%d", c.nso.Cluster.Host, c.nso.Cluster.Port),
-	}
+// func (c *controller) discoveryManagement() {
+// 	id := c.nso.ServerName
+// 	u := &url.URL{
+// 		Host: fmt.Sprintf("%s:%d", c.nso.Cluster.Host, c.nso.Cluster.Port),
+// 	}
 
-	go func() {
-		for {
-			// Should maybe just call `AddEndpoint` every time,
-			// in case the URL ever changes?
-			if !c.dc.Registered(id) {
-				c.dc.Set(id, u)
-			}
+// 	go func() {
+// 		for {
+// 			// Should maybe just call `AddEndpoint` every time,
+// 			// in case the URL ever changes?
+// 			if !c.dc.Registered(id) {
+// 				c.dc.Set(id, u)
+// 			}
 
-			c.endpoints = c.dc.Routes()
+// 			c.endpoints = c.dc.Routes()
 
-			select {
-			case <-c.quit:
-				return
-			case <-c.dc.Refresh():
-				// continue
-			case <-time.After(60 * time.Second):
-				// continue
-			}
-		}
-	}()
-}
+// 			select {
+// 			case <-c.quit:
+// 				return
+// 			case <-c.dc.Refresh():
+// 				// continue
+// 			case <-time.After(60 * time.Second):
+// 				// continue
+// 			}
+// 		}
+// 	}()
+// }
 
-func (c *controller) natsManagement() {
-	go func() {
-		for {
-			time.Sleep(1 * time.Second)
+// func (c *controller) natsManagement() {
+// 	go func() {
+// 		for {
+// 			time.Sleep(1 * time.Second)
 
-			if len(c.endpoints) != 3 {
-				continue
-			}
+// 			if len(c.endpoints) != 3 {
+// 				continue
+// 			}
 
-			if slices.Equal(c.endpoints, c.nso.Routes) {
-				continue
-			}
+// 			if slices.Equal(c.endpoints, c.nso.Routes) {
+// 				continue
+// 			}
 
-			c.nso.Routes = c.endpoints
+// 			c.nso.Routes = c.endpoints
 
-			if c.ns != nil && c.ns.Running() {
-				c.ns.Shutdown()
-				c.ns.WaitForShutdown()
-			}
+// 			if c.ns != nil && c.ns.Running() {
+// 				c.ns.Shutdown()
+// 				c.ns.WaitForShutdown()
+// 			}
 
-			ns, err := nats.NewServer(c.nso)
-			if err != nil {
-				log.Print(err)
-				continue
-			}
+// 			ns, err := nats.NewServer(c.nso)
+// 			if err != nil {
+// 				log.Print(err)
+// 				continue
+// 			}
 
-			ns.ConfigureLogger()
+// 			ns.ConfigureLogger()
 
-			if err := nats.Run(ns); err != nil {
-				log.Print(err)
-				continue
-			}
+// 			if err := nats.Run(ns); err != nil {
+// 				log.Print(err)
+// 				continue
+// 			}
 
-			c.ns = ns
+// 			c.ns = ns
 
-			select {
-			case <-c.quit:
-				return
-			case <-time.After(60 * time.Second):
-				continue
-			}
-		}
-	}()
-}
+// 			select {
+// 			case <-c.quit:
+// 				return
+// 			case <-time.After(60 * time.Second):
+// 				continue
+// 			}
+// 		}
+// 	}()
+// }
 
 // func (c *controller) startRegistry() error {
 // 	ctx := context.Background()

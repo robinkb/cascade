@@ -18,6 +18,10 @@ package controller
 import "net/url"
 
 type (
+	Controller interface {
+		Start()
+	}
+
 	ServiceDiscovery interface {
 		Start(stopCh <-chan struct{})
 		Routes() ([]*url.URL, error)

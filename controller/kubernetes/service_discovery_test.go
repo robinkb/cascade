@@ -17,6 +17,8 @@ package kubernetes
 
 import (
 	"context"
+	"os"
+	"path"
 	"testing"
 
 	"github.com/robinkb/cascade/controller"
@@ -30,7 +32,11 @@ import (
 )
 
 func TestKubernetesServiceDiscovery(t *testing.T) {
-	config, err := clientcmd.BuildConfigFromFlags("", "/home/robinkb/.kube/config")
+	homedir, err := os.UserHomeDir()
+	if err != nil {
+		t.Fatal(err)
+	}
+	config, err := clientcmd.BuildConfigFromFlags("", path.Join(homedir, ".kube/config"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -42,7 +48,7 @@ func TestKubernetesServiceDiscovery(t *testing.T) {
 	namespace := createTestingNamespace(t, client)
 
 	serviceDiscoveryConstructor := func(clusterRoute *controller.ClusterRoute) (controller.ServiceDiscovery, error) {
-		return NewKubernetesDiscoveryClient(context.TODO(), client, namespace, clusterRoute)
+		return NewServiceDiscovery(context.TODO(), client, namespace, clusterRoute)
 	}
 
 	testsuites.ServiceDiscovery(t, serviceDiscoveryConstructor)
