@@ -48,7 +48,7 @@ func TestKubernetesServiceDiscovery(t *testing.T) {
 	namespace := createTestingNamespace(t, client)
 
 	serviceDiscoveryConstructor := func(clusterRoute *controller.ClusterRoute) (controller.ServiceDiscovery, error) {
-		return NewServiceDiscovery(context.TODO(), client, namespace, clusterRoute)
+		return NewServiceDiscovery(client, namespace, clusterRoute)
 	}
 
 	testsuites.ServiceDiscovery(t, serviceDiscoveryConstructor)

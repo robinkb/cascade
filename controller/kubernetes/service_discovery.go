@@ -37,7 +37,7 @@ import (
 	"k8s.io/client-go/tools/cache"
 )
 
-func NewServiceDiscovery(ctx context.Context, client kubernetes.Interface, namespace string, clusterRoute *controller.ClusterRoute) (controller.ServiceDiscovery, error) {
+func NewServiceDiscovery(client kubernetes.Interface, namespace string, clusterRoute *controller.ClusterRoute) (controller.ServiceDiscovery, error) {
 	dc := &serviceDiscovery{
 		client:       client,
 		namespace:    namespace,
