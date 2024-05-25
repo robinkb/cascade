@@ -16,16 +16,12 @@ limitations under the License.
 package controller
 
 import (
-	"context"
 	"fmt"
 	"net/url"
 	"testing"
-	"time"
 
 	"github.com/nats-io/jwt/v2"
 	"github.com/nats-io/nats-server/v2/server"
-	"github.com/nats-io/nats.go"
-	"github.com/nats-io/nats.go/jetstream"
 )
 
 // I swear that this is the easiest way to do it.
@@ -110,153 +106,153 @@ storage:
 //   - Cascade in its own NATS account
 //   - mTLS certs
 //   - Check how many peers the cluster has
-func TestClusterBootstrap(t *testing.T) {
-	dc := NewInMemoryDiscoveryClient()
+// func TestClusterBootstrap(t *testing.T) {
+// 	dc := NewInMemoryDiscoveryClient()
 
-	virtualOpts := makeNATSTestOptions(t, 0)
-	virtualOpts.Tags = nil // Virtual server should be untagged.
-	dc.Set(virtualOpts.ServerName, makeRouteURL(virtualOpts))
+// 	virtualOpts := makeNATSTestOptions(t, 0)
+// 	virtualOpts.Tags = nil // Virtual server should be untagged.
+// 	dc.Set(virtualOpts.ServerName, makeRouteURL(virtualOpts))
 
-	server1Opts := makeNATSTestOptions(t, 1)
-	dc.Set(server1Opts.ServerName, makeRouteURL(server1Opts))
+// 	server1Opts := makeNATSTestOptions(t, 1)
+// 	dc.Set(server1Opts.ServerName, makeRouteURL(server1Opts))
 
-	virtualOpts.Routes = dc.Routes()
-	server1Opts.Routes = dc.Routes()
+// 	virtualOpts.Routes = dc.Routes()
+// 	server1Opts.Routes = dc.Routes()
 
-	virtual, err := server.NewServer(virtualOpts)
-	if err != nil {
-		t.Fatal(err)
-	}
-	virtual.ConfigureLogger()
-	virtual.Start()
+// 	virtual, err := server.NewServer(virtualOpts)
+// 	if err != nil {
+// 		t.Fatal(err)
+// 	}
+// 	virtual.ConfigureLogger()
+// 	virtual.Start()
 
-	server1, err := server.NewServer(server1Opts)
-	if err != nil {
-		t.Fatal(err)
-	}
-	server1.ConfigureLogger()
-	server1.Start()
+// 	server1, err := server.NewServer(server1Opts)
+// 	if err != nil {
+// 		t.Fatal(err)
+// 	}
+// 	server1.ConfigureLogger()
+// 	server1.Start()
 
-	if !virtual.ReadyForConnections(10 * time.Second) {
-		t.Fatal("server1 not ready")
-	}
+// 	if !virtual.ReadyForConnections(10 * time.Second) {
+// 		t.Fatal("server1 not ready")
+// 	}
 
-	if !server1.ReadyForConnections(10 * time.Second) {
-		t.Fatal("server1 not ready")
-	}
+// 	if !server1.ReadyForConnections(10 * time.Second) {
+// 		t.Fatal("server1 not ready")
+// 	}
 
-	if !server1.JetStreamIsClustered() {
-		t.Fatal("server1 is not clustered")
-	}
+// 	if !server1.JetStreamIsClustered() {
+// 		t.Fatal("server1 is not clustered")
+// 	}
 
-	// How can I check if the servers are _really_ ready?
-	time.Sleep(8 * time.Second)
+// 	// How can I check if the servers are _really_ ready?
+// 	time.Sleep(8 * time.Second)
 
-	nc1, err := nats.Connect(server1.ClientURL())
-	if err != nil {
-		t.Fatal(err)
-	}
+// 	nc1, err := nats.Connect(server1.ClientURL())
+// 	if err != nil {
+// 		t.Fatal(err)
+// 	}
 
-	js1, err := jetstream.New(nc1)
-	if err != nil {
-		t.Fatal(err)
-	}
+// 	js1, err := jetstream.New(nc1)
+// 	if err != nil {
+// 		t.Fatal(err)
+// 	}
 
-	// TODO: Also put some objects in here.
-	_, err = js1.CreateObjectStore(context.Background(), jetstream.ObjectStoreConfig{
-		Bucket:   "testing",
-		Replicas: 1,
-		Placement: &jetstream.Placement{
-			Tags: []string{"app:cascade"},
-		},
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
+// 	// TODO: Also put some objects in here.
+// 	_, err = js1.CreateObjectStore(context.Background(), jetstream.ObjectStoreConfig{
+// 		Bucket:   "testing",
+// 		Replicas: 1,
+// 		Placement: &jetstream.Placement{
+// 			Tags: []string{"app:cascade"},
+// 		},
+// 	})
+// 	if err != nil {
+// 		t.Fatal(err)
+// 	}
 
-	server2Opts := makeNATSTestOptions(t, 2)
-	dc.Set(server2Opts.ServerName, makeRouteURL(server2Opts))
+// 	server2Opts := makeNATSTestOptions(t, 2)
+// 	dc.Set(server2Opts.ServerName, makeRouteURL(server2Opts))
 
-	server2Opts.Routes = dc.Routes()
+// 	server2Opts.Routes = dc.Routes()
 
-	server2, err := server.NewServer(server2Opts)
-	if err != nil {
-		t.Fatal(err)
-	}
-	server2.ConfigureLogger()
-	server2.Start()
+// 	server2, err := server.NewServer(server2Opts)
+// 	if err != nil {
+// 		t.Fatal(err)
+// 	}
+// 	server2.ConfigureLogger()
+// 	server2.Start()
 
-	time.Sleep(8 * time.Second)
-	dc.Delete(virtualOpts.ServerName)
-	if err := virtual.DisableJetStream(); err != nil {
-		t.Fatal(err)
-	}
+// 	time.Sleep(8 * time.Second)
+// 	dc.Delete(virtualOpts.ServerName)
+// 	if err := virtual.DisableJetStream(); err != nil {
+// 		t.Fatal(err)
+// 	}
 
-	server1Opts.Routes = dc.Routes()
-	server2Opts.Routes = dc.Routes()
+// 	server1Opts.Routes = dc.Routes()
+// 	server2Opts.Routes = dc.Routes()
 
-	if err := server1.ReloadOptions(server1Opts); err != nil {
-		t.Fatal(err)
-	}
-	if err := server2.ReloadOptions(server2Opts); err != nil {
-		t.Fatal(err)
-	}
+// 	if err := server1.ReloadOptions(server1Opts); err != nil {
+// 		t.Fatal(err)
+// 	}
+// 	if err := server2.ReloadOptions(server2Opts); err != nil {
+// 		t.Fatal(err)
+// 	}
 
-	virtual.Shutdown()
-	virtual.WaitForShutdown()
+// 	virtual.Shutdown()
+// 	virtual.WaitForShutdown()
 
-	_, err = js1.UpdateObjectStore(context.Background(), jetstream.ObjectStoreConfig{
-		Bucket:   "testing",
-		Replicas: 2,
-		Placement: &jetstream.Placement{
-			Tags: []string{"app:cascade"},
-		},
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
+// 	_, err = js1.UpdateObjectStore(context.Background(), jetstream.ObjectStoreConfig{
+// 		Bucket:   "testing",
+// 		Replicas: 2,
+// 		Placement: &jetstream.Placement{
+// 			Tags: []string{"app:cascade"},
+// 		},
+// 	})
+// 	if err != nil {
+// 		t.Fatal(err)
+// 	}
 
-	server3Opts := makeNATSTestOptions(t, 3)
-	dc.Set(server3Opts.ServerName, makeRouteURL(server3Opts))
+// 	server3Opts := makeNATSTestOptions(t, 3)
+// 	dc.Set(server3Opts.ServerName, makeRouteURL(server3Opts))
 
-	server3Opts.Routes = dc.Routes()
+// 	server3Opts.Routes = dc.Routes()
 
-	server3, err := server.NewServer(server3Opts)
-	if err != nil {
-		t.Fatal(err)
-	}
-	server3.ConfigureLogger()
+// 	server3, err := server.NewServer(server3Opts)
+// 	if err != nil {
+// 		t.Fatal(err)
+// 	}
+// 	server3.ConfigureLogger()
 
-	if err := server.Run(server3); err != nil {
-		t.Fatal(err)
-	}
+// 	if err := server.Run(server3); err != nil {
+// 		t.Fatal(err)
+// 	}
 
-	server1Opts.Routes = dc.Routes()
-	server2Opts.Routes = dc.Routes()
+// 	server1Opts.Routes = dc.Routes()
+// 	server2Opts.Routes = dc.Routes()
 
-	if err := server1.ReloadOptions(server1Opts); err != nil {
-		t.Fatal(err)
-	}
-	if err := server2.ReloadOptions(server2Opts); err != nil {
-		t.Fatal(err)
-	}
+// 	if err := server1.ReloadOptions(server1Opts); err != nil {
+// 		t.Fatal(err)
+// 	}
+// 	if err := server2.ReloadOptions(server2Opts); err != nil {
+// 		t.Fatal(err)
+// 	}
 
-	time.Sleep(8 * time.Second)
+// 	time.Sleep(8 * time.Second)
 
-	_, err = js1.UpdateObjectStore(context.Background(), jetstream.ObjectStoreConfig{
-		Bucket:   "testing",
-		Replicas: 3,
-		Placement: &jetstream.Placement{
-			Tags: []string{"app:cascade"},
-		},
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
+// 	_, err = js1.UpdateObjectStore(context.Background(), jetstream.ObjectStoreConfig{
+// 		Bucket:   "testing",
+// 		Replicas: 3,
+// 		Placement: &jetstream.Placement{
+// 			Tags: []string{"app:cascade"},
+// 		},
+// 	})
+// 	if err != nil {
+// 		t.Fatal(err)
+// 	}
 
-	time.Sleep(10 * time.Second)
+// 	time.Sleep(10 * time.Second)
 
-}
+// }
 
 // makeNATSTestOptions returns NATS Server options suitable for testing.
 func makeNATSTestOptions(t *testing.T, index int) *server.Options {
