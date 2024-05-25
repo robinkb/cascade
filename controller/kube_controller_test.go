@@ -17,8 +17,13 @@ package controller
 
 import (
 	"context"
+	"math/rand"
 	"testing"
 
+	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/util/uuid"
+	"k8s.io/client-go/kubernetes"
 	clientset "k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/clientcmd"
 )
@@ -36,50 +41,67 @@ func TestKubernetesDiscoveryClient(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	dc1, err := NewKubernetesDiscoveryClient(ctx, client, "s1", "kube-system")
+	namespace := createTestingNamespace(t, client)
+	hosts := []struct {
+		name string
+		host string
+		port int32
+	}{
+		{
+			name: "s1",
+			host: "192.168.0.10",
+			port: rand.Int31(),
+		},
+		{
+			name: "s2",
+			host: "192.168.0.11",
+			port: rand.Int31(),
+		},
+		{
+			name: "s3",
+			host: "192.168.0.12",
+			port: rand.Int31(),
+		},
+	}
+
+	sds := make([]ServiceDiscovery, 0)
+	for _, host := range hosts {
+		sd, err := NewKubernetesDiscoveryClient(ctx, client, host.name, namespace)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		sd.Start(ctx.Done())
+		sds = append(sds, sd)
+	}
+
+	for _, sd := range sds {
+		routes, err := sd.Routes()
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		// TODO: Better check here
+		if len(routes) != len(hosts) {
+			t.Errorf("unexpected amount of routes returned; found %d, want %d", len(routes), len(hosts))
+		}
+	}
+}
+
+func createTestingNamespace(t *testing.T, client kubernetes.Interface) string {
+	t.Helper()
+	namespace := string(uuid.NewUUID())
+
+	_, err := client.CoreV1().Namespaces().Create(context.Background(), &corev1.Namespace{
+		ObjectMeta: metav1.ObjectMeta{Name: namespace},
+	}, metav1.CreateOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	dc1.Start(ctx.Done())
+	t.Cleanup(func() {
+		client.CoreV1().Namespaces().Delete(context.Background(), namespace, metav1.DeleteOptions{})
+	})
 
-	dc2, err := NewKubernetesDiscoveryClient(ctx, client, "s2", "kube-system")
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	dc2.Start(ctx.Done())
-
-	dc3, err := NewKubernetesDiscoveryClient(ctx, client, "s3", "kube-system")
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	dc3.Start(ctx.Done())
-
-	routes, err := dc1.Routes()
-	if err != nil {
-		t.Fatal(err)
-	}
-	for _, route := range routes {
-		t.Log(route.String())
-	}
-
-	routes, err = dc2.Routes()
-	if err != nil {
-		t.Fatal(err)
-	}
-	for _, route := range routes {
-		t.Log(route.String())
-	}
-
-	routes, err = dc3.Routes()
-	if err != nil {
-		t.Fatal(err)
-	}
-	for _, route := range routes {
-		t.Log(route.String())
-	}
-
-	// TODO: Remove endpointSlices, or better yet, create and remove an ephemeral namespace.
+	return namespace
 }

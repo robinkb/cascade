@@ -43,6 +43,8 @@ func NewKubernetesDiscoveryClient(ctx context.Context, client kubernetes.Interfa
 	if err != nil {
 		return nil, err
 	}
+
+	// TODO: Should use the cluster name in the endpoint slice name, and probably in the labels too.
 	endpointSlice := applydiscoveryv1.EndpointSlice(fmt.Sprintf("cascade-%s", serverName), namespace).
 		WithLabels(map[string]string{
 			"app.kubernetes.io/name": "cascade",

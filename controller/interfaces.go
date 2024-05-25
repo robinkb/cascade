@@ -18,8 +18,9 @@ package controller
 import "net/url"
 
 type (
-	DiscoveryClient interface {
-		Routes() []*url.URL
+	ServiceDiscovery interface {
+		Start(stopCh <-chan struct{})
+		Routes() ([]*url.URL, error)
 		Refresh() <-chan struct{}
 	}
 )
