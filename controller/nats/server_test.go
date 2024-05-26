@@ -83,7 +83,7 @@ func makeOptions(t *testing.T, name string) *nats.Options {
 	}
 }
 
-func dumpRoutes(t *testing.T, server *server) {
+func dumpRoutes(t *testing.T, server *Server) {
 	t.Helper()
 	routez, err := server.server.Routez(&nats.RoutezOptions{})
 	if err != nil {

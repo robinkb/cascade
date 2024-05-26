@@ -15,12 +15,17 @@ limitations under the License.
 */
 package inmemory
 
-import "github.com/robinkb/cascade/controller"
+import (
+	"github.com/nats-io/nats-server/v2/server"
+	"github.com/robinkb/cascade/controller"
+	"github.com/robinkb/cascade/controller/nats"
+)
 
-var defaultServiceDiscoveryStore = *NewServiceDiscoveryStore()
+var defaultServiceDiscoveryStore = NewServiceDiscoveryStore()
 
-func NewController(clusterRoute controller.ClusterRoute) controller.Controller {
+func NewController(clusterRoute controller.ClusterRoute, options *server.Options) controller.Controller {
 	return controller.NewController(
-		NewServiceDiscovery(&defaultServiceDiscoveryStore, &clusterRoute),
+		NewServiceDiscovery(defaultServiceDiscoveryStore, &clusterRoute),
+		nats.NewServer(options),
 	)
 }

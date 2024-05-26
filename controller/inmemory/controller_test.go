@@ -13,15 +13,17 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
-package controller
+package inmemory
 
 import (
 	"fmt"
 	"net/url"
 	"testing"
+	"time"
 
 	"github.com/nats-io/jwt/v2"
 	"github.com/nats-io/nats-server/v2/server"
+	"github.com/robinkb/cascade/controller"
 )
 
 // I swear that this is the easiest way to do it.
@@ -31,68 +33,71 @@ storage:
   nats: {}
 `
 
-// func TestClusterFormation(t *testing.T) {
-// 	rgc, err := configuration.Parse(bytes.NewBufferString(registryConf))
-// 	if err != nil {
-// 		t.Error(err)
-// 	}
+// TODO: Refactor into a testsuite
+func TestClusterFormation(t *testing.T) {
+	controllers := make([]controller.Controller, 0)
 
-// 	dc := NewInMemoryDiscoveryClient()
-// 	controllers := []*controller{}
+	// Initialize the controllers
+	for i := 0; i < 3; i++ {
+		clusterRoute := controller.ClusterRoute{
+			ClusterName: "cascade",
+			ServerName:  fmt.Sprintf("s%d", i),
+			IPAddr:      "localhost",
+			Port:        6222 + int32(i),
+		}
 
-// 	// Initialize the controllers
-// 	for i := 0; i < 3; i++ {
-// 		controllers = append(controllers, NewController(dc, &server.Options{
-// 			JetStream:  true,
-// 			StoreDir:   t.TempDir(),
-// 			Port:       -1,
-// 			ServerName: fmt.Sprintf("n%d", i),
-// 			Cluster: server.ClusterOpts{
-// 				Name: "cascade",
-// 				Host: "localhost",
-// 				Port: 6222 + i,
-// 			},
-// 		}, rgc))
-// 	}
+		controllers = append(controllers, NewController(clusterRoute, &server.Options{
+			JetStream:  false,
+			StoreDir:   t.TempDir(),
+			Port:       -1,
+			ServerName: clusterRoute.ServerName,
+			Cluster: server.ClusterOpts{
+				Name: clusterRoute.ClusterName,
+				Host: clusterRoute.IPAddr,
+				Port: int(clusterRoute.Port),
+			},
+		}))
+	}
 
-// 	// Start all of them
-// 	for _, c := range controllers {
-// 		t.Logf("starting %s", c.nso.ServerName)
-// 		c.Run()
-// 	}
+	// Start all of them
+	for _, c := range controllers {
+		c.Start()
+	}
 
-// 	// Wait for all NATS servers to have started.
-// 	// Maybe this should be a StatusNATS call on the controller.
-// 	for _, c := range controllers {
-// 		for {
-// 			if c.ns == nil {
-// 				time.Sleep(100 * time.Millisecond)
-// 				continue
-// 			}
+	time.Sleep(10 * time.Second)
 
-// 			if !c.ns.ReadyForConnections(4 * time.Second) {
-// 				continue
-// 			}
+	// // Wait for all NATS servers to have started.
+	// // Maybe this should be a StatusNATS call on the controller.
+	// for _, c := range controllers {
+	// 	for {
+	// 		if c.ns == nil {
+	// 			time.Sleep(100 * time.Millisecond)
+	// 			continue
+	// 		}
 
-// 			break
-// 		}
-// 	}
+	// 		if !c.ns.ReadyForConnections(4 * time.Second) {
+	// 			continue
+	// 		}
 
-// 	// Check if all of them are clustered. Not sure if this is a good check.
-// 	for _, c := range controllers {
-// 		if !c.ns.JetStreamIsClustered() {
-// 			t.Error("not clustered")
-// 		}
-// 	}
+	// 		break
+	// 	}
+	// }
 
-// 	// Shut it all down.
-// 	for _, c := range controllers {
-// 		c.Shutdown()
-// 		c.WaitForShutdown()
-// 	}
+	// // Check if all of them are clustered. Not sure if this is a good check.
+	// for _, c := range controllers {
+	// 	if !c.ns.JetStreamIsClustered() {
+	// 		t.Error("not clustered")
+	// 	}
+	// }
 
-// 	t.Log("shutdown complete")
-// }
+	// // Shut it all down.
+	// for _, c := range controllers {
+	// 	c.Shutdown()
+	// 	c.WaitForShutdown()
+	// }
+
+	t.Log("shutdown complete")
+}
 
 // 1. Start virtual node with no tags
 // 2. Start actual node tagged with "cascade" or something

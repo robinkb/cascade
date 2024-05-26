@@ -26,20 +26,20 @@ import (
 	"golang.org/x/exp/maps"
 )
 
-func NewServer(options *nats.Options) *server {
-	return &server{
+func NewServer(options *nats.Options) *Server {
+	return &Server{
 		options: options,
 		routes:  make(map[string]*url.URL),
 	}
 }
 
-type server struct {
+type Server struct {
 	server  *nats.Server
 	options *nats.Options
 	routes  map[string]*url.URL
 }
 
-func (s *server) Start() error {
+func (s *Server) Start() error {
 	ns, err := nats.NewServer(s.options.Clone())
 	if err != nil {
 		return err
@@ -57,18 +57,30 @@ func (s *server) Start() error {
 	return nil
 }
 
-func (s *server) ClusterRoute() *url.URL {
+func (s *Server) ClusterRoute() *url.URL {
 	clusterAddr := s.server.ClusterAddr()
 	return nats.RoutesFromStr(
 		fmt.Sprintf("nats://%s:%d", clusterAddr.IP.String(), clusterAddr.Port),
 	)[0]
 }
 
-func (s *server) ActivePeers() int {
+func (s *Server) ActivePeers() int {
 	return len(s.server.ActivePeers())
 }
 
-func (s *server) SetRoute(id string, u *url.URL) error {
+func (s *Server) Routes(routes []*url.URL) error {
+	slices.SortFunc(routes, sortRoutes)
+	slices.SortFunc(s.options.Routes, sortRoutes)
+	if !slices.Equal(routes, s.options.Routes) {
+		s.options.JetStream = true
+		s.options.Routes = routes
+		return s.Reload()
+	}
+
+	return nil
+}
+
+func (s *Server) SetRoute(id string, u *url.URL) error {
 	s.routes[id] = u
 	routes := maps.Values(s.routes)
 	slices.SortFunc(routes, sortRoutes)
@@ -83,7 +95,7 @@ func (s *server) SetRoute(id string, u *url.URL) error {
 	return nil
 }
 
-func (s *server) Reload() error {
+func (s *Server) Reload() error {
 	if s.server == nil || !s.server.Running() {
 		return nats.ErrServerNotRunning
 	}

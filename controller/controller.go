@@ -22,17 +22,15 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
-	"github.com/distribution/distribution/v3/configuration"
-	"github.com/distribution/distribution/v3/registry"
-	nats "github.com/nats-io/nats-server/v2/server"
-
-	_ "github.com/robinkb/cascade/registry/storage/driver"
+	"github.com/robinkb/cascade/controller/nats"
 )
 
-func NewController(sd ServiceDiscovery) Controller {
+func NewController(sd ServiceDiscovery, nats *nats.Server) Controller {
 	c := &controller{
-		sd: sd,
+		sd:   sd,
+		nats: nats,
 
 		quit:             make(chan struct{}),
 		shutdownComplete: make(chan struct{}),
@@ -42,13 +40,8 @@ func NewController(sd ServiceDiscovery) Controller {
 }
 
 type controller struct {
-	sd ServiceDiscovery
-
-	ns  *nats.Server
-	nso *nats.Options
-
-	rg  *registry.Registry
-	rgc *configuration.Configuration
+	sd   ServiceDiscovery
+	nats *nats.Server
 
 	quit             chan struct{}
 	shutdownComplete chan struct{}
@@ -56,15 +49,34 @@ type controller struct {
 }
 
 func (c *controller) Start() {
-	// log.Print("starting discovery management")
-	// c.discoveryManagement()
-	// log.Print("starting nats management")
-	// c.natsManagement()
+	c.sd.Start(c.quit)
+	if err := c.nats.Start(); err != nil {
+		// TODO: Don't panic
+		panic(err)
+	}
 
-	// Should wait for NATS to be running before we start the registry.
-	// c.rgc.Storage["nats"] = configuration.Parameters{
-	// 	"clienturl": c.ns.ClientURL(),
-	// }
+	go func() {
+		for {
+			routes, err := c.sd.Routes()
+			if err != nil {
+				// TODO: Don't panic
+				panic(err)
+			}
+			if err := c.nats.Routes(routes); err != nil {
+				// TODO: Don't panic
+				panic(err)
+			}
+
+			select {
+			case <-c.quit:
+				return
+			case <-c.sd.Refresh():
+				// continue
+			case <-time.After(10 * time.Minute):
+				// continue
+			}
+		}
+	}()
 
 	log.Print("handling signals")
 	c.handleSignals()
@@ -78,10 +90,10 @@ func (c *controller) Shutdown() {
 	// 	// TODO: Forward this to a proper logger.
 	// 	fmt.Printf("failed to gracefully shutdown embedded registry: %s", err)
 	// }
-	if c.ns != nil && c.ns.Running() {
-		c.ns.Shutdown()
-		c.ns.WaitForShutdown()
-	}
+	// if c.ns != nil && c.ns.Running() {
+	// 	c.ns.Shutdown()
+	// 	c.ns.WaitForShutdown()
+	// }
 
 	close(c.shutdownComplete)
 }
