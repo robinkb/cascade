@@ -19,7 +19,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log"
 	"net/url"
 	"time"
 
@@ -99,7 +98,6 @@ type serviceDiscovery struct {
 
 func (sd *serviceDiscovery) Start(stopCh <-chan struct{}) {
 	sd.informerFactory.Start(stopCh)
-	sd.reconcile()
 	cache.WaitForCacheSync(stopCh, sd.informer.Informer().HasSynced)
 }
 
@@ -184,7 +182,7 @@ func (sd *serviceDiscovery) reconcile() {
 
 	_, err := sd.client.DiscoveryV1().EndpointSlices(sd.namespace).Apply(ctx, sd.endpointSlice, sd.applyOpts)
 	if err != nil {
-		log.Print(err)
+		panic(err)
 	}
 
 	sd.sendRefresh()

@@ -55,11 +55,12 @@ func (sd *serviceDiscovery) Start(stopCh <-chan struct{}) {
 }
 
 func (sd *serviceDiscovery) Register(clusterRoute *controller.ClusterRoute) {
-	sd.store.Set(sd.clusterName, sd.clusterRoute.ServerName, &url.URL{
-		Host: fmt.Sprintf("%s:%d", sd.clusterRoute.IPAddr, sd.clusterRoute.Port),
+	sd.store.Set(sd.clusterName, clusterRoute.ServerName, &url.URL{
+		Host: fmt.Sprintf("%s:%d", clusterRoute.IPAddr, clusterRoute.Port),
 	})
 
 	sd.clusterRoute = clusterRoute
+	sd.sendRefresh()
 }
 
 func (sd *serviceDiscovery) Routes() ([]*url.URL, error) {

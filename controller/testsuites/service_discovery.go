@@ -57,8 +57,10 @@ func (suite *ServiceDiscoveryTestSuite) TestRegisterSelf() {
 	sd, err := suite.Constructor(clusterName)
 	suite.Require().NoError(err)
 
-	sd.Register(definedRoute)
 	sd.Start(suite.ctx.Done())
+	sd.Register(definedRoute)
+
+	time.Sleep(500 * time.Millisecond)
 
 	discoveredRoutes, err := sd.Routes()
 	suite.Require().NoError(err)
@@ -99,8 +101,8 @@ func (suite *ServiceDiscoveryTestSuite) TestRegisterThree() {
 		serviceDiscovery, err := suite.Constructor(clusterName)
 		suite.Require().NoError(err)
 
-		serviceDiscovery.Register(route)
 		serviceDiscovery.Start(suite.ctx.Done())
+		serviceDiscovery.Register(route)
 
 		serviceDiscoveries = append(serviceDiscoveries, serviceDiscovery)
 	}
@@ -163,14 +165,14 @@ func (suite *ServiceDiscoveryTestSuite) TestDifferentClusters() {
 	serviceDiscoveryA, err := suite.Constructor(clusterA)
 	suite.Require().NoError(err)
 
-	serviceDiscoveryA.Register(clusterRouteA)
 	serviceDiscoveryA.Start(suite.ctx.Done())
+	serviceDiscoveryA.Register(clusterRouteA)
 
 	serviceDiscoveryB, err := suite.Constructor(clusterB)
 	suite.Require().NoError(err)
 
-	serviceDiscoveryB.Register(clusterRouteB)
 	serviceDiscoveryB.Start(suite.ctx.Done())
+	serviceDiscoveryB.Register(clusterRouteB)
 
 	routesA, err := serviceDiscoveryA.Routes()
 	suite.Require().NoError(err)
@@ -219,8 +221,8 @@ func (suite *ServiceDiscoveryTestSuite) TestRefresh() {
 			wg.Done()
 		}()
 
-		serviceDiscovery.Register(route)
 		serviceDiscovery.Start(suite.ctx.Done())
+		serviceDiscovery.Register(route)
 	}
 
 	wg.Wait()
