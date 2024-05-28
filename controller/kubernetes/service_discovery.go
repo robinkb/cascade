@@ -37,11 +37,15 @@ import (
 	"k8s.io/client-go/tools/cache"
 )
 
-func NewServiceDiscovery(client kubernetes.Interface, namespace string, clusterRoute *controller.ClusterRoute) (controller.ServiceDiscovery, error) {
-	dc := &serviceDiscovery{
-		client:       client,
-		namespace:    namespace,
-		clusterRoute: clusterRoute,
+type ServiceDiscoveryOptions struct {
+	Namespace string
+}
+
+func NewServiceDiscovery(client kubernetes.Interface, namespace, clusterName string) (controller.ServiceDiscovery, error) {
+	sd := &serviceDiscovery{
+		client:      client,
+		clusterName: clusterName,
+		namespace:   namespace,
 		applyOpts: metav1.ApplyOptions{
 			Force:        true,
 			FieldManager: "cascade-controller",
@@ -53,7 +57,7 @@ func NewServiceDiscovery(client kubernetes.Interface, namespace string, clusterR
 	if err != nil {
 		return nil, err
 	}
-	instanceLabel, err := labels.NewRequirement("app.kubernetes.io/instance", selection.Equals, []string{clusterRoute.ClusterName})
+	instanceLabel, err := labels.NewRequirement("app.kubernetes.io/instance", selection.Equals, []string{clusterName})
 	if err != nil {
 		return nil, err
 	}
@@ -61,10 +65,49 @@ func NewServiceDiscovery(client kubernetes.Interface, namespace string, clusterR
 		Add(*nameLabel).
 		Add(*instanceLabel)
 
-	endpointSlice := applydiscoveryv1.EndpointSlice(fmt.Sprintf("%s-%s", clusterRoute.ClusterName, clusterRoute.ServerName), namespace).
+	informerFactory := informers.NewSharedInformerFactoryWithOptions(
+		client,
+		30*time.Second,
+		informers.WithNamespace(namespace),
+		informers.WithTweakListOptions(func(lo *metav1.ListOptions) {
+			lo.LabelSelector = selector.String()
+		}),
+	)
+	sd.informerFactory = informerFactory
+
+	informer := informerFactory.Discovery().V1().EndpointSlices()
+	informer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
+		AddFunc:    sd.add,
+		UpdateFunc: sd.update,
+		DeleteFunc: sd.delete,
+	})
+	sd.informer = informer
+
+	return sd, nil
+}
+
+type serviceDiscovery struct {
+	clusterName     string
+	client          kubernetes.Interface
+	informerFactory informers.SharedInformerFactory
+	informer        v1.EndpointSliceInformer
+	endpointSlice   *applydiscoveryv1.EndpointSliceApplyConfiguration
+	namespace       string
+	applyOpts       metav1.ApplyOptions
+	refresh         chan struct{}
+}
+
+func (sd *serviceDiscovery) Start(stopCh <-chan struct{}) {
+	sd.informerFactory.Start(stopCh)
+	sd.reconcile()
+	cache.WaitForCacheSync(stopCh, sd.informer.Informer().HasSynced)
+}
+
+func (sd *serviceDiscovery) Register(clusterRoute *controller.ClusterRoute) {
+	endpointSlice := applydiscoveryv1.EndpointSlice(fmt.Sprintf("%s-%s", sd.clusterName, clusterRoute.ServerName), sd.namespace).
 		WithLabels(map[string]string{
 			"app.kubernetes.io/name":     "cascade",
-			"app.kubernetes.io/instance": clusterRoute.ClusterName,
+			"app.kubernetes.io/instance": sd.clusterName,
 		}).
 		WithAddressType(discoveryv1.AddressTypeIPv4).
 		WithPorts(
@@ -83,47 +126,12 @@ func NewServiceDiscovery(client kubernetes.Interface, namespace string, clusterR
 						WithAPIVersion("v1").
 						WithKind("Pod").
 						WithName(clusterRoute.ServerName).
-						WithNamespace(namespace),
+						WithNamespace(sd.namespace),
 				),
 		)
-	dc.endpointSlice = endpointSlice
 
-	informerFactory := informers.NewSharedInformerFactoryWithOptions(
-		client,
-		30*time.Second,
-		informers.WithNamespace(namespace),
-		informers.WithTweakListOptions(func(lo *metav1.ListOptions) {
-			lo.LabelSelector = selector.String()
-		}),
-	)
-	dc.informerFactory = informerFactory
-
-	informer := informerFactory.Discovery().V1().EndpointSlices()
-	informer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
-		AddFunc:    dc.add,
-		UpdateFunc: dc.update,
-		DeleteFunc: dc.delete,
-	})
-	dc.informer = informer
-
-	return dc, nil
-}
-
-type serviceDiscovery struct {
-	client          kubernetes.Interface
-	informerFactory informers.SharedInformerFactory
-	informer        v1.EndpointSliceInformer
-	endpointSlice   *applydiscoveryv1.EndpointSliceApplyConfiguration
-	namespace       string
-	applyOpts       metav1.ApplyOptions
-	refresh         chan struct{}
-	clusterRoute    *controller.ClusterRoute
-}
-
-func (sd *serviceDiscovery) Start(stopCh <-chan struct{}) {
-	sd.informerFactory.Start(stopCh)
+	sd.endpointSlice = endpointSlice
 	sd.reconcile()
-	cache.WaitForCacheSync(stopCh, sd.informer.Informer().HasSynced)
 }
 
 func (sd *serviceDiscovery) Routes() ([]*url.URL, error) {

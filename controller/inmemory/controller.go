@@ -25,7 +25,7 @@ var defaultServiceDiscoveryStore = NewServiceDiscoveryStore()
 
 func NewController(clusterRoute controller.ClusterRoute, options *server.Options) controller.Controller {
 	return controller.NewController(
-		NewServiceDiscovery(defaultServiceDiscoveryStore, &clusterRoute),
+		NewServiceDiscovery(defaultServiceDiscoveryStore, options.Cluster.Name),
 		nats.NewServer(options),
 	)
 }

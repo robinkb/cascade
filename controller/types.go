@@ -15,7 +15,9 @@ limitations under the License.
 */
 package controller
 
-import "net/url"
+import (
+	"net/url"
+)
 
 type (
 	Controller interface {
@@ -24,14 +26,14 @@ type (
 
 	ServiceDiscovery interface {
 		Start(stopCh <-chan struct{})
+		Register(*ClusterRoute)
 		Routes() ([]*url.URL, error)
 		Refresh() <-chan struct{}
 	}
 
 	ClusterRoute struct {
-		ServerName  string
-		ClusterName string
-		IPAddr      string
-		Port        int32
+		ServerName string
+		IPAddr     string
+		Port       int32
 	}
 )

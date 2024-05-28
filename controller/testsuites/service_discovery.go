@@ -29,7 +29,7 @@ import (
 )
 
 // ServiceDiscoveryConstructor is a function which returns a new controller.ServiceDiscovery
-type ServiceDiscoveryConstructor func(clusterRoute *controller.ClusterRoute) (controller.ServiceDiscovery, error)
+type ServiceDiscoveryConstructor func(clusterName string) (controller.ServiceDiscovery, error)
 
 // ServiceDiscovery runs the ServiceDiscoveryTestSuite
 func ServiceDiscovery(t *testing.T, serviceDiscoveryConstructor ServiceDiscoveryConstructor) {
@@ -47,16 +47,17 @@ type ServiceDiscoveryTestSuite struct {
 
 // TestRegisterSelf verifies that a ServiceDiscovery can register and return itself.
 func (suite *ServiceDiscoveryTestSuite) TestRegisterSelf() {
+	clusterName := "register1"
 	definedRoute := &controller.ClusterRoute{
-		ClusterName: "register1",
-		ServerName:  "s1",
-		IPAddr:      "192.168.0.11",
-		Port:        randomPort(),
+		ServerName: "s1",
+		IPAddr:     "192.168.0.11",
+		Port:       randomPort(),
 	}
 
-	sd, err := suite.Constructor(definedRoute)
+	sd, err := suite.Constructor(clusterName)
 	suite.Require().NoError(err)
 
+	sd.Register(definedRoute)
 	sd.Start(suite.ctx.Done())
 
 	discoveredRoutes, err := sd.Routes()
@@ -73,34 +74,34 @@ func (suite *ServiceDiscoveryTestSuite) TestRegisterSelf() {
 // TestRegisterThree verifies that three ServiceDiscoveries can register
 // and discover each other's route.
 func (suite *ServiceDiscoveryTestSuite) TestRegisterThree() {
+	clusterName := "register3"
 	definedRoutes := []*controller.ClusterRoute{
 		{
-			ClusterName: "register3",
-			ServerName:  "s1",
-			IPAddr:      "192.168.0.11",
-			Port:        randomPort(),
+			ServerName: "s1",
+			IPAddr:     "192.168.0.11",
+			Port:       randomPort(),
 		},
 		{
-			ClusterName: "register3",
-			ServerName:  "s2",
-			IPAddr:      "192.168.0.12",
-			Port:        randomPort(),
+			ServerName: "s2",
+			IPAddr:     "192.168.0.12",
+			Port:       randomPort(),
 		},
 		{
-			ClusterName: "register3",
-			ServerName:  "s3",
-			IPAddr:      "192.168.0.13",
-			Port:        randomPort(),
+			ServerName: "s3",
+			IPAddr:     "192.168.0.13",
+			Port:       randomPort(),
 		},
 	}
 	expectedRoutes := len(definedRoutes)
 
 	serviceDiscoveries := make([]controller.ServiceDiscovery, 0)
 	for _, route := range definedRoutes {
-		serviceDiscovery, err := suite.Constructor(route)
+		serviceDiscovery, err := suite.Constructor(clusterName)
 		suite.Require().NoError(err)
 
+		serviceDiscovery.Register(route)
 		serviceDiscovery.Start(suite.ctx.Done())
+
 		serviceDiscoveries = append(serviceDiscoveries, serviceDiscovery)
 	}
 
@@ -145,28 +146,30 @@ func (suite *ServiceDiscoveryTestSuite) TestRegisterThree() {
 // TestRegisterThree verifies that ServiceDiscoveries for different clusters
 // do not discover each other's routes.
 func (suite *ServiceDiscoveryTestSuite) TestDifferentClusters() {
+	clusterA := "cluster-a"
 	clusterRouteA := &controller.ClusterRoute{
-		ClusterName: "cluster-a",
-		ServerName:  "s1",
-		IPAddr:      "192.168.0.11",
-		Port:        randomPort(),
+		ServerName: "s1",
+		IPAddr:     "192.168.0.11",
+		Port:       randomPort(),
 	}
 
+	clusterB := "cluster-b"
 	clusterRouteB := &controller.ClusterRoute{
-		ClusterName: "cluster-b",
-		ServerName:  "s1",
-		IPAddr:      "172.16.0.1",
-		Port:        randomPort(),
+		ServerName: "s1",
+		IPAddr:     "172.16.0.1",
+		Port:       randomPort(),
 	}
 
-	serviceDiscoveryA, err := suite.Constructor(clusterRouteA)
+	serviceDiscoveryA, err := suite.Constructor(clusterA)
 	suite.Require().NoError(err)
 
+	serviceDiscoveryA.Register(clusterRouteA)
 	serviceDiscoveryA.Start(suite.ctx.Done())
 
-	serviceDiscoveryB, err := suite.Constructor(clusterRouteB)
+	serviceDiscoveryB, err := suite.Constructor(clusterB)
 	suite.Require().NoError(err)
 
+	serviceDiscoveryB.Register(clusterRouteB)
 	serviceDiscoveryB.Start(suite.ctx.Done())
 
 	routesA, err := serviceDiscoveryA.Routes()
@@ -182,30 +185,28 @@ func (suite *ServiceDiscoveryTestSuite) TestDifferentClusters() {
 
 // TestRefresh verifies that discovering routes triggers the Refresh.
 func (suite *ServiceDiscoveryTestSuite) TestRefresh() {
+	clusterName := "refresh"
 	definedRoutes := []*controller.ClusterRoute{
 		{
-			ClusterName: "refresh",
-			ServerName:  "s1",
-			IPAddr:      "192.168.0.11",
-			Port:        randomPort(),
+			ServerName: "s1",
+			IPAddr:     "192.168.0.11",
+			Port:       randomPort(),
 		},
 		{
-			ClusterName: "refresh",
-			ServerName:  "s2",
-			IPAddr:      "192.168.0.12",
-			Port:        randomPort(),
+			ServerName: "s2",
+			IPAddr:     "192.168.0.12",
+			Port:       randomPort(),
 		},
 		{
-			ClusterName: "refresh",
-			ServerName:  "s3",
-			IPAddr:      "192.168.0.13",
-			Port:        randomPort(),
+			ServerName: "s3",
+			IPAddr:     "192.168.0.13",
+			Port:       randomPort(),
 		},
 	}
 
 	var wg sync.WaitGroup
 	for _, route := range definedRoutes {
-		serviceDiscovery, err := suite.Constructor(route)
+		serviceDiscovery, err := suite.Constructor(clusterName)
 		suite.Require().NoError(err)
 
 		wg.Add(1)
@@ -218,6 +219,7 @@ func (suite *ServiceDiscoveryTestSuite) TestRefresh() {
 			wg.Done()
 		}()
 
+		serviceDiscovery.Register(route)
 		serviceDiscovery.Start(suite.ctx.Done())
 	}
 

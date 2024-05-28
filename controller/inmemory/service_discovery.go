@@ -25,17 +25,18 @@ import (
 	"golang.org/x/exp/maps"
 )
 
-func NewServiceDiscovery(store *ServiceDiscoveryStore, clusterRoute *controller.ClusterRoute) controller.ServiceDiscovery {
+func NewServiceDiscovery(store *ServiceDiscoveryStore, clusterName string) controller.ServiceDiscovery {
 	return &serviceDiscovery{
-		store:        store,
-		clusterRoute: *clusterRoute,
-		refresh:      make(chan struct{}),
+		store:       store,
+		clusterName: clusterName,
+		refresh:     make(chan struct{}),
 	}
 }
 
 type serviceDiscovery struct {
 	store        *ServiceDiscoveryStore
-	clusterRoute controller.ClusterRoute
+	clusterName  string
+	clusterRoute *controller.ClusterRoute
 
 	refresh chan struct{}
 }
@@ -44,21 +45,25 @@ func (sd *serviceDiscovery) Start(stopCh <-chan struct{}) {
 	go func() {
 		for {
 			select {
-			case <-sd.store.Refresh(sd.clusterRoute.ClusterName):
+			case <-sd.store.Refresh(sd.clusterName):
 				sd.sendRefresh()
 			case <-stopCh:
 				return
 			}
 		}
 	}()
+}
 
-	sd.store.Set(sd.clusterRoute.ClusterName, sd.clusterRoute.ServerName, &url.URL{
+func (sd *serviceDiscovery) Register(clusterRoute *controller.ClusterRoute) {
+	sd.store.Set(sd.clusterName, sd.clusterRoute.ServerName, &url.URL{
 		Host: fmt.Sprintf("%s:%d", sd.clusterRoute.IPAddr, sd.clusterRoute.Port),
 	})
+
+	sd.clusterRoute = clusterRoute
 }
 
 func (sd *serviceDiscovery) Routes() ([]*url.URL, error) {
-	return sd.store.Routes(sd.clusterRoute.ClusterName), nil
+	return sd.store.Routes(sd.clusterName), nil
 }
 
 func (sd *serviceDiscovery) Refresh() <-chan struct{} {

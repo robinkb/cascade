@@ -24,8 +24,8 @@ import (
 
 func TestInMemoryServiceDiscovery(t *testing.T) {
 	store := NewServiceDiscoveryStore()
-	serviceDiscoveryConstructor := func(clusterRoute *controller.ClusterRoute) (controller.ServiceDiscovery, error) {
-		sd := NewServiceDiscovery(store, clusterRoute)
+	serviceDiscoveryConstructor := func(clusterName string) (controller.ServiceDiscovery, error) {
+		sd := NewServiceDiscovery(store, clusterName)
 		return sd, nil
 	}
 

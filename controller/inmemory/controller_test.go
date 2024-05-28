@@ -40,10 +40,9 @@ func TestClusterFormation(t *testing.T) {
 	// Initialize the controllers
 	for i := 0; i < 3; i++ {
 		clusterRoute := controller.ClusterRoute{
-			ClusterName: "cascade",
-			ServerName:  fmt.Sprintf("s%d", i),
-			IPAddr:      "localhost",
-			Port:        6222 + int32(i),
+			ServerName: fmt.Sprintf("s%d", i),
+			IPAddr:     "localhost",
+			Port:       6222 + int32(i),
 		}
 
 		controllers = append(controllers, NewController(clusterRoute, &server.Options{
@@ -52,7 +51,7 @@ func TestClusterFormation(t *testing.T) {
 			Port:       -1,
 			ServerName: clusterRoute.ServerName,
 			Cluster: server.ClusterOpts{
-				Name: clusterRoute.ClusterName,
+				Name: "cascade",
 				Host: clusterRoute.IPAddr,
 				Port: int(clusterRoute.Port),
 			},
