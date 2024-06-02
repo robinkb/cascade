@@ -17,14 +17,14 @@ package inmemory
 
 import (
 	"github.com/nats-io/nats-server/v2/server"
-	"github.com/robinkb/cascade/controller"
-	"github.com/robinkb/cascade/controller/nats"
+	"github.com/robinkb/cascade/controller/core"
+	"github.com/robinkb/cascade/controller/core/nats"
 )
 
 var defaultServiceDiscoveryStore = NewServiceDiscoveryStore()
 
-func NewController(clusterRoute controller.ClusterRoute, options *server.Options) controller.Controller {
-	return controller.NewController(
+func NewController(clusterRoute core.ClusterRoute, options *server.Options) core.Controller {
+	return core.NewController(
 		NewServiceDiscovery(defaultServiceDiscoveryStore, options.Cluster.Name),
 		nats.NewServer(options),
 	)

@@ -26,7 +26,7 @@ import (
 	"github.com/nats-io/nats-server/v2/server"
 	"github.com/nats-io/nats.go"
 	"github.com/nats-io/nats.go/jetstream"
-	"github.com/robinkb/cascade/controller"
+	"github.com/robinkb/cascade/controller/core"
 )
 
 // I swear that this is the easiest way to do it.
@@ -39,11 +39,11 @@ storage:
 func TestClusterFormation(t *testing.T) {
 	t.Skip("TODO: refactor into a testsuite")
 
-	controllers := make([]controller.Controller, 0)
+	controllers := make([]core.Controller, 0)
 
 	// Initialize the controllers
 	for i := 0; i < 3; i++ {
-		clusterRoute := controller.ClusterRoute{
+		clusterRoute := core.ClusterRoute{
 			ServerName: fmt.Sprintf("s%d", i),
 			IPAddr:     "localhost",
 			Port:       6222 + int32(i),
@@ -70,7 +70,7 @@ func TestClusterFormation(t *testing.T) {
 	time.Sleep(10 * time.Second)
 
 	// // Wait for all NATS servers to have started.
-	// // Maybe this should be a StatusNATS call on the controller.
+	// // Maybe this should be a StatusNATS call on the core.
 	// for _, c := range controllers {
 	// 	for {
 	// 		if c.ns == nil {

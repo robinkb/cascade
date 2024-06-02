@@ -21,11 +21,11 @@ import (
 	"sync"
 	"time"
 
-	"github.com/robinkb/cascade/controller"
+	"github.com/robinkb/cascade/controller/core"
 	"golang.org/x/exp/maps"
 )
 
-func NewServiceDiscovery(store *ServiceDiscoveryStore, clusterName string) controller.ServiceDiscovery {
+func NewServiceDiscovery(store *ServiceDiscoveryStore, clusterName string) core.ServiceDiscovery {
 	return &serviceDiscovery{
 		store:       store,
 		clusterName: clusterName,
@@ -36,7 +36,7 @@ func NewServiceDiscovery(store *ServiceDiscoveryStore, clusterName string) contr
 type serviceDiscovery struct {
 	store        *ServiceDiscoveryStore
 	clusterName  string
-	clusterRoute *controller.ClusterRoute
+	clusterRoute *core.ClusterRoute
 
 	refresh chan struct{}
 }
@@ -54,7 +54,7 @@ func (sd *serviceDiscovery) Start(stopCh <-chan struct{}) {
 	}()
 }
 
-func (sd *serviceDiscovery) Register(clusterRoute *controller.ClusterRoute) {
+func (sd *serviceDiscovery) Register(clusterRoute *core.ClusterRoute) {
 	sd.store.Set(sd.clusterName, clusterRoute.ServerName, &url.URL{
 		Host: fmt.Sprintf("%s:%d", clusterRoute.IPAddr, clusterRoute.Port),
 	})

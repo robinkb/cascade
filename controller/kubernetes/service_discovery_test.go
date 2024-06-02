@@ -21,8 +21,8 @@ import (
 	"path"
 	"testing"
 
-	"github.com/robinkb/cascade/controller"
-	"github.com/robinkb/cascade/controller/testsuites"
+	"github.com/robinkb/cascade/controller/core"
+	"github.com/robinkb/cascade/controller/core/testsuites"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/uuid"
@@ -47,7 +47,7 @@ func TestKubernetesServiceDiscovery(t *testing.T) {
 
 	namespace := createTestingNamespace(t, client)
 
-	serviceDiscoveryConstructor := func(clusterName string) (controller.ServiceDiscovery, error) {
+	serviceDiscoveryConstructor := func(clusterName string) (core.ServiceDiscovery, error) {
 		return NewServiceDiscovery(client, namespace, clusterName)
 	}
 

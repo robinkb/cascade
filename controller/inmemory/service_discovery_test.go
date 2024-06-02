@@ -18,13 +18,13 @@ package inmemory
 import (
 	"testing"
 
-	"github.com/robinkb/cascade/controller"
-	"github.com/robinkb/cascade/controller/testsuites"
+	"github.com/robinkb/cascade/controller/core"
+	"github.com/robinkb/cascade/controller/core/testsuites"
 )
 
 func TestInMemoryServiceDiscovery(t *testing.T) {
 	store := NewServiceDiscoveryStore()
-	serviceDiscoveryConstructor := func(clusterName string) (controller.ServiceDiscovery, error) {
+	serviceDiscoveryConstructor := func(clusterName string) (core.ServiceDiscovery, error) {
 		sd := NewServiceDiscovery(store, clusterName)
 		return sd, nil
 	}

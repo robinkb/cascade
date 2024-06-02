@@ -22,7 +22,7 @@ import (
 	"net/url"
 	"time"
 
-	"github.com/robinkb/cascade/controller"
+	"github.com/robinkb/cascade/controller/core"
 	corev1 "k8s.io/api/core/v1"
 	discoveryv1 "k8s.io/api/discovery/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -40,7 +40,7 @@ type ServiceDiscoveryOptions struct {
 	Namespace string
 }
 
-func NewServiceDiscovery(client kubernetes.Interface, namespace, clusterName string) (controller.ServiceDiscovery, error) {
+func NewServiceDiscovery(client kubernetes.Interface, namespace, clusterName string) (core.ServiceDiscovery, error) {
 	sd := &serviceDiscovery{
 		client:      client,
 		clusterName: clusterName,
@@ -101,7 +101,7 @@ func (sd *serviceDiscovery) Start(stopCh <-chan struct{}) {
 	cache.WaitForCacheSync(stopCh, sd.informer.Informer().HasSynced)
 }
 
-func (sd *serviceDiscovery) Register(clusterRoute *controller.ClusterRoute) {
+func (sd *serviceDiscovery) Register(clusterRoute *core.ClusterRoute) {
 	endpointSlice := applydiscoveryv1.EndpointSlice(fmt.Sprintf("%s-%s", sd.clusterName, clusterRoute.ServerName), sd.namespace).
 		WithLabels(map[string]string{
 			"app.kubernetes.io/name":     "cascade",

@@ -24,12 +24,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/robinkb/cascade/controller"
+	"github.com/robinkb/cascade/controller/core"
 	"github.com/stretchr/testify/suite"
 )
 
-// ServiceDiscoveryConstructor is a function which returns a new controller.ServiceDiscovery
-type ServiceDiscoveryConstructor func(clusterName string) (controller.ServiceDiscovery, error)
+// ServiceDiscoveryConstructor is a function which returns a new core.ServiceDiscovery
+type ServiceDiscoveryConstructor func(clusterName string) (core.ServiceDiscovery, error)
 
 // ServiceDiscovery runs the ServiceDiscoveryTestSuite
 func ServiceDiscovery(t *testing.T, serviceDiscoveryConstructor ServiceDiscoveryConstructor) {
@@ -48,7 +48,7 @@ type ServiceDiscoveryTestSuite struct {
 // TestRegisterSelf verifies that a ServiceDiscovery can register and return itself.
 func (suite *ServiceDiscoveryTestSuite) TestRegisterSelf() {
 	clusterName := "register1"
-	definedRoute := &controller.ClusterRoute{
+	definedRoute := &core.ClusterRoute{
 		ServerName: "s1",
 		IPAddr:     "192.168.0.11",
 		Port:       randomPort(),
@@ -77,7 +77,7 @@ func (suite *ServiceDiscoveryTestSuite) TestRegisterSelf() {
 // and discover each other's route.
 func (suite *ServiceDiscoveryTestSuite) TestRegisterThree() {
 	clusterName := "register3"
-	definedRoutes := []*controller.ClusterRoute{
+	definedRoutes := []*core.ClusterRoute{
 		{
 			ServerName: "s1",
 			IPAddr:     "192.168.0.11",
@@ -96,7 +96,7 @@ func (suite *ServiceDiscoveryTestSuite) TestRegisterThree() {
 	}
 	expectedRoutes := len(definedRoutes)
 
-	serviceDiscoveries := make([]controller.ServiceDiscovery, 0)
+	serviceDiscoveries := make([]core.ServiceDiscovery, 0)
 	for _, route := range definedRoutes {
 		serviceDiscovery, err := suite.Constructor(clusterName)
 		suite.Require().NoError(err)
@@ -149,14 +149,14 @@ func (suite *ServiceDiscoveryTestSuite) TestRegisterThree() {
 // do not discover each other's routes.
 func (suite *ServiceDiscoveryTestSuite) TestDifferentClusters() {
 	clusterA := "cluster-a"
-	clusterRouteA := &controller.ClusterRoute{
+	clusterRouteA := &core.ClusterRoute{
 		ServerName: "s1",
 		IPAddr:     "192.168.0.11",
 		Port:       randomPort(),
 	}
 
 	clusterB := "cluster-b"
-	clusterRouteB := &controller.ClusterRoute{
+	clusterRouteB := &core.ClusterRoute{
 		ServerName: "s1",
 		IPAddr:     "172.16.0.1",
 		Port:       randomPort(),
@@ -188,7 +188,7 @@ func (suite *ServiceDiscoveryTestSuite) TestDifferentClusters() {
 // TestRefresh verifies that discovering routes triggers the Refresh.
 func (suite *ServiceDiscoveryTestSuite) TestRefresh() {
 	clusterName := "refresh"
-	definedRoutes := []*controller.ClusterRoute{
+	definedRoutes := []*core.ClusterRoute{
 		{
 			ServerName: "s1",
 			IPAddr:     "192.168.0.11",
@@ -228,7 +228,7 @@ func (suite *ServiceDiscoveryTestSuite) TestRefresh() {
 	wg.Wait()
 }
 
-func clusterRouteToHost(clusterRoute *controller.ClusterRoute) string {
+func clusterRouteToHost(clusterRoute *core.ClusterRoute) string {
 	return fmt.Sprintf("%s:%d", clusterRoute.IPAddr, clusterRoute.Port)
 }
 
