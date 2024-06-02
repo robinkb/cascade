@@ -57,6 +57,10 @@ func (s *Server) Start() error {
 	return nil
 }
 
+func (s *Server) Name() string {
+	return s.server.Name()
+}
+
 func (s *Server) ClusterRoute() *url.URL {
 	clusterAddr := s.server.ClusterAddr()
 	return nats.RoutesFromStr(

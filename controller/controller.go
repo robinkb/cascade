@@ -21,6 +21,8 @@ import (
 	"net"
 	"os"
 	"os/signal"
+	"strconv"
+	"strings"
 	"syscall"
 	"time"
 
@@ -55,6 +57,17 @@ func (c *controller) Start() {
 		panic(err)
 	}
 
+	// TODO: Type returned by Server should better align with what we need.
+	u := c.nats.ClusterRoute()
+	host := strings.Split(u.Host, ":")[0]
+	port, _ := strconv.Atoi(strings.Split(u.Host, ":")[1])
+	clusterRoute := &ClusterRoute{
+		ServerName: c.nats.Name(),
+		IPAddr:     host,
+		Port:       int32(port),
+	}
+	c.sd.Register(clusterRoute)
+
 	go func() {
 		for {
 			routes, err := c.sd.Routes()
@@ -62,6 +75,7 @@ func (c *controller) Start() {
 				// TODO: Don't panic
 				panic(err)
 			}
+
 			if err := c.nats.Routes(routes); err != nil {
 				// TODO: Don't panic
 				panic(err)
