@@ -27,6 +27,7 @@ import (
 	"github.com/nats-io/nats.go"
 	"github.com/nats-io/nats.go/jetstream"
 	"github.com/robinkb/cascade/controller/core"
+	"github.com/robinkb/cascade/controller/core/testsuites"
 )
 
 // I swear that this is the easiest way to do it.
@@ -36,70 +37,23 @@ storage:
   nats: {}
 `
 
-func TestClusterFormation(t *testing.T) {
-	t.Skip("TODO: refactor into a testsuite")
-
-	controllers := make([]core.Controller, 0)
-
-	// Initialize the controllers
-	for i := 0; i < 3; i++ {
-		clusterRoute := core.ClusterRoute{
-			ServerName: fmt.Sprintf("s%d", i),
-			IPAddr:     "localhost",
-			Port:       6222 + int32(i),
-		}
-
-		controllers = append(controllers, NewController(clusterRoute, &server.Options{
+func TestInMemoryController(t *testing.T) {
+	controllerConstructor := func(clusterName string, clusterRoute *core.ClusterRoute) (core.Controller, error) {
+		return NewController(clusterRoute, &server.Options{
 			JetStream:  false,
 			StoreDir:   t.TempDir(),
 			Port:       -1,
 			ServerName: clusterRoute.ServerName,
 			Cluster: server.ClusterOpts{
-				Name: "cascade",
+				Name: clusterName,
 				Host: clusterRoute.IPAddr,
 				Port: int(clusterRoute.Port),
 			},
-		}))
+			DisableJetStreamBanner: true,
+		}), nil
 	}
 
-	// Start all of them
-	for _, c := range controllers {
-		c.Start()
-	}
-
-	time.Sleep(10 * time.Second)
-
-	// // Wait for all NATS servers to have started.
-	// // Maybe this should be a StatusNATS call on the core.
-	// for _, c := range controllers {
-	// 	for {
-	// 		if c.ns == nil {
-	// 			time.Sleep(100 * time.Millisecond)
-	// 			continue
-	// 		}
-
-	// 		if !c.ns.ReadyForConnections(4 * time.Second) {
-	// 			continue
-	// 		}
-
-	// 		break
-	// 	}
-	// }
-
-	// // Check if all of them are clustered. Not sure if this is a good check.
-	// for _, c := range controllers {
-	// 	if !c.ns.JetStreamIsClustered() {
-	// 		t.Error("not clustered")
-	// 	}
-	// }
-
-	// // Shut it all down.
-	// for _, c := range controllers {
-	// 	c.Shutdown()
-	// 	c.WaitForShutdown()
-	// }
-
-	t.Log("shutdown complete")
+	testsuites.Controller(t, controllerConstructor)
 }
 
 // 1. Start virtual node with no tags

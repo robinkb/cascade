@@ -32,6 +32,19 @@ import (
 )
 
 func TestKubernetesServiceDiscovery(t *testing.T) {
+	client := createTestingClient(t)
+	namespace := createTestingNamespace(t, client)
+
+	serviceDiscoveryConstructor := func(clusterName string) (core.ServiceDiscovery, error) {
+		return NewServiceDiscovery(client, namespace, clusterName)
+	}
+
+	testsuites.ServiceDiscovery(t, serviceDiscoveryConstructor)
+}
+
+func createTestingClient(t *testing.T) kubernetes.Interface {
+	t.Helper()
+
 	homedir, err := os.UserHomeDir()
 	if err != nil {
 		t.Fatal(err)
@@ -45,13 +58,7 @@ func TestKubernetesServiceDiscovery(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	namespace := createTestingNamespace(t, client)
-
-	serviceDiscoveryConstructor := func(clusterName string) (core.ServiceDiscovery, error) {
-		return NewServiceDiscovery(client, namespace, clusterName)
-	}
-
-	testsuites.ServiceDiscovery(t, serviceDiscoveryConstructor)
+	return client
 }
 
 func createTestingNamespace(t *testing.T, client kubernetes.Interface) string {

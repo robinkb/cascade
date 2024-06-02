@@ -13,19 +13,23 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
-package inmemory
+package kubernetes
 
 import (
 	"github.com/nats-io/nats-server/v2/server"
 	"github.com/robinkb/cascade/controller/core"
 	"github.com/robinkb/cascade/controller/core/nats"
+	"k8s.io/client-go/kubernetes"
 )
 
-var defaultServiceDiscoveryStore = NewServiceDiscoveryStore()
+func NewController(client kubernetes.Interface, namespace string, clusterRoute *core.ClusterRoute, options *server.Options) (core.Controller, error) {
+	sd, err := NewServiceDiscovery(client, namespace, options.Cluster.Name)
+	if err != nil {
+		return nil, err
+	}
 
-func NewController(clusterRoute *core.ClusterRoute, options *server.Options) core.Controller {
 	return core.NewController(
-		NewServiceDiscovery(defaultServiceDiscoveryStore, options.Cluster.Name),
+		sd,
 		nats.NewServer(options),
-	)
+	), nil
 }
