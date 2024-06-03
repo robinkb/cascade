@@ -17,6 +17,7 @@ package nats
 
 import (
 	"fmt"
+	"net"
 	"net/url"
 	"slices"
 	"time"
@@ -63,8 +64,12 @@ func (s *Server) Name() string {
 
 func (s *Server) ClusterRoute() *url.URL {
 	clusterAddr := s.server.ClusterAddr()
+	ip := clusterAddr.IP
+	if ip.String() == "::" {
+		ip = getLocalIP()
+	}
 	return nats.RoutesFromStr(
-		fmt.Sprintf("nats://%s:%d", clusterAddr.IP.String(), clusterAddr.Port),
+		fmt.Sprintf("nats://%s:%d", ip.String(), clusterAddr.Port),
 	)[0]
 }
 
@@ -121,4 +126,21 @@ func sortRoutes(a, b *url.URL) int {
 	}
 
 	return 0
+}
+
+// getLocalIP returns the non loopback local IP of the host
+func getLocalIP() net.IP {
+	addrs, err := net.InterfaceAddrs()
+	if err != nil {
+		return nil
+	}
+	for _, address := range addrs {
+		// check the address type and if it is not a loopback the display it
+		if ipnet, ok := address.(*net.IPNet); ok && !ipnet.IP.IsLoopback() {
+			if ipnet.IP.To4() != nil {
+				return ipnet.IP
+			}
+		}
+	}
+	return nil
 }
