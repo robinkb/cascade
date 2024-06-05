@@ -21,7 +21,7 @@ import (
 
 type (
 	Controller interface {
-		Start()
+		Serve()
 	}
 
 	ServiceDiscovery interface {

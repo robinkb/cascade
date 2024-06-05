@@ -27,11 +27,19 @@ import (
 	"golang.org/x/exp/maps"
 )
 
-func NewServer(options *nats.Options) *Server {
+func NewServer(options *nats.Options) (*Server, error) {
+	ns, err := nats.NewServer(options.Clone())
+	if err != nil {
+		return nil, err
+	}
+
+	ns.SetLoggerV2(logger.NewTestLogger(options.ServerName, false), false, false, false)
+
 	return &Server{
+		server:  ns,
 		options: options,
 		routes:  make(map[string]*url.URL),
-	}
+	}, nil
 }
 
 type Server struct {
@@ -40,22 +48,16 @@ type Server struct {
 	routes  map[string]*url.URL
 }
 
-func (s *Server) Start() error {
-	ns, err := nats.NewServer(s.options.Clone())
-	if err != nil {
-		return err
-	}
-
-	s.server = ns
-	s.server.SetLoggerV2(logger.NewTestLogger(s.options.ServerName, false), false, false, false)
-
+func (s *Server) Start() {
 	s.server.Start()
+}
 
-	if !s.server.ReadyForConnections(10 * time.Second) {
-		return nats.ErrServerNotRunning
-	}
+func (s *Server) ReadyForConnections() bool {
+	return s.server.ReadyForConnections(4 * time.Second)
+}
 
-	return nil
+func (s *Server) Running() bool {
+	return s.server.Running()
 }
 
 func (s *Server) Name() string {

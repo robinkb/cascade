@@ -43,19 +43,24 @@ func (suite *ControllerTestSuite) TestClusterFormation() {
 	clusterName := "test-cluster-formation"
 	clusterRoute := &core.ClusterRoute{
 		ServerName: "s1",
-		// IPAddr:     "localhost",
-		Port: -1,
+		Port:       -1,
 	}
 	c1, err := suite.Constructor(clusterName, clusterRoute)
 	suite.Require().NoError(err)
 
-	c1.Start()
+	c1.Serve()
 
 	clusterRoute.ServerName = "s2"
 	c2, err := suite.Constructor(clusterName, clusterRoute)
 	suite.Require().NoError(err)
 
-	c2.Start()
+	c2.Serve()
+
+	clusterRoute.ServerName = "s3"
+	c3, err := suite.Constructor(clusterName, clusterRoute)
+	suite.Require().NoError(err)
+
+	c3.Serve()
 
 	time.Sleep(10 * time.Second)
 }

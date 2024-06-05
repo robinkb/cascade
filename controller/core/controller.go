@@ -50,35 +50,20 @@ type controller struct {
 	errs             chan error
 }
 
-func (c *controller) Start() {
+func (c *controller) Serve() {
 	c.sd.Start(c.quit)
-	if err := c.nats.Start(); err != nil {
-		// TODO: Don't panic
-		panic(err)
-	}
+	c.startWorker(c.handleNats)
 
-	// TODO: Type returned by Server should better align with what we need.
-	u := c.nats.ClusterRoute()
-	host := strings.Split(u.Host, ":")[0]
-	port, _ := strconv.Atoi(strings.Split(u.Host, ":")[1])
-	clusterRoute := &ClusterRoute{
-		ServerName: c.nats.Name(),
-		IPAddr:     host,
-		Port:       int32(port),
-	}
-	c.sd.Register(clusterRoute)
+	c.handleSignals()
+}
 
+func (c *controller) startWorker(worker func() error) {
 	go func() {
 		for {
-			routes, err := c.sd.Routes()
-			if err != nil {
-				// TODO: Don't panic
-				panic(err)
-			}
-
-			if err := c.nats.Routes(routes); err != nil {
-				// TODO: Don't panic
-				panic(err)
+			if err := worker(); err != nil {
+				log.Print(err)
+				time.Sleep(1 * time.Second)
+				continue
 			}
 
 			select {
@@ -91,9 +76,39 @@ func (c *controller) Start() {
 			}
 		}
 	}()
+}
 
-	log.Print("handling signals")
-	c.handleSignals()
+func (c *controller) handleNats() error {
+	if !c.nats.Running() {
+		c.nats.Start()
+		c.nats.ReadyForConnections()
+	}
+
+	// TODO: Type returned by Server should better align with what we need.
+	u := c.nats.ClusterRoute()
+	host := strings.Split(u.Host, ":")[0]
+	port, err := strconv.Atoi(strings.Split(u.Host, ":")[1])
+	if err != nil {
+		return err
+	}
+
+	clusterRoute := &ClusterRoute{
+		ServerName: c.nats.Name(),
+		IPAddr:     host,
+		Port:       int32(port),
+	}
+	c.sd.Register(clusterRoute)
+
+	routes, err := c.sd.Routes()
+	if err != nil {
+		return err
+	}
+
+	if err := c.nats.Routes(routes); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func (c *controller) Shutdown() {

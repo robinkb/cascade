@@ -50,7 +50,7 @@ func TestInMemoryController(t *testing.T) {
 				Port: int(clusterRoute.Port),
 			},
 			DisableJetStreamBanner: true,
-		}), nil
+		})
 	}
 
 	testsuites.Controller(t, controllerConstructor)

@@ -26,7 +26,6 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/uuid"
-	"k8s.io/client-go/kubernetes"
 	clientset "k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/clientcmd"
 )
@@ -42,7 +41,7 @@ func TestKubernetesServiceDiscovery(t *testing.T) {
 	testsuites.ServiceDiscovery(t, serviceDiscoveryConstructor)
 }
 
-func createTestingClient(t *testing.T) kubernetes.Interface {
+func createTestingClient(t *testing.T) clientset.Interface {
 	t.Helper()
 
 	homedir, err := os.UserHomeDir()
@@ -61,7 +60,7 @@ func createTestingClient(t *testing.T) kubernetes.Interface {
 	return client
 }
 
-func createTestingNamespace(t *testing.T, client kubernetes.Interface) string {
+func createTestingNamespace(t *testing.T, client clientset.Interface) string {
 	t.Helper()
 	namespace := string(uuid.NewUUID())
 

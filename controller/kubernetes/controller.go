@@ -27,9 +27,13 @@ func NewController(client kubernetes.Interface, namespace string, clusterRoute *
 	if err != nil {
 		return nil, err
 	}
+	ns, err := nats.NewServer(options)
+	if err != nil {
+		return nil, err
+	}
 
 	return core.NewController(
 		sd,
-		nats.NewServer(options),
+		ns,
 	), nil
 }

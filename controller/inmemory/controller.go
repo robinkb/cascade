@@ -23,9 +23,14 @@ import (
 
 var defaultServiceDiscoveryStore = NewServiceDiscoveryStore()
 
-func NewController(clusterRoute *core.ClusterRoute, options *server.Options) core.Controller {
+func NewController(clusterRoute *core.ClusterRoute, options *server.Options) (core.Controller, error) {
+	ns, err := nats.NewServer(options)
+	if err != nil {
+		return nil, err
+	}
+
 	return core.NewController(
 		NewServiceDiscovery(defaultServiceDiscoveryStore, options.Cluster.Name),
-		nats.NewServer(options),
-	)
+		ns,
+	), nil
 }

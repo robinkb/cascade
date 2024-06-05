@@ -24,16 +24,18 @@ import (
 
 func TestServer(t *testing.T) {
 	s1opts := makeOptions(t, "s1")
-	s1 := NewServer(s1opts)
-	if err := s1.Start(); err != nil {
+	s1, err := NewServer(s1opts)
+	if err != nil {
 		t.Fatal(err)
 	}
+	s1.Start()
 
 	s2opts := makeOptions(t, "s2")
-	s2 := NewServer(s2opts)
-	if err := s2.Start(); err != nil {
+	s2, err := NewServer(s2opts)
+	if err != nil {
 		t.Fatal(err)
 	}
+	s2.Start()
 
 	s1.SetRoute("s2", s2.ClusterRoute())
 	s2.SetRoute("s1", s1.ClusterRoute())
@@ -46,10 +48,11 @@ func TestServer(t *testing.T) {
 	}
 
 	s3opts := makeOptions(t, "s3")
-	s3 := NewServer(s3opts)
-	if err := s3.Start(); err != nil {
+	s3, err := NewServer(s3opts)
+	if err != nil {
 		t.Fatal(err)
 	}
+	s3.Start()
 
 	s1.SetRoute("s3", s3.ClusterRoute())
 	s2.SetRoute("s3", s3.ClusterRoute())
