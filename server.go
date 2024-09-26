@@ -26,5 +26,7 @@ func (s *RegistryServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusNotFound)
 	}
 
-	w.Write(s.store.GetBlob(digest))
+	if r.Method != http.MethodHead {
+		w.Write(s.store.GetBlob(digest))
+	}
 }

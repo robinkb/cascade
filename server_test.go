@@ -16,6 +16,11 @@ func (s *StubRegistryStore) GetBlob(digest string) []byte {
 	return s.blobs[digest]
 }
 
+func newCheckBlobRequest(digest string) *http.Request {
+	req, _ := http.NewRequest(http.MethodHead, fmt.Sprintf("/v2/library/fedora/blobs/%s", digest), nil)
+	return req
+}
+
 func TestGetBlob(t *testing.T) {
 	store := &StubRegistryStore{
 		map[string][]byte{
@@ -42,6 +47,16 @@ func TestGetBlob(t *testing.T) {
 
 		assertStatus(t, response.Code, http.StatusOK)
 		assertResponseBody(t, response.Body.Bytes(), []byte("my other blob content"))
+	})
+
+	t.Run("check if blob exists", func(t *testing.T) {
+		request := newCheckBlobRequest("sha256:6c3c624b58dbbcd3c0dd82b4c53f04194d1247c6eebdaab7c610cf7d66709b3b")
+		response := httptest.NewRecorder()
+
+		server.ServeHTTP(response, request)
+
+		assertStatus(t, response.Code, http.StatusOK)
+		assertResponseBody(t, response.Body.Bytes(), nil)
 	})
 
 	t.Run("returns 404 on missing blob", func(t *testing.T) {
