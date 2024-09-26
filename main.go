@@ -13,6 +13,6 @@ func (s *InMemoryRegistryStore) GetBlob(digest string) []byte {
 
 func main() {
 	store := &InMemoryRegistryStore{}
-	server := &RegistryServer{store}
+	server := NewRegistryServer(store)
 	log.Fatal(http.ListenAndServe(":5000", server))
 }
