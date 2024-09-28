@@ -2,8 +2,9 @@ package main
 
 import (
 	"encoding/json"
-	"fmt"
 	"net/http"
+	"slices"
+	"strings"
 
 	v1 "github.com/opencontainers/image-spec/specs-go/v1"
 )
@@ -20,9 +21,28 @@ func NewRegistryServer(store RegistryStore) *RegistryServer {
 
 	s.store = store
 
+	repositoryRouter := http.NewServeMux()
+	repositoryRouter.Handle("/manifests/{reference}", http.HandlerFunc(s.manifestsHandler))
+	repositoryRouter.Handle("/blobs/{digest}", http.HandlerFunc(s.blobsHandler))
+
+	registryRouter := http.NewServeMux()
+	registryRouter.Handle("/v2/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		segments := strings.Split(r.URL.Path, "/")
+		i := len(segments) - 1
+		for ; i > 0; i-- {
+			if slices.Contains([]string{"blobs", "manifests", "tags", "referrers"}, segments[i]) {
+				r.SetPathValue("name", strings.Join(segments[2:i], "/"))
+				break
+			}
+		}
+
+		prefix := strings.Join(segments[:i], "/")
+		http.StripPrefix(prefix, repositoryRouter).ServeHTTP(w, r)
+	}))
+
 	router := http.NewServeMux()
-	router.Handle("/v2/{group}/{repository}/manifests/{reference}", http.HandlerFunc(s.manifestsHandler))
-	router.Handle("/v2/{group}/{repository}/blobs/{digest}", http.HandlerFunc(s.blobsHandler))
+	router.Handle("/v2/", registryRouter)
+
 	s.Handler = router
 
 	return s
@@ -40,11 +60,8 @@ func (s *RegistryServer) manifestsHandler(w http.ResponseWriter, r *http.Request
 }
 
 func (s *RegistryServer) blobsHandler(w http.ResponseWriter, r *http.Request) {
-	group := r.PathValue("group")
-	repository := r.PathValue("repository")
+	name := r.PathValue("name")
 	digest := r.PathValue("digest")
-
-	name := fmt.Sprintf("%s/%s", group, repository)
 
 	if !s.store.BlobExists(name, digest) {
 		w.WriteHeader(http.StatusNotFound)
