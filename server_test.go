@@ -12,11 +12,19 @@ import (
 )
 
 type StubRegistryStore struct {
-	blobs map[string][]byte
+	blobs map[string]map[string][]byte
 }
 
-func (s *StubRegistryStore) GetBlob(digest string) []byte {
-	return s.blobs[digest]
+func (s *StubRegistryStore) BlobExists(name, digest string) bool {
+	if _, ok := s.blobs[name]; ok {
+		_, ok := s.blobs[name][digest]
+		return ok
+	}
+	return false
+}
+
+func (s *StubRegistryStore) GetBlob(name, digest string) []byte {
+	return s.blobs[name][digest]
 }
 
 func TestGetManifest(t *testing.T) {
@@ -34,7 +42,7 @@ func TestGetManifest(t *testing.T) {
 		err := json.NewDecoder(response.Body).Decode(&got)
 
 		if err != nil {
-			t.Fatalf("Unable to parse response from server %q into Manifest, '%v'", response.Body, got)
+			t.Fatalf("Unable to parse response %q from server into %T", response.Body, got)
 		}
 
 		assertStatus(t, response.Code, http.StatusOK)
@@ -42,15 +50,18 @@ func TestGetManifest(t *testing.T) {
 }
 
 func TestGetBlob(t *testing.T) {
-	store := &StubRegistryStore{
-		map[string][]byte{
+	store := &StubRegistryStore{map[string]map[string][]byte{
+		"library/fedora": {
 			"sha256:6c3c624b58dbbcd3c0dd82b4c53f04194d1247c6eebdaab7c610cf7d66709b3b": []byte("my blob content"),
 			"sha256:d0dc9f3a77cfc4c7d8408016c721d12559fcc40a07aca3826622f68fe6215aa9": []byte("my other blob content"),
 		},
-	}
+		"containers/skopeo": {
+			"sha256:090d62172504756bea09f64a28920d4f13ab6d375d436f936967f5fe4bd98a64": []byte("skopeo container content"),
+		},
+	}}
 	server := NewRegistryServer(store)
-	t.Run("get blob", func(t *testing.T) {
-		request := newGetBlobRequest("sha256:6c3c624b58dbbcd3c0dd82b4c53f04194d1247c6eebdaab7c610cf7d66709b3b")
+	t.Run("get blob for library/fedora", func(t *testing.T) {
+		request := newGetBlobRequest("library/fedora", "sha256:6c3c624b58dbbcd3c0dd82b4c53f04194d1247c6eebdaab7c610cf7d66709b3b")
 		response := httptest.NewRecorder()
 
 		server.ServeHTTP(response, request)
@@ -59,8 +70,8 @@ func TestGetBlob(t *testing.T) {
 		assertResponseBody(t, response.Body.Bytes(), []byte("my blob content"))
 	})
 
-	t.Run("get other blob", func(t *testing.T) {
-		request := newGetBlobRequest("sha256:d0dc9f3a77cfc4c7d8408016c721d12559fcc40a07aca3826622f68fe6215aa9")
+	t.Run("get other blob for library/fedora", func(t *testing.T) {
+		request := newGetBlobRequest("library/fedora", "sha256:d0dc9f3a77cfc4c7d8408016c721d12559fcc40a07aca3826622f68fe6215aa9")
 		response := httptest.NewRecorder()
 
 		server.ServeHTTP(response, request)
@@ -69,8 +80,18 @@ func TestGetBlob(t *testing.T) {
 		assertResponseBody(t, response.Body.Bytes(), []byte("my other blob content"))
 	})
 
+	t.Run("get blob for containers/skopeo", func(t *testing.T) {
+		request := newGetBlobRequest("containers/skopeo", "sha256:090d62172504756bea09f64a28920d4f13ab6d375d436f936967f5fe4bd98a64")
+		response := httptest.NewRecorder()
+
+		server.ServeHTTP(response, request)
+
+		assertStatus(t, response.Code, http.StatusOK)
+		assertResponseBody(t, response.Body.Bytes(), []byte("skopeo container content"))
+	})
+
 	t.Run("check if blob exists", func(t *testing.T) {
-		request := newCheckBlobRequest("sha256:6c3c624b58dbbcd3c0dd82b4c53f04194d1247c6eebdaab7c610cf7d66709b3b")
+		request := newCheckBlobRequest("library/fedora", "sha256:6c3c624b58dbbcd3c0dd82b4c53f04194d1247c6eebdaab7c610cf7d66709b3b")
 		response := httptest.NewRecorder()
 
 		server.ServeHTTP(response, request)
@@ -80,7 +101,7 @@ func TestGetBlob(t *testing.T) {
 	})
 
 	t.Run("returns 404 on missing blob", func(t *testing.T) {
-		request := newGetBlobRequest("sha256:sha256:ee0235dbf464273241b2bb74b883b4f1a6bf6d8c324b7e51d1eb0a2fb6539fdc")
+		request := newGetBlobRequest("library/fedora", "sha256:sha256:ee0235dbf464273241b2bb74b883b4f1a6bf6d8c324b7e51d1eb0a2fb6539fdc")
 		response := httptest.NewRecorder()
 
 		server.ServeHTTP(response, request)
@@ -89,13 +110,13 @@ func TestGetBlob(t *testing.T) {
 	})
 }
 
-func newGetBlobRequest(digest string) *http.Request {
-	req, _ := http.NewRequest(http.MethodGet, fmt.Sprintf("/v2/library/fedora/blobs/%s", digest), nil)
+func newGetBlobRequest(name, digest string) *http.Request {
+	req, _ := http.NewRequest(http.MethodGet, fmt.Sprintf("/v2/%s/blobs/%s", name, digest), nil)
 	return req
 }
 
-func newCheckBlobRequest(digest string) *http.Request {
-	req, _ := http.NewRequest(http.MethodHead, fmt.Sprintf("/v2/library/fedora/blobs/%s", digest), nil)
+func newCheckBlobRequest(name, digest string) *http.Request {
+	req, _ := http.NewRequest(http.MethodHead, fmt.Sprintf("/v2/%s/blobs/%s", name, digest), nil)
 	return req
 }
 

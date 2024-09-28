@@ -7,7 +7,11 @@ import (
 
 type InMemoryRegistryStore struct{}
 
-func (s *InMemoryRegistryStore) GetBlob(digest string) []byte {
+func (s *InMemoryRegistryStore) BlobExists(name, digest string) bool {
+	return true
+}
+
+func (s *InMemoryRegistryStore) GetBlob(name, digest string) []byte {
 	return []byte("123")
 }
 
