@@ -15,6 +15,7 @@ type (
 		StatBlob(name, digest string) bool
 		GetBlob(name, digest string) []byte
 		StatManifest(name, reference string) (bool, int)
+		GetManifest(name, reference string) []byte
 	}
 )
 
@@ -69,9 +70,14 @@ func (s *RegistryServer) manifestsHandler(w http.ResponseWriter, r *http.Request
 		}
 
 	case http.MethodGet:
-		w.WriteHeader(http.StatusOK)
+		var manifest v1.Manifest
+		data := s.store.GetManifest(name, reference)
+		json.Unmarshal(data, &manifest)
 
-		json.NewEncoder(w).Encode(v1.Manifest{})
+		w.Header().Set("Content-Type", manifest.MediaType)
+		w.WriteHeader(http.StatusOK)
+		w.Write(data)
+
 	case http.MethodPut:
 		w.WriteHeader(http.StatusCreated)
 

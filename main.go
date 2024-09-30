@@ -15,8 +15,12 @@ func (s *InMemoryRegistryStore) GetBlob(name, digest string) []byte {
 	return []byte("123")
 }
 
-func (s *InMemoryRegistryStore) StatManifest(name, digest string) (bool, int) {
+func (s *InMemoryRegistryStore) StatManifest(name, reference string) (bool, int) {
 	return true, 3
+}
+
+func (s *InMemoryRegistryStore) GetManifest(name, reference string) []byte {
+	return []byte("123")
 }
 
 func main() {

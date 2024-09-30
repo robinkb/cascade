@@ -50,7 +50,7 @@ func TestManifests(t *testing.T) {
 		server.ServeHTTP(response, request)
 
 		assertStatus(t, response.Code, http.StatusOK)
-		assertHeader(t, "Content-Length", response.Header().Get("Content-Length"), "3")
+		assertHeader(t, "Content-Length", response.Header(), "25")
 		assertResponseBody(t, response.Body.Bytes(), nil)
 
 		request = newHeadManifestRequest("non/existent", "1.0.0")
@@ -62,7 +62,7 @@ func TestManifests(t *testing.T) {
 	},
 	)
 
-	t.Run("get manifest returns 200", func(t *testing.T) {
+	t.Run("Test GET /manifests", func(t *testing.T) {
 		request := newGetManifestRequest("library/fedora", "1.0.0")
 		response := httptest.NewRecorder()
 
@@ -77,6 +77,7 @@ func TestManifests(t *testing.T) {
 		}
 
 		assertStatus(t, response.Code, http.StatusOK)
+		assertHeader(t, "Content-Type", response.Header(), "something")
 	})
 
 	t.Run("put manifest returns 201", func(t *testing.T) {
@@ -185,7 +186,7 @@ func newStubRegistryStore() *StubRegistryStore {
 	return &StubRegistryStore{
 		manifestStore: map[string]map[string][]byte{
 			"library/fedora": {
-				"1.0.0": []byte("123"),
+				"1.0.0": []byte(`{"mediaType":"something"}`),
 			},
 		},
 		blobStore: map[string]map[string][]byte{
@@ -217,14 +218,16 @@ func assertStatus(t *testing.T, got, want int) {
 	}
 }
 
-func assertHeader(t *testing.T, header, got, want string) {
+func assertHeader(t *testing.T, header string, got http.Header, want string) {
 	t.Helper()
-	if got == "" {
+	val := got.Get(header)
+	if val == "" {
 		t.Errorf("Header '%s' not set", header)
+		return
 	}
 
-	if got != want {
-		t.Errorf("Header '%s' set to %q, want %q", header, got, want)
+	if val != want {
+		t.Errorf("Header '%s' set to %q, want %q", header, val, want)
 	}
 }
 
