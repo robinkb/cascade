@@ -16,7 +16,7 @@ type StubRegistryStore struct {
 	manifestStore map[string]map[string][]byte
 }
 
-func (s *StubRegistryStore) BlobExists(name, digest string) bool {
+func (s *StubRegistryStore) StatBlob(name, digest string) bool {
 	if _, ok := s.blobStore[name]; ok {
 		_, ok := s.blobStore[name][digest]
 		return ok
@@ -28,22 +28,39 @@ func (s *StubRegistryStore) GetBlob(name, digest string) []byte {
 	return s.blobStore[name][digest]
 }
 
+func (s *StubRegistryStore) StatManifest(name, reference string) (bool, int) {
+	if _, ok := s.manifestStore[name]; ok {
+		val, ok := s.manifestStore[name][reference]
+		return ok, len(val)
+	}
+	return false, 0
+}
+
 func (s *StubRegistryStore) GetManifest(name, reference string) []byte {
 	return s.manifestStore[name][reference]
 }
 
 func TestManifests(t *testing.T) {
-	store := &StubRegistryStore{}
+	store := newStubRegistryStore()
 	server := NewRegistryServer(store)
 
-	t.Run("head manifest returns 200", func(t *testing.T) {
+	t.Run("Test HEAD /manifests", func(t *testing.T) {
 		request := newHeadManifestRequest("library/fedora", "1.0.0")
 		response := httptest.NewRecorder()
-
 		server.ServeHTTP(response, request)
 
 		assertStatus(t, response.Code, http.StatusOK)
-	})
+		assertHeader(t, "Content-Length", response.Header().Get("Content-Length"), "3")
+		assertResponseBody(t, response.Body.Bytes(), nil)
+
+		request = newHeadManifestRequest("non/existent", "1.0.0")
+		response = httptest.NewRecorder()
+		server.ServeHTTP(response, request)
+
+		assertStatus(t, response.Code, http.StatusNotFound)
+		assertResponseBody(t, response.Body.Bytes(), nil)
+	},
+	)
 
 	t.Run("get manifest returns 200", func(t *testing.T) {
 		request := newGetManifestRequest("library/fedora", "1.0.0")
@@ -166,6 +183,11 @@ func TestGetBlob(t *testing.T) {
 
 func newStubRegistryStore() *StubRegistryStore {
 	return &StubRegistryStore{
+		manifestStore: map[string]map[string][]byte{
+			"library/fedora": {
+				"1.0.0": []byte("123"),
+			},
+		},
 		blobStore: map[string]map[string][]byte{
 			"library/fedora": {
 				"sha256:6c3c624b58dbbcd3c0dd82b4c53f04194d1247c6eebdaab7c610cf7d66709b3b": []byte("my blob content"),
@@ -192,6 +214,17 @@ func assertStatus(t *testing.T, got, want int) {
 	t.Helper()
 	if got != want {
 		t.Errorf("got status %d, want %d", got, want)
+	}
+}
+
+func assertHeader(t *testing.T, header, got, want string) {
+	t.Helper()
+	if got == "" {
+		t.Errorf("Header '%s' not set", header)
+	}
+
+	if got != want {
+		t.Errorf("Header '%s' set to %q, want %q", header, got, want)
 	}
 }
 

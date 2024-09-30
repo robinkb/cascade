@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"slices"
+	"strconv"
 	"strings"
 
 	v1 "github.com/opencontainers/image-spec/specs-go/v1"
@@ -11,8 +12,9 @@ import (
 
 type (
 	RegistryStore interface {
-		BlobExists(name, digest string) bool
+		StatBlob(name, digest string) bool
 		GetBlob(name, digest string) []byte
+		StatManifest(name, reference string) (bool, int)
 	}
 )
 
@@ -54,9 +56,17 @@ type RegistryServer struct {
 }
 
 func (s *RegistryServer) manifestsHandler(w http.ResponseWriter, r *http.Request) {
+	name := r.PathValue("name")
+	reference := r.PathValue("reference")
+
 	switch r.Method {
 	case http.MethodHead:
-		w.WriteHeader(http.StatusOK)
+		if ok, len := s.store.StatManifest(name, reference); ok {
+			w.Header().Set("Content-Length", strconv.Itoa(len))
+			w.WriteHeader(http.StatusOK)
+		} else {
+			w.WriteHeader(http.StatusNotFound)
+		}
 
 	case http.MethodGet:
 		w.WriteHeader(http.StatusOK)
@@ -76,7 +86,7 @@ func (s *RegistryServer) blobsHandler(w http.ResponseWriter, r *http.Request) {
 	name := r.PathValue("name")
 	digest := r.PathValue("digest")
 
-	if !s.store.BlobExists(name, digest) {
+	if !s.store.StatBlob(name, digest) {
 		w.WriteHeader(http.StatusNotFound)
 		return
 	}

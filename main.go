@@ -7,12 +7,16 @@ import (
 
 type InMemoryRegistryStore struct{}
 
-func (s *InMemoryRegistryStore) BlobExists(name, digest string) bool {
+func (s *InMemoryRegistryStore) StatBlob(name, digest string) bool {
 	return true
 }
 
 func (s *InMemoryRegistryStore) GetBlob(name, digest string) []byte {
 	return []byte("123")
+}
+
+func (s *InMemoryRegistryStore) StatManifest(name, digest string) (bool, int) {
+	return true, 3
 }
 
 func main() {
