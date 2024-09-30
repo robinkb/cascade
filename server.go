@@ -68,6 +68,8 @@ func (s *RegistryServer) manifestsHandler(w http.ResponseWriter, r *http.Request
 	case http.MethodDelete:
 		w.WriteHeader(http.StatusAccepted)
 	}
+
+	w.WriteHeader(http.StatusMethodNotAllowed)
 }
 
 func (s *RegistryServer) blobsHandler(w http.ResponseWriter, r *http.Request) {

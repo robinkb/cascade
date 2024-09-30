@@ -32,7 +32,7 @@ func (s *StubRegistryStore) GetManifest(name, reference string) []byte {
 	return s.manifestStore[name][reference]
 }
 
-func TestHeadManifest(t *testing.T) {
+func TestManifests(t *testing.T) {
 	store := &StubRegistryStore{}
 	server := NewRegistryServer(store)
 
@@ -44,11 +44,6 @@ func TestHeadManifest(t *testing.T) {
 
 		assertStatus(t, response.Code, http.StatusOK)
 	})
-}
-
-func TestGetManifest(t *testing.T) {
-	store := &StubRegistryStore{}
-	server := NewRegistryServer(store)
 
 	t.Run("get manifest returns 200", func(t *testing.T) {
 		request := newGetManifestRequest("library/fedora", "1.0.0")
@@ -66,11 +61,6 @@ func TestGetManifest(t *testing.T) {
 
 		assertStatus(t, response.Code, http.StatusOK)
 	})
-}
-
-func TestPutManifest(t *testing.T) {
-	store := &StubRegistryStore{}
-	server := NewRegistryServer(store)
 
 	t.Run("put manifest returns 201", func(t *testing.T) {
 		request := newPutManifestRequest("library/fedora", "1.0.0")
@@ -80,11 +70,6 @@ func TestPutManifest(t *testing.T) {
 
 		assertStatus(t, response.Code, http.StatusCreated)
 	})
-}
-
-func TestDeleteManifest(t *testing.T) {
-	store := &StubRegistryStore{}
-	server := NewRegistryServer(store)
 
 	t.Run("delete manifest returns 202", func(t *testing.T) {
 		request := newDeleteManifestRequest("library/fedora", "1.0.0")
@@ -94,6 +79,16 @@ func TestDeleteManifest(t *testing.T) {
 
 		assertStatus(t, response.Code, http.StatusAccepted)
 	})
+
+	t.Run("other methods return 405", func(t *testing.T) {
+		request, _ := http.NewRequest(http.MethodTrace, "/v2/library/fedora/manifests/1.0.0", nil)
+		response := httptest.NewRecorder()
+
+		server.ServeHTTP(response, request)
+
+		assertStatus(t, response.Code, http.StatusMethodNotAllowed)
+	})
+
 }
 
 func newHeadManifestRequest(name, reference string) *http.Request {
