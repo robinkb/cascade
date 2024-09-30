@@ -54,9 +54,20 @@ type RegistryServer struct {
 }
 
 func (s *RegistryServer) manifestsHandler(w http.ResponseWriter, r *http.Request) {
-	w.WriteHeader(http.StatusOK)
+	switch r.Method {
+	case http.MethodHead:
+		w.WriteHeader(http.StatusOK)
 
-	json.NewEncoder(w).Encode(v1.Manifest{})
+	case http.MethodGet:
+		w.WriteHeader(http.StatusOK)
+
+		json.NewEncoder(w).Encode(v1.Manifest{})
+	case http.MethodPut:
+		w.WriteHeader(http.StatusCreated)
+
+	case http.MethodDelete:
+		w.WriteHeader(http.StatusAccepted)
+	}
 }
 
 func (s *RegistryServer) blobsHandler(w http.ResponseWriter, r *http.Request) {

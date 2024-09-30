@@ -12,19 +12,38 @@ import (
 )
 
 type StubRegistryStore struct {
-	blobs map[string]map[string][]byte
+	blobStore     map[string]map[string][]byte
+	manifestStore map[string]map[string][]byte
 }
 
 func (s *StubRegistryStore) BlobExists(name, digest string) bool {
-	if _, ok := s.blobs[name]; ok {
-		_, ok := s.blobs[name][digest]
+	if _, ok := s.blobStore[name]; ok {
+		_, ok := s.blobStore[name][digest]
 		return ok
 	}
 	return false
 }
 
 func (s *StubRegistryStore) GetBlob(name, digest string) []byte {
-	return s.blobs[name][digest]
+	return s.blobStore[name][digest]
+}
+
+func (s *StubRegistryStore) GetManifest(name, reference string) []byte {
+	return s.manifestStore[name][reference]
+}
+
+func TestHeadManifest(t *testing.T) {
+	store := &StubRegistryStore{}
+	server := NewRegistryServer(store)
+
+	t.Run("head manifest returns 200", func(t *testing.T) {
+		request := newHeadManifestRequest("library/fedora", "1.0.0")
+		response := httptest.NewRecorder()
+
+		server.ServeHTTP(response, request)
+
+		assertStatus(t, response.Code, http.StatusOK)
+	})
 }
 
 func TestGetManifest(t *testing.T) {
@@ -32,7 +51,7 @@ func TestGetManifest(t *testing.T) {
 	server := NewRegistryServer(store)
 
 	t.Run("get manifest returns 200", func(t *testing.T) {
-		request, _ := http.NewRequest(http.MethodGet, "/v2/library/fedora/manifests/1.0.0", nil)
+		request := newGetManifestRequest("library/fedora", "1.0.0")
 		response := httptest.NewRecorder()
 
 		server.ServeHTTP(response, request)
@@ -49,16 +68,56 @@ func TestGetManifest(t *testing.T) {
 	})
 }
 
+func TestPutManifest(t *testing.T) {
+	store := &StubRegistryStore{}
+	server := NewRegistryServer(store)
+
+	t.Run("put manifest returns 201", func(t *testing.T) {
+		request := newPutManifestRequest("library/fedora", "1.0.0")
+		response := httptest.NewRecorder()
+
+		server.ServeHTTP(response, request)
+
+		assertStatus(t, response.Code, http.StatusCreated)
+	})
+}
+
+func TestDeleteManifest(t *testing.T) {
+	store := &StubRegistryStore{}
+	server := NewRegistryServer(store)
+
+	t.Run("delete manifest returns 202", func(t *testing.T) {
+		request := newDeleteManifestRequest("library/fedora", "1.0.0")
+		response := httptest.NewRecorder()
+
+		server.ServeHTTP(response, request)
+
+		assertStatus(t, response.Code, http.StatusAccepted)
+	})
+}
+
+func newHeadManifestRequest(name, reference string) *http.Request {
+	req, _ := http.NewRequest(http.MethodHead, fmt.Sprintf("/v2/%s/manifests/%s", name, reference), nil)
+	return req
+}
+
+func newGetManifestRequest(name, reference string) *http.Request {
+	req, _ := http.NewRequest(http.MethodGet, fmt.Sprintf("/v2/%s/manifests/%s", name, reference), nil)
+	return req
+}
+
+func newPutManifestRequest(name, reference string) *http.Request {
+	req, _ := http.NewRequest(http.MethodPut, fmt.Sprintf("/v2/%s/manifests/%s", name, reference), nil)
+	return req
+}
+
+func newDeleteManifestRequest(name, reference string) *http.Request {
+	req, _ := http.NewRequest(http.MethodDelete, fmt.Sprintf("/v2/%s/manifests/%s", name, reference), nil)
+	return req
+}
+
 func TestGetBlob(t *testing.T) {
-	store := &StubRegistryStore{map[string]map[string][]byte{
-		"library/fedora": {
-			"sha256:6c3c624b58dbbcd3c0dd82b4c53f04194d1247c6eebdaab7c610cf7d66709b3b": []byte("my blob content"),
-			"sha256:d0dc9f3a77cfc4c7d8408016c721d12559fcc40a07aca3826622f68fe6215aa9": []byte("my other blob content"),
-		},
-		"containers/skopeo": {
-			"sha256:090d62172504756bea09f64a28920d4f13ab6d375d436f936967f5fe4bd98a64": []byte("skopeo container content"),
-		},
-	}}
+	store := newStubRegistryStore()
 	server := NewRegistryServer(store)
 	t.Run("get blob for library/fedora", func(t *testing.T) {
 		request := newGetBlobRequest("library/fedora", "sha256:6c3c624b58dbbcd3c0dd82b4c53f04194d1247c6eebdaab7c610cf7d66709b3b")
@@ -108,6 +167,20 @@ func TestGetBlob(t *testing.T) {
 
 		assertStatus(t, response.Code, http.StatusNotFound)
 	})
+}
+
+func newStubRegistryStore() *StubRegistryStore {
+	return &StubRegistryStore{
+		blobStore: map[string]map[string][]byte{
+			"library/fedora": {
+				"sha256:6c3c624b58dbbcd3c0dd82b4c53f04194d1247c6eebdaab7c610cf7d66709b3b": []byte("my blob content"),
+				"sha256:d0dc9f3a77cfc4c7d8408016c721d12559fcc40a07aca3826622f68fe6215aa9": []byte("my other blob content"),
+			},
+			"containers/skopeo": {
+				"sha256:090d62172504756bea09f64a28920d4f13ab6d375d436f936967f5fe4bd98a64": []byte("skopeo container content"),
+			},
+		},
+	}
 }
 
 func newGetBlobRequest(name, digest string) *http.Request {
