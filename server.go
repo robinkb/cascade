@@ -70,7 +70,6 @@ func (s *RegistryServer) manifestsHandler(w http.ResponseWriter, r *http.Request
 			return
 		}
 		w.WriteHeader(http.StatusNotFound)
-		return
 
 	case http.MethodGet:
 		var manifest v1.Manifest
@@ -84,21 +83,18 @@ func (s *RegistryServer) manifestsHandler(w http.ResponseWriter, r *http.Request
 		w.Header().Set("Content-Type", manifest.MediaType)
 		w.WriteHeader(http.StatusOK)
 		w.Write(data)
-		return
 
 	case http.MethodPut:
 		// The stored manifest must be an exact byte representation.
 		data, _ := io.ReadAll(r.Body)
 		s.store.PutManifest(name, reference, data)
 		w.WriteHeader(http.StatusCreated)
-		return
 
 	case http.MethodDelete:
 		w.WriteHeader(http.StatusAccepted)
-		return
+	default:
+		w.WriteHeader(http.StatusMethodNotAllowed)
 	}
-
-	w.WriteHeader(http.StatusMethodNotAllowed)
 }
 
 func (s *RegistryServer) blobsHandler(w http.ResponseWriter, r *http.Request) {
