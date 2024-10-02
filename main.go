@@ -23,6 +23,10 @@ func (s *InMemoryRegistryStore) GetManifest(name, reference string) []byte {
 	return []byte("123")
 }
 
+func (s *InMemoryRegistryStore) PutManifest(name, reference string, data []byte) {
+
+}
+
 func main() {
 	store := &InMemoryRegistryStore{}
 	server := NewRegistryServer(store)

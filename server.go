@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"io"
 	"net/http"
 	"slices"
 	"strconv"
@@ -16,6 +17,7 @@ type (
 		GetBlob(name, digest string) []byte
 		StatManifest(name, reference string) (bool, int)
 		GetManifest(name, reference string) []byte
+		PutManifest(name, reference string, data []byte)
 	}
 )
 
@@ -65,24 +67,35 @@ func (s *RegistryServer) manifestsHandler(w http.ResponseWriter, r *http.Request
 		if ok, len := s.store.StatManifest(name, reference); ok {
 			w.Header().Set("Content-Length", strconv.Itoa(len))
 			w.WriteHeader(http.StatusOK)
-		} else {
-			w.WriteHeader(http.StatusNotFound)
+			return
 		}
+		w.WriteHeader(http.StatusNotFound)
+		return
 
 	case http.MethodGet:
 		var manifest v1.Manifest
 		data := s.store.GetManifest(name, reference)
+		if data == nil {
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
 		json.Unmarshal(data, &manifest)
 
 		w.Header().Set("Content-Type", manifest.MediaType)
 		w.WriteHeader(http.StatusOK)
 		w.Write(data)
+		return
 
 	case http.MethodPut:
+		// The stored manifest must be an exact byte representation.
+		data, _ := io.ReadAll(r.Body)
+		s.store.PutManifest(name, reference, data)
 		w.WriteHeader(http.StatusCreated)
+		return
 
 	case http.MethodDelete:
 		w.WriteHeader(http.StatusAccepted)
+		return
 	}
 
 	w.WriteHeader(http.StatusMethodNotAllowed)

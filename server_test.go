@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -40,6 +41,10 @@ func (s *StubRegistryStore) GetManifest(name, reference string) []byte {
 	return s.manifestStore[name][reference]
 }
 
+func (s *StubRegistryStore) PutManifest(name, reference string, data []byte) {
+	s.manifestStore[name][reference] = data
+}
+
 func TestManifests(t *testing.T) {
 	store := newStubRegistryStore()
 	server := NewRegistryServer(store)
@@ -52,15 +57,16 @@ func TestManifests(t *testing.T) {
 		assertStatus(t, response.Code, http.StatusOK)
 		assertHeader(t, "Content-Length", response.Header(), "25")
 		assertResponseBody(t, response.Body.Bytes(), nil)
+	})
 
-		request = newHeadManifestRequest("non/existent", "1.0.0")
-		response = httptest.NewRecorder()
+	t.Run("Test HEAD /manifests on non-existent manifest", func(t *testing.T) {
+		request := newHeadManifestRequest("non/existent", "1.0.0")
+		response := httptest.NewRecorder()
 		server.ServeHTTP(response, request)
 
 		assertStatus(t, response.Code, http.StatusNotFound)
 		assertResponseBody(t, response.Body.Bytes(), nil)
-	},
-	)
+	})
 
 	t.Run("Test GET /manifests", func(t *testing.T) {
 		request := newGetManifestRequest("library/fedora", "1.0.0")
@@ -68,25 +74,64 @@ func TestManifests(t *testing.T) {
 
 		server.ServeHTTP(response, request)
 
+		assertStatus(t, response.Code, http.StatusOK)
+		assertHeader(t, "Content-Type", response.Header(), "something")
+
 		var got v1.Manifest
-
 		err := json.NewDecoder(response.Body).Decode(&got)
-
 		if err != nil {
 			t.Fatalf("Unable to parse response %q from server into %T", response.Body, got)
 		}
-
-		assertStatus(t, response.Code, http.StatusOK)
-		assertHeader(t, "Content-Type", response.Header(), "something")
 	})
 
-	t.Run("put manifest returns 201", func(t *testing.T) {
-		request := newPutManifestRequest("library/fedora", "1.0.0")
+	t.Run("Test GET /manifests on non-existent manifest", func(t *testing.T) {
+		request := newGetManifestRequest("non/existent", "1.0.0")
+		response := httptest.NewRecorder()
+
+		server.ServeHTTP(response, request)
+
+		assertStatus(t, response.Code, http.StatusNotFound)
+		assertResponseBody(t, response.Body.Bytes(), nil)
+	})
+
+	t.Run("Test PUT /manifests", func(t *testing.T) {
+		manifest := []byte(
+			`{
+				"mediaType":"something",
+			}`,
+		)
+		request := newPutManifestRequest("library/fedora", "1.1.0", manifest)
 		response := httptest.NewRecorder()
 
 		server.ServeHTTP(response, request)
 
 		assertStatus(t, response.Code, http.StatusCreated)
+
+		request = newGetManifestRequest("library/fedora", "1.1.0")
+		response = httptest.NewRecorder()
+
+		server.ServeHTTP(response, request)
+		assertStatus(t, response.Code, http.StatusOK)
+		assertResponseBody(t, response.Body.Bytes(), manifest)
+	})
+
+	t.Run("Test PUT /manifests with invalid content", func(t *testing.T) {
+		manifest := []byte(
+			`blabla`,
+		)
+		request := newPutManifestRequest("library/fedora", "1.1.0", manifest)
+		response := httptest.NewRecorder()
+
+		server.ServeHTTP(response, request)
+
+		assertStatus(t, response.Code, http.StatusCreated)
+
+		request = newGetManifestRequest("library/fedora", "1.1.0")
+		response = httptest.NewRecorder()
+
+		server.ServeHTTP(response, request)
+		assertStatus(t, response.Code, http.StatusOK)
+		assertResponseBody(t, response.Body.Bytes(), manifest)
 	})
 
 	t.Run("delete manifest returns 202", func(t *testing.T) {
@@ -119,8 +164,8 @@ func newGetManifestRequest(name, reference string) *http.Request {
 	return req
 }
 
-func newPutManifestRequest(name, reference string) *http.Request {
-	req, _ := http.NewRequest(http.MethodPut, fmt.Sprintf("/v2/%s/manifests/%s", name, reference), nil)
+func newPutManifestRequest(name, reference string, body []byte) *http.Request {
+	req, _ := http.NewRequest(http.MethodPut, fmt.Sprintf("/v2/%s/manifests/%s", name, reference), bytes.NewBuffer(body))
 	return req
 }
 
