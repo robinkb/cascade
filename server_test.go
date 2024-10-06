@@ -236,15 +236,8 @@ func TestBlobUploads(t *testing.T) {
 	t.Run("PUT /blobs/uploads/{reference} happy path", func(t *testing.T) {
 		session := server.service.InitUploadSession("library/fedora")
 		content := randomContents(32)
-		id := digest.FromBytes(content)
 
-		request, _ := http.NewRequest(http.MethodPut, session.Location, bytes.NewBuffer(content))
-		request.Header.Set("Content-Type", "application/octet-stream")
-		request.Header.Set("Content-Length", fmt.Sprint(len(content)))
-		query := request.URL.Query()
-		query.Set("digest", id.String())
-		request.URL.RawQuery = query.Encode()
-
+		request := newBlobUploadRequest(session.Location, content)
 		response := httptest.NewRecorder()
 
 		server.ServeHTTP(response, request)
@@ -264,7 +257,23 @@ func TestBlobUploads(t *testing.T) {
 
 	t.Run("PUT /blobs/uploads/{reference} without body returns 400", func(t *testing.T) {
 		session := server.service.InitUploadSession("library/fedora")
-		request, _ := http.NewRequest(http.MethodPut, session.Location, nil)
+
+		request := newBlobUploadRequest(session.Location, nil)
+		request.Body = nil
+		response := httptest.NewRecorder()
+
+		server.ServeHTTP(response, request)
+
+		assertStatus(t, response.Code, http.StatusBadRequest)
+	})
+
+	t.Run("PUT /blobs/uploads/{reference} with empty body returns 400", func(t *testing.T) {
+		// TODO: Fix this case
+		t.SkipNow()
+
+		session := server.service.InitUploadSession("library/fedora")
+
+		request := newBlobUploadRequest(session.Location, nil)
 		response := httptest.NewRecorder()
 
 		server.ServeHTTP(response, request)
@@ -273,7 +282,7 @@ func TestBlobUploads(t *testing.T) {
 	})
 
 	t.Run("PUT /blobs/uploads/{reference} without session returns 404", func(t *testing.T) {
-		request, _ := http.NewRequest(http.MethodPut, "/v2/library/fedora/blobs/uploads/123", nil)
+		request := newBlobUploadRequest("/v2/library/fedora/blobs/uploads/123", nil)
 		response := httptest.NewRecorder()
 
 		server.ServeHTTP(response, request)
@@ -284,9 +293,9 @@ func TestBlobUploads(t *testing.T) {
 	t.Run("PUT /blobs/uploads/{reference} without required headers returns 400", func(t *testing.T) {
 		session := server.service.InitUploadSession("library/fedora")
 		content := randomContents(32)
-		request, _ := http.NewRequest(http.MethodPut, session.Location, bytes.NewBuffer(content))
-		request.Header.Set("Content-Type", "application/octet-stream")
-		request.Header.Set("Content-Length", fmt.Sprint(len(content)))
+		request := newBlobUploadRequest(session.Location, content)
+		request.Header.Del("Content-Type")
+		request.Header.Del("Content-Length")
 		response := httptest.NewRecorder()
 
 		server.ServeHTTP(response, request)
@@ -297,7 +306,8 @@ func TestBlobUploads(t *testing.T) {
 	t.Run("PUT /blobs/uploads/{reference} without digest returns 400", func(t *testing.T) {
 		session := server.service.InitUploadSession("library/fedora")
 		content := randomContents(32)
-		request, _ := http.NewRequest(http.MethodPut, session.Location, bytes.NewBuffer(content))
+		request := newBlobUploadRequest(session.Location, content)
+		request.URL.RawQuery = ""
 		response := httptest.NewRecorder()
 
 		server.ServeHTTP(response, request)
@@ -308,13 +318,8 @@ func TestBlobUploads(t *testing.T) {
 	t.Run("PUT /blobs/uploads/{reference} with invalid digest returns 400", func(t *testing.T) {
 		session := server.service.InitUploadSession("library/fedora")
 		content := randomContents(32)
-		id := digest.FromBytes(content)
-		request, _ := http.NewRequest(http.MethodPut, session.Location, bytes.NewBuffer(content))
-		request.Header.Set("Content-Type", "application/octet-stream")
-		request.Header.Set("Content-Length", fmt.Sprint(len(content)))
-		query := request.URL.Query()
-		query.Set("digest", id.Encoded())
-		request.URL.RawQuery = query.Encode()
+		request := newBlobUploadRequest(session.Location, content)
+		request.URL.RawQuery = "digest=blablabla"
 		response := httptest.NewRecorder()
 
 		server.ServeHTTP(response, request)
@@ -325,15 +330,14 @@ func TestBlobUploads(t *testing.T) {
 	t.Run("PUT /blobs/uploads/{reference} with wrong digest returns 400", func(t *testing.T) {
 		session := server.service.InitUploadSession("library/fedora")
 		content := randomContents(32)
+		request := newBlobUploadRequest(session.Location, content)
+		response := httptest.NewRecorder()
+
 		otherContent := randomContents(64)
 		id := digest.FromBytes(otherContent)
-		request, _ := http.NewRequest(http.MethodPut, session.Location, bytes.NewBuffer(content))
-		request.Header.Set("Content-Type", "application/octet-stream")
-		request.Header.Set("Content-Length", fmt.Sprint(len(content)))
 		query := request.URL.Query()
-		query.Set("digest", id.Encoded())
+		query.Set("digest", id.String())
 		request.URL.RawQuery = query.Encode()
-		response := httptest.NewRecorder()
 
 		server.ServeHTTP(response, request)
 
@@ -348,6 +352,19 @@ func newGetBlobRequest(name, digest string) *http.Request {
 
 func newCheckBlobRequest(name, digest string) *http.Request {
 	req, _ := http.NewRequest(http.MethodHead, fmt.Sprintf("/v2/%s/blobs/%s", name, digest), nil)
+	return req
+}
+
+func newBlobUploadRequest(location string, content []byte) *http.Request {
+	id := digest.FromBytes(content)
+
+	req, _ := http.NewRequest(http.MethodPut, location, bytes.NewBuffer(content))
+	req.Header.Set("Content-Type", "application/octet-stream")
+	req.Header.Set("Content-Length", fmt.Sprint(len(content)))
+
+	query := req.URL.Query()
+	query.Set("digest", id.String())
+	req.URL.RawQuery = query.Encode()
 	return req
 }
 
