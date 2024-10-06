@@ -12,6 +12,14 @@ import (
 	v1 "github.com/opencontainers/image-spec/specs-go/v1"
 )
 
+var (
+	headerContentLength = "Content-Length"
+	headerContentType   = "Content-Type"
+	headerLocation      = "Location"
+
+	contentTypeOctetStream = "application/octet-stream"
+)
+
 func NewRegistryServer(service RegistryService) *RegistryServer {
 	s := new(RegistryServer)
 
@@ -58,7 +66,7 @@ func (s *RegistryServer) manifestsHandler(w http.ResponseWriter, r *http.Request
 	switch r.Method {
 	case http.MethodHead:
 		if ok, len := s.service.StatManifest(name, reference); ok {
-			w.Header().Set("Content-Length", strconv.Itoa(len))
+			w.Header().Set(headerContentLength, strconv.Itoa(len))
 			w.WriteHeader(http.StatusOK)
 			return
 		}
@@ -73,7 +81,7 @@ func (s *RegistryServer) manifestsHandler(w http.ResponseWriter, r *http.Request
 		}
 		json.Unmarshal(data, &manifest)
 
-		w.Header().Set("Content-Type", manifest.MediaType)
+		w.Header().Set(headerContentType, manifest.MediaType)
 		w.WriteHeader(http.StatusOK)
 		w.Write(data)
 
@@ -110,7 +118,7 @@ func (s *RegistryServer) blobsUploadsSessionHandler(w http.ResponseWriter, r *ht
 	switch r.Method {
 	case http.MethodPost:
 		session := s.service.InitUploadSession(name)
-		w.Header().Set("Location", session.Location)
+		w.Header().Set(headerLocation, session.Location)
 		w.WriteHeader(http.StatusAccepted)
 	default:
 		w.WriteHeader(http.StatusMethodNotAllowed)
@@ -129,8 +137,8 @@ func (s *RegistryServer) blobsUploadsHandler(w http.ResponseWriter, r *http.Requ
 		}
 
 		if r.Body == nil ||
-			r.Header.Get("Content-Type") != "application/octet-stream" ||
-			r.Header.Get("Content-Length") == "" {
+			r.Header.Get(headerContentType) != contentTypeOctetStream ||
+			r.Header.Get(headerContentLength) == "" {
 			w.WriteHeader(http.StatusBadRequest)
 			return
 		}
@@ -143,8 +151,9 @@ func (s *RegistryServer) blobsUploadsHandler(w http.ResponseWriter, r *http.Requ
 		}
 
 		// TODO: HTTP Handler shouldn't have to know how to construct the location.
+		// Probably...
 		location := fmt.Sprintf("/v2/%s/blobs/%s", name, digest)
-		w.Header().Set("Location", location)
+		w.Header().Set(headerLocation, location)
 		w.WriteHeader(http.StatusCreated)
 	default:
 		w.WriteHeader(http.StatusMethodNotAllowed)

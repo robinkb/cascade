@@ -28,7 +28,7 @@ func TestManifests(t *testing.T) {
 		server.ServeHTTP(response, request)
 
 		assertStatus(t, response.Code, http.StatusOK)
-		assertHeader(t, "Content-Length", response.Header(), "25")
+		assertHeader(t, headerContentLength, response.Header(), "25")
 		assertResponseBody(t, response.Body.Bytes(), nil)
 	})
 
@@ -48,7 +48,7 @@ func TestManifests(t *testing.T) {
 		server.ServeHTTP(response, request)
 
 		assertStatus(t, response.Code, http.StatusOK)
-		assertHeader(t, "Content-Type", response.Header(), "something")
+		assertHeader(t, headerContentType, response.Header(), "something")
 
 		var got v1.Manifest
 		err := json.NewDecoder(response.Body).Decode(&got)
@@ -217,8 +217,8 @@ func TestBlobUploads(t *testing.T) {
 		server.ServeHTTP(response, request)
 
 		assertStatus(t, response.Code, http.StatusAccepted)
-		assertHeaderSet(t, "Location", response.Header())
-		location := response.Header().Get("Location")
+		assertHeaderSet(t, headerLocation, response.Header())
+		location := response.Header().Get(headerLocation)
 		u, err := url.Parse(location)
 		if err != nil {
 			t.Errorf("failed to parse Location header %q: %v", location, err)
@@ -243,9 +243,9 @@ func TestBlobUploads(t *testing.T) {
 		server.ServeHTTP(response, request)
 
 		assertStatus(t, response.Code, http.StatusCreated)
-		assertHeaderSet(t, "Location", response.Header())
+		assertHeaderSet(t, headerLocation, response.Header())
 
-		location := response.Header().Get("Location")
+		location := response.Header().Get(headerLocation)
 		request, _ = http.NewRequest(http.MethodGet, location, nil)
 		response = httptest.NewRecorder()
 
@@ -294,8 +294,8 @@ func TestBlobUploads(t *testing.T) {
 		session := server.service.InitUploadSession("library/fedora")
 		content := randomContents(32)
 		request := newBlobUploadRequest(session.Location, content)
-		request.Header.Del("Content-Type")
-		request.Header.Del("Content-Length")
+		request.Header.Del(headerContentType)
+		request.Header.Del(headerContentLength)
 		response := httptest.NewRecorder()
 
 		server.ServeHTTP(response, request)
@@ -359,8 +359,8 @@ func newBlobUploadRequest(location string, content []byte) *http.Request {
 	id := digest.FromBytes(content)
 
 	req, _ := http.NewRequest(http.MethodPut, location, bytes.NewBuffer(content))
-	req.Header.Set("Content-Type", "application/octet-stream")
-	req.Header.Set("Content-Length", fmt.Sprint(len(content)))
+	req.Header.Set(headerContentType, contentTypeOctetStream)
+	req.Header.Set(headerContentLength, fmt.Sprint(len(content)))
 
 	query := req.URL.Query()
 	query.Set("digest", id.String())
