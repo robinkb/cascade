@@ -73,6 +73,8 @@ func (s *RegistryServer) manifestsHandler(w http.ResponseWriter, r *http.Request
 		w.WriteHeader(http.StatusNotFound)
 
 	case http.MethodGet:
+		// TODO: This is doing too much. GetManifest should verify the Manifest,
+		// and return the media type.
 		var manifest v1.Manifest
 		data := s.service.GetManifest(name, reference)
 		if data == nil {
@@ -93,6 +95,7 @@ func (s *RegistryServer) manifestsHandler(w http.ResponseWriter, r *http.Request
 
 	case http.MethodDelete:
 		w.WriteHeader(http.StatusAccepted)
+
 	default:
 		w.WriteHeader(http.StatusMethodNotAllowed)
 	}
@@ -102,6 +105,7 @@ func (s *RegistryServer) blobsHandler(w http.ResponseWriter, r *http.Request) {
 	name := r.PathValue("name")
 	digest := r.PathValue("digest")
 
+	// TODO: _Oof._
 	if !s.service.StatBlob(name, digest) {
 		w.WriteHeader(http.StatusNotFound)
 		return
@@ -120,6 +124,7 @@ func (s *RegistryServer) blobsUploadsSessionHandler(w http.ResponseWriter, r *ht
 		session := s.service.InitUploadSession(name)
 		w.Header().Set(headerLocation, session.Location)
 		w.WriteHeader(http.StatusAccepted)
+
 	default:
 		w.WriteHeader(http.StatusMethodNotAllowed)
 	}
@@ -155,6 +160,7 @@ func (s *RegistryServer) blobsUploadsHandler(w http.ResponseWriter, r *http.Requ
 		location := fmt.Sprintf("/v2/%s/blobs/%s", name, digest)
 		w.Header().Set(headerLocation, location)
 		w.WriteHeader(http.StatusCreated)
+
 	default:
 		w.WriteHeader(http.StatusMethodNotAllowed)
 	}
