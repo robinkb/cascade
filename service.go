@@ -2,11 +2,32 @@ package main
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"io"
 
+	// Required for go-digest.
+	_ "crypto/sha256"
+
 	"github.com/gofrs/uuid/v5"
-	"github.com/opencontainers/go-digest"
+	godigest "github.com/opencontainers/go-digest"
+)
+
+type (
+	RegistryService interface {
+		StatBlob(name, digest string) bool
+		GetBlob(name, digest string) io.Reader
+		WriteBlob(name string, digest string, r io.Reader) error
+		StatManifest(name, reference string) (bool, int)
+		GetManifest(name, reference string) []byte
+		PutManifest(name, reference string, data []byte)
+		InitUploadSession(name string) *UploadSession
+		ActiveUploadSession(name, id string) bool
+	}
+
+	UploadSession struct {
+		ID, Location string
+	}
 )
 
 func NewRegistryService(store RegistryStore) *registryService {
@@ -34,20 +55,23 @@ func (s *registryService) GetBlob(name, digest string) io.Reader {
 	return r
 }
 
-func (s *registryService) WriteBlob(name string, digest digest.Digest, r io.Reader) bool {
-	path := fmt.Sprintf("blobs/%s/%s", name, digest.String())
-
-	verifier := digest.Verifier()
-	tee := io.TeeReader(r, verifier)
-	buf := bytes.NewBuffer([]byte{})
-	io.Copy(buf, tee)
-
-	if verifier.Verified() {
-		s.store.Put(path, buf)
-		return true
+func (s *registryService) WriteBlob(name string, digest string, r io.Reader) error {
+	d, err := godigest.Parse(digest)
+	if err != nil {
+		return err
 	}
 
-	return false
+	path := fmt.Sprintf("blobs/%s/%s", name, d.String())
+
+	verifier := d.Verifier()
+	tee := io.TeeReader(r, verifier)
+
+	s.store.Put(path, tee)
+	if !verifier.Verified() {
+		return errors.New("TODO: proper error")
+	}
+
+	return nil
 }
 
 func (s *registryService) StatManifest(name, reference string) (bool, int) {

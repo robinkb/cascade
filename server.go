@@ -9,25 +9,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/opencontainers/go-digest"
 	v1 "github.com/opencontainers/image-spec/specs-go/v1"
-)
-
-type (
-	RegistryService interface {
-		StatBlob(name, digest string) bool
-		GetBlob(name, digest string) io.Reader
-		WriteBlob(name string, digest digest.Digest, r io.Reader) bool
-		StatManifest(name, reference string) (bool, int)
-		GetManifest(name, reference string) []byte
-		PutManifest(name, reference string, data []byte)
-		InitUploadSession(name string) *UploadSession
-		ActiveUploadSession(name, id string) bool
-	}
-
-	UploadSession struct {
-		ID, Location string
-	}
 )
 
 func NewRegistryServer(service RegistryService) *RegistryServer {
@@ -146,13 +128,6 @@ func (s *RegistryServer) blobsUploadsHandler(w http.ResponseWriter, r *http.Requ
 			return
 		}
 
-		// TODO: HTTP Handler shouldn't know what a valid digest is.
-		d, err := digest.Parse(r.URL.Query().Get("digest"))
-		if err != nil {
-			w.WriteHeader(http.StatusBadRequest)
-			return
-		}
-
 		if r.Body == nil ||
 			r.Header.Get("Content-Type") != "application/octet-stream" ||
 			r.Header.Get("Content-Length") == "" {
@@ -160,14 +135,15 @@ func (s *RegistryServer) blobsUploadsHandler(w http.ResponseWriter, r *http.Requ
 			return
 		}
 
-		verified := s.service.WriteBlob(name, d, r.Body)
-		if !verified {
+		digest := r.URL.Query().Get("digest")
+		err := s.service.WriteBlob(name, digest, r.Body)
+		if err != nil {
 			w.WriteHeader(http.StatusBadRequest)
 			return
 		}
 
 		// TODO: HTTP Handler shouldn't have to know how to construct the location.
-		location := fmt.Sprintf("/v2/%s/blobs/%s", name, d.String())
+		location := fmt.Sprintf("/v2/%s/blobs/%s", name, digest)
 		w.Header().Set("Location", location)
 		w.WriteHeader(http.StatusCreated)
 	default:
