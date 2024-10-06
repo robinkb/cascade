@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"slices"
@@ -14,10 +15,17 @@ import (
 type (
 	RegistryStore interface {
 		StatBlob(name, digest string) bool
-		GetBlob(name, digest string) []byte
+		GetBlob(name, digest string) io.Reader
+		WriteBlob(name string, r io.Reader) string
 		StatManifest(name, reference string) (bool, int)
 		GetManifest(name, reference string) []byte
 		PutManifest(name, reference string, data []byte)
+		InitUploadSession(name string) *UploadSession
+		ActiveUploadSession(name, id string) bool
+	}
+
+	UploadSession struct {
+		ID, Location string
 	}
 )
 
@@ -29,6 +37,8 @@ func NewRegistryServer(store RegistryStore) *RegistryServer {
 	repositoryRouter := http.NewServeMux()
 	repositoryRouter.Handle("/manifests/{reference}", http.HandlerFunc(s.manifestsHandler))
 	repositoryRouter.Handle("/blobs/{digest}", http.HandlerFunc(s.blobsHandler))
+	repositoryRouter.Handle("/blobs/uploads/", http.HandlerFunc(s.blobsUploadsSessionHandler))
+	repositoryRouter.Handle("/blobs/uploads/{reference}", http.HandlerFunc(s.blobsUploadsHandler))
 
 	registryRouter := http.NewServeMux()
 	registryRouter.Handle("/v2/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -107,8 +117,54 @@ func (s *RegistryServer) blobsHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if r.Method != http.MethodHead {
-		// TODO: This should probably be refactored to write directly to w,
-		// because this code buffers blobs into memory.
-		w.Write(s.store.GetBlob(name, digest))
+		io.Copy(w, s.store.GetBlob(name, digest))
+	}
+}
+
+func (s *RegistryServer) blobsUploadsSessionHandler(w http.ResponseWriter, r *http.Request) {
+	name := r.PathValue("name")
+
+	switch r.Method {
+	case http.MethodPost:
+		session := s.store.InitUploadSession(name)
+		w.Header().Set("Location", session.Location)
+		w.WriteHeader(http.StatusAccepted)
+	default:
+		w.WriteHeader(http.StatusMethodNotAllowed)
+	}
+}
+
+func (s *RegistryServer) blobsUploadsHandler(w http.ResponseWriter, r *http.Request) {
+	name := r.PathValue("name")
+	reference := r.PathValue("reference")
+
+	fmt.Printf("%s", r.Header.Get("Content-Length"))
+
+	switch r.Method {
+	case http.MethodPut:
+		if !s.store.ActiveUploadSession(name, reference) {
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
+
+		if r.Body == nil ||
+			r.Header.Get("Content-Type") != "application/octet-stream" ||
+			r.Header.Get("Content-Length") == "" ||
+			r.URL.Query().Get("digest") == "" {
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+
+		digest := s.store.WriteBlob(name, r.Body)
+		if digest != r.URL.Query().Get("digest") {
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+
+		location := fmt.Sprintf("/v2/%s/blobs/%s", name, digest)
+		w.Header().Set("Location", location)
+		w.WriteHeader(http.StatusCreated)
+	default:
+		w.WriteHeader(http.StatusMethodNotAllowed)
 	}
 }
