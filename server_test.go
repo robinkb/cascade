@@ -15,6 +15,7 @@ import (
 	"testing"
 
 	"github.com/gofrs/uuid/v5"
+	"github.com/opencontainers/go-digest"
 	v1 "github.com/opencontainers/image-spec/specs-go/v1"
 )
 
@@ -295,15 +296,15 @@ func TestBlobUploads(t *testing.T) {
 	t.Run("PUT /blobs/uploads/{reference} happy path", func(t *testing.T) {
 		session := server.store.InitUploadSession("library/fedora")
 		content := randomContents(32)
-		digest := fmt.Sprintf("sha256:%x",
-			sha256.Sum256(content),
-		)
+		id := digest.FromBytes(content)
+
 		request, _ := http.NewRequest(http.MethodPut, session.Location, bytes.NewBuffer(content))
 		request.Header.Set("Content-Type", "application/octet-stream")
 		request.Header.Set("Content-Length", fmt.Sprint(len(content)))
 		query := request.URL.Query()
-		query.Set("digest", digest)
+		query.Set("digest", id.Encoded())
 		request.URL.RawQuery = query.Encode()
+
 		response := httptest.NewRecorder()
 
 		server.ServeHTTP(response, request)
@@ -364,18 +365,33 @@ func TestBlobUploads(t *testing.T) {
 		assertStatus(t, response.Code, http.StatusBadRequest)
 	})
 
-	t.Run("PUT /blobs/uploads/{reference} with wrong digest returns 400", func(t *testing.T) {
+	t.Run("PUT /blobs/uploads/{reference} with invalid digest returns 400", func(t *testing.T) {
 		session := server.store.InitUploadSession("library/fedora")
 		content := randomContents(32)
-		otherContent := randomContents(64)
-		digest := fmt.Sprintf("sha256:%x",
-			sha256.Sum256(otherContent),
-		)
+		id := digest.FromBytes(content)
 		request, _ := http.NewRequest(http.MethodPut, session.Location, bytes.NewBuffer(content))
 		request.Header.Set("Content-Type", "application/octet-stream")
 		request.Header.Set("Content-Length", fmt.Sprint(len(content)))
 		query := request.URL.Query()
-		query.Set("digest", digest)
+		query.Set("digest", id.Encoded())
+		request.URL.RawQuery = query.Encode()
+		response := httptest.NewRecorder()
+
+		server.ServeHTTP(response, request)
+
+		assertStatus(t, response.Code, http.StatusBadRequest)
+	})
+
+	t.Run("PUT /blobs/uploads/{reference} with wrong digest returns 400", func(t *testing.T) {
+		session := server.store.InitUploadSession("library/fedora")
+		content := randomContents(32)
+		otherContent := randomContents(64)
+		id := digest.FromBytes(otherContent)
+		request, _ := http.NewRequest(http.MethodPut, session.Location, bytes.NewBuffer(content))
+		request.Header.Set("Content-Type", "application/octet-stream")
+		request.Header.Set("Content-Length", fmt.Sprint(len(content)))
+		query := request.URL.Query()
+		query.Set("digest", id.Encoded())
 		request.URL.RawQuery = query.Encode()
 		response := httptest.NewRecorder()
 

@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/opencontainers/go-digest"
 	v1 "github.com/opencontainers/image-spec/specs-go/v1"
 )
 
@@ -147,10 +148,15 @@ func (s *RegistryServer) blobsUploadsHandler(w http.ResponseWriter, r *http.Requ
 			return
 		}
 
+		_, err := digest.Parse(r.URL.Query().Get("digest"))
+		if err != nil {
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+
 		if r.Body == nil ||
 			r.Header.Get("Content-Type") != "application/octet-stream" ||
-			r.Header.Get("Content-Length") == "" ||
-			r.URL.Query().Get("digest") == "" {
+			r.Header.Get("Content-Length") == "" {
 			w.WriteHeader(http.StatusBadRequest)
 			return
 		}
