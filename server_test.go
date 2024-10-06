@@ -3,7 +3,6 @@ package main
 import (
 	"bytes"
 	"crypto/rand"
-	"crypto/sha256"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -37,14 +36,18 @@ func (s *StubRegistryStore) GetBlob(name, digest string) io.Reader {
 	return bytes.NewBuffer(s.blobStore[name][digest])
 }
 
-func (s *StubRegistryStore) WriteBlob(name string, r io.Reader) string {
-	hash := sha256.New()
-	tee := io.TeeReader(r, hash)
+func (s *StubRegistryStore) WriteBlob(name string, digest digest.Digest, r io.Reader) bool {
+	verifier := digest.Verifier()
+	tee := io.TeeReader(r, verifier)
 	buf := bytes.NewBuffer([]byte{})
 	io.Copy(buf, tee)
-	digest := fmt.Sprintf("sha256:%x", hash.Sum(nil))
-	s.blobStore[name][digest] = buf.Bytes()
-	return digest
+
+	if verifier.Verified() {
+		s.blobStore[name][digest.String()] = buf.Bytes()
+		return true
+	}
+
+	return false
 }
 
 func (s *StubRegistryStore) StatManifest(name, reference string) (bool, int) {
@@ -287,14 +290,14 @@ func TestBlobUploads(t *testing.T) {
 		segments := strings.Split(u.Path, "/")
 		sessionId := segments[len(segments)-1]
 
-		sessionActive := server.store.ActiveUploadSession("library/fedora", sessionId)
+		sessionActive := server.service.ActiveUploadSession("library/fedora", sessionId)
 		if !sessionActive {
 			t.Errorf("expected session to be active")
 		}
 	})
 
 	t.Run("PUT /blobs/uploads/{reference} happy path", func(t *testing.T) {
-		session := server.store.InitUploadSession("library/fedora")
+		session := server.service.InitUploadSession("library/fedora")
 		content := randomContents(32)
 		id := digest.FromBytes(content)
 
@@ -302,7 +305,7 @@ func TestBlobUploads(t *testing.T) {
 		request.Header.Set("Content-Type", "application/octet-stream")
 		request.Header.Set("Content-Length", fmt.Sprint(len(content)))
 		query := request.URL.Query()
-		query.Set("digest", id.Encoded())
+		query.Set("digest", id.String())
 		request.URL.RawQuery = query.Encode()
 
 		response := httptest.NewRecorder()
@@ -323,7 +326,7 @@ func TestBlobUploads(t *testing.T) {
 	})
 
 	t.Run("PUT /blobs/uploads/{reference} without body returns 400", func(t *testing.T) {
-		session := server.store.InitUploadSession("library/fedora")
+		session := server.service.InitUploadSession("library/fedora")
 		request, _ := http.NewRequest(http.MethodPut, session.Location, nil)
 		response := httptest.NewRecorder()
 
@@ -342,7 +345,7 @@ func TestBlobUploads(t *testing.T) {
 	})
 
 	t.Run("PUT /blobs/uploads/{reference} without required headers returns 400", func(t *testing.T) {
-		session := server.store.InitUploadSession("library/fedora")
+		session := server.service.InitUploadSession("library/fedora")
 		content := randomContents(32)
 		request, _ := http.NewRequest(http.MethodPut, session.Location, bytes.NewBuffer(content))
 		request.Header.Set("Content-Type", "application/octet-stream")
@@ -355,7 +358,7 @@ func TestBlobUploads(t *testing.T) {
 	})
 
 	t.Run("PUT /blobs/uploads/{reference} without digest returns 400", func(t *testing.T) {
-		session := server.store.InitUploadSession("library/fedora")
+		session := server.service.InitUploadSession("library/fedora")
 		content := randomContents(32)
 		request, _ := http.NewRequest(http.MethodPut, session.Location, bytes.NewBuffer(content))
 		response := httptest.NewRecorder()
@@ -366,7 +369,7 @@ func TestBlobUploads(t *testing.T) {
 	})
 
 	t.Run("PUT /blobs/uploads/{reference} with invalid digest returns 400", func(t *testing.T) {
-		session := server.store.InitUploadSession("library/fedora")
+		session := server.service.InitUploadSession("library/fedora")
 		content := randomContents(32)
 		id := digest.FromBytes(content)
 		request, _ := http.NewRequest(http.MethodPut, session.Location, bytes.NewBuffer(content))
@@ -383,7 +386,7 @@ func TestBlobUploads(t *testing.T) {
 	})
 
 	t.Run("PUT /blobs/uploads/{reference} with wrong digest returns 400", func(t *testing.T) {
-		session := server.store.InitUploadSession("library/fedora")
+		session := server.service.InitUploadSession("library/fedora")
 		content := randomContents(32)
 		otherContent := randomContents(64)
 		id := digest.FromBytes(otherContent)

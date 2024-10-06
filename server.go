@@ -14,10 +14,10 @@ import (
 )
 
 type (
-	RegistryStore interface {
+	RegistryService interface {
 		StatBlob(name, digest string) bool
 		GetBlob(name, digest string) io.Reader
-		WriteBlob(name string, r io.Reader) string
+		WriteBlob(name string, digest digest.Digest, r io.Reader) bool
 		StatManifest(name, reference string) (bool, int)
 		GetManifest(name, reference string) []byte
 		PutManifest(name, reference string, data []byte)
@@ -30,10 +30,10 @@ type (
 	}
 )
 
-func NewRegistryServer(store RegistryStore) *RegistryServer {
+func NewRegistryServer(service RegistryService) *RegistryServer {
 	s := new(RegistryServer)
 
-	s.store = store
+	s.service = service
 
 	repositoryRouter := http.NewServeMux()
 	repositoryRouter.Handle("/manifests/{reference}", http.HandlerFunc(s.manifestsHandler))
@@ -65,7 +65,7 @@ func NewRegistryServer(store RegistryStore) *RegistryServer {
 }
 
 type RegistryServer struct {
-	store RegistryStore
+	service RegistryService
 	http.Handler
 }
 
@@ -75,7 +75,7 @@ func (s *RegistryServer) manifestsHandler(w http.ResponseWriter, r *http.Request
 
 	switch r.Method {
 	case http.MethodHead:
-		if ok, len := s.store.StatManifest(name, reference); ok {
+		if ok, len := s.service.StatManifest(name, reference); ok {
 			w.Header().Set("Content-Length", strconv.Itoa(len))
 			w.WriteHeader(http.StatusOK)
 			return
@@ -84,7 +84,7 @@ func (s *RegistryServer) manifestsHandler(w http.ResponseWriter, r *http.Request
 
 	case http.MethodGet:
 		var manifest v1.Manifest
-		data := s.store.GetManifest(name, reference)
+		data := s.service.GetManifest(name, reference)
 		if data == nil {
 			w.WriteHeader(http.StatusNotFound)
 			return
@@ -98,7 +98,7 @@ func (s *RegistryServer) manifestsHandler(w http.ResponseWriter, r *http.Request
 	case http.MethodPut:
 		// The stored manifest must be an exact byte representation.
 		data, _ := io.ReadAll(r.Body)
-		s.store.PutManifest(name, reference, data)
+		s.service.PutManifest(name, reference, data)
 		w.WriteHeader(http.StatusCreated)
 
 	case http.MethodDelete:
@@ -112,13 +112,13 @@ func (s *RegistryServer) blobsHandler(w http.ResponseWriter, r *http.Request) {
 	name := r.PathValue("name")
 	digest := r.PathValue("digest")
 
-	if !s.store.StatBlob(name, digest) {
+	if !s.service.StatBlob(name, digest) {
 		w.WriteHeader(http.StatusNotFound)
 		return
 	}
 
 	if r.Method != http.MethodHead {
-		io.Copy(w, s.store.GetBlob(name, digest))
+		io.Copy(w, s.service.GetBlob(name, digest))
 	}
 }
 
@@ -127,7 +127,7 @@ func (s *RegistryServer) blobsUploadsSessionHandler(w http.ResponseWriter, r *ht
 
 	switch r.Method {
 	case http.MethodPost:
-		session := s.store.InitUploadSession(name)
+		session := s.service.InitUploadSession(name)
 		w.Header().Set("Location", session.Location)
 		w.WriteHeader(http.StatusAccepted)
 	default:
@@ -139,16 +139,15 @@ func (s *RegistryServer) blobsUploadsHandler(w http.ResponseWriter, r *http.Requ
 	name := r.PathValue("name")
 	reference := r.PathValue("reference")
 
-	fmt.Printf("%s", r.Header.Get("Content-Length"))
-
 	switch r.Method {
 	case http.MethodPut:
-		if !s.store.ActiveUploadSession(name, reference) {
+		if !s.service.ActiveUploadSession(name, reference) {
 			w.WriteHeader(http.StatusNotFound)
 			return
 		}
 
-		_, err := digest.Parse(r.URL.Query().Get("digest"))
+		// TODO: HTTP Handler shouldn't know what a valid digest is.
+		d, err := digest.Parse(r.URL.Query().Get("digest"))
 		if err != nil {
 			w.WriteHeader(http.StatusBadRequest)
 			return
@@ -161,13 +160,14 @@ func (s *RegistryServer) blobsUploadsHandler(w http.ResponseWriter, r *http.Requ
 			return
 		}
 
-		digest := s.store.WriteBlob(name, r.Body)
-		if digest != r.URL.Query().Get("digest") {
+		verified := s.service.WriteBlob(name, d, r.Body)
+		if !verified {
 			w.WriteHeader(http.StatusBadRequest)
 			return
 		}
 
-		location := fmt.Sprintf("/v2/%s/blobs/%s", name, digest)
+		// TODO: HTTP Handler shouldn't have to know how to construct the location.
+		location := fmt.Sprintf("/v2/%s/blobs/%s", name, d.String())
 		w.Header().Set("Location", location)
 		w.WriteHeader(http.StatusCreated)
 	default:
