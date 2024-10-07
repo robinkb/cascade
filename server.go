@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -104,27 +105,27 @@ func (s *RegistryServer) manifestsHandler(w http.ResponseWriter, r *http.Request
 func (s *RegistryServer) blobsHandler(w http.ResponseWriter, r *http.Request) {
 	name := r.PathValue("name")
 	digest := r.PathValue("digest")
-	errs := ErrorResponse{}
 
 	switch r.Method {
 	case http.MethodHead:
 		if _, err := s.service.StatBlob(name, digest); err != nil {
-			// TODO: Not sure if this is the nicest way to do this...
-			// The type assertion is not verified, and how does the handler know
-			// that the status should be 404?
-			errs.Errors = []Error{err.(Error)}
-			w.WriteHeader(http.StatusNotFound)
-			json.NewEncoder(w).Encode(errs)
+			code, response := mapError(err)
+			w.WriteHeader(code)
+			json.NewEncoder(w).Encode(response)
+			return
 		}
+
 		w.WriteHeader(http.StatusOK)
 
 	case http.MethodGet:
 		content, err := s.service.GetBlob(name, digest)
 		if err != nil {
-			errs.Errors = []Error{err.(Error)}
-			w.WriteHeader(http.StatusNotFound)
-			json.NewEncoder(w).Encode(errs)
+			code, response := mapError(err)
+			w.WriteHeader(code)
+			json.NewEncoder(w).Encode(response)
+			return
 		}
+
 		w.WriteHeader(http.StatusOK)
 		w.Write(content)
 
@@ -187,4 +188,17 @@ func (s *RegistryServer) blobsUploadsHandler(w http.ResponseWriter, r *http.Requ
 	default:
 		w.WriteHeader(http.StatusMethodNotAllowed)
 	}
+}
+
+func mapError(err error) (int, ErrorResponse) {
+	response := ErrorResponse{}
+	code := http.StatusInternalServerError
+
+	switch {
+	case errors.Is(err, ErrBlobUnknown):
+		code = http.StatusNotFound
+		response.Errors = append(response.Errors, err.(Error))
+	}
+
+	return code, response
 }
