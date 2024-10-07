@@ -1,7 +1,6 @@
 package main
 
 import (
-	"bytes"
 	"testing"
 )
 
@@ -10,7 +9,7 @@ func TestStat(t *testing.T) {
 
 	t.Run("Stat returns no errors and a FileInfo on existing file", func(t *testing.T) {
 		content := randomContents(32)
-		err := store.Put("a/b/c", bytes.NewBuffer(content))
+		err := store.Put("a/b/c", content)
 		assertNoError(t, err)
 
 		info, err := store.Stat("a/b/c")

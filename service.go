@@ -1,10 +1,8 @@
 package main
 
 import (
-	"bytes"
 	"errors"
 	"fmt"
-	"io"
 
 	// Required for go-digest.
 	_ "crypto/sha256"
@@ -17,7 +15,7 @@ type (
 	RegistryService interface {
 		StatBlob(name, digest string) (*FileInfo, error)
 		GetBlob(name, digest string) []byte
-		WriteBlob(name string, digest string, r io.Reader) error
+		WriteBlob(name string, digest string, content []byte) error
 		StatManifest(name, reference string) (bool, int)
 		GetManifest(name, reference string) []byte
 		PutManifest(name, reference string, data []byte)
@@ -58,7 +56,7 @@ func (s *registryService) GetBlob(name, digest string) []byte {
 }
 
 // TODO: Blobs should be stored in a Merkle tree.
-func (s *registryService) WriteBlob(name string, digest string, r io.Reader) error {
+func (s *registryService) WriteBlob(name string, digest string, content []byte) error {
 	d, err := godigest.Parse(digest)
 	if err != nil {
 		return err
@@ -66,13 +64,12 @@ func (s *registryService) WriteBlob(name string, digest string, r io.Reader) err
 
 	path := fmt.Sprintf("blobs/%s/%s", name, d.String())
 
-	verifier := d.Verifier()
-	tee := io.TeeReader(r, verifier)
-
-	s.store.Put(path, tee)
-	if !verifier.Verified() {
+	cd := godigest.FromBytes(content)
+	if d != cd {
 		return errors.New("TODO: proper error")
 	}
+
+	s.store.Put(path, content)
 
 	return nil
 }
@@ -99,10 +96,10 @@ func (s *registryService) GetManifest(name, reference string) []byte {
 	return content
 }
 
-func (s *registryService) PutManifest(name, reference string, data []byte) {
+func (s *registryService) PutManifest(name, reference string, content []byte) {
 	path := fmt.Sprintf("manifests/%s/%s", name, reference)
 
-	s.store.Put(path, bytes.NewBuffer(data))
+	s.store.Put(path, content)
 }
 
 func (s *registryService) InitUploadSession(name string) *UploadSession {

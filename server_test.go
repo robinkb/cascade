@@ -20,7 +20,7 @@ func TestManifests(t *testing.T) {
 	service := NewRegistryService(NewInMemoryStore())
 	server := NewRegistryServer(service)
 
-	service.store.Put("manifests/library/fedora/1.0.0", bytes.NewBufferString(`{"mediaType":"something"}`))
+	service.store.Put("manifests/library/fedora/1.0.0", []byte(`{"mediaType":"something"}`))
 
 	t.Run("Test HEAD /manifests", func(t *testing.T) {
 		request := newHeadManifestRequest("library/fedora", "1.0.0")
@@ -151,9 +151,9 @@ func TestGetBlob(t *testing.T) {
 	service := NewRegistryService(NewInMemoryStore())
 	server := NewRegistryServer(service)
 
-	service.store.Put("blobs/library/fedora/sha256:6c3c624b58dbbcd3c0dd82b4c53f04194d1247c6eebdaab7c610cf7d66709b3b", bytes.NewBufferString("my blob content"))
-	service.store.Put("blobs/library/fedora/sha256:d0dc9f3a77cfc4c7d8408016c721d12559fcc40a07aca3826622f68fe6215aa9", bytes.NewBufferString("my other blob content"))
-	service.store.Put("blobs/containers/skopeo/sha256:090d62172504756bea09f64a28920d4f13ab6d375d436f936967f5fe4bd98a64", bytes.NewBufferString("skopeo container content"))
+	service.store.Put("blobs/library/fedora/sha256:6c3c624b58dbbcd3c0dd82b4c53f04194d1247c6eebdaab7c610cf7d66709b3b", []byte("my blob content"))
+	service.store.Put("blobs/library/fedora/sha256:d0dc9f3a77cfc4c7d8408016c721d12559fcc40a07aca3826622f68fe6215aa9", []byte("my other blob content"))
+	service.store.Put("blobs/containers/skopeo/sha256:090d62172504756bea09f64a28920d4f13ab6d375d436f936967f5fe4bd98a64", []byte("skopeo container content"))
 
 	t.Run("get blob for library/fedora", func(t *testing.T) {
 		request := newGetBlobRequest("library/fedora", "sha256:6c3c624b58dbbcd3c0dd82b4c53f04194d1247c6eebdaab7c610cf7d66709b3b")

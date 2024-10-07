@@ -1,9 +1,7 @@
 package main
 
 import (
-	"bytes"
 	"errors"
-	"io"
 	"sync"
 )
 
@@ -11,7 +9,7 @@ type (
 	RegistryStore interface {
 		Stat(path string) (*FileInfo, error)
 		Get(path string) ([]byte, error)
-		Put(path string, r io.Reader) error
+		Put(path string, content []byte) error
 		// Reader(path string) (io.Reader, error)
 		// Writer(path string) (io.Writer, error)
 	}
@@ -60,16 +58,10 @@ func (s *InMemoryStore) Get(path string) ([]byte, error) {
 	return data, nil
 }
 
-func (s *InMemoryStore) Put(path string, r io.Reader) error {
+func (s *InMemoryStore) Put(path string, content []byte) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	buf := bytes.NewBuffer([]byte{})
-	_, err := io.Copy(buf, r)
-	if err != nil {
-		return err
-	}
-
-	s.store[path] = buf.Bytes()
+	s.store[path] = content
 	return nil
 }

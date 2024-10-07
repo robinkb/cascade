@@ -150,7 +150,13 @@ func (s *RegistryServer) blobsUploadsHandler(w http.ResponseWriter, r *http.Requ
 		}
 
 		digest := r.URL.Query().Get("digest")
-		err := s.service.WriteBlob(name, digest, r.Body)
+		content, err := io.ReadAll(r.Body)
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+
+		err = s.service.WriteBlob(name, digest, content)
 		if err != nil {
 			w.WriteHeader(http.StatusBadRequest)
 			return
