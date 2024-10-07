@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"crypto/rand"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -147,6 +148,50 @@ func newDeleteManifestRequest(name, reference string) *http.Request {
 	return req
 }
 
+func TestStatBlob(t *testing.T) {
+	service := NewRegistryService(NewInMemoryStore())
+	server := NewRegistryServer(service)
+
+	service.store.Put("blobs/library/fedora/sha256:6c3c624b58dbbcd3c0dd82b4c53f04194d1247c6eebdaab7c610cf7d66709b3b", []byte("my blob content"))
+	service.store.Put("blobs/library/fedora/sha256:d0dc9f3a77cfc4c7d8408016c721d12559fcc40a07aca3826622f68fe6215aa9", []byte("my other blob content"))
+
+	t.Run("check if blob exists", func(t *testing.T) {
+		request := newCheckBlobRequest("library/fedora", "sha256:6c3c624b58dbbcd3c0dd82b4c53f04194d1247c6eebdaab7c610cf7d66709b3b")
+		response := httptest.NewRecorder()
+
+		server.ServeHTTP(response, request)
+
+		assertStatus(t, response.Code, http.StatusOK)
+		assertResponseBody(t, response.Body.Bytes(), nil)
+	})
+
+	t.Run("unknown blob returns 404", func(t *testing.T) {
+		request := newCheckBlobRequest("not/known", "sha256:6c3c624b58dbbcd3c0dd82b4c53f04194d1247c6eebdaab7c610cf7d66709b3b")
+		response := httptest.NewRecorder()
+
+		server.ServeHTTP(response, request)
+
+		assertStatus(t, response.Code, http.StatusNotFound)
+		assertErrorInResponseBody(t, response.Body, ErrBlobUnknown)
+	})
+}
+
+func assertErrorInResponseBody(t *testing.T, body *bytes.Buffer, want Error) {
+	t.Helper()
+
+	var errs ErrorResponse
+	err := json.NewDecoder(body).Decode(&errs)
+	assertNoError(t, err)
+
+	for _, err := range errs.Errors {
+		if errors.Is(err, want) {
+			return
+		}
+	}
+
+	t.Errorf("could not find error in response; got %v, want %v", body, want)
+}
+
 func TestGetBlob(t *testing.T) {
 	service := NewRegistryService(NewInMemoryStore())
 	server := NewRegistryServer(service)
@@ -185,16 +230,6 @@ func TestGetBlob(t *testing.T) {
 		assertResponseBody(t, response.Body.Bytes(), []byte("skopeo container content"))
 	})
 
-	t.Run("check if blob exists", func(t *testing.T) {
-		request := newCheckBlobRequest("library/fedora", "sha256:6c3c624b58dbbcd3c0dd82b4c53f04194d1247c6eebdaab7c610cf7d66709b3b")
-		response := httptest.NewRecorder()
-
-		server.ServeHTTP(response, request)
-
-		assertStatus(t, response.Code, http.StatusOK)
-		assertResponseBody(t, response.Body.Bytes(), nil)
-	})
-
 	t.Run("returns 404 on missing blob", func(t *testing.T) {
 		request := newGetBlobRequest("library/fedora", "sha256:sha256:ee0235dbf464273241b2bb74b883b4f1a6bf6d8c324b7e51d1eb0a2fb6539fdc")
 		response := httptest.NewRecorder()
@@ -202,6 +237,7 @@ func TestGetBlob(t *testing.T) {
 		server.ServeHTTP(response, request)
 
 		assertStatus(t, response.Code, http.StatusNotFound)
+		assertErrorInResponseBody(t, response.Body, ErrBlobUnknown)
 	})
 }
 

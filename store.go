@@ -5,6 +5,10 @@ import (
 	"sync"
 )
 
+var (
+	ErrFileNotFound = errors.New("file not found")
+)
+
 type (
 	RegistryStore interface {
 		Stat(path string) (*FileInfo, error)
@@ -38,7 +42,7 @@ func (s *InMemoryStore) Stat(path string) (*FileInfo, error) {
 
 	data, ok := s.store[path]
 	if !ok {
-		return nil, errors.New("not found")
+		return nil, ErrFileNotFound
 	}
 
 	return &FileInfo{
@@ -53,7 +57,7 @@ func (s *InMemoryStore) Get(path string) ([]byte, error) {
 
 	data, ok := s.store[path]
 	if !ok {
-		return nil, errors.New("file not found")
+		return nil, ErrFileNotFound
 	}
 	return data, nil
 }

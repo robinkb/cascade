@@ -23,11 +23,11 @@ var (
 	ErrTooManyRequests     = Error{Code: "TOOMANYREQUESTS", Message: "too many requests"}
 )
 
-type ErrorList struct {
+type ErrorResponse struct {
 	Errors []Error `json:"errors"`
 }
 
-func (e *ErrorList) Error() string {
+func (e ErrorResponse) Error() string {
 	errs := make([]string, len(e.Errors))
 	for i := range e.Errors {
 		errs[i] = e.Errors[i].Error()
@@ -42,6 +42,6 @@ type Error struct {
 	Detail  string `json:"detail,omitempty"`
 }
 
-func (e *Error) Error() string {
+func (e Error) Error() string {
 	return e.Message
 }

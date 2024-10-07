@@ -14,7 +14,7 @@ import (
 type (
 	RegistryService interface {
 		StatBlob(name, digest string) (*FileInfo, error)
-		GetBlob(name, digest string) []byte
+		GetBlob(name, digest string) ([]byte, error)
 		WriteBlob(name string, digest string, content []byte) error
 		StatManifest(name, reference string) (bool, int)
 		GetManifest(name, reference string) []byte
@@ -36,23 +36,40 @@ func NewRegistryService(store RegistryStore) *registryService {
 }
 
 type registryService struct {
-	store         RegistryStore
-	blobStore     map[string]map[string][]byte
-	manifestStore map[string]map[string][]byte
-	sessionStore  map[string]map[string]bool
+	store        RegistryStore
+	sessionStore map[string]map[string]bool
 }
 
 // TODO: Blobs should be stored in a Merkle tree.
 func (s *registryService) StatBlob(name, digest string) (*FileInfo, error) {
 	path := fmt.Sprintf("blobs/%s/%s", name, digest)
-	return s.store.Stat(path)
+	info, err := s.store.Stat(path)
+	if err != nil {
+		switch {
+		case errors.Is(err, ErrFileNotFound):
+			return nil, ErrBlobUnknown
+		default:
+			return nil, err
+		}
+	}
+
+	return info, nil
 }
 
 // TODO: Blobs should be stored in a Merkle tree.
-func (s *registryService) GetBlob(name, digest string) []byte {
+func (s *registryService) GetBlob(name, digest string) ([]byte, error) {
 	path := fmt.Sprintf("blobs/%s/%s", name, digest)
-	content, _ := s.store.Get(path)
-	return content
+	data, err := s.store.Get(path)
+	if err != nil {
+		switch {
+		case errors.Is(err, ErrFileNotFound):
+			return nil, ErrBlobUnknown
+		default:
+			return nil, err
+		}
+	}
+
+	return data, nil
 }
 
 // TODO: Blobs should be stored in a Merkle tree.
