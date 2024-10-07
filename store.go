@@ -10,8 +10,10 @@ import (
 type (
 	RegistryStore interface {
 		Stat(path string) (*FileInfo, error)
-		Get(path string) (io.Reader, error)
+		Get(path string) ([]byte, error)
 		Put(path string, r io.Reader) error
+		// Reader(path string) (io.Reader, error)
+		// Writer(path string) (io.Writer, error)
 	}
 
 	// Based (at least initially) on fs.FileInfo interface.
@@ -47,7 +49,7 @@ func (s *InMemoryStore) Stat(path string) (*FileInfo, error) {
 	}, nil
 }
 
-func (s *InMemoryStore) Get(path string) (io.Reader, error) {
+func (s *InMemoryStore) Get(path string) ([]byte, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
@@ -55,7 +57,7 @@ func (s *InMemoryStore) Get(path string) (io.Reader, error) {
 	if !ok {
 		return nil, errors.New("file not found")
 	}
-	return bytes.NewBuffer(data), nil
+	return data, nil
 }
 
 func (s *InMemoryStore) Put(path string, r io.Reader) error {

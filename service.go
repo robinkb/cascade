@@ -16,7 +16,7 @@ import (
 type (
 	RegistryService interface {
 		StatBlob(name, digest string) (*FileInfo, error)
-		GetBlob(name, digest string) io.Reader
+		GetBlob(name, digest string) []byte
 		WriteBlob(name string, digest string, r io.Reader) error
 		StatManifest(name, reference string) (bool, int)
 		GetManifest(name, reference string) []byte
@@ -51,10 +51,10 @@ func (s *registryService) StatBlob(name, digest string) (*FileInfo, error) {
 }
 
 // TODO: Blobs should be stored in a Merkle tree.
-func (s *registryService) GetBlob(name, digest string) io.Reader {
+func (s *registryService) GetBlob(name, digest string) []byte {
 	path := fmt.Sprintf("blobs/%s/%s", name, digest)
-	r, _ := s.store.Get(path)
-	return r
+	content, _ := s.store.Get(path)
+	return content
 }
 
 // TODO: Blobs should be stored in a Merkle tree.
@@ -80,30 +80,23 @@ func (s *registryService) WriteBlob(name string, digest string, r io.Reader) err
 func (s *registryService) StatManifest(name, reference string) (bool, int) {
 	path := fmt.Sprintf("manifests/%s/%s", name, reference)
 
-	// TODO: Stat should not read the data.
-	buf := bytes.NewBuffer([]byte{})
-	r, err := s.store.Get(path)
+	info, err := s.store.Stat(path)
 	if err != nil {
 		return false, 0
 	}
 
-	io.Copy(buf, r)
-	size := buf.Len()
-	return true, size
+	return true, int(info.Size)
 }
 
 func (s *registryService) GetManifest(name, reference string) []byte {
 	path := fmt.Sprintf("manifests/%s/%s", name, reference)
 
-	// TODO: Stat should not read the data.
-	buf := bytes.NewBuffer([]byte{})
-	r, err := s.store.Get(path)
+	content, err := s.store.Get(path)
 	if err != nil {
 		return nil
 	}
 
-	io.Copy(buf, r)
-	return buf.Bytes()
+	return content
 }
 
 func (s *registryService) PutManifest(name, reference string, data []byte) {

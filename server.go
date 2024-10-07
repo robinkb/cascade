@@ -112,7 +112,8 @@ func (s *RegistryServer) blobsHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if r.Method != http.MethodHead {
-		io.Copy(w, s.service.GetBlob(name, digest))
+		content := s.service.GetBlob(name, digest)
+		w.Write(content)
 	}
 }
 
