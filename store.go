@@ -7,11 +7,19 @@ import (
 	"sync"
 )
 
-type RegistryStore interface {
-	Stat(path string) bool
-	Get(path string) (io.Reader, error)
-	Put(path string, r io.Reader) error
-}
+type (
+	RegistryStore interface {
+		Stat(path string) (*FileInfo, error)
+		Get(path string) (io.Reader, error)
+		Put(path string, r io.Reader) error
+	}
+
+	// Based (at least initially) on fs.FileInfo interface.
+	FileInfo struct {
+		Name string
+		Size int64
+	}
+)
 
 func NewInMemoryStore() *InMemoryStore {
 	return &InMemoryStore{
@@ -24,12 +32,19 @@ type InMemoryStore struct {
 	mu    sync.RWMutex
 }
 
-func (s *InMemoryStore) Stat(path string) bool {
+func (s *InMemoryStore) Stat(path string) (*FileInfo, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
-	_, ok := s.store[path]
-	return ok
+	data, ok := s.store[path]
+	if !ok {
+		return nil, errors.New("not found")
+	}
+
+	return &FileInfo{
+		Name: path,
+		Size: int64(len(data)),
+	}, nil
 }
 
 func (s *InMemoryStore) Get(path string) (io.Reader, error) {

@@ -106,7 +106,7 @@ func (s *RegistryServer) blobsHandler(w http.ResponseWriter, r *http.Request) {
 	digest := r.PathValue("digest")
 
 	// TODO: _Oof._
-	if !s.service.StatBlob(name, digest) {
+	if _, err := s.service.StatBlob(name, digest); err != nil {
 		w.WriteHeader(http.StatusNotFound)
 		return
 	}

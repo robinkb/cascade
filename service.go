@@ -15,7 +15,7 @@ import (
 
 type (
 	RegistryService interface {
-		StatBlob(name, digest string) bool
+		StatBlob(name, digest string) (*FileInfo, error)
 		GetBlob(name, digest string) io.Reader
 		WriteBlob(name string, digest string, r io.Reader) error
 		StatManifest(name, reference string) (bool, int)
@@ -44,17 +44,20 @@ type registryService struct {
 	sessionStore  map[string]map[string]bool
 }
 
-func (s *registryService) StatBlob(name, digest string) bool {
+// TODO: Blobs should be stored in a Merkle tree.
+func (s *registryService) StatBlob(name, digest string) (*FileInfo, error) {
 	path := fmt.Sprintf("blobs/%s/%s", name, digest)
 	return s.store.Stat(path)
 }
 
+// TODO: Blobs should be stored in a Merkle tree.
 func (s *registryService) GetBlob(name, digest string) io.Reader {
 	path := fmt.Sprintf("blobs/%s/%s", name, digest)
 	r, _ := s.store.Get(path)
 	return r
 }
 
+// TODO: Blobs should be stored in a Merkle tree.
 func (s *registryService) WriteBlob(name string, digest string, r io.Reader) error {
 	d, err := godigest.Parse(digest)
 	if err != nil {
