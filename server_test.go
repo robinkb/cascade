@@ -39,7 +39,7 @@ func TestManifests(t *testing.T) {
 		server.ServeHTTP(response, request)
 
 		assertStatus(t, response.Code, http.StatusNotFound)
-		assertResponseBody(t, response.Body.Bytes(), nil)
+		assertErrorInResponseBody(t, response.Body, ErrManifestUnknown)
 	})
 
 	t.Run("Test GET /manifests", func(t *testing.T) {
@@ -324,6 +324,7 @@ func TestBlobUploads(t *testing.T) {
 		server.ServeHTTP(response, request)
 
 		assertStatus(t, response.Code, http.StatusNotFound)
+		assertErrorInResponseBody(t, response.Body, ErrBlobUploadUnknown)
 	})
 
 	t.Run("PUT /blobs/uploads/{reference} without required headers returns 400", func(t *testing.T) {

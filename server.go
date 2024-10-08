@@ -66,12 +66,14 @@ func (s *RegistryServer) manifestsHandler(w http.ResponseWriter, r *http.Request
 
 	switch r.Method {
 	case http.MethodHead:
-		if ok, len := s.service.StatManifest(name, reference); ok {
-			w.Header().Set(headerContentLength, strconv.Itoa(len))
-			w.WriteHeader(http.StatusOK)
+		info, err := s.service.StatManifest(name, reference)
+		if err != nil {
+			mapError(w, err)
 			return
 		}
-		w.WriteHeader(http.StatusNotFound)
+
+		w.Header().Set(headerContentLength, strconv.Itoa(int(info.Size)))
+		w.WriteHeader(http.StatusOK)
 
 	case http.MethodGet:
 		// TODO: This is doing too much. GetManifest should verify the Manifest,
@@ -151,7 +153,7 @@ func (s *RegistryServer) blobsUploadsHandler(w http.ResponseWriter, r *http.Requ
 	switch r.Method {
 	case http.MethodPut:
 		if !s.service.ActiveUploadSession(name, reference) {
-			w.WriteHeader(http.StatusNotFound)
+			mapError(w, ErrBlobUploadUnknown)
 			return
 		}
 
@@ -192,6 +194,12 @@ func mapError(w http.ResponseWriter, err error) {
 
 	switch {
 	case errors.Is(err, ErrBlobUnknown):
+		code = http.StatusNotFound
+		response = NewErrorResponse(err.(Error))
+	case errors.Is(err, ErrBlobUploadUnknown):
+		code = http.StatusNotFound
+		response = NewErrorResponse(err.(Error))
+	case errors.Is(err, ErrManifestUnknown):
 		code = http.StatusNotFound
 		response = NewErrorResponse(err.(Error))
 	}
