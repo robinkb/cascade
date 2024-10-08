@@ -23,6 +23,12 @@ var (
 	ErrTooManyRequests     = Error{Code: "TOOMANYREQUESTS", Message: "too many requests"}
 )
 
+func NewErrorResponse(err ...Error) *ErrorResponse {
+	return &ErrorResponse{
+		Errors: err,
+	}
+}
+
 type ErrorResponse struct {
 	Errors []Error `json:"errors"`
 }

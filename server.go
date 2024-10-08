@@ -109,9 +109,7 @@ func (s *RegistryServer) blobsHandler(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case http.MethodHead:
 		if _, err := s.service.StatBlob(name, digest); err != nil {
-			code, response := mapError(err)
-			w.WriteHeader(code)
-			json.NewEncoder(w).Encode(response)
+			mapError(w, err)
 			return
 		}
 
@@ -120,9 +118,7 @@ func (s *RegistryServer) blobsHandler(w http.ResponseWriter, r *http.Request) {
 	case http.MethodGet:
 		content, err := s.service.GetBlob(name, digest)
 		if err != nil {
-			code, response := mapError(err)
-			w.WriteHeader(code)
-			json.NewEncoder(w).Encode(response)
+			mapError(w, err)
 			return
 		}
 
@@ -190,15 +186,16 @@ func (s *RegistryServer) blobsUploadsHandler(w http.ResponseWriter, r *http.Requ
 	}
 }
 
-func mapError(err error) (int, ErrorResponse) {
-	response := ErrorResponse{}
+func mapError(w http.ResponseWriter, err error) {
+	var response *ErrorResponse
 	code := http.StatusInternalServerError
 
 	switch {
 	case errors.Is(err, ErrBlobUnknown):
 		code = http.StatusNotFound
-		response.Errors = append(response.Errors, err.(Error))
+		response = NewErrorResponse(err.(Error))
 	}
 
-	return code, response
+	w.WriteHeader(code)
+	json.NewEncoder(w).Encode(response)
 }
