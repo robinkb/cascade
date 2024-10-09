@@ -14,8 +14,8 @@ import (
 type (
 	RegistryService interface {
 		StatBlob(name, digest string) (*FileInfo, error)
-		GetBlob(name, digest string) ([]byte, error)
-		WriteBlob(name string, digest string, content []byte) error
+		GetBlob(digest string) ([]byte, error)
+		WriteBlob(digest string, content []byte) error
 		StatManifest(name, reference string) (*FileInfo, error)
 		GetManifest(name, reference string) ([]byte, error)
 		PutManifest(name, reference string, content []byte) error
@@ -40,9 +40,14 @@ type registryService struct {
 	sessionStore map[string]map[string]bool
 }
 
-// TODO: Blobs should be stored in a Merkle tree.
 func (s *registryService) StatBlob(name, digest string) (*FileInfo, error) {
-	path := fmt.Sprintf("blobs/%s/%s", name, digest)
+	id, err := godigest.Parse(digest)
+	if err != nil {
+		return nil, ErrBlobUnknown
+	}
+
+	path := fmt.Sprintf("blobs/%s/%s/%s", id.Algorithm(), id.Encoded()[0:2], id.Encoded())
+
 	info, err := s.store.Stat(path)
 	if err != nil {
 		switch {
@@ -56,9 +61,14 @@ func (s *registryService) StatBlob(name, digest string) (*FileInfo, error) {
 	return info, nil
 }
 
-// TODO: Blobs should be stored in a Merkle tree.
-func (s *registryService) GetBlob(name, digest string) ([]byte, error) {
-	path := fmt.Sprintf("blobs/%s/%s", name, digest)
+func (s *registryService) GetBlob(digest string) ([]byte, error) {
+	id, err := godigest.Parse(digest)
+	if err != nil {
+		return nil, ErrBlobUnknown
+	}
+
+	path := fmt.Sprintf("blobs/%s/%s/%s", id.Algorithm(), id.Encoded()[0:2], id.Encoded())
+
 	data, err := s.store.Get(path)
 	if err != nil {
 		switch {
@@ -72,18 +82,17 @@ func (s *registryService) GetBlob(name, digest string) ([]byte, error) {
 	return data, nil
 }
 
-// TODO: Blobs should be stored in a Merkle tree.
-func (s *registryService) WriteBlob(name string, digest string, content []byte) error {
-	d, err := godigest.Parse(digest)
+func (s *registryService) WriteBlob(digest string, content []byte) error {
+	id, err := godigest.Parse(digest)
 	if err != nil {
-		return err
+		return ErrDigestInvalid
 	}
 
-	path := fmt.Sprintf("blobs/%s/%s", name, d.String())
+	path := fmt.Sprintf("blobs/%s/%s/%s", id.Algorithm(), id.Encoded()[0:2], id.Encoded())
 
 	cd := godigest.FromBytes(content)
-	if d != cd {
-		return errors.New("TODO: proper error")
+	if id != cd {
+		return ErrDigestInvalid
 	}
 
 	s.store.Put(path, content)

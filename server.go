@@ -126,7 +126,7 @@ func (s *RegistryServer) blobsHandler(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 
 	case http.MethodGet:
-		content, err := s.service.GetBlob(name, digest)
+		content, err := s.service.GetBlob(digest)
 		if err != nil {
 			mapError(w, err)
 			return
@@ -179,7 +179,7 @@ func (s *RegistryServer) blobsUploadsHandler(w http.ResponseWriter, r *http.Requ
 			return
 		}
 
-		err = s.service.WriteBlob(name, digest, content)
+		err = s.service.WriteBlob(digest, content)
 		if err != nil {
 			w.WriteHeader(http.StatusBadRequest)
 			return
@@ -196,6 +196,8 @@ func (s *RegistryServer) blobsUploadsHandler(w http.ResponseWriter, r *http.Requ
 	}
 }
 
+// This is starting to feel like the wrong approach.
+// ErrDigestInvalid should definitely not result in a 404 in most cases.
 func mapError(w http.ResponseWriter, err error) {
 	var response *ErrorResponse
 	code := http.StatusInternalServerError
@@ -208,6 +210,9 @@ func mapError(w http.ResponseWriter, err error) {
 		code = http.StatusNotFound
 		response = NewErrorResponse(err.(Error))
 	case errors.Is(err, ErrManifestUnknown):
+		code = http.StatusNotFound
+		response = NewErrorResponse(err.(Error))
+	case errors.Is(err, ErrDigestInvalid):
 		code = http.StatusNotFound
 		response = NewErrorResponse(err.(Error))
 	}

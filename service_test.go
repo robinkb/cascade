@@ -1,7 +1,9 @@
 package main
 
 import (
+	"bytes"
 	"errors"
+	"fmt"
 	"testing"
 )
 
@@ -20,8 +22,33 @@ func TestServiceGetBlob(t *testing.T) {
 	service := NewRegistryService(store)
 
 	t.Run("unknown blob returns ErrBlobUnknown", func(t *testing.T) {
-		_, err := service.GetBlob("a", "b")
+		_, err := service.GetBlob("a")
 		assertErrorIs(t, err, ErrBlobUnknown)
+	})
+}
+
+func TestServiceWriteBlob(t *testing.T) {
+	store := NewInMemoryStore()
+	service := NewRegistryService(store)
+
+	t.Run("blobs are stored in a Merkle tree by their digest", func(t *testing.T) {
+		content := []byte("my big beautiful blob")
+		algorithm := "sha256"
+		sum := "af2f9984c0dcaa963e20a4eae0e57c186898a8856148dd285cc68d7fe21779b8"
+		digest := fmt.Sprintf("%s:%s", algorithm, sum)
+
+		// Is this test useful? This line is literally the same as in the tested code.
+		path := fmt.Sprintf("blobs/%s/%s/%s", algorithm, sum[0:2], sum)
+
+		err := service.WriteBlob(digest, content)
+		assertNoError(t, err)
+
+		got, err := store.Get(path)
+		assertNoError(t, err)
+
+		if !bytes.Equal(got, content) {
+			t.Errorf("unexpected byte content")
+		}
 	})
 }
 
