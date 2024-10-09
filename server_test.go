@@ -10,6 +10,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"reflect"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -268,7 +269,7 @@ func TestGetBlob(t *testing.T) {
 	})
 }
 
-func TestBlobUploads(t *testing.T) {
+func TestBlobUploadsMonolithic(t *testing.T) {
 	service := NewRegistryService(NewInMemoryStore())
 	server := NewRegistryServer(service)
 
@@ -414,6 +415,75 @@ func TestBlobUploads(t *testing.T) {
 		server.ServeHTTP(response, request)
 
 		assertStatus(t, response.Code, http.StatusBadRequest)
+	})
+}
+
+func TestBlobUploadsChunked(t *testing.T) {
+	service := NewRegistryService(NewInMemoryStore())
+	server := NewRegistryServer(service)
+
+	t.Run("PATCH /blobs/uploads/{reference} happy path", func(t *testing.T) {
+		// Initialize the upload session by obtaining an ID.
+		// For chunked uploads, header Content-Length: 0 must be set.
+		request, _ := http.NewRequest(http.MethodPost, "/v2/library/fedora/blobs/uploads/", nil)
+		request.Header.Add(headerContentLength, "0")
+		response := httptest.NewRecorder()
+
+		server.ServeHTTP(response, request)
+
+		assertStatus(t, response.Code, http.StatusAccepted)
+		assertHeaderSet(t, headerLocation, response.Header())
+
+		location := response.Header().Get(headerLocation)
+
+		content := randomContents(32 * 1024 * 1024)
+		buffer := bytes.NewBuffer(content)
+		patchSize := 1 << 20
+		written := 0
+
+		for {
+			patchBuffer := buffer.Next(patchSize)
+			request, _ = http.NewRequest(http.MethodPatch, location, bytes.NewBuffer(patchBuffer))
+			request.Header.Set(headerContentType, contentTypeOctetStream)
+			request.Header.Set("Content-Range", fmt.Sprintf("%d-%d", written, written+patchSize))
+			request.Header.Set("Content-Length", strconv.Itoa(patchSize))
+
+			response = httptest.NewRecorder()
+
+			server.ServeHTTP(response, request)
+
+			assertStatus(t, response.Code, http.StatusAccepted)
+			assertHeaderSet(t, headerLocation, response.Header())
+
+			written += patchSize
+			if buffer.Len() == 0 {
+				break
+			}
+
+			location = response.Header().Get(headerLocation)
+		}
+
+		request, _ = http.NewRequest(http.MethodPut, location, nil)
+		query := request.URL.Query()
+		query.Add("digest", "TODO")
+		request.URL.RawQuery = query.Encode()
+
+		response = httptest.NewRecorder()
+
+		server.ServeHTTP(response, request)
+
+		assertStatus(t, response.Code, http.StatusCreated)
+		assertHeaderSet(t, headerLocation, response.Header())
+
+		location = response.Header().Get(headerLocation)
+
+		request, _ = http.NewRequest(http.MethodGet, location, nil)
+		response = httptest.NewRecorder()
+
+		server.ServeHTTP(response, request)
+
+		assertStatus(t, response.Code, http.StatusOK)
+		assertResponseBody(t, response.Body.Bytes(), content)
 	})
 }
 
