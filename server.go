@@ -34,6 +34,11 @@ func NewRegistryServer(service RegistryService) *RegistryServer {
 
 	registryRouter := http.NewServeMux()
 	registryRouter.Handle("/v2/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/v2/" {
+			w.WriteHeader(http.StatusOK)
+			return
+		}
+
 		segments := strings.Split(r.URL.Path, "/")
 		i := len(segments) - 1
 		for ; i > 0; i-- {

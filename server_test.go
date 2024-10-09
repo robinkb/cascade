@@ -17,6 +17,20 @@ import (
 	v1 "github.com/opencontainers/image-spec/specs-go/v1"
 )
 
+func TestRoot(t *testing.T) {
+	service := NewRegistryService(NewInMemoryStore())
+	server := NewRegistryServer(service)
+
+	t.Run("GET /v2/ should return 200", func(t *testing.T) {
+		request, _ := http.NewRequest(http.MethodGet, "/v2/", nil)
+		response := httptest.NewRecorder()
+
+		server.ServeHTTP(response, request)
+
+		assertStatus(t, response.Code, http.StatusOK)
+	})
+}
+
 func TestManifests(t *testing.T) {
 	service := NewRegistryService(NewInMemoryStore())
 	server := NewRegistryServer(service)
