@@ -65,7 +65,7 @@ func TestManifests(t *testing.T) {
 		server.ServeHTTP(response, request)
 
 		assertStatus(t, response.Code, http.StatusNotFound)
-		assertResponseBody(t, response.Body.Bytes(), nil)
+		assertErrorInResponseBody(t, response.Body, ErrManifestUnknown)
 	})
 
 	t.Run("Test PUT /manifests", func(t *testing.T) {

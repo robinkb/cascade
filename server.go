@@ -79,21 +79,29 @@ func (s *RegistryServer) manifestsHandler(w http.ResponseWriter, r *http.Request
 		// TODO: This is doing too much. GetManifest should verify the Manifest,
 		// and return the media type.
 		var manifest v1.Manifest
-		data := s.service.GetManifest(name, reference)
-		if data == nil {
-			w.WriteHeader(http.StatusNotFound)
+		content, err := s.service.GetManifest(name, reference)
+		if err != nil {
+			mapError(w, err)
 			return
 		}
-		json.Unmarshal(data, &manifest)
+		json.Unmarshal(content, &manifest)
 
 		w.Header().Set(headerContentType, manifest.MediaType)
 		w.WriteHeader(http.StatusOK)
-		w.Write(data)
+		w.Write(content)
 
 	case http.MethodPut:
 		// The stored manifest must be an exact byte representation.
-		data, _ := io.ReadAll(r.Body)
-		s.service.PutManifest(name, reference, data)
+		data, err := io.ReadAll(r.Body)
+		if err != nil {
+			mapError(w, err)
+			return
+		}
+		err = s.service.PutManifest(name, reference, data)
+		if err != nil {
+			mapError(w, err)
+			return
+		}
 		w.WriteHeader(http.StatusCreated)
 
 	case http.MethodDelete:

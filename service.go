@@ -17,8 +17,8 @@ type (
 		GetBlob(name, digest string) ([]byte, error)
 		WriteBlob(name string, digest string, content []byte) error
 		StatManifest(name, reference string) (*FileInfo, error)
-		GetManifest(name, reference string) []byte
-		PutManifest(name, reference string, data []byte)
+		GetManifest(name, reference string) ([]byte, error)
+		PutManifest(name, reference string, content []byte) error
 		InitUploadSession(name string) *UploadSession
 		ActiveUploadSession(name, id string) bool
 	}
@@ -107,21 +107,27 @@ func (s *registryService) StatManifest(name, reference string) (*FileInfo, error
 	return info, nil
 }
 
-func (s *registryService) GetManifest(name, reference string) []byte {
+func (s *registryService) GetManifest(name, reference string) ([]byte, error) {
 	path := fmt.Sprintf("manifests/%s/%s", name, reference)
 
 	content, err := s.store.Get(path)
 	if err != nil {
-		return nil
+		switch {
+		case errors.Is(err, ErrFileNotFound):
+			return nil, ErrManifestUnknown
+		default:
+			return nil, err
+		}
 	}
 
-	return content
+	return content, nil
 }
 
-func (s *registryService) PutManifest(name, reference string, content []byte) {
+func (s *registryService) PutManifest(name, reference string, content []byte) error {
 	path := fmt.Sprintf("manifests/%s/%s", name, reference)
 
 	s.store.Put(path, content)
+	return nil
 }
 
 func (s *registryService) InitUploadSession(name string) *UploadSession {

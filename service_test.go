@@ -49,6 +49,16 @@ func TestServiceStatManifest(t *testing.T) {
 	})
 }
 
+func TestServiceGetManifest(t *testing.T) {
+	store := NewInMemoryStore()
+	service := NewRegistryService(store)
+
+	t.Run("returns ErrManifestUnknown on unknown manifest", func(t *testing.T) {
+		_, err := service.GetManifest("i/do/not/exist", "for-real")
+		assertErrorIs(t, err, ErrManifestUnknown)
+	})
+}
+
 func assertErrorIs(t *testing.T, got, want error) {
 	t.Helper()
 	if !errors.Is(got, want) {
