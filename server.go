@@ -13,7 +13,7 @@ import (
 	v1 "github.com/opencontainers/image-spec/specs-go/v1"
 )
 
-var (
+const (
 	headerContentLength = "Content-Length"
 	headerContentType   = "Content-Type"
 	headerLocation      = "Location"
@@ -33,8 +33,8 @@ func NewRegistryServer(service RegistryService) *RegistryServer {
 	repositoryRouter.Handle("/blobs/uploads/{reference}", http.HandlerFunc(s.blobsUploadsHandler))
 
 	registryRouter := http.NewServeMux()
-	registryRouter.Handle("/v2/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path == "/v2/" {
+	registryRouter.Handle("/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/" {
 			w.WriteHeader(http.StatusOK)
 			return
 		}
@@ -43,7 +43,7 @@ func NewRegistryServer(service RegistryService) *RegistryServer {
 		i := len(segments) - 1
 		for ; i > 0; i-- {
 			if slices.Contains([]string{"blobs", "manifests", "tags", "referrers"}, segments[i]) {
-				r.SetPathValue("name", strings.Join(segments[2:i], "/"))
+				r.SetPathValue("name", strings.Join(segments[1:i], "/"))
 				break
 			}
 		}
@@ -53,7 +53,8 @@ func NewRegistryServer(service RegistryService) *RegistryServer {
 	}))
 
 	router := http.NewServeMux()
-	router.Handle("/v2/", registryRouter)
+	router.Handle("/v2/", http.HandlerFunc(http.StripPrefix("/v2", registryRouter).ServeHTTP))
+	// router.Handle("/v2/", registryRouter)
 
 	s.Handler = router
 
