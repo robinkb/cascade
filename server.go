@@ -75,7 +75,7 @@ func (s *RegistryServer) manifestsHandler(w http.ResponseWriter, r *http.Request
 	case http.MethodPut:
 		s.putManifestsHandler(w, r)
 	case http.MethodDelete:
-		w.WriteHeader(http.StatusAccepted)
+		s.deleteManifestsHandler(w, r)
 	default:
 		w.WriteHeader(http.StatusMethodNotAllowed)
 	}
@@ -161,6 +161,22 @@ func (s *RegistryServer) putManifestsHandler(w http.ResponseWriter, r *http.Requ
 		return
 	}
 	w.WriteHeader(http.StatusCreated)
+}
+
+func (s *RegistryServer) deleteManifestsHandler(w http.ResponseWriter, r *http.Request) {
+	name := r.PathValue("name")
+	reference := r.PathValue("reference")
+
+	err := s.service.DeleteManifest(name, reference)
+	if err != nil {
+		if errors.Is(err, ErrManifestUnknown) {
+			w.WriteHeader(http.StatusNotFound)
+			json.NewEncoder(w).Encode(NewErrorResponse(err.(Error)))
+			return
+		}
+	}
+
+	w.WriteHeader(http.StatusAccepted)
 }
 
 func (s *RegistryServer) statBlobsHandler(w http.ResponseWriter, r *http.Request) {

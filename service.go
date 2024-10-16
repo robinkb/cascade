@@ -20,6 +20,7 @@ type (
 		StatManifest(name, reference string) (*FileInfo, error)
 		GetManifest(name, reference string) ([]byte, error)
 		PutManifest(name, reference string, content []byte) error
+		DeleteManifest(name, reference string) error
 		InitUpload(name string) *UploadSession
 		StatUpload(sessionID string) (*FileInfo, error)
 		WriteUpload(sessionID string, content []byte) error
@@ -113,6 +114,16 @@ func (s *registryService) PutManifest(name, reference string, content []byte) er
 
 	s.store.Set(path, content)
 	return nil
+}
+
+func (s *registryService) DeleteManifest(name, reference string) error {
+	path := fmt.Sprintf("manifests/%s/%s", name, reference)
+
+	err := s.store.Delete(path)
+	if errors.Is(err, ErrFileNotFound) {
+		err = ErrManifestUnknown
+	}
+	return err
 }
 
 func (s *registryService) InitUpload(name string) *UploadSession {

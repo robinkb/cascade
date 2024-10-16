@@ -41,6 +41,7 @@ func TestManifests(t *testing.T) {
 	t.Run("Test HEAD /manifests", func(t *testing.T) {
 		request := newHeadManifestRequest("library/fedora", "1.0.0")
 		response := httptest.NewRecorder()
+
 		server.ServeHTTP(response, request)
 
 		assertStatus(t, response.Code, http.StatusOK)
@@ -51,6 +52,7 @@ func TestManifests(t *testing.T) {
 	t.Run("Test HEAD /manifests on non-existent manifest", func(t *testing.T) {
 		request := newHeadManifestRequest("non/existent", "1.0.0")
 		response := httptest.NewRecorder()
+
 		server.ServeHTTP(response, request)
 
 		assertStatus(t, response.Code, http.StatusNotFound)
@@ -123,13 +125,39 @@ func TestManifests(t *testing.T) {
 		assertResponseBody(t, response.Body.Bytes(), manifest)
 	})
 
-	t.Run("delete manifest returns 202", func(t *testing.T) {
-		request := newDeleteManifestRequest("library/fedora", "1.0.0")
+	t.Run("delete manifest returns 202 and is not retrievable", func(t *testing.T) {
+		service.store.Put("manifests/library/fedora/1.0.0", randomContents(32))
+
+		request := newHeadManifestRequest("library/fedora", "1.0.0")
 		response := httptest.NewRecorder()
 
 		server.ServeHTTP(response, request)
 
+		assertStatus(t, response.Code, http.StatusOK)
+
+		request = newDeleteManifestRequest("library/fedora", "1.0.0")
+		response = httptest.NewRecorder()
+
+		server.ServeHTTP(response, request)
+
 		assertStatus(t, response.Code, http.StatusAccepted)
+
+		request = newHeadManifestRequest("library/fedora", "1.0.0")
+		response = httptest.NewRecorder()
+
+		server.ServeHTTP(response, request)
+
+		assertStatus(t, response.Code, http.StatusNotFound)
+	})
+
+	t.Run("delete non-existent manifest returns 404", func(t *testing.T) {
+		request := newDeleteManifestRequest("dont/exist", "1.0.0")
+		response := httptest.NewRecorder()
+
+		server.ServeHTTP(response, request)
+
+		assertStatus(t, response.Code, http.StatusNotFound)
+		assertErrorInResponseBody(t, response.Body, ErrManifestUnknown)
 	})
 
 	t.Run("other methods return 405", func(t *testing.T) {

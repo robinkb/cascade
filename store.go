@@ -16,6 +16,7 @@ type (
 		Set(path string, content []byte) error
 		// Reader(path string) (io.Reader, error)
 		Put(path string, content []byte) error
+		Delete(path string) error
 		Move(sourcePath, destinationPath string)
 	}
 
@@ -79,11 +80,31 @@ func (s *InMemoryStore) Put(path string, content []byte) error {
 		return err
 	}
 
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
 	s.store[path] = append(s.store[path], content...)
 
 	return nil
 }
 
+func (s *InMemoryStore) Delete(path string) error {
+	_, err := s.Stat(path)
+	if err != nil {
+		return err
+	}
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	delete(s.store, path)
+	return nil
+}
+
 func (s *InMemoryStore) Move(sourcePath, destinationPath string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
 	s.store[destinationPath] = s.store[sourcePath]
+	delete(s.store, sourcePath)
 }
