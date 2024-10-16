@@ -36,7 +36,7 @@ func TestManifests(t *testing.T) {
 	service := NewRegistryService(NewInMemoryStore())
 	server := NewRegistryServer(service)
 
-	service.store.Put("manifests/library/fedora/1.0.0", []byte(`{"mediaType":"something"}`))
+	service.store.Set("manifests/library/fedora/1.0.0", []byte(`{"mediaType":"something"}`))
 
 	t.Run("Test HEAD /manifests", func(t *testing.T) {
 		request := newHeadManifestRequest("library/fedora", "1.0.0")
@@ -167,8 +167,8 @@ func TestStatBlob(t *testing.T) {
 	service := NewRegistryService(NewInMemoryStore())
 	server := NewRegistryServer(service)
 
-	service.store.Put("blobs/sha256/6c/6c3c624b58dbbcd3c0dd82b4c53f04194d1247c6eebdaab7c610cf7d66709b3b", []byte("my blob content"))
-	service.store.Put("blobs/sha256/d0/d0dc9f3a77cfc4c7d8408016c721d12559fcc40a07aca3826622f68fe6215aa9", []byte("my other blob content"))
+	service.store.Set("blobs/sha256/6c/6c3c624b58dbbcd3c0dd82b4c53f04194d1247c6eebdaab7c610cf7d66709b3b", []byte("my blob content"))
+	service.store.Set("blobs/sha256/d0/d0dc9f3a77cfc4c7d8408016c721d12559fcc40a07aca3826622f68fe6215aa9", []byte("my other blob content"))
 
 	t.Run("check if blob exists", func(t *testing.T) {
 		request := newCheckBlobRequest("library/fedora", "sha256:6c3c624b58dbbcd3c0dd82b4c53f04194d1247c6eebdaab7c610cf7d66709b3b")
@@ -181,7 +181,8 @@ func TestStatBlob(t *testing.T) {
 	})
 
 	t.Run("known blob in unknown repository returns 404", func(t *testing.T) {
-		// TODO: Fix this test.
+		// TODO: Blobs must be referenced in each repository.
+		// If they are not, return a 404.
 		t.SkipNow()
 
 		request := newCheckBlobRequest("not/known", "sha256:6c3c624b58dbbcd3c0dd82b4c53f04194d1247c6eebdaab7c610cf7d66709b3b")
@@ -224,9 +225,9 @@ func TestGetBlob(t *testing.T) {
 	service := NewRegistryService(NewInMemoryStore())
 	server := NewRegistryServer(service)
 
-	service.store.Put("blobs/sha256/6c/6c3c624b58dbbcd3c0dd82b4c53f04194d1247c6eebdaab7c610cf7d66709b3b", []byte("my blob content"))
-	service.store.Put("blobs/sha256/d0/d0dc9f3a77cfc4c7d8408016c721d12559fcc40a07aca3826622f68fe6215aa9", []byte("my other blob content"))
-	service.store.Put("blobs/sha256/09/090d62172504756bea09f64a28920d4f13ab6d375d436f936967f5fe4bd98a64", []byte("skopeo container content"))
+	service.store.Set("blobs/sha256/6c/6c3c624b58dbbcd3c0dd82b4c53f04194d1247c6eebdaab7c610cf7d66709b3b", []byte("my blob content"))
+	service.store.Set("blobs/sha256/d0/d0dc9f3a77cfc4c7d8408016c721d12559fcc40a07aca3826622f68fe6215aa9", []byte("my other blob content"))
+	service.store.Set("blobs/sha256/09/090d62172504756bea09f64a28920d4f13ab6d375d436f936967f5fe4bd98a64", []byte("skopeo container content"))
 
 	t.Run("get blob for library/fedora", func(t *testing.T) {
 		request := newGetBlobRequest("library/fedora", "sha256:6c3c624b58dbbcd3c0dd82b4c53f04194d1247c6eebdaab7c610cf7d66709b3b")
@@ -291,14 +292,12 @@ func TestBlobUploadsMonolithic(t *testing.T) {
 		segments := strings.Split(u.Path, "/")
 		sessionId := segments[len(segments)-1]
 
-		sessionActive := server.service.ActiveUploadSession("library/fedora", sessionId)
-		if !sessionActive {
-			t.Errorf("expected session to be active")
-		}
+		_, err = server.service.StatUpload(sessionId)
+		assertNoError(t, err)
 	})
 
 	t.Run("PUT /blobs/uploads/{reference} happy path", func(t *testing.T) {
-		session := server.service.InitUploadSession("library/fedora")
+		session := server.service.InitUpload("library/fedora")
 		content := randomContents(32)
 
 		request := newBlobUploadRequest(session.Location, content)
@@ -327,32 +326,6 @@ func TestBlobUploadsMonolithic(t *testing.T) {
 		assertResponseBody(t, response.Body.Bytes(), content)
 	})
 
-	t.Run("PUT /blobs/uploads/{reference} without body returns 400", func(t *testing.T) {
-		session := server.service.InitUploadSession("library/fedora")
-
-		request := newBlobUploadRequest(session.Location, nil)
-		request.Body = nil
-		response := httptest.NewRecorder()
-
-		server.ServeHTTP(response, request)
-
-		assertStatus(t, response.Code, http.StatusBadRequest)
-	})
-
-	t.Run("PUT /blobs/uploads/{reference} with empty body returns 400", func(t *testing.T) {
-		// TODO: Fix this case
-		t.SkipNow()
-
-		session := server.service.InitUploadSession("library/fedora")
-
-		request := newBlobUploadRequest(session.Location, nil)
-		response := httptest.NewRecorder()
-
-		server.ServeHTTP(response, request)
-
-		assertStatus(t, response.Code, http.StatusBadRequest)
-	})
-
 	t.Run("PUT /blobs/uploads/{reference} without session returns 404", func(t *testing.T) {
 		request := newBlobUploadRequest("/v2/library/fedora/blobs/uploads/123", nil)
 		response := httptest.NewRecorder()
@@ -364,7 +337,7 @@ func TestBlobUploadsMonolithic(t *testing.T) {
 	})
 
 	t.Run("PUT /blobs/uploads/{reference} without required headers returns 400", func(t *testing.T) {
-		session := server.service.InitUploadSession("library/fedora")
+		session := server.service.InitUpload("library/fedora")
 		content := randomContents(32)
 		request := newBlobUploadRequest(session.Location, content)
 		request.Header.Del(headerContentType)
@@ -377,7 +350,7 @@ func TestBlobUploadsMonolithic(t *testing.T) {
 	})
 
 	t.Run("PUT /blobs/uploads/{reference} without digest returns 400", func(t *testing.T) {
-		session := server.service.InitUploadSession("library/fedora")
+		session := server.service.InitUpload("library/fedora")
 		content := randomContents(32)
 		request := newBlobUploadRequest(session.Location, content)
 		request.URL.RawQuery = ""
@@ -389,7 +362,7 @@ func TestBlobUploadsMonolithic(t *testing.T) {
 	})
 
 	t.Run("PUT /blobs/uploads/{reference} with invalid digest returns 400", func(t *testing.T) {
-		session := server.service.InitUploadSession("library/fedora")
+		session := server.service.InitUpload("library/fedora")
 		content := randomContents(32)
 		request := newBlobUploadRequest(session.Location, content)
 		request.URL.RawQuery = "digest=blablabla"
@@ -401,7 +374,7 @@ func TestBlobUploadsMonolithic(t *testing.T) {
 	})
 
 	t.Run("PUT /blobs/uploads/{reference} with wrong digest returns 400", func(t *testing.T) {
-		session := server.service.InitUploadSession("library/fedora")
+		session := server.service.InitUpload("library/fedora")
 		content := randomContents(32)
 		request := newBlobUploadRequest(session.Location, content)
 		response := httptest.NewRecorder()
@@ -437,6 +410,7 @@ func TestBlobUploadsChunked(t *testing.T) {
 		location := response.Header().Get(headerLocation)
 
 		content := randomContents(32 * 1024 * 1024)
+		digest := digest.FromBytes(content)
 		buffer := bytes.NewBuffer(content)
 		patchSize := 1 << 20
 		written := 0
@@ -465,7 +439,8 @@ func TestBlobUploadsChunked(t *testing.T) {
 
 		request, _ = http.NewRequest(http.MethodPut, location, nil)
 		query := request.URL.Query()
-		query.Add("digest", "TODO")
+		// TODO: Actually calculate the digest
+		query.Add("digest", digest.String())
 		request.URL.RawQuery = query.Encode()
 
 		response = httptest.NewRecorder()

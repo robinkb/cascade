@@ -1,9 +1,11 @@
 package main
 
 import (
-	"bytes"
+	"crypto/sha256"
+	"encoding"
 	"errors"
 	"fmt"
+	"reflect"
 	"testing"
 )
 
@@ -27,28 +29,84 @@ func TestServiceGetBlob(t *testing.T) {
 	})
 }
 
-func TestServiceWriteBlob(t *testing.T) {
+func TestServiceUpload(t *testing.T) {
 	store := NewInMemoryStore()
 	service := NewRegistryService(store)
 
-	t.Run("blobs are stored in a Merkle tree by their digest", func(t *testing.T) {
-		content := []byte("my big beautiful blob")
-		algorithm := "sha256"
-		sum := "af2f9984c0dcaa963e20a4eae0e57c186898a8856148dd285cc68d7fe21779b8"
-		digest := fmt.Sprintf("%s:%s", algorithm, sum)
+	t.Run("stat upload returns correct FileInfo", func(t *testing.T) {
+		sessionID := "123"
+		content := randomContents(32)
+		store.Set(fmt.Sprintf("uploads/%s/data", sessionID), content)
 
-		// Is this test useful? This line is literally the same as in the tested code.
-		path := fmt.Sprintf("blobs/%s/%s/%s", algorithm, sum[0:2], sum)
+		info, err := service.StatUpload(sessionID)
+		assertNoError(t, err)
 
-		err := service.WriteBlob(digest, content)
+		got := info.Size
+		want := len(content)
+
+		if info.Size != int64(len(content)) {
+			t.Errorf("got unexpected upload size %d, want %d", got, want)
+		}
+	})
+
+	t.Run("stat upload on unknown upload returns ErrBlobUploadUnknown", func(t *testing.T) {
+		_, err := service.StatUpload("i-dont-exist")
+		assertErrorIs(t, err, ErrBlobUploadUnknown)
+	})
+
+	t.Run("written upload is retrievable", func(t *testing.T) {
+		sessionID := "123"
+		path := fmt.Sprintf("uploads/%s/data", sessionID)
+		content := randomContents(32)
+
+		hashPath := fmt.Sprintf("uploads/%s/hashstate/sha256", sessionID)
+		hashState, _ := sha256.New().(encoding.BinaryMarshaler).MarshalBinary()
+
+		store.Set(path, []byte{})
+		store.Set(hashPath, hashState)
+
+		err := service.WriteUpload(sessionID, content)
 		assertNoError(t, err)
 
 		got, err := store.Get(path)
 		assertNoError(t, err)
 
-		if !bytes.Equal(got, content) {
-			t.Errorf("unexpected byte content")
+		if !reflect.DeepEqual(got, content) {
+			t.Errorf("got unexpected byte content; not equal to written content")
 		}
+	})
+
+	t.Run("writing multiple times to same upload appends", func(t *testing.T) {
+		sessionID := "123"
+		path := fmt.Sprintf("uploads/%s/data", sessionID)
+		content := randomContents(32)
+
+		hashPath := fmt.Sprintf("uploads/%s/hashstate/sha256", sessionID)
+		hashState, _ := sha256.New().(encoding.BinaryMarshaler).MarshalBinary()
+
+		store.Set(path, []byte{})
+		store.Set(hashPath, hashState)
+
+		err := service.WriteUpload(sessionID, content[:16])
+		assertNoError(t, err)
+
+		err = service.WriteUpload(sessionID, content[16:])
+		assertNoError(t, err)
+
+		info, err := service.StatUpload(sessionID)
+		assertNoError(t, err)
+
+		got := info.Size
+		want := int64(len(content))
+
+		if got != want {
+			t.Errorf("unexpected upload size; got %d, want %d", got, want)
+		}
+	})
+
+	t.Run("writing to unknown upload returns ErrBlobUploadUnknown", func(t *testing.T) {
+		err := service.WriteUpload("i-dont-exist", []byte{})
+		assertErrorIs(t, err, ErrBlobUploadUnknown)
 	})
 }
 
@@ -58,7 +116,7 @@ func TestServiceStatManifest(t *testing.T) {
 
 	t.Run("returns FileInfo on known manifest", func(t *testing.T) {
 		content := randomContents(32)
-		store.Put("manifests/library/fedora/1.0.0", content)
+		store.Set("manifests/library/fedora/1.0.0", content)
 		info, err := service.StatManifest("library/fedora", "1.0.0")
 
 		got := info.Size

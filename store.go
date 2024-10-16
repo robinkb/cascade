@@ -13,9 +13,10 @@ type (
 	RegistryStore interface {
 		Stat(path string) (*FileInfo, error)
 		Get(path string) ([]byte, error)
-		Put(path string, content []byte) error
+		Set(path string, content []byte) error
 		// Reader(path string) (io.Reader, error)
-		// Writer(path string) (io.Writer, error)
+		Put(path string, content []byte) error
+		Move(sourcePath, destinationPath string)
 	}
 
 	// Based (at least initially) on fs.FileInfo interface.
@@ -62,10 +63,27 @@ func (s *InMemoryStore) Get(path string) ([]byte, error) {
 	return data, nil
 }
 
-func (s *InMemoryStore) Put(path string, content []byte) error {
+// TODO: Currently this accepts 'nil' as the content,
+// not sure if that is safe behavior.
+func (s *InMemoryStore) Set(path string, content []byte) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
 	s.store[path] = content
 	return nil
+}
+
+func (s *InMemoryStore) Put(path string, content []byte) error {
+	_, err := s.Stat(path)
+	if err != nil {
+		return err
+	}
+
+	s.store[path] = append(s.store[path], content...)
+
+	return nil
+}
+
+func (s *InMemoryStore) Move(sourcePath, destinationPath string) {
+	s.store[destinationPath] = s.store[sourcePath]
 }

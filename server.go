@@ -150,7 +150,7 @@ func (s *RegistryServer) blobsUploadsSessionHandler(w http.ResponseWriter, r *ht
 
 	switch r.Method {
 	case http.MethodPost:
-		session := s.service.InitUploadSession(name)
+		session := s.service.InitUpload(name)
 		w.Header().Set(headerLocation, session.Location)
 		w.WriteHeader(http.StatusAccepted)
 
@@ -165,36 +165,62 @@ func (s *RegistryServer) blobsUploadsHandler(w http.ResponseWriter, r *http.Requ
 
 	switch r.Method {
 	case http.MethodPut:
-		if !s.service.ActiveUploadSession(name, reference) {
-			mapError(w, ErrBlobUploadUnknown)
+		_, err := s.service.StatUpload(reference)
+		if err != nil {
+			mapError(w, err)
 			return
 		}
 
-		if r.Body == nil ||
-			r.Header.Get(headerContentType) != contentTypeOctetStream ||
-			r.Header.Get(headerContentLength) == "" {
+		// This is either a monolithic upload, or closing a chunked upload
+		// with a final chunk.
+		if r.Body != nil {
+			// Content-Type and Content-Length should be set if the request
+			// contains a body.
+			if r.Header.Get(headerContentType) != contentTypeOctetStream ||
+				r.Header.Get(headerContentLength) == "" {
+				w.WriteHeader(http.StatusBadRequest)
+				return
+			}
+
+			content, _ := io.ReadAll(r.Body)
+			// TODO: Check this error
+			s.service.WriteUpload(reference, content)
+		}
+
+		digest := r.URL.Query().Get("digest")
+		if digest == "" {
 			w.WriteHeader(http.StatusBadRequest)
 			return
 		}
 
-		digest := r.URL.Query().Get("digest")
+		err = s.service.CloseUpload(reference, digest)
+		if err != nil {
+			if errors.Is(err, ErrDigestInvalid) {
+				w.WriteHeader(http.StatusBadRequest)
+			} else {
+				w.WriteHeader(http.StatusInternalServerError)
+			}
+			return
+		}
+
+		location := fmt.Sprintf("/v2/%s/blobs/%s", name, digest)
+		w.Header().Set(headerLocation, location)
+		w.WriteHeader(http.StatusCreated)
+
+	case http.MethodPatch:
 		content, err := io.ReadAll(r.Body)
 		if err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
-
-		err = s.service.WriteBlob(digest, content)
-		if err != nil {
-			w.WriteHeader(http.StatusBadRequest)
+		if err := s.service.WriteUpload(reference, content); err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
 
-		// TODO: HTTP Handler shouldn't have to know how to construct the location.
-		// Probably...
-		location := fmt.Sprintf("/v2/%s/blobs/%s", name, digest)
+		location := fmt.Sprintf("/v2/%s/blobs/uploads/%s", name, reference)
 		w.Header().Set(headerLocation, location)
-		w.WriteHeader(http.StatusCreated)
+		w.WriteHeader(http.StatusAccepted)
 
 	default:
 		w.WriteHeader(http.StatusMethodNotAllowed)

@@ -18,6 +18,8 @@
 
  - [ ] Pushing a blob in chunks
    - [ ] Get current upload status
+   - [ ] Calculate the digest server-side
+   - [ ] Verify Content-Range in request
  - [ ] Mounting a blob from another repository
  - [ ] Push manifests with subject
 
