@@ -5,26 +5,26 @@ import (
 	"errors"
 	"fmt"
 
-	// Required for go-digest.
 	"crypto/sha256"
-	_ "crypto/sha256"
 
 	"github.com/gofrs/uuid/v5"
+	"github.com/opencontainers/go-digest"
 	godigest "github.com/opencontainers/go-digest"
+	"github.com/robinkb/cascade-registry/paths"
 )
 
 type (
 	RegistryService interface {
-		StatBlob(name, digest string) (*FileInfo, error)
-		GetBlob(digest string) ([]byte, error)
-		StatManifest(name, reference string) (*FileInfo, error)
-		GetManifest(name, reference string) ([]byte, error)
-		PutManifest(name, reference string, content []byte) error
-		DeleteManifest(name, reference string) error
-		InitUpload(name string) *UploadSession
-		StatUpload(sessionID string) (*FileInfo, error)
-		WriteUpload(sessionID string, content []byte) error
-		CloseUpload(id, digest string) error
+		StatBlob(repository, digest string) (*FileInfo, error)
+		GetBlob(repository, digest string) ([]byte, error)
+		StatManifest(repository, reference string) (*FileInfo, error)
+		GetManifest(repository, reference string) ([]byte, error)
+		PutManifest(repository, reference string, content []byte) error
+		DeleteManifest(repository, reference string) error
+		InitUpload(repository string) *UploadSession
+		StatUpload(repository, sessionID string) (*FileInfo, error)
+		WriteUpload(repository, sessionID string, content []byte) error
+		CloseUpload(repository, id, digest string) error
 	}
 
 	UploadSession struct {
@@ -44,14 +44,19 @@ type registryService struct {
 	sessionStore map[string]map[string]bool
 }
 
-func (s *registryService) StatBlob(name, digest string) (*FileInfo, error) {
+func (s *registryService) StatBlob(repository, digest string) (*FileInfo, error) {
 	id, err := godigest.Parse(digest)
 	if err != nil {
 		return nil, ErrBlobUnknown
 	}
 
-	path := fmt.Sprintf("blobs/%s/%s/%s", id.Algorithm(), id.Encoded()[0:2], id.Encoded())
+	linkPath := paths.MetaStore.BlobLink(repository, id)
+	_, err = s.store.Stat(linkPath)
+	if err != nil {
+		return nil, ErrBlobUnknown
+	}
 
+	path := paths.BlobStore.BlobData(id)
 	info, err := s.store.Stat(path)
 	if errors.Is(err, ErrFileNotFound) {
 		return nil, ErrBlobUnknown
@@ -60,15 +65,20 @@ func (s *registryService) StatBlob(name, digest string) (*FileInfo, error) {
 	return info, err
 }
 
-func (s *registryService) GetBlob(digest string) ([]byte, error) {
+func (s *registryService) GetBlob(repository, digest string) ([]byte, error) {
 	id, err := godigest.Parse(digest)
 	if err != nil {
 		return nil, ErrBlobUnknown
 	}
 
-	path := fmt.Sprintf("blobs/%s/%s/%s", id.Algorithm(), id.Encoded()[0:2], id.Encoded())
+	linkPath := paths.MetaStore.BlobLink(repository, id)
+	_, err = s.store.Stat(linkPath)
+	if err != nil {
+		return nil, ErrBlobUnknown
+	}
 
-	data, err := s.store.Get(path)
+	dataPath := paths.BlobStore.BlobData(id)
+	data, err := s.store.Get(dataPath)
 	if errors.Is(err, ErrFileNotFound) {
 		return nil, ErrBlobUnknown
 	}
@@ -76,10 +86,10 @@ func (s *registryService) GetBlob(digest string) ([]byte, error) {
 	return data, err
 }
 
-func (s *registryService) StatUpload(sessionID string) (*FileInfo, error) {
-	dataPath := fmt.Sprintf("uploads/%s/data", sessionID)
+func (s *registryService) StatUpload(repository, sessionID string) (*FileInfo, error) {
+	path := paths.BlobStore.UploadData(sessionID)
 
-	info, err := s.store.Stat(dataPath)
+	info, err := s.store.Stat(path)
 	if errors.Is(err, ErrFileNotFound) {
 		return nil, ErrBlobUploadUnknown
 	}
@@ -87,9 +97,19 @@ func (s *registryService) StatUpload(sessionID string) (*FileInfo, error) {
 	return info, err
 }
 
-func (s *registryService) StatManifest(name, reference string) (*FileInfo, error) {
-	path := fmt.Sprintf("manifests/%s/%s", name, reference)
+func (s *registryService) StatManifest(repository, id string) (*FileInfo, error) {
+	digest, err := digest.Parse(id)
+	if err != nil {
+		return nil, ErrDigestInvalid
+	}
 
+	linkPath := paths.MetaStore.ManifestLink(repository, digest)
+	_, err = s.store.Stat(linkPath)
+	if err != nil {
+		return nil, ErrManifestUnknown
+	}
+
+	path := paths.BlobStore.BlobData(digest)
 	info, err := s.store.Stat(path)
 	if errors.Is(err, ErrFileNotFound) {
 		return nil, ErrManifestUnknown
@@ -98,9 +118,19 @@ func (s *registryService) StatManifest(name, reference string) (*FileInfo, error
 	return info, err
 }
 
-func (s *registryService) GetManifest(name, reference string) ([]byte, error) {
-	path := fmt.Sprintf("manifests/%s/%s", name, reference)
+func (s *registryService) GetManifest(repository, id string) ([]byte, error) {
+	digest, err := digest.Parse(id)
+	if err != nil {
+		return nil, ErrBlobUnknown
+	}
 
+	linkPath := paths.MetaStore.ManifestLink(repository, digest)
+	_, err = s.store.Stat(linkPath)
+	if err != nil {
+		return nil, ErrManifestUnknown
+	}
+
+	path := paths.BlobStore.BlobData(digest)
 	content, err := s.store.Get(path)
 	if errors.Is(err, ErrFileNotFound) {
 		return nil, ErrManifestUnknown
@@ -109,27 +139,44 @@ func (s *registryService) GetManifest(name, reference string) ([]byte, error) {
 	return content, err
 }
 
-func (s *registryService) PutManifest(name, reference string, content []byte) error {
-	path := fmt.Sprintf("manifests/%s/%s", name, reference)
+func (s *registryService) PutManifest(repository, id string, content []byte) error {
+	digest, err := digest.Parse(id)
+	if err != nil {
+		return ErrDigestInvalid
+	}
+
+	path := paths.BlobStore.BlobData(digest)
+	link := paths.MetaStore.ManifestLink(repository, digest)
 
 	s.store.Set(path, content)
+	s.store.Set(link, nil)
+
 	return nil
 }
 
-func (s *registryService) DeleteManifest(name, reference string) error {
-	path := fmt.Sprintf("manifests/%s/%s", name, reference)
-
-	err := s.store.Delete(path)
-	if errors.Is(err, ErrFileNotFound) {
-		err = ErrManifestUnknown
+func (s *registryService) DeleteManifest(repository, id string) error {
+	digest, err := digest.Parse(id)
+	if err != nil {
+		return ErrBlobUnknown
 	}
+
+	linkPath := paths.MetaStore.ManifestLink(repository, digest)
+	_, err = s.store.Stat(linkPath)
+	if err != nil {
+		return ErrManifestUnknown
+	}
+
+	path := paths.BlobStore.BlobData(digest)
+	s.store.Delete(path)
+	s.store.Delete(linkPath)
+
 	return err
 }
 
-func (s *registryService) InitUpload(name string) *UploadSession {
+func (s *registryService) InitUpload(repository string) *UploadSession {
 	sessionID, _ := uuid.NewV7()
 
-	hashPath := fmt.Sprintf("uploads/%s/hashstate/sha256", sessionID.String())
+	hashPath := paths.MetaStore.UploadHashState(repository, sessionID.String(), "sha256")
 
 	hash := sha256.New()
 	_, err := hash.Write([]byte{})
@@ -147,7 +194,7 @@ func (s *registryService) InitUpload(name string) *UploadSession {
 		panic(err)
 	}
 
-	dataPath := fmt.Sprintf("uploads/%s/data", sessionID)
+	dataPath := paths.BlobStore.UploadData(sessionID.String())
 	err = s.store.Set(dataPath, []byte{})
 	if err != nil {
 		panic(err)
@@ -155,19 +202,21 @@ func (s *registryService) InitUpload(name string) *UploadSession {
 
 	return &UploadSession{
 		ID:       sessionID.String(),
-		Location: fmt.Sprintf("/v2/%s/blobs/uploads/%s", name, sessionID.String()),
+		Location: fmt.Sprintf("/v2/%s/blobs/uploads/%s", repository, sessionID.String()),
 	}
 }
 
-func (s *registryService) WriteUpload(sessionID string, content []byte) error {
-	dataPath := fmt.Sprintf("uploads/%s/data", sessionID)
+func (s *registryService) WriteUpload(repository, sessionID string, content []byte) error {
+	dataPath := paths.BlobStore.UploadData(sessionID)
 
-	_, err := s.StatUpload(sessionID)
+	_, err := s.StatUpload(repository, sessionID)
 	if err != nil {
 		return err
 	}
 
-	hashPath := fmt.Sprintf("uploads/%s/hashstate/sha256", sessionID)
+	// As of Distribution Spec v1.1, clients and servers do not negotiate
+	// the hashing algorithm. So we have to assume for resumable hashing.
+	hashPath := paths.MetaStore.UploadHashState(repository, sessionID, "sha256")
 	hashState, err := s.store.Get(hashPath)
 	if err != nil {
 		return err
@@ -197,13 +246,13 @@ func (s *registryService) WriteUpload(sessionID string, content []byte) error {
 	return err
 }
 
-func (s *registryService) CloseUpload(sessionID, digest string) error {
+func (s *registryService) CloseUpload(repository, sessionID, digest string) error {
 	id, err := godigest.Parse(digest)
 	if err != nil {
 		return ErrDigestInvalid
 	}
 
-	hashPath := fmt.Sprintf("uploads/%s/hashstate/sha256", sessionID)
+	hashPath := paths.MetaStore.UploadHashState(repository, sessionID, id.Algorithm())
 	hashState, err := s.store.Get(hashPath)
 	if err != nil {
 		return err
@@ -220,9 +269,11 @@ func (s *registryService) CloseUpload(sessionID, digest string) error {
 		return ErrDigestInvalid
 	}
 
-	sourcePath := fmt.Sprintf("uploads/%s/data", sessionID)
-	destPath := fmt.Sprintf("blobs/%s/%s/%s", id.Algorithm(), id.Encoded()[0:2], id.Encoded())
+	sourcePath := paths.BlobStore.UploadData(sessionID)
+	destPath := paths.BlobStore.BlobData(id)
+	linkPath := paths.MetaStore.BlobLink(repository, id)
 
 	s.store.Move(sourcePath, destPath)
+	s.store.Set(linkPath, nil)
 	return nil
 }

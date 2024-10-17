@@ -43,7 +43,7 @@ func NewRegistryServer(service RegistryService) *RegistryServer {
 		i := len(segments) - 1
 		for ; i > 0; i-- {
 			if slices.Contains([]string{"blobs", "manifests", "tags", "referrers"}, segments[i]) {
-				r.SetPathValue("name", strings.Join(segments[1:i], "/"))
+				r.SetPathValue("repository", strings.Join(segments[1:i], "/"))
 				break
 			}
 		}
@@ -113,10 +113,10 @@ func (s *RegistryServer) blobsUploadsHandler(w http.ResponseWriter, r *http.Requ
 }
 
 func (s *RegistryServer) statManifestsHandler(w http.ResponseWriter, r *http.Request) {
-	name := r.PathValue("name")
+	repository := r.PathValue("repository")
 	reference := r.PathValue("reference")
 
-	info, err := s.service.StatManifest(name, reference)
+	info, err := s.service.StatManifest(repository, reference)
 	if err != nil {
 		mapError(w, err)
 		return
@@ -127,13 +127,13 @@ func (s *RegistryServer) statManifestsHandler(w http.ResponseWriter, r *http.Req
 }
 
 func (s *RegistryServer) getManifestsHandler(w http.ResponseWriter, r *http.Request) {
-	name := r.PathValue("name")
+	repository := r.PathValue("repository")
 	reference := r.PathValue("reference")
 
 	// TODO: This is doing too much. GetManifest should verify the Manifest,
 	// and return the media type.
 	var manifest v1.Manifest
-	content, err := s.service.GetManifest(name, reference)
+	content, err := s.service.GetManifest(repository, reference)
 	if err != nil {
 		mapError(w, err)
 		return
@@ -146,7 +146,7 @@ func (s *RegistryServer) getManifestsHandler(w http.ResponseWriter, r *http.Requ
 }
 
 func (s *RegistryServer) putManifestsHandler(w http.ResponseWriter, r *http.Request) {
-	name := r.PathValue("name")
+	repository := r.PathValue("repository")
 	reference := r.PathValue("reference")
 
 	// The stored manifest must be an exact byte representation.
@@ -155,7 +155,7 @@ func (s *RegistryServer) putManifestsHandler(w http.ResponseWriter, r *http.Requ
 		mapError(w, err)
 		return
 	}
-	err = s.service.PutManifest(name, reference, data)
+	err = s.service.PutManifest(repository, reference, data)
 	if err != nil {
 		mapError(w, err)
 		return
@@ -164,10 +164,10 @@ func (s *RegistryServer) putManifestsHandler(w http.ResponseWriter, r *http.Requ
 }
 
 func (s *RegistryServer) deleteManifestsHandler(w http.ResponseWriter, r *http.Request) {
-	name := r.PathValue("name")
+	repository := r.PathValue("repository")
 	reference := r.PathValue("reference")
 
-	err := s.service.DeleteManifest(name, reference)
+	err := s.service.DeleteManifest(repository, reference)
 	if err != nil {
 		if errors.Is(err, ErrManifestUnknown) {
 			w.WriteHeader(http.StatusNotFound)
@@ -180,10 +180,10 @@ func (s *RegistryServer) deleteManifestsHandler(w http.ResponseWriter, r *http.R
 }
 
 func (s *RegistryServer) statBlobsHandler(w http.ResponseWriter, r *http.Request) {
-	name := r.PathValue("name")
+	repository := r.PathValue("repository")
 	digest := r.PathValue("digest")
 
-	if _, err := s.service.StatBlob(name, digest); err != nil {
+	if _, err := s.service.StatBlob(repository, digest); err != nil {
 		mapError(w, err)
 		return
 	}
@@ -192,9 +192,10 @@ func (s *RegistryServer) statBlobsHandler(w http.ResponseWriter, r *http.Request
 }
 
 func (s *RegistryServer) getBlobsHandler(w http.ResponseWriter, r *http.Request) {
+	repository := r.PathValue("repository")
 	digest := r.PathValue("digest")
 
-	content, err := s.service.GetBlob(digest)
+	content, err := s.service.GetBlob(repository, digest)
 	if err != nil {
 		mapError(w, err)
 		return
@@ -205,14 +206,14 @@ func (s *RegistryServer) getBlobsHandler(w http.ResponseWriter, r *http.Request)
 }
 
 func (s *RegistryServer) initUploadHandler(w http.ResponseWriter, r *http.Request) {
-	name := r.PathValue("name")
-	session := s.service.InitUpload(name)
+	repository := r.PathValue("repository")
+	session := s.service.InitUpload(repository)
 	w.Header().Set(headerLocation, session.Location)
 	w.WriteHeader(http.StatusAccepted)
 }
 
 func (s *RegistryServer) writeUploadHandler(w http.ResponseWriter, r *http.Request) {
-	name := r.PathValue("name")
+	repository := r.PathValue("repository")
 	reference := r.PathValue("reference")
 
 	content, err := io.ReadAll(r.Body)
@@ -220,21 +221,21 @@ func (s *RegistryServer) writeUploadHandler(w http.ResponseWriter, r *http.Reque
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
-	if err := s.service.WriteUpload(reference, content); err != nil {
+	if err := s.service.WriteUpload(repository, reference, content); err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
 
-	location := fmt.Sprintf("/v2/%s/blobs/uploads/%s", name, reference)
+	location := fmt.Sprintf("/v2/%s/blobs/uploads/%s", repository, reference)
 	w.Header().Set(headerLocation, location)
 	w.WriteHeader(http.StatusAccepted)
 }
 
 func (s *RegistryServer) closeUploadHandler(w http.ResponseWriter, r *http.Request) {
-	name := r.PathValue("name")
+	repository := r.PathValue("repository")
 	reference := r.PathValue("reference")
 
-	_, err := s.service.StatUpload(reference)
+	_, err := s.service.StatUpload(repository, reference)
 	if err != nil {
 		mapError(w, err)
 		return
@@ -253,7 +254,7 @@ func (s *RegistryServer) closeUploadHandler(w http.ResponseWriter, r *http.Reque
 
 		content, _ := io.ReadAll(r.Body)
 		// TODO: Check this error
-		s.service.WriteUpload(reference, content)
+		s.service.WriteUpload(repository, reference, content)
 	}
 
 	digest := r.URL.Query().Get("digest")
@@ -262,7 +263,7 @@ func (s *RegistryServer) closeUploadHandler(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	err = s.service.CloseUpload(reference, digest)
+	err = s.service.CloseUpload(repository, reference, digest)
 	if err != nil {
 		if errors.Is(err, ErrDigestInvalid) {
 			w.WriteHeader(http.StatusBadRequest)
@@ -272,7 +273,7 @@ func (s *RegistryServer) closeUploadHandler(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	location := fmt.Sprintf("/v2/%s/blobs/%s", name, digest)
+	location := fmt.Sprintf("/v2/%s/blobs/%s", repository, digest)
 	w.Header().Set(headerLocation, location)
 	w.WriteHeader(http.StatusCreated)
 }

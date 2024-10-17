@@ -27,5 +27,6 @@ func assertNoError(t *testing.T, err error) {
 	t.Helper()
 	if err != nil {
 		t.Errorf("got error where none was expected: %v", err)
+		t.FailNow()
 	}
 }
