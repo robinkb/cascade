@@ -50,7 +50,7 @@ func (s *registryService) StatBlob(repository, digest string) (*FileInfo, error)
 		return nil, ErrBlobUnknown
 	}
 
-	linkPath := paths.MetaStore.BlobLink(repository, id)
+	linkPath := paths.MetaStore.LayerLink(repository, id)
 	_, err = s.store.Stat(linkPath)
 	if err != nil {
 		return nil, ErrBlobUnknown
@@ -71,7 +71,7 @@ func (s *registryService) GetBlob(repository, digest string) ([]byte, error) {
 		return nil, ErrBlobUnknown
 	}
 
-	linkPath := paths.MetaStore.BlobLink(repository, id)
+	linkPath := paths.MetaStore.LayerLink(repository, id)
 	_, err = s.store.Stat(linkPath)
 	if err != nil {
 		return nil, ErrBlobUnknown
@@ -271,7 +271,7 @@ func (s *registryService) CloseUpload(repository, sessionID, digest string) erro
 
 	sourcePath := paths.BlobStore.UploadData(sessionID)
 	destPath := paths.BlobStore.BlobData(id)
-	linkPath := paths.MetaStore.BlobLink(repository, id)
+	linkPath := paths.MetaStore.LayerLink(repository, id)
 
 	s.store.Move(sourcePath, destPath)
 	s.store.Set(linkPath, nil)
