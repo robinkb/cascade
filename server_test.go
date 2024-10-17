@@ -467,7 +467,6 @@ func TestBlobUploadsChunked(t *testing.T) {
 
 		request, _ = http.NewRequest(http.MethodPut, location, nil)
 		query := request.URL.Query()
-		// TODO: Actually calculate the digest
 		query.Add("digest", digest.String())
 		request.URL.RawQuery = query.Encode()
 

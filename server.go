@@ -54,7 +54,6 @@ func NewRegistryServer(service RegistryService) *RegistryServer {
 
 	router := http.NewServeMux()
 	router.Handle("/v2/", http.HandlerFunc(http.StripPrefix("/v2", registryRouter).ServeHTTP))
-	// router.Handle("/v2/", registryRouter)
 
 	s.Handler = router
 
