@@ -220,7 +220,7 @@ func (s *RegistryServer) checkUploadHandler(w http.ResponseWriter, r *http.Reque
 	repository := r.PathValue("repository")
 	reference := r.PathValue("reference")
 
-	_, err := s.service.StatUpload(repository, reference)
+	info, err := s.service.StatUpload(repository, reference)
 	if err != nil {
 		writeErrorResponse(w, err)
 		return
@@ -230,7 +230,7 @@ func (s *RegistryServer) checkUploadHandler(w http.ResponseWriter, r *http.Reque
 	location := fmt.Sprintf("/v2/%s/blobs/uploads/%s", repository, reference)
 
 	w.Header().Set(headerLocation, location)
-	w.Header().Set(headerRange, "0")
+	w.Header().Set(headerRange, fmt.Sprintf("0-%d", info.Size))
 	w.WriteHeader(http.StatusNoContent)
 }
 
@@ -238,18 +238,47 @@ func (s *RegistryServer) writeUploadHandler(w http.ResponseWriter, r *http.Reque
 	repository := r.PathValue("repository")
 	reference := r.PathValue("reference")
 
-	content, err := io.ReadAll(r.Body)
+	info, err := s.service.StatUpload(repository, reference)
 	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
+		writeErrorResponse(w, err)
 		return
 	}
-	if err := s.service.WriteUpload(repository, reference, content); err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
+
+	givenStart, givenEnd, err := parseContentRange(r.Header.Get(headerContentRange))
+	if err != nil {
+		writeErrorResponse(w, err)
+	}
+
+	if info.Size != int64(givenStart) {
+		w.WriteHeader(http.StatusRequestedRangeNotSatisfiable)
+		return
+	}
+
+	content, err := io.ReadAll(r.Body)
+	if err != nil {
+		writeErrorResponse(w, err)
+		return
+	}
+
+	if len(content) != givenEnd-givenStart {
+		w.WriteHeader(http.StatusRequestedRangeNotSatisfiable)
+		return
+	}
+
+	if err := s.service.AppendUpload(repository, reference, content); err != nil {
+		writeErrorResponse(w, err)
+		return
+	}
+
+	info, err = s.service.StatUpload(repository, reference)
+	if err != nil {
+		writeErrorResponse(w, err)
 		return
 	}
 
 	location := fmt.Sprintf("/v2/%s/blobs/uploads/%s", repository, reference)
 	w.Header().Set(headerLocation, location)
+	w.Header().Set(headerRange, fmt.Sprintf("0-%d", info.Size))
 	w.WriteHeader(http.StatusAccepted)
 }
 
@@ -276,7 +305,7 @@ func (s *RegistryServer) closeUploadHandler(w http.ResponseWriter, r *http.Reque
 
 		content, _ := io.ReadAll(r.Body)
 		// TODO: Check this error
-		s.service.WriteUpload(repository, reference, content)
+		s.service.AppendUpload(repository, reference, content)
 	}
 
 	digest := r.URL.Query().Get("digest")
@@ -288,16 +317,36 @@ func (s *RegistryServer) closeUploadHandler(w http.ResponseWriter, r *http.Reque
 	err = s.service.CloseUpload(repository, reference, digest)
 	if err != nil {
 		if errors.Is(err, ErrDigestInvalid) {
-			w.WriteHeader(http.StatusBadRequest)
-		} else {
-			w.WriteHeader(http.StatusInternalServerError)
+			err = ErrBlobUploadInvalid
 		}
+		writeErrorResponse(w, err)
 		return
 	}
 
 	location := fmt.Sprintf("/v2/%s/blobs/%s", repository, digest)
 	w.Header().Set(headerLocation, location)
 	w.WriteHeader(http.StatusCreated)
+}
+
+func parseContentRange(r string) (start, end int, err error) {
+	err = ErrBlobUploadInvalid
+
+	parts := strings.Split(r, "-")
+	if len(parts) != 2 {
+		return
+	}
+
+	start, e := strconv.Atoi(parts[0])
+	if e != nil {
+		return
+	}
+
+	end, e = strconv.Atoi(parts[1])
+	if e != nil {
+		return
+	}
+
+	return start, end, nil
 }
 
 // This is starting to feel like the wrong approach.
@@ -318,6 +367,9 @@ func writeErrorResponse(w http.ResponseWriter, err error) {
 		response = NewErrorResponse(err.(Error))
 	case errors.Is(err, ErrDigestInvalid):
 		code = http.StatusNotFound
+		response = NewErrorResponse(err.(Error))
+	case errors.Is(err, ErrBlobUploadInvalid):
+		code = http.StatusBadRequest
 		response = NewErrorResponse(err.(Error))
 	}
 

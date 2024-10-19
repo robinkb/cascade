@@ -64,7 +64,7 @@ func TestServiceUpload(t *testing.T) {
 
 		session := service.InitUpload(repository)
 
-		err := service.WriteUpload(repository, session.ID, content)
+		err := service.AppendUpload(repository, session.ID, content)
 		assertNoError(t, err)
 
 		got, err := store.Get(paths.BlobStore.UploadData(session.ID))
@@ -81,10 +81,10 @@ func TestServiceUpload(t *testing.T) {
 
 		session := service.InitUpload(repository)
 
-		err := service.WriteUpload(repository, session.ID, content[:16])
+		err := service.AppendUpload(repository, session.ID, content[:16])
 		assertNoError(t, err)
 
-		err = service.WriteUpload(repository, session.ID, content[16:])
+		err = service.AppendUpload(repository, session.ID, content[16:])
 		assertNoError(t, err)
 
 		info, err := service.StatUpload(repository, session.ID)
@@ -99,7 +99,7 @@ func TestServiceUpload(t *testing.T) {
 	})
 
 	t.Run("writing to unknown upload returns ErrBlobUploadUnknown", func(t *testing.T) {
-		err := service.WriteUpload("1/2/3", "i-dont-exist", []byte{})
+		err := service.AppendUpload("1/2/3", "i-dont-exist", []byte{})
 		assertErrorIs(t, err, ErrBlobUploadUnknown)
 	})
 }

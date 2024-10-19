@@ -2,12 +2,13 @@ package main
 
 import (
 	"bytes"
-	"crypto/rand"
+	cryptorand "crypto/rand"
 	"crypto/sha256"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
+
 	"net/http"
 	"net/http/httptest"
 	"reflect"
@@ -319,6 +320,8 @@ func TestLayerUploadSession(t *testing.T) {
 		server.ServeHTTP(response, request)
 
 		assertStatus(t, response.Code, http.StatusNoContent)
+		assertHeader(t, headerLocation, response.Header(), location)
+		assertHeader(t, headerRange, response.Header(), "0-0")
 	})
 
 	t.Run("Checking status of an unknown upload session returns 404 and ErrBlobUploadUnknown", func(t *testing.T) {
@@ -368,7 +371,7 @@ func TestLayerUploadsMonolithic(t *testing.T) {
 		assertResponseBody(t, response.Body.Bytes(), content)
 	})
 
-	t.Run("PUT /blobs/uploads/{reference} without session returns 404", func(t *testing.T) {
+	t.Run("Uploading without session returns 404", func(t *testing.T) {
 		request := newLayerUploadRequest("/v2/library/fedora/blobs/uploads/123", nil)
 		response := httptest.NewRecorder()
 
@@ -378,7 +381,7 @@ func TestLayerUploadsMonolithic(t *testing.T) {
 		assertErrorInResponseBody(t, response.Body, ErrBlobUploadUnknown)
 	})
 
-	t.Run("PUT /blobs/uploads/{reference} without required headers returns 400", func(t *testing.T) {
+	t.Run("Uploading without required headers returns 400", func(t *testing.T) {
 		session := server.service.InitUpload("library/fedora")
 		content := randomContents(32)
 		request := newLayerUploadRequest(session.Location, content)
@@ -391,7 +394,7 @@ func TestLayerUploadsMonolithic(t *testing.T) {
 		assertStatus(t, response.Code, http.StatusBadRequest)
 	})
 
-	t.Run("PUT /blobs/uploads/{reference} without digest returns 400", func(t *testing.T) {
+	t.Run("Uploading without digest returns 400", func(t *testing.T) {
 		session := server.service.InitUpload("library/fedora")
 		content := randomContents(32)
 		request := newLayerUploadRequest(session.Location, content)
@@ -403,7 +406,7 @@ func TestLayerUploadsMonolithic(t *testing.T) {
 		assertStatus(t, response.Code, http.StatusBadRequest)
 	})
 
-	t.Run("PUT /blobs/uploads/{reference} with invalid digest returns 400", func(t *testing.T) {
+	t.Run("Uploading with invalid digest returns 400", func(t *testing.T) {
 		session := server.service.InitUpload("library/fedora")
 		content := randomContents(32)
 		request := newLayerUploadRequest(session.Location, content)
@@ -415,7 +418,7 @@ func TestLayerUploadsMonolithic(t *testing.T) {
 		assertStatus(t, response.Code, http.StatusBadRequest)
 	})
 
-	t.Run("PUT /blobs/uploads/{reference} with wrong digest returns 400", func(t *testing.T) {
+	t.Run("Uploading with wrong digest returns 400", func(t *testing.T) {
 		session := server.service.InitUpload("library/fedora")
 		content := randomContents(32)
 		request := newLayerUploadRequest(session.Location, content)
@@ -430,6 +433,7 @@ func TestLayerUploadsMonolithic(t *testing.T) {
 		server.ServeHTTP(response, request)
 
 		assertStatus(t, response.Code, http.StatusBadRequest)
+		assertErrorInResponseBody(t, response.Body, ErrBlobUploadInvalid)
 	})
 }
 
@@ -437,7 +441,7 @@ func TestBlobUploadsChunked(t *testing.T) {
 	service := NewRegistryService(NewInMemoryStore())
 	server := NewRegistryServer(service)
 
-	t.Run("PATCH /blobs/uploads/{reference} happy path", func(t *testing.T) {
+	t.Run("Chunked upload happy path", func(t *testing.T) {
 		// Initialize the upload session by obtaining an ID.
 		// For chunked uploads, header Content-Length: 0 must be set.
 		request := newInitUploadRequest("library/fedora")
@@ -451,24 +455,28 @@ func TestBlobUploadsChunked(t *testing.T) {
 
 		location := response.Header().Get(headerLocation)
 
-		content := randomContents(32 * 1024 * 1024)
+		content := randomContents(16 * 1024)
 		digest := digest.FromBytes(content)
-		buffer := bytes.NewBuffer(content)
-		patchSize := 1 << 20
+		r := bytes.NewReader(content)
+		buffer := make([]byte, 1*1024)
 		written := 0
 
 		for {
-			patch := buffer.Next(patchSize)
-			request = newUploadChunkRequest(location, patch, written)
+			n, err := io.ReadFull(r, buffer)
+			assertNoError(t, err)
+
+			request = newUploadChunkRequest(location, buffer, written)
 			response = httptest.NewRecorder()
 
 			server.ServeHTTP(response, request)
 
+			written += n
+
 			assertStatus(t, response.Code, http.StatusAccepted)
 			assertHeaderSet(t, headerLocation, response.Header())
+			assertHeader(t, headerRange, response.Header(), fmt.Sprintf("0-%d", written))
 
-			written += patchSize
-			if buffer.Len() == 0 {
+			if r.Len() == 0 {
 				break
 			}
 
@@ -485,6 +493,111 @@ func TestBlobUploadsChunked(t *testing.T) {
 
 		location = response.Header().Get(headerLocation)
 
+		request, _ = http.NewRequest(http.MethodGet, location, nil)
+		response = httptest.NewRecorder()
+
+		server.ServeHTTP(response, request)
+
+		assertStatus(t, response.Code, http.StatusOK)
+		assertResponseBody(t, response.Body.Bytes(), content)
+	})
+
+	t.Run("Chunked upload with dyscalculic client (gets the ranges wrong)", func(t *testing.T) {
+		request := newInitUploadRequest("library/fedora")
+		request.Header.Add(headerContentLength, "0")
+		response := httptest.NewRecorder()
+
+		server.ServeHTTP(response, request)
+
+		assertStatus(t, response.Code, http.StatusAccepted)
+
+		location := response.Header().Get(headerLocation)
+
+		// Prepare content to upload
+		content := randomContents(2 * 1024)
+		digest := digest.FromBytes(content)
+		r := bytes.NewReader(content)
+		buffer := make([]byte, 1*1024)
+		written := 0
+
+		n, err := io.ReadFull(r, buffer)
+		assertNoError(t, err)
+
+		// Do a proper upload
+		request = newUploadChunkRequest(location, buffer, written)
+		response = httptest.NewRecorder()
+		server.ServeHTTP(response, request)
+		written += n
+
+		assertStatus(t, response.Code, http.StatusAccepted)
+		assertHeader(t, headerRange, response.Header(), fmt.Sprintf("0-%d", written))
+
+		_, err = io.ReadFull(r, buffer)
+		assertNoError(t, err)
+
+		request = newUploadChunkRequest(location, buffer, written)
+		// Mess up the start of the content range
+		request.Header.Set(headerContentRange, fmt.Sprintf("1-%d", written))
+		response = httptest.NewRecorder()
+
+		server.ServeHTTP(response, request)
+
+		assertStatus(t, response.Code, http.StatusRequestedRangeNotSatisfiable)
+
+		// Check our upload status, confirm nothing is written.
+		request = newCheckUploadRequest(location)
+		response = httptest.NewRecorder()
+
+		server.ServeHTTP(response, request)
+
+		assertHeader(t, headerRange, response.Header(), fmt.Sprintf("0-%d", written))
+		r.Seek(int64(written), 0)
+
+		// Try uploading the chunk again, this time missing up
+		// the end of the content range.
+		_, err = io.ReadFull(r, buffer)
+		assertNoError(t, err)
+
+		request = newUploadChunkRequest(location, buffer, written)
+		request.Header.Set(headerContentRange, fmt.Sprintf("%d-1", written))
+		response = httptest.NewRecorder()
+		server.ServeHTTP(response, request)
+
+		assertStatus(t, response.Code, http.StatusRequestedRangeNotSatisfiable)
+
+		// Check our upload status, confirm nothing is written.
+		request = newCheckUploadRequest(location)
+		response = httptest.NewRecorder()
+
+		server.ServeHTTP(response, request)
+
+		assertHeader(t, headerRange, response.Header(), fmt.Sprintf("0-%d", written))
+		r.Seek(int64(written), 0)
+
+		// Do it properly this time.
+		n, err = io.ReadFull(r, buffer)
+		assertNoError(t, err)
+
+		request = newUploadChunkRequest(location, buffer, written)
+		response = httptest.NewRecorder()
+		server.ServeHTTP(response, request)
+		written += n
+
+		assertStatus(t, response.Code, http.StatusAccepted)
+		assertHeader(t, headerRange, response.Header(), fmt.Sprintf("0-%d", written))
+
+		// And close the upload.
+		request = newCloseUploadRequest(location, digest.String(), nil)
+		response = httptest.NewRecorder()
+
+		server.ServeHTTP(response, request)
+
+		assertStatus(t, response.Code, http.StatusCreated)
+		assertHeaderSet(t, headerLocation, response.Header())
+
+		location = response.Header().Get(headerLocation)
+
+		// Verify that the content was uploaded successfully.
 		request, _ = http.NewRequest(http.MethodGet, location, nil)
 		response = httptest.NewRecorder()
 
@@ -587,6 +700,6 @@ func assertResponseBody(t *testing.T, got, want []byte) {
 
 func randomContents(length int64) []byte {
 	data := make([]byte, length)
-	rand.Read(data)
+	cryptorand.Read(data)
 	return data
 }

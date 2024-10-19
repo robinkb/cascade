@@ -23,7 +23,7 @@ type (
 		DeleteManifest(repository, reference string) error
 		InitUpload(repository string) *UploadSession
 		StatUpload(repository, sessionID string) (*FileInfo, error)
-		WriteUpload(repository, sessionID string, content []byte) error
+		AppendUpload(repository, sessionID string, content []byte) error
 		CloseUpload(repository, id, digest string) error
 	}
 
@@ -229,7 +229,7 @@ func (s *registryService) InitUpload(repository string) *UploadSession {
 }
 
 // TODO: Verify that this is properly scoped to a repository.
-func (s *registryService) WriteUpload(repository, sessionID string, content []byte) error {
+func (s *registryService) AppendUpload(repository, sessionID string, content []byte) error {
 	dataPath := paths.BlobStore.UploadData(sessionID)
 
 	_, err := s.StatUpload(repository, sessionID)
