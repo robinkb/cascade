@@ -27,6 +27,24 @@ type (
 		CloseUpload(repository, id, digest string) error
 	}
 
+	// TODO: Could refactor to this:
+	// RegistryService interface {
+	// 	Repository(ctx context.Context, name string) RepositoryService
+	// }
+
+	// RepositoryService interface {
+	// 	StatBlob(digest string) (*FileInfo, error)
+	// 	GetBlob(digest string) ([]byte, error)
+	// 	StatManifest(reference string) (*FileInfo, error)
+	// 	GetManifest(reference string) ([]byte, error)
+	// 	PutManifest(reference string, content []byte) error
+	// 	DeleteManifest(reference string) error
+	// 	InitUpload() *UploadSession
+	// 	StatUpload(sessionID string) (*FileInfo, error)
+	// 	WriteUpload(sessionID string, content []byte) error
+	// 	CloseUpload(id, digest string) error
+	// }
+
 	UploadSession struct {
 		ID, Location string
 	}
@@ -56,8 +74,8 @@ func (s *registryService) StatBlob(repository, digest string) (*FileInfo, error)
 		return nil, ErrBlobUnknown
 	}
 
-	path := paths.BlobStore.BlobData(id)
-	info, err := s.store.Stat(path)
+	dataPath := paths.BlobStore.BlobData(id)
+	info, err := s.store.Stat(dataPath)
 	if errors.Is(err, ErrFileNotFound) {
 		return nil, ErrBlobUnknown
 	}
@@ -86,6 +104,8 @@ func (s *registryService) GetBlob(repository, digest string) ([]byte, error) {
 	return data, err
 }
 
+// TODO: Should write a test to verify that uploads can only be accessed
+// from the repository where it was created. Spoiler alert: not the case.
 func (s *registryService) StatUpload(repository, sessionID string) (*FileInfo, error) {
 	path := paths.BlobStore.UploadData(sessionID)
 
@@ -109,8 +129,8 @@ func (s *registryService) StatManifest(repository, id string) (*FileInfo, error)
 		return nil, ErrManifestUnknown
 	}
 
-	path := paths.BlobStore.BlobData(digest)
-	info, err := s.store.Stat(path)
+	dataPath := paths.BlobStore.BlobData(digest)
+	info, err := s.store.Stat(dataPath)
 	if errors.Is(err, ErrFileNotFound) {
 		return nil, ErrManifestUnknown
 	}
@@ -130,8 +150,8 @@ func (s *registryService) GetManifest(repository, id string) ([]byte, error) {
 		return nil, ErrManifestUnknown
 	}
 
-	path := paths.BlobStore.BlobData(digest)
-	content, err := s.store.Get(path)
+	dataPath := paths.BlobStore.BlobData(digest)
+	content, err := s.store.Get(dataPath)
 	if errors.Is(err, ErrFileNotFound) {
 		return nil, ErrManifestUnknown
 	}
@@ -145,11 +165,11 @@ func (s *registryService) PutManifest(repository, id string, content []byte) err
 		return ErrDigestInvalid
 	}
 
-	path := paths.BlobStore.BlobData(digest)
-	link := paths.MetaStore.ManifestLink(repository, digest)
+	dataPath := paths.BlobStore.BlobData(digest)
+	linkPath := paths.MetaStore.ManifestLink(repository, digest)
 
-	s.store.Set(path, content)
-	s.store.Set(link, nil)
+	s.store.Set(dataPath, content)
+	s.store.Set(linkPath, nil)
 
 	return nil
 }
@@ -166,13 +186,15 @@ func (s *registryService) DeleteManifest(repository, id string) error {
 		return ErrManifestUnknown
 	}
 
-	path := paths.BlobStore.BlobData(digest)
-	s.store.Delete(path)
+	dataPath := paths.BlobStore.BlobData(digest)
+	s.store.Delete(dataPath)
 	s.store.Delete(linkPath)
 
 	return err
 }
 
+// TODO: This should be able to return errors, and very that upload sessions
+// cannot be overwritten _just in case_ the generated UUID is not unique... lol.
 func (s *registryService) InitUpload(repository string) *UploadSession {
 	sessionID, _ := uuid.NewV7()
 
@@ -206,6 +228,7 @@ func (s *registryService) InitUpload(repository string) *UploadSession {
 	}
 }
 
+// TODO: Verify that this is properly scoped to a repository.
 func (s *registryService) WriteUpload(repository, sessionID string, content []byte) error {
 	dataPath := paths.BlobStore.UploadData(sessionID)
 
@@ -215,7 +238,7 @@ func (s *registryService) WriteUpload(repository, sessionID string, content []by
 	}
 
 	// As of Distribution Spec v1.1, clients and servers do not negotiate
-	// the hashing algorithm. So we have to assume for resumable hashing.
+	// the hashing algorithm. So we have to assume sha256 for resumable hashing.
 	hashPath := paths.MetaStore.UploadHashState(repository, sessionID, "sha256")
 	hashState, err := s.store.Get(hashPath)
 	if err != nil {

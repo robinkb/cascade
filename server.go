@@ -15,8 +15,10 @@ import (
 
 const (
 	headerContentLength = "Content-Length"
+	headerContentRange  = "Content-Range"
 	headerContentType   = "Content-Type"
 	headerLocation      = "Location"
+	headerRange         = "Range"
 
 	contentTypeOctetStream = "application/octet-stream"
 )
@@ -102,6 +104,8 @@ func (s *RegistryServer) blobsUploadsSessionHandler(w http.ResponseWriter, r *ht
 
 func (s *RegistryServer) blobsUploadsHandler(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
+	case http.MethodGet:
+		s.checkUploadHandler(w, r)
 	case http.MethodPut:
 		s.closeUploadHandler(w, r)
 	case http.MethodPatch:
@@ -117,7 +121,7 @@ func (s *RegistryServer) statManifestsHandler(w http.ResponseWriter, r *http.Req
 
 	info, err := s.service.StatManifest(repository, reference)
 	if err != nil {
-		mapError(w, err)
+		writeErrorResponse(w, err)
 		return
 	}
 
@@ -134,7 +138,7 @@ func (s *RegistryServer) getManifestsHandler(w http.ResponseWriter, r *http.Requ
 	var manifest v1.Manifest
 	content, err := s.service.GetManifest(repository, reference)
 	if err != nil {
-		mapError(w, err)
+		writeErrorResponse(w, err)
 		return
 	}
 	json.Unmarshal(content, &manifest)
@@ -151,12 +155,12 @@ func (s *RegistryServer) putManifestsHandler(w http.ResponseWriter, r *http.Requ
 	// The stored manifest must be an exact byte representation.
 	data, err := io.ReadAll(r.Body)
 	if err != nil {
-		mapError(w, err)
+		writeErrorResponse(w, err)
 		return
 	}
 	err = s.service.PutManifest(repository, reference, data)
 	if err != nil {
-		mapError(w, err)
+		writeErrorResponse(w, err)
 		return
 	}
 	w.WriteHeader(http.StatusCreated)
@@ -183,7 +187,7 @@ func (s *RegistryServer) statBlobsHandler(w http.ResponseWriter, r *http.Request
 	digest := r.PathValue("digest")
 
 	if _, err := s.service.StatBlob(repository, digest); err != nil {
-		mapError(w, err)
+		writeErrorResponse(w, err)
 		return
 	}
 
@@ -196,7 +200,7 @@ func (s *RegistryServer) getBlobsHandler(w http.ResponseWriter, r *http.Request)
 
 	content, err := s.service.GetBlob(repository, digest)
 	if err != nil {
-		mapError(w, err)
+		writeErrorResponse(w, err)
 		return
 	}
 
@@ -206,9 +210,28 @@ func (s *RegistryServer) getBlobsHandler(w http.ResponseWriter, r *http.Request)
 
 func (s *RegistryServer) initUploadHandler(w http.ResponseWriter, r *http.Request) {
 	repository := r.PathValue("repository")
+
 	session := s.service.InitUpload(repository)
 	w.Header().Set(headerLocation, session.Location)
 	w.WriteHeader(http.StatusAccepted)
+}
+
+func (s *RegistryServer) checkUploadHandler(w http.ResponseWriter, r *http.Request) {
+	repository := r.PathValue("repository")
+	reference := r.PathValue("reference")
+
+	_, err := s.service.StatUpload(repository, reference)
+	if err != nil {
+		writeErrorResponse(w, err)
+		return
+	}
+
+	// TODO: This is not the only place where this is generated.
+	location := fmt.Sprintf("/v2/%s/blobs/uploads/%s", repository, reference)
+
+	w.Header().Set(headerLocation, location)
+	w.Header().Set(headerRange, "0")
+	w.WriteHeader(http.StatusNoContent)
 }
 
 func (s *RegistryServer) writeUploadHandler(w http.ResponseWriter, r *http.Request) {
@@ -236,7 +259,7 @@ func (s *RegistryServer) closeUploadHandler(w http.ResponseWriter, r *http.Reque
 
 	_, err := s.service.StatUpload(repository, reference)
 	if err != nil {
-		mapError(w, err)
+		writeErrorResponse(w, err)
 		return
 	}
 
@@ -279,7 +302,7 @@ func (s *RegistryServer) closeUploadHandler(w http.ResponseWriter, r *http.Reque
 
 // This is starting to feel like the wrong approach.
 // ErrDigestInvalid should definitely not result in a 404 in most cases.
-func mapError(w http.ResponseWriter, err error) {
+func writeErrorResponse(w http.ResponseWriter, err error) {
 	var response *ErrorResponse
 	code := http.StatusInternalServerError
 

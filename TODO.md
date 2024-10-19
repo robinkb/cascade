@@ -12,16 +12,18 @@
   - [ ] Must as a tag be at most 128 characters in length
   - [ ] Must as a tag conform to regex `[a-zA-Z0-9_][a-zA-Z0-9._-]{0,127}`
 - [ ] GET blobs should support `Range` request header in accordance to [RFC 9110](https://www.rfc-editor.org/rfc/rfc9110.html#name-range-requests)
-- [ ] Blobs should be linked in repositories to ensure that only blobs that are referenced in a repository are pullable.
+- [x] Blobs should be linked in repositories to ensure that only blobs that are referenced in a repository are pullable.
 
 ## Push
 
- - [ ] Pushing a blob in chunks
+ - [x] Pushing a blob in chunks
    - [ ] Get current upload status
-   - [ ] Calculate the digest server-side
+   - [x] Calculate the digest server-side
+     - [ ] Write the test to verify that sending a wrong digest errors out
    - [ ] Verify Content-Range in request
  - [ ] Mounting a blob from another repository
  - [ ] Push manifests with subject
+ - [ ] Push tags
 
 ## Content Discovery
 
@@ -31,5 +33,5 @@
 ## Content Management
 
 - [ ] Deleting tags
-- [ ] Deleting manifests
+- [x] Deleting manifests
 - [ ] Deleting blobs

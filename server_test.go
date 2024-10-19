@@ -7,12 +7,11 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
-	"net/url"
 	"reflect"
 	"strconv"
-	"strings"
 	"testing"
 
 	"github.com/opencontainers/go-digest"
@@ -195,11 +194,11 @@ func TestStatBlob(t *testing.T) {
 	server := NewRegistryServer(service)
 
 	service.store.Set(paths.MetaStore.LayerLink("library/fedora", "sha256:6c3c624b58dbbcd3c0dd82b4c53f04194d1247c6eebdaab7c610cf7d66709b3b"), nil)
-	service.store.Set(paths.BlobStore.BlobData("sha256:6c3c624b58dbbcd3c0dd82b4c53f04194d1247c6eebdaab7c610cf7d66709b3b"), []byte("my blob content"))
-	service.store.Set(paths.BlobStore.BlobData("sha256:d0dc9f3a77cfc4c7d8408016c721d12559fcc40a07aca3826622f68fe6215aa9/data"), []byte("my other blob content"))
+	service.store.Set(paths.BlobStore.BlobData("sha256:6c3c624b58dbbcd3c0dd82b4c53f04194d1247c6eebdaab7c610cf7d66709b3b"), []byte("my layer content"))
+	service.store.Set(paths.BlobStore.BlobData("sha256:d0dc9f3a77cfc4c7d8408016c721d12559fcc40a07aca3826622f68fe6215aa9/data"), []byte("my other layer content"))
 
-	t.Run("check if blob exists", func(t *testing.T) {
-		request := newCheckBlobRequest("library/fedora", "sha256:6c3c624b58dbbcd3c0dd82b4c53f04194d1247c6eebdaab7c610cf7d66709b3b")
+	t.Run("check if layer exists", func(t *testing.T) {
+		request := newCheckLayerRequest("library/fedora", "sha256:6c3c624b58dbbcd3c0dd82b4c53f04194d1247c6eebdaab7c610cf7d66709b3b")
 		response := httptest.NewRecorder()
 
 		server.ServeHTTP(response, request)
@@ -208,8 +207,8 @@ func TestStatBlob(t *testing.T) {
 		assertResponseBody(t, response.Body.Bytes(), nil)
 	})
 
-	t.Run("known blob in unknown repository returns 404", func(t *testing.T) {
-		request := newCheckBlobRequest("not/known", "sha256:6c3c624b58dbbcd3c0dd82b4c53f04194d1247c6eebdaab7c610cf7d66709b3b")
+	t.Run("known layer in unknown repository returns 404", func(t *testing.T) {
+		request := newCheckLayerRequest("not/known", "sha256:6c3c624b58dbbcd3c0dd82b4c53f04194d1247c6eebdaab7c610cf7d66709b3b")
 		response := httptest.NewRecorder()
 
 		server.ServeHTTP(response, request)
@@ -218,8 +217,8 @@ func TestStatBlob(t *testing.T) {
 		assertErrorInResponseBody(t, response.Body, ErrBlobUnknown)
 	})
 
-	t.Run("unknown blob returns 404", func(t *testing.T) {
-		request := newCheckBlobRequest("library/fedora", "sha256:8029119ed9bf9b748a2233d78e7e124b5c923e1c20a4ec4ea2176b303d2121fa")
+	t.Run("unknown layer returns 404", func(t *testing.T) {
+		request := newCheckLayerRequest("library/fedora", "sha256:8029119ed9bf9b748a2233d78e7e124b5c923e1c20a4ec4ea2176b303d2121fa")
 		response := httptest.NewRecorder()
 
 		server.ServeHTTP(response, request)
@@ -245,39 +244,39 @@ func assertErrorInResponseBody(t *testing.T, body *bytes.Buffer, want Error) {
 	t.Errorf("could not find error in response; got %v, want %v", body, want)
 }
 
-func TestGetBlob(t *testing.T) {
+func TestGetLayer(t *testing.T) {
 	service := NewRegistryService(NewInMemoryStore())
 	server := NewRegistryServer(service)
 
 	service.store.Set(paths.MetaStore.LayerLink("library/fedora", "sha256:6c3c624b58dbbcd3c0dd82b4c53f04194d1247c6eebdaab7c610cf7d66709b3b"), nil)
-	service.store.Set(paths.BlobStore.BlobData("sha256:6c3c624b58dbbcd3c0dd82b4c53f04194d1247c6eebdaab7c610cf7d66709b3b"), []byte("my blob content"))
+	service.store.Set(paths.BlobStore.BlobData("sha256:6c3c624b58dbbcd3c0dd82b4c53f04194d1247c6eebdaab7c610cf7d66709b3b"), []byte("my layer content"))
 	service.store.Set(paths.MetaStore.LayerLink("library/fedora", "sha256:d0dc9f3a77cfc4c7d8408016c721d12559fcc40a07aca3826622f68fe6215aa9"), nil)
-	service.store.Set(paths.BlobStore.BlobData("sha256:d0dc9f3a77cfc4c7d8408016c721d12559fcc40a07aca3826622f68fe6215aa9"), []byte("my other blob content"))
+	service.store.Set(paths.BlobStore.BlobData("sha256:d0dc9f3a77cfc4c7d8408016c721d12559fcc40a07aca3826622f68fe6215aa9"), []byte("my other layer content"))
 	service.store.Set(paths.MetaStore.LayerLink("containers/skopeo", "sha256:090d62172504756bea09f64a28920d4f13ab6d375d436f936967f5fe4bd98a64"), nil)
 	service.store.Set(paths.BlobStore.BlobData("sha256:090d62172504756bea09f64a28920d4f13ab6d375d436f936967f5fe4bd98a64"), []byte("skopeo container content"))
 
-	t.Run("get blob for library/fedora", func(t *testing.T) {
-		request := newGetBlobRequest("library/fedora", "sha256:6c3c624b58dbbcd3c0dd82b4c53f04194d1247c6eebdaab7c610cf7d66709b3b")
+	t.Run("get layer for library/fedora", func(t *testing.T) {
+		request := newGetLayerRequest("library/fedora", "sha256:6c3c624b58dbbcd3c0dd82b4c53f04194d1247c6eebdaab7c610cf7d66709b3b")
 		response := httptest.NewRecorder()
 
 		server.ServeHTTP(response, request)
 
 		assertStatus(t, response.Code, http.StatusOK)
-		assertResponseBody(t, response.Body.Bytes(), []byte("my blob content"))
+		assertResponseBody(t, response.Body.Bytes(), []byte("my layer content"))
 	})
 
-	t.Run("get other blob for library/fedora", func(t *testing.T) {
-		request := newGetBlobRequest("library/fedora", "sha256:d0dc9f3a77cfc4c7d8408016c721d12559fcc40a07aca3826622f68fe6215aa9")
+	t.Run("get other layer for library/fedora", func(t *testing.T) {
+		request := newGetLayerRequest("library/fedora", "sha256:d0dc9f3a77cfc4c7d8408016c721d12559fcc40a07aca3826622f68fe6215aa9")
 		response := httptest.NewRecorder()
 
 		server.ServeHTTP(response, request)
 
 		assertStatus(t, response.Code, http.StatusOK)
-		assertResponseBody(t, response.Body.Bytes(), []byte("my other blob content"))
+		assertResponseBody(t, response.Body.Bytes(), []byte("my other layer content"))
 	})
 
-	t.Run("get blob for containers/skopeo", func(t *testing.T) {
-		request := newGetBlobRequest("containers/skopeo", "sha256:090d62172504756bea09f64a28920d4f13ab6d375d436f936967f5fe4bd98a64")
+	t.Run("get layer for containers/skopeo", func(t *testing.T) {
+		request := newGetLayerRequest("containers/skopeo", "sha256:090d62172504756bea09f64a28920d4f13ab6d375d436f936967f5fe4bd98a64")
 		response := httptest.NewRecorder()
 
 		server.ServeHTTP(response, request)
@@ -286,8 +285,8 @@ func TestGetBlob(t *testing.T) {
 		assertResponseBody(t, response.Body.Bytes(), []byte("skopeo container content"))
 	})
 
-	t.Run("returns 404 on missing blob", func(t *testing.T) {
-		request := newGetBlobRequest("library/fedora", "sha256:sha256:ee0235dbf464273241b2bb74b883b4f1a6bf6d8c324b7e51d1eb0a2fb6539fdc")
+	t.Run("returns 404 on unknown layer", func(t *testing.T) {
+		request := newGetLayerRequest("library/fedora", "sha256:sha256:ee0235dbf464273241b2bb74b883b4f1a6bf6d8c324b7e51d1eb0a2fb6539fdc")
 		response := httptest.NewRecorder()
 
 		server.ServeHTTP(response, request)
@@ -297,38 +296,61 @@ func TestGetBlob(t *testing.T) {
 	})
 }
 
-func TestBlobUploadsMonolithic(t *testing.T) {
+func TestLayerUploadSession(t *testing.T) {
 	service := NewRegistryService(NewInMemoryStore())
 	server := NewRegistryServer(service)
 
-	t.Run("POST /blobs/uploads/", func(t *testing.T) {
+	t.Run("Initialize upload session and check its status", func(t *testing.T) {
 		// Initialize the upload session by obtaining an ID.
 		repository := "library/fedora"
-		request, _ := http.NewRequest(http.MethodPost, "/v2/library/fedora/blobs/uploads/", nil)
+		request := newInitUploadRequest(repository)
 		response := httptest.NewRecorder()
 
 		server.ServeHTTP(response, request)
 
 		assertStatus(t, response.Code, http.StatusAccepted)
 		assertHeaderSet(t, headerLocation, response.Header())
+
 		location := response.Header().Get(headerLocation)
-		u, err := url.Parse(location)
-		if err != nil {
-			t.Errorf("failed to parse Location header %q: %v", location, err)
-		}
 
-		segments := strings.Split(u.Path, "/")
-		sessionId := segments[len(segments)-1]
+		request = newCheckUploadRequest(location)
+		response = httptest.NewRecorder()
 
-		_, err = server.service.StatUpload(repository, sessionId)
-		assertNoError(t, err)
+		server.ServeHTTP(response, request)
+
+		assertStatus(t, response.Code, http.StatusNoContent)
 	})
 
-	t.Run("PUT /blobs/uploads/{reference} happy path", func(t *testing.T) {
+	t.Run("Checking status of an unknown upload session returns 404 and ErrBlobUploadUnknown", func(t *testing.T) {
+		request := newCheckUploadRequest("/v2/library/fedora/blobs/uploads/123")
+		response := httptest.NewRecorder()
+
+		server.ServeHTTP(response, request)
+
+		assertStatus(t, response.Code, http.StatusNotFound)
+		assertErrorInResponseBody(t, response.Body, ErrBlobUploadUnknown)
+	})
+
+	t.Run("Upload session status with some content written returns correct Range header", func(t *testing.T) {
+		request := newInitUploadRequest("library/fedora")
+		response := httptest.NewRecorder()
+
+		server.ServeHTTP(response, request)
+
+		assertStatus(t, response.Code, http.StatusAccepted)
+
+	})
+}
+
+func TestLayerUploadsMonolithic(t *testing.T) {
+	service := NewRegistryService(NewInMemoryStore())
+	server := NewRegistryServer(service)
+
+	t.Run("Monolithic layer upload - happy path", func(t *testing.T) {
 		session := server.service.InitUpload("library/fedora")
 		content := randomContents(32)
 
-		request := newBlobUploadRequest(session.Location, content)
+		request := newLayerUploadRequest(session.Location, content)
 		response := httptest.NewRecorder()
 
 		server.ServeHTTP(response, request)
@@ -337,14 +359,6 @@ func TestBlobUploadsMonolithic(t *testing.T) {
 		assertHeaderSet(t, headerLocation, response.Header())
 
 		location := response.Header().Get(headerLocation)
-
-		request, _ = http.NewRequest(http.MethodHead, location, nil)
-		response = httptest.NewRecorder()
-
-		server.ServeHTTP(response, request)
-
-		assertStatus(t, response.Code, http.StatusOK)
-
 		request, _ = http.NewRequest(http.MethodGet, location, nil)
 		response = httptest.NewRecorder()
 
@@ -355,7 +369,7 @@ func TestBlobUploadsMonolithic(t *testing.T) {
 	})
 
 	t.Run("PUT /blobs/uploads/{reference} without session returns 404", func(t *testing.T) {
-		request := newBlobUploadRequest("/v2/library/fedora/blobs/uploads/123", nil)
+		request := newLayerUploadRequest("/v2/library/fedora/blobs/uploads/123", nil)
 		response := httptest.NewRecorder()
 
 		server.ServeHTTP(response, request)
@@ -367,7 +381,7 @@ func TestBlobUploadsMonolithic(t *testing.T) {
 	t.Run("PUT /blobs/uploads/{reference} without required headers returns 400", func(t *testing.T) {
 		session := server.service.InitUpload("library/fedora")
 		content := randomContents(32)
-		request := newBlobUploadRequest(session.Location, content)
+		request := newLayerUploadRequest(session.Location, content)
 		request.Header.Del(headerContentType)
 		request.Header.Del(headerContentLength)
 		response := httptest.NewRecorder()
@@ -380,7 +394,7 @@ func TestBlobUploadsMonolithic(t *testing.T) {
 	t.Run("PUT /blobs/uploads/{reference} without digest returns 400", func(t *testing.T) {
 		session := server.service.InitUpload("library/fedora")
 		content := randomContents(32)
-		request := newBlobUploadRequest(session.Location, content)
+		request := newLayerUploadRequest(session.Location, content)
 		request.URL.RawQuery = ""
 		response := httptest.NewRecorder()
 
@@ -392,7 +406,7 @@ func TestBlobUploadsMonolithic(t *testing.T) {
 	t.Run("PUT /blobs/uploads/{reference} with invalid digest returns 400", func(t *testing.T) {
 		session := server.service.InitUpload("library/fedora")
 		content := randomContents(32)
-		request := newBlobUploadRequest(session.Location, content)
+		request := newLayerUploadRequest(session.Location, content)
 		request.URL.RawQuery = "digest=blablabla"
 		response := httptest.NewRecorder()
 
@@ -404,7 +418,7 @@ func TestBlobUploadsMonolithic(t *testing.T) {
 	t.Run("PUT /blobs/uploads/{reference} with wrong digest returns 400", func(t *testing.T) {
 		session := server.service.InitUpload("library/fedora")
 		content := randomContents(32)
-		request := newBlobUploadRequest(session.Location, content)
+		request := newLayerUploadRequest(session.Location, content)
 		response := httptest.NewRecorder()
 
 		otherContent := randomContents(64)
@@ -426,7 +440,7 @@ func TestBlobUploadsChunked(t *testing.T) {
 	t.Run("PATCH /blobs/uploads/{reference} happy path", func(t *testing.T) {
 		// Initialize the upload session by obtaining an ID.
 		// For chunked uploads, header Content-Length: 0 must be set.
-		request, _ := http.NewRequest(http.MethodPost, "/v2/library/fedora/blobs/uploads/", nil)
+		request := newInitUploadRequest("library/fedora")
 		request.Header.Add(headerContentLength, "0")
 		response := httptest.NewRecorder()
 
@@ -444,12 +458,8 @@ func TestBlobUploadsChunked(t *testing.T) {
 		written := 0
 
 		for {
-			patchBuffer := buffer.Next(patchSize)
-			request, _ = http.NewRequest(http.MethodPatch, location, bytes.NewBuffer(patchBuffer))
-			request.Header.Set(headerContentType, contentTypeOctetStream)
-			request.Header.Set("Content-Range", fmt.Sprintf("%d-%d", written, written+patchSize))
-			request.Header.Set("Content-Length", strconv.Itoa(patchSize))
-
+			patch := buffer.Next(patchSize)
+			request = newUploadChunkRequest(location, patch, written)
 			response = httptest.NewRecorder()
 
 			server.ServeHTTP(response, request)
@@ -465,11 +475,7 @@ func TestBlobUploadsChunked(t *testing.T) {
 			location = response.Header().Get(headerLocation)
 		}
 
-		request, _ = http.NewRequest(http.MethodPut, location, nil)
-		query := request.URL.Query()
-		query.Add("digest", digest.String())
-		request.URL.RawQuery = query.Encode()
-
+		request = newCloseUploadRequest(location, digest.String(), nil)
 		response = httptest.NewRecorder()
 
 		server.ServeHTTP(response, request)
@@ -489,17 +495,50 @@ func TestBlobUploadsChunked(t *testing.T) {
 	})
 }
 
-func newGetBlobRequest(name, digest string) *http.Request {
+func newInitUploadRequest(name string) *http.Request {
+	req, _ := http.NewRequest(http.MethodPost, fmt.Sprintf("/v2/%s/blobs/uploads/", name), nil)
+	return req
+}
+
+func newCheckUploadRequest(location string) *http.Request {
+	req, _ := http.NewRequest(http.MethodGet, location, nil)
+	return req
+}
+
+func newUploadChunkRequest(location string, content []byte, written int) *http.Request {
+	size := len(content)
+	buf := bytes.NewBuffer(content)
+	req, _ := http.NewRequest(http.MethodPatch, location, buf)
+	req.Header.Set(headerContentType, contentTypeOctetStream)
+	req.Header.Set(headerContentRange, fmt.Sprintf("%d-%d", written, written+size))
+	req.Header.Set(headerContentLength, strconv.Itoa(size))
+	return req
+}
+
+func newCloseUploadRequest(location, digest string, content []byte) *http.Request {
+	var body io.Reader
+	if len(content) > 0 {
+		body = bytes.NewBuffer(content)
+	}
+
+	req, _ := http.NewRequest(http.MethodPut, location, body)
+	query := req.URL.Query()
+	query.Set("digest", digest)
+	req.URL.RawQuery = query.Encode()
+	return req
+}
+
+func newGetLayerRequest(name, digest string) *http.Request {
 	req, _ := http.NewRequest(http.MethodGet, fmt.Sprintf("/v2/%s/blobs/%s", name, digest), nil)
 	return req
 }
 
-func newCheckBlobRequest(name, digest string) *http.Request {
+func newCheckLayerRequest(name, digest string) *http.Request {
 	req, _ := http.NewRequest(http.MethodHead, fmt.Sprintf("/v2/%s/blobs/%s", name, digest), nil)
 	return req
 }
 
-func newBlobUploadRequest(location string, content []byte) *http.Request {
+func newLayerUploadRequest(location string, content []byte) *http.Request {
 	id := digest.FromBytes(content)
 
 	req, _ := http.NewRequest(http.MethodPut, location, bytes.NewBuffer(content))
