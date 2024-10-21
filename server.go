@@ -133,6 +133,11 @@ func (s *RegistryServer) getManifestsHandler(w http.ResponseWriter, r *http.Requ
 	repository := r.PathValue("repository")
 	reference := r.PathValue("reference")
 
+	// If the reference is a tag, fetch the digest first.
+	if validateTag(reference) {
+		reference, _ = s.service.GetTag(repository, reference)
+	}
+
 	// TODO: This is doing too much. GetManifest should verify the Manifest,
 	// and return the media type.
 	var manifest v1.Manifest
@@ -247,6 +252,7 @@ func (s *RegistryServer) writeUploadHandler(w http.ResponseWriter, r *http.Reque
 	givenStart, givenEnd, err := parseContentRange(r.Header.Get(headerContentRange))
 	if err != nil {
 		writeErrorResponse(w, err)
+		return
 	}
 
 	if info.Size != int64(givenStart) {

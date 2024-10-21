@@ -40,8 +40,9 @@ func TestManifests(t *testing.T) {
 
 	service.store.Set(paths.BlobStore.BlobData("sha256:0538c8bd672371fd3bc9eafb2500c046b7334e823b6682a11ea04d843c14cea9"), []byte(`{"mediaType":"something"}`))
 	service.store.Set(paths.MetaStore.ManifestLink("library/fedora", "sha256:0538c8bd672371fd3bc9eafb2500c046b7334e823b6682a11ea04d843c14cea9"), nil)
+	service.store.Set(paths.MetaStore.TagLink("library/fedora", "40"), []byte("sha256:0538c8bd672371fd3bc9eafb2500c046b7334e823b6682a11ea04d843c14cea9"))
 
-	t.Run("Test HEAD /manifests", func(t *testing.T) {
+	t.Run("Stat existing manifest", func(t *testing.T) {
 		request := newHeadManifestRequest("library/fedora", "sha256:0538c8bd672371fd3bc9eafb2500c046b7334e823b6682a11ea04d843c14cea9")
 		response := httptest.NewRecorder()
 
@@ -52,7 +53,7 @@ func TestManifests(t *testing.T) {
 		assertResponseBody(t, response.Body.Bytes(), nil)
 	})
 
-	t.Run("Test HEAD /manifests on non-existent manifest", func(t *testing.T) {
+	t.Run("Stat non-existent manifest", func(t *testing.T) {
 		request := newHeadManifestRequest("non/existent", "sha256:c9108d165db831a21e1797902d2fb81d57231978d164752225492585e5ca61b3")
 		response := httptest.NewRecorder()
 
@@ -62,13 +63,14 @@ func TestManifests(t *testing.T) {
 		assertErrorInResponseBody(t, response.Body, ErrManifestUnknown)
 	})
 
-	t.Run("Test GET /manifests", func(t *testing.T) {
+	t.Run("Fetch an existing manifest", func(t *testing.T) {
 		request := newGetManifestRequest("library/fedora", "sha256:0538c8bd672371fd3bc9eafb2500c046b7334e823b6682a11ea04d843c14cea9")
 		response := httptest.NewRecorder()
 
 		server.ServeHTTP(response, request)
 
 		assertStatus(t, response.Code, http.StatusOK)
+		// TODO: This should be fixed :)
 		assertHeader(t, headerContentType, response.Header(), "something")
 
 		var got v1.Manifest
@@ -78,7 +80,7 @@ func TestManifests(t *testing.T) {
 		}
 	})
 
-	t.Run("Test GET /manifests on non-existent manifest", func(t *testing.T) {
+	t.Run("Fetch a non-existent manifest", func(t *testing.T) {
 		request := newGetManifestRequest("non/existent", "sha256:c9108d165db831a21e1797902d2fb81d57231978d164752225492585e5ca61b3")
 		response := httptest.NewRecorder()
 
@@ -88,7 +90,7 @@ func TestManifests(t *testing.T) {
 		assertErrorInResponseBody(t, response.Body, ErrManifestUnknown)
 	})
 
-	t.Run("Test PUT /manifests", func(t *testing.T) {
+	t.Run("Upload a manifest", func(t *testing.T) {
 		manifest := []byte(`{"mediaType":"something"}`)
 		digest := "sha256:0538c8bd672371fd3bc9eafb2500c046b7334e823b6682a11ea04d843c14cea9"
 		request := newPutManifestRequest("library/fedora", digest, manifest)
@@ -106,7 +108,7 @@ func TestManifests(t *testing.T) {
 		assertResponseBody(t, response.Body.Bytes(), manifest)
 	})
 
-	t.Run("Test PUT /manifests with invalid content", func(t *testing.T) {
+	t.Run("Upload a manifest with invalid content", func(t *testing.T) {
 		// TODO: Fix
 		t.SkipNow()
 
@@ -120,7 +122,7 @@ func TestManifests(t *testing.T) {
 		assertStatus(t, response.Code, http.StatusBadRequest)
 	})
 
-	t.Run("delete manifest returns 202 and is not retrievable", func(t *testing.T) {
+	t.Run("Delete manifest and make sure it's not retrievable", func(t *testing.T) {
 		repository := "g/h"
 		content := randomContents(32)
 		digest := fmt.Sprintf("sha256:%x", sha256.Sum256(content))
@@ -149,7 +151,7 @@ func TestManifests(t *testing.T) {
 		assertStatus(t, response.Code, http.StatusNotFound)
 	})
 
-	t.Run("delete non-existent manifest returns 404", func(t *testing.T) {
+	t.Run("Deleting an unknown manifest returns an error", func(t *testing.T) {
 		request := newDeleteManifestRequest("dont/exist", "sha256:ce5449ab65895b60068d164e81b646753d268583a70895acee51e1d711ddf3a2")
 		response := httptest.NewRecorder()
 
@@ -159,7 +161,27 @@ func TestManifests(t *testing.T) {
 		assertErrorInResponseBody(t, response.Body, ErrManifestUnknown)
 	})
 
-	t.Run("other methods return 405", func(t *testing.T) {
+	t.Run("Get a manifest by tag", func(t *testing.T) {
+		request := newGetManifestRequest("library/fedora", "40")
+		response := httptest.NewRecorder()
+
+		server.ServeHTTP(response, request)
+
+		assertStatus(t, response.Code, http.StatusOK)
+		assertResponseBody(t, response.Body.Bytes(), []byte(`{"mediaType":"something"}`))
+	})
+
+	t.Run("Upload a manifest by tag", func(t *testing.T) {
+		content := []byte(`{"mediaType":"something.else"}`)
+		request := newPutManifestRequest("library/fedora", "41", content)
+		response := httptest.NewRecorder()
+
+		server.ServeHTTP(response, request)
+
+		assertStatus(t, response.Code, http.StatusAccepted)
+	})
+
+	t.Run("Other methods are not allowed", func(t *testing.T) {
 		request, _ := http.NewRequest(http.MethodTrace, "/v2/library/fedora/manifests/1.0.0", nil)
 		response := httptest.NewRecorder()
 

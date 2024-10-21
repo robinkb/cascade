@@ -29,6 +29,7 @@ MetaStore
     │           └── link
     ├── tags
     │   └── <tag>
+    │       └── link
     └── uploads
         └── <sessionId>
             ├── hashState
@@ -62,8 +63,8 @@ func (m *metaStore) ManifestLink(repository string, digest digest.Digest) string
 	return fmt.Sprintf("%s/manifests/%s/%s/link", repository, digest.Algorithm(), digest.Encoded())
 }
 
-func (m *metaStore) Tag(repository, tag string) string {
-	return fmt.Sprintf("%s/tags/%s", repository, tag)
+func (m *metaStore) TagLink(repository, tag string) string {
+	return fmt.Sprintf("%s/tags/%s/link", repository, tag)
 }
 
 func (m *metaStore) UploadHashState(repository, sessionID string, algorithm digest.Algorithm) string {

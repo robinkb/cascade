@@ -21,6 +21,9 @@ var (
 	ErrDenied              = Error{Code: "DENIED", Message: "requested access to the resource is denied"}
 	ErrUnsupported         = Error{Code: "UNSUPPORTED", Message: "the operation is unsupported"}
 	ErrTooManyRequests     = Error{Code: "TOOMANYREQUESTS", Message: "too many requests"}
+
+	// Extra error codes not defined in the spec.
+	ErrTagInvalid = Error{Code: "TAG_INVALID", Message: "tag invalid"}
 )
 
 func NewErrorResponse(err ...Error) *ErrorResponse {

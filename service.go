@@ -17,10 +17,16 @@ type (
 	RegistryService interface {
 		StatBlob(repository, digest string) (*FileInfo, error)
 		GetBlob(repository, digest string) ([]byte, error)
+
 		StatManifest(repository, reference string) (*FileInfo, error)
 		GetManifest(repository, reference string) ([]byte, error)
 		PutManifest(repository, reference string, content []byte) error
 		DeleteManifest(repository, reference string) error
+
+		GetTag(repository, tag string) (string, error)
+		PutTag(repository, tag, digest string) error
+		DeleteTag(repository, tag string) error
+
 		InitUpload(repository string) *UploadSession
 		StatUpload(repository, sessionID string) (*FileInfo, error)
 		AppendUpload(repository, sessionID string, content []byte) error
@@ -159,8 +165,8 @@ func (s *registryService) GetManifest(repository, id string) ([]byte, error) {
 	return content, err
 }
 
-func (s *registryService) PutManifest(repository, id string, content []byte) error {
-	digest, err := digest.Parse(id)
+func (s *registryService) PutManifest(repository, reference string, content []byte) error {
+	digest, err := digest.Parse(reference)
 	if err != nil {
 		return ErrDigestInvalid
 	}
@@ -191,6 +197,25 @@ func (s *registryService) DeleteManifest(repository, id string) error {
 	s.store.Delete(linkPath)
 
 	return err
+}
+
+func (s *registryService) GetTag(repository, tag string) (string, error) {
+	if !validateTag(tag) {
+		return "", ErrTagInvalid
+	}
+
+	tagLink := paths.MetaStore.TagLink(repository, tag)
+	digest, err := s.store.Get(tagLink)
+
+	return string(digest), err
+}
+
+func (s *registryService) PutTag(repository, tag, digest string) error {
+	return errors.New("not implemented")
+}
+
+func (s *registryService) DeleteTag(repository, tag string) error {
+	return errors.New("not implemented")
 }
 
 // TODO: This should be able to return errors, and very that upload sessions
