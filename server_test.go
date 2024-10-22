@@ -178,7 +178,7 @@ func TestManifests(t *testing.T) {
 
 		server.ServeHTTP(response, request)
 
-		assertStatus(t, response.Code, http.StatusAccepted)
+		assertStatus(t, response.Code, http.StatusCreated)
 	})
 
 	t.Run("Other methods are not allowed", func(t *testing.T) {

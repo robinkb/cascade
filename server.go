@@ -10,6 +10,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/opencontainers/go-digest"
 	v1 "github.com/opencontainers/image-spec/specs-go/v1"
 )
 
@@ -166,17 +167,35 @@ func (s *RegistryServer) putManifestsHandler(w http.ResponseWriter, r *http.Requ
 	repository := r.PathValue("repository")
 	reference := r.PathValue("reference")
 
-	// The stored manifest must be an exact byte representation.
 	data, err := io.ReadAll(r.Body)
 	if err != nil {
 		writeErrorResponse(w, err)
 		return
 	}
-	err = s.service.PutManifest(repository, reference, data)
+
+	digest := digest.FromBytes(data)
+
+	if !validateTag(reference) {
+		if digest.String() != reference {
+			writeErrorResponse(w, ErrDigestInvalid)
+			return
+		}
+	}
+
+	err = s.service.PutManifest(repository, digest.String(), data)
 	if err != nil {
 		writeErrorResponse(w, err)
 		return
 	}
+
+	if validateTag(reference) {
+		err = s.service.PutTag(repository, reference, digest.String())
+		if err != nil {
+			writeErrorResponse(w, err)
+			return
+		}
+	}
+
 	w.WriteHeader(http.StatusCreated)
 }
 
