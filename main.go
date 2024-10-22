@@ -15,6 +15,6 @@ func main() {
 func logger(handler http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		handler.ServeHTTP(w, r)
-		log.Printf("%s %s\n", r.Method, r.URL.Path)
+		log.Printf("%s %s %v\n", r.Method, r.URL.Path, r.Header)
 	})
 }

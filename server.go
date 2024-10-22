@@ -109,7 +109,16 @@ func (s *RegistryServer) blobsUploadsHandler(w http.ResponseWriter, r *http.Requ
 	case http.MethodPut:
 		s.closeUploadHandler(w, r)
 	case http.MethodPatch:
-		s.writeUploadHandler(w, r)
+		if r.Header.Get(headerContentType) == contentTypeOctetStream {
+			if r.Header.Get(headerContentLength) != "" &&
+				r.Header.Get(headerContentRange) != "" {
+				s.chunkedUploadHandler(w, r)
+			} else {
+				s.streamedUploadHandler(w, r)
+			}
+		} else {
+			w.WriteHeader(http.StatusBadRequest)
+		}
 	default:
 		w.WriteHeader(http.StatusMethodNotAllowed)
 	}
@@ -239,7 +248,7 @@ func (s *RegistryServer) checkUploadHandler(w http.ResponseWriter, r *http.Reque
 	w.WriteHeader(http.StatusNoContent)
 }
 
-func (s *RegistryServer) writeUploadHandler(w http.ResponseWriter, r *http.Request) {
+func (s *RegistryServer) chunkedUploadHandler(w http.ResponseWriter, r *http.Request) {
 	repository := r.PathValue("repository")
 	reference := r.PathValue("reference")
 
@@ -285,6 +294,32 @@ func (s *RegistryServer) writeUploadHandler(w http.ResponseWriter, r *http.Reque
 	location := fmt.Sprintf("/v2/%s/blobs/uploads/%s", repository, reference)
 	w.Header().Set(headerLocation, location)
 	w.Header().Set(headerRange, fmt.Sprintf("0-%d", info.Size))
+	w.WriteHeader(http.StatusAccepted)
+}
+
+func (s *RegistryServer) streamedUploadHandler(w http.ResponseWriter, r *http.Request) {
+	repository := r.PathValue("repository")
+	reference := r.PathValue("reference")
+
+	_, err := s.service.StatUpload(repository, reference)
+	if err != nil {
+		writeErrorResponse(w, err)
+		return
+	}
+
+	content, err := io.ReadAll(r.Body)
+	if err != nil {
+		writeErrorResponse(w, err)
+		return
+	}
+
+	if err := s.service.AppendUpload(repository, reference, content); err != nil {
+		writeErrorResponse(w, err)
+		return
+	}
+
+	location := fmt.Sprintf("/v2/%s/blobs/uploads/%s", repository, reference)
+	w.Header().Set(headerLocation, location)
 	w.WriteHeader(http.StatusAccepted)
 }
 

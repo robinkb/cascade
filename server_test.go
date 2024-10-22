@@ -630,6 +630,54 @@ func TestBlobUploadsChunked(t *testing.T) {
 	})
 }
 
+func TestBlobUploadsStreamed(t *testing.T) {
+	service := NewRegistryService(NewInMemoryStore())
+	server := NewRegistryServer(service)
+
+	t.Run("Streamed upload happy path", func(t *testing.T) {
+		// Initialize the upload session by obtaining an ID.
+		request := newInitUploadRequest("library/fedora")
+		response := httptest.NewRecorder()
+
+		server.ServeHTTP(response, request)
+
+		assertStatus(t, response.Code, http.StatusAccepted)
+		assertHeaderSet(t, headerLocation, response.Header())
+
+		location := response.Header().Get(headerLocation)
+
+		content := randomContents(32 * 1024)
+		digest := digest.FromBytes(content)
+		r := bytes.NewReader(content)
+
+		request, _ = http.NewRequest(http.MethodPatch, location, r)
+		request.Header.Set(headerContentType, contentTypeOctetStream)
+		response = httptest.NewRecorder()
+
+		server.ServeHTTP(response, request)
+
+		assertStatus(t, response.Code, http.StatusAccepted)
+
+		request = newCloseUploadRequest(location, digest.String(), nil)
+		response = httptest.NewRecorder()
+
+		server.ServeHTTP(response, request)
+
+		assertStatus(t, response.Code, http.StatusCreated)
+		assertHeaderSet(t, headerLocation, response.Header())
+
+		location = response.Header().Get(headerLocation)
+
+		request, _ = http.NewRequest(http.MethodGet, location, nil)
+		response = httptest.NewRecorder()
+
+		server.ServeHTTP(response, request)
+
+		assertStatus(t, response.Code, http.StatusOK)
+		assertResponseBody(t, response.Body.Bytes(), content)
+	})
+}
+
 func newInitUploadRequest(name string) *http.Request {
 	req, _ := http.NewRequest(http.MethodPost, fmt.Sprintf("/v2/%s/blobs/uploads/", name), nil)
 	return req
