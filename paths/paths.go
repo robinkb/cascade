@@ -55,8 +55,8 @@ var MetaStore metaStore
 
 type metaStore struct{}
 
-func (m *metaStore) LayerLink(repository string, digest digest.Digest) string {
-	return fmt.Sprintf("%s/layers/%s/%s/link", repository, digest.Algorithm(), digest.Encoded())
+func (m *metaStore) BlobLink(repository string, digest digest.Digest) string {
+	return fmt.Sprintf("%s/blobs/%s/%s/link", repository, digest.Algorithm(), digest.Encoded())
 }
 
 func (m *metaStore) ManifestLink(repository string, digest digest.Digest) string {
