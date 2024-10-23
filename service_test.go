@@ -1,6 +1,7 @@
 package cascade
 
 import (
+	"bytes"
 	"crypto/rand"
 	"crypto/sha256"
 	"errors"
@@ -9,9 +10,10 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/robinkb/cascade-registry/paths"
+
 	"github.com/moby/moby/pkg/namesgenerator"
 	"github.com/opencontainers/go-digest"
-	"github.com/robinkb/cascade-registry/paths"
 )
 
 func TestStatBlob(t *testing.T) {
@@ -45,13 +47,31 @@ func TestGetBlob(t *testing.T) {
 	store := NewInMemoryStore()
 	service := NewRegistryService(store)
 
-	t.Run("unknown blob returns ErrBlobUnknown", func(t *testing.T) {
-		_, err := service.GetBlob("a", "b")
+	name, digest, content := randomBlob(32)
+
+	store.Set(paths.BlobStore.BlobData(digest), content)
+	store.Set(paths.MetaStore.BlobLink(name, digest), nil)
+
+	t.Run("Known blob returns content and no error", func(t *testing.T) {
+		data, err := service.GetBlob(name, digest.String())
+		assertContent(t, data, content)
+		assertNoError(t, err)
+	})
+
+	t.Run("Unknown blob returns no content and ErrBlobUnknown", func(t *testing.T) {
+		data, err := service.GetBlob("fake/repository", "blabla")
+		assertContent(t, data, nil)
+		assertErrorIs(t, err, ErrBlobUnknown)
+	})
+
+	t.Run("Known blob on unknown repository still returns no content and ErrBlobUnknown", func(t *testing.T) {
+		data, err := service.GetBlob("fake/repository", digest.String())
+		assertContent(t, data, nil)
 		assertErrorIs(t, err, ErrBlobUnknown)
 	})
 }
 
-func TestServiceUpload(t *testing.T) {
+func TestStatUpload(t *testing.T) {
 	store := NewInMemoryStore()
 	service := NewRegistryService(store)
 
@@ -78,6 +98,36 @@ func TestServiceUpload(t *testing.T) {
 		_, err := service.StatUpload("unknown/repo", "i-dont-exist")
 		assertErrorIs(t, err, ErrBlobUploadUnknown)
 	})
+}
+
+func TestBlobUploadsMonolithic(t *testing.T) {
+	service := NewRegistryService(NewInMemoryStore())
+
+	t.Run("Monolithic blob upload - happy path", func(t *testing.T) {
+		name, digest, content := randomBlob(32)
+
+		session := service.InitUpload(name)
+
+		err := service.AppendUpload(name, session.ID, content)
+		assertNoError(t, err)
+
+		err = service.CloseUpload(name, session.ID, digest.String())
+		assertNoError(t, err)
+
+		data, err := service.GetBlob(name, digest.String())
+		assertContent(t, data, content)
+		assertNoError(t, err)
+	})
+
+	t.Run("Uploading without a session returns ErrBlobUploadUknown", func(t *testing.T) {
+		err := service.AppendUpload("fake", "abc", []byte{})
+		assertErrorIs(t, err, ErrBlobUploadUnknown)
+	})
+}
+
+func TestServiceUpload(t *testing.T) {
+	store := NewInMemoryStore()
+	service := NewRegistryService(store)
 
 	t.Run("written upload is retrievable", func(t *testing.T) {
 		repository := "a/b/c"
@@ -170,6 +220,20 @@ func assertErrorIs(t *testing.T, got, want error) {
 	if !errors.Is(got, want) {
 		t.Errorf("unexpected error: got %q, want %q", got, want)
 	}
+}
+
+func assertContent(t *testing.T, got, want []byte) {
+	t.Helper()
+	if !bytes.Equal(got, want) {
+		t.Errorf("expected contents to be equal")
+	}
+}
+
+func randomBlob(length int64) (name string, id digest.Digest, content []byte) {
+	name = randomName()
+	content = randomContents(length)
+	id = digest.FromBytes(content)
+	return
 }
 
 func randomName() string {

@@ -324,6 +324,19 @@ func TestBlobUploadsStreamed(t *testing.T) {
 	})
 }
 
+func newBlobUploadRequest(location string, content []byte) *http.Request {
+	id := digest.FromBytes(content)
+
+	req, _ := http.NewRequest(http.MethodPut, location, bytes.NewBuffer(content))
+	req.Header.Set(headerContentType, contentTypeOctetStream)
+	req.Header.Set(headerContentLength, fmt.Sprint(len(content)))
+
+	query := req.URL.Query()
+	query.Set("digest", id.String())
+	req.URL.RawQuery = query.Encode()
+	return req
+}
+
 func newCheckUploadRequest(location string) *http.Request {
 	req, _ := http.NewRequest(http.MethodGet, location, nil)
 	return req
