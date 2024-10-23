@@ -16,7 +16,7 @@ import (
 
 func TestManifests(t *testing.T) {
 	store := cascade.NewInMemoryStore()
-	service := cascade.NewRegistryService(cascade.NewInMemoryStore())
+	service := cascade.NewRegistryService(store)
 	server := New(service)
 
 	store.Set(paths.BlobStore.BlobData("sha256:0538c8bd672371fd3bc9eafb2500c046b7334e823b6682a11ea04d843c14cea9"), []byte(`{"mediaType":"something"}`))

@@ -13,15 +13,13 @@ import (
 )
 
 func TestStatBlob(t *testing.T) {
-	store := cascade.NewInMemoryStore()
-	service := cascade.NewRegistryService(store)
-	server := New(service)
+	t.Run("known blob returns 200", func(t *testing.T) {
+		server := New(&StubRegistryService{
+			statBlob: func(repository, digest string) (*cascade.FileInfo, error) {
+				return nil, nil
+			},
+		})
 
-	store.Set(paths.MetaStore.BlobLink("library/fedora", "sha256:6c3c624b58dbbcd3c0dd82b4c53f04194d1247c6eebdaab7c610cf7d66709b3b"), nil)
-	store.Set(paths.BlobStore.BlobData("sha256:6c3c624b58dbbcd3c0dd82b4c53f04194d1247c6eebdaab7c610cf7d66709b3b"), []byte("my blob content"))
-	store.Set(paths.BlobStore.BlobData("sha256:d0dc9f3a77cfc4c7d8408016c721d12559fcc40a07aca3826622f68fe6215aa9/data"), []byte("my other blob content"))
-
-	t.Run("check if blob exists", func(t *testing.T) {
 		request := newCheckBlobRequest("library/fedora", "sha256:6c3c624b58dbbcd3c0dd82b4c53f04194d1247c6eebdaab7c610cf7d66709b3b")
 		response := httptest.NewRecorder()
 
@@ -31,17 +29,13 @@ func TestStatBlob(t *testing.T) {
 		assertResponseBody(t, response.Body.Bytes(), nil)
 	})
 
-	t.Run("known blob in unknown repository returns 404", func(t *testing.T) {
-		request := newCheckBlobRequest("not/known", "sha256:6c3c624b58dbbcd3c0dd82b4c53f04194d1247c6eebdaab7c610cf7d66709b3b")
-		response := httptest.NewRecorder()
-
-		server.ServeHTTP(response, request)
-
-		assertStatus(t, response.Code, http.StatusNotFound)
-		assertErrorInResponseBody(t, response.Body, cascade.ErrBlobUnknown)
-	})
-
 	t.Run("unknown blob returns 404", func(t *testing.T) {
+		server := New(&StubRegistryService{
+			statBlob: func(repository, digest string) (*cascade.FileInfo, error) {
+				return nil, cascade.ErrBlobUnknown
+			},
+		})
+
 		request := newCheckBlobRequest("library/fedora", "sha256:8029119ed9bf9b748a2233d78e7e124b5c923e1c20a4ec4ea2176b303d2121fa")
 		response := httptest.NewRecorder()
 

@@ -6,22 +6,42 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
+	"strings"
 	"testing"
 
+	"github.com/moby/moby/pkg/namesgenerator"
+	"github.com/opencontainers/go-digest"
 	"github.com/robinkb/cascade-registry/paths"
 )
 
-func TestServiceStatBlob(t *testing.T) {
+func TestStatBlob(t *testing.T) {
 	store := NewInMemoryStore()
 	service := NewRegistryService(store)
 
-	t.Run("unknown blob returns ErrBlobUnknown", func(t *testing.T) {
+	name := randomName()
+	content := randomContents(32 * 1024)
+	digest := digest.FromBytes(content)
+
+	store.Set(paths.MetaStore.BlobLink(name, digest), nil)
+	store.Set(paths.BlobStore.BlobData(digest), content)
+
+	t.Run("Known blob returns no error", func(t *testing.T) {
+		_, err := service.StatBlob(name, digest.String())
+		assertNoError(t, err)
+	})
+
+	t.Run("Unknown blob returns ErrBlobUnknown", func(t *testing.T) {
 		_, err := service.StatBlob("a", "b")
+		assertErrorIs(t, err, ErrBlobUnknown)
+	})
+
+	t.Run("Known blob in unknown repository returns ErrBlobUnknown", func(t *testing.T) {
+		_, err := service.StatBlob("fake/repository", digest.String())
 		assertErrorIs(t, err, ErrBlobUnknown)
 	})
 }
 
-func TestServiceGetBlob(t *testing.T) {
+func TestGetBlob(t *testing.T) {
 	store := NewInMemoryStore()
 	service := NewRegistryService(store)
 
@@ -150,6 +170,10 @@ func assertErrorIs(t *testing.T, got, want error) {
 	if !errors.Is(got, want) {
 		t.Errorf("unexpected error: got %q, want %q", got, want)
 	}
+}
+
+func randomName() string {
+	return strings.Replace(namesgenerator.GetRandomName(0), "_", "/", -1)
 }
 
 func randomContents(length int64) []byte {
