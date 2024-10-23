@@ -1,4 +1,4 @@
-package main
+package cascade
 
 import (
 	"encoding"
@@ -200,7 +200,7 @@ func (s *registryService) DeleteManifest(repository, id string) error {
 }
 
 func (s *registryService) GetTag(repository, tag string) (string, error) {
-	if !validateTag(tag) {
+	if !ValidateTag(tag) {
 		return "", ErrTagInvalid
 	}
 
@@ -211,7 +211,7 @@ func (s *registryService) GetTag(repository, tag string) (string, error) {
 }
 
 func (s *registryService) PutTag(repository, tag, digest string) error {
-	if !validateTag(tag) {
+	if !ValidateTag(tag) {
 		return ErrTagInvalid
 	}
 

@@ -1,4 +1,4 @@
-package main
+package server
 
 import (
 	"encoding/json"
@@ -9,9 +9,10 @@ import (
 
 	"github.com/opencontainers/go-digest"
 	v1 "github.com/opencontainers/image-spec/specs-go/v1"
+	"github.com/robinkb/cascade-registry"
 )
 
-func (s *RegistryServer) manifestsHandler(w http.ResponseWriter, r *http.Request) {
+func (s *Server) manifestsHandler(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case http.MethodHead:
 		s.statManifestsHandler(w, r)
@@ -26,7 +27,7 @@ func (s *RegistryServer) manifestsHandler(w http.ResponseWriter, r *http.Request
 	}
 }
 
-func (s *RegistryServer) statManifestsHandler(w http.ResponseWriter, r *http.Request) {
+func (s *Server) statManifestsHandler(w http.ResponseWriter, r *http.Request) {
 	repository := r.PathValue("repository")
 	reference := r.PathValue("reference")
 
@@ -40,12 +41,12 @@ func (s *RegistryServer) statManifestsHandler(w http.ResponseWriter, r *http.Req
 	w.WriteHeader(http.StatusOK)
 }
 
-func (s *RegistryServer) getManifestsHandler(w http.ResponseWriter, r *http.Request) {
+func (s *Server) getManifestsHandler(w http.ResponseWriter, r *http.Request) {
 	repository := r.PathValue("repository")
 	reference := r.PathValue("reference")
 
 	// If the reference is a tag, fetch the digest first.
-	if validateTag(reference) {
+	if cascade.ValidateTag(reference) {
 		reference, _ = s.service.GetTag(repository, reference)
 	}
 
@@ -64,7 +65,7 @@ func (s *RegistryServer) getManifestsHandler(w http.ResponseWriter, r *http.Requ
 	w.Write(content)
 }
 
-func (s *RegistryServer) putManifestsHandler(w http.ResponseWriter, r *http.Request) {
+func (s *Server) putManifestsHandler(w http.ResponseWriter, r *http.Request) {
 	repository := r.PathValue("repository")
 	reference := r.PathValue("reference")
 
@@ -76,9 +77,9 @@ func (s *RegistryServer) putManifestsHandler(w http.ResponseWriter, r *http.Requ
 
 	digest := digest.FromBytes(data)
 
-	if !validateTag(reference) {
+	if !cascade.ValidateTag(reference) {
 		if digest.String() != reference {
-			writeErrorResponse(w, ErrDigestInvalid)
+			writeErrorResponse(w, cascade.ErrDigestInvalid)
 			return
 		}
 	}
@@ -89,7 +90,7 @@ func (s *RegistryServer) putManifestsHandler(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	if validateTag(reference) {
+	if cascade.ValidateTag(reference) {
 		err = s.service.PutTag(repository, reference, digest.String())
 		if err != nil {
 			writeErrorResponse(w, err)
@@ -100,15 +101,15 @@ func (s *RegistryServer) putManifestsHandler(w http.ResponseWriter, r *http.Requ
 	w.WriteHeader(http.StatusCreated)
 }
 
-func (s *RegistryServer) deleteManifestsHandler(w http.ResponseWriter, r *http.Request) {
+func (s *Server) deleteManifestsHandler(w http.ResponseWriter, r *http.Request) {
 	repository := r.PathValue("repository")
 	reference := r.PathValue("reference")
 
 	err := s.service.DeleteManifest(repository, reference)
 	if err != nil {
-		if errors.Is(err, ErrManifestUnknown) {
+		if errors.Is(err, cascade.ErrManifestUnknown) {
 			w.WriteHeader(http.StatusNotFound)
-			json.NewEncoder(w).Encode(NewErrorResponse(err.(Error)))
+			json.NewEncoder(w).Encode(NewErrorResponse(err.(cascade.Error)))
 			return
 		}
 	}

@@ -1,8 +1,8 @@
-package main
+package server
 
 import (
 	"bytes"
-	cryptorand "crypto/rand"
+	"crypto/rand"
 	"encoding/json"
 	"errors"
 
@@ -10,11 +10,13 @@ import (
 	"net/http/httptest"
 	"reflect"
 	"testing"
+
+	"github.com/robinkb/cascade-registry"
 )
 
 func TestRoot(t *testing.T) {
-	service := NewRegistryService(NewInMemoryStore())
-	server := NewRegistryServer(service)
+	service := cascade.NewRegistryService(cascade.NewInMemoryStore())
+	server := New(service)
 
 	t.Run("GET /v2/ should return 200", func(t *testing.T) {
 		request, _ := http.NewRequest(http.MethodGet, "/v2/", nil)
@@ -26,7 +28,15 @@ func TestRoot(t *testing.T) {
 	})
 }
 
-func assertErrorInResponseBody(t *testing.T, body *bytes.Buffer, want Error) {
+func assertNoError(t *testing.T, err error) {
+	t.Helper()
+	if err != nil {
+		t.Errorf("got error where none was expected: %v", err)
+		t.FailNow()
+	}
+}
+
+func assertErrorInResponseBody(t *testing.T, body *bytes.Buffer, want cascade.Error) {
 	t.Helper()
 
 	var errs ErrorResponse
@@ -78,6 +88,6 @@ func assertResponseBody(t *testing.T, got, want []byte) {
 
 func randomContents(length int64) []byte {
 	data := make([]byte, length)
-	cryptorand.Read(data)
+	rand.Read(data)
 	return data
 }

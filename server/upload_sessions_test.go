@@ -1,15 +1,17 @@
-package main
+package server
 
 import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	"github.com/robinkb/cascade-registry"
 )
 
 func TestBlobUploadSession(t *testing.T) {
-	service := NewRegistryService(NewInMemoryStore())
-	server := NewRegistryServer(service)
+	service := cascade.NewRegistryService(cascade.NewInMemoryStore())
+	server := New(service)
 
 	t.Run("Initialize upload session and check its status", func(t *testing.T) {
 		// Initialize the upload session by obtaining an ID.
@@ -41,7 +43,7 @@ func TestBlobUploadSession(t *testing.T) {
 		server.ServeHTTP(response, request)
 
 		assertStatus(t, response.Code, http.StatusNotFound)
-		assertErrorInResponseBody(t, response.Body, ErrBlobUploadUnknown)
+		assertErrorInResponseBody(t, response.Body, cascade.ErrBlobUploadUnknown)
 	})
 
 	t.Run("Upload session status with some content written returns correct Range header", func(t *testing.T) {

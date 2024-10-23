@@ -1,8 +1,4 @@
-package main
-
-import (
-	"strings"
-)
+package cascade
 
 var (
 	// Error codes as defined in the Distribution specification:
@@ -25,25 +21,6 @@ var (
 	// Extra error codes not defined in the spec.
 	ErrTagInvalid = Error{Code: "TAG_INVALID", Message: "tag invalid"}
 )
-
-func NewErrorResponse(err ...Error) *ErrorResponse {
-	return &ErrorResponse{
-		Errors: err,
-	}
-}
-
-type ErrorResponse struct {
-	Errors []Error `json:"errors"`
-}
-
-func (e ErrorResponse) Error() string {
-	errs := make([]string, len(e.Errors))
-	for i := range e.Errors {
-		errs[i] = e.Errors[i].Error()
-	}
-
-	return strings.Join(errs, ", ")
-}
 
 type Error struct {
 	Code    string `json:"code"`

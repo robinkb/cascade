@@ -1,4 +1,4 @@
-package main
+package server
 
 import (
 	"bytes"
@@ -10,16 +10,18 @@ import (
 	"testing"
 
 	v1 "github.com/opencontainers/image-spec/specs-go/v1"
+	"github.com/robinkb/cascade-registry"
 	"github.com/robinkb/cascade-registry/paths"
 )
 
 func TestManifests(t *testing.T) {
-	service := NewRegistryService(NewInMemoryStore())
-	server := NewRegistryServer(service)
+	store := cascade.NewInMemoryStore()
+	service := cascade.NewRegistryService(cascade.NewInMemoryStore())
+	server := New(service)
 
-	service.store.Set(paths.BlobStore.BlobData("sha256:0538c8bd672371fd3bc9eafb2500c046b7334e823b6682a11ea04d843c14cea9"), []byte(`{"mediaType":"something"}`))
-	service.store.Set(paths.MetaStore.ManifestLink("library/fedora", "sha256:0538c8bd672371fd3bc9eafb2500c046b7334e823b6682a11ea04d843c14cea9"), nil)
-	service.store.Set(paths.MetaStore.TagLink("library/fedora", "40"), []byte("sha256:0538c8bd672371fd3bc9eafb2500c046b7334e823b6682a11ea04d843c14cea9"))
+	store.Set(paths.BlobStore.BlobData("sha256:0538c8bd672371fd3bc9eafb2500c046b7334e823b6682a11ea04d843c14cea9"), []byte(`{"mediaType":"something"}`))
+	store.Set(paths.MetaStore.ManifestLink("library/fedora", "sha256:0538c8bd672371fd3bc9eafb2500c046b7334e823b6682a11ea04d843c14cea9"), nil)
+	store.Set(paths.MetaStore.TagLink("library/fedora", "40"), []byte("sha256:0538c8bd672371fd3bc9eafb2500c046b7334e823b6682a11ea04d843c14cea9"))
 
 	t.Run("Stat existing manifest", func(t *testing.T) {
 		request := newHeadManifestRequest("library/fedora", "sha256:0538c8bd672371fd3bc9eafb2500c046b7334e823b6682a11ea04d843c14cea9")
@@ -39,7 +41,7 @@ func TestManifests(t *testing.T) {
 		server.ServeHTTP(response, request)
 
 		assertStatus(t, response.Code, http.StatusNotFound)
-		assertErrorInResponseBody(t, response.Body, ErrManifestUnknown)
+		assertErrorInResponseBody(t, response.Body, cascade.ErrManifestUnknown)
 	})
 
 	t.Run("Fetch an existing manifest", func(t *testing.T) {
@@ -66,7 +68,7 @@ func TestManifests(t *testing.T) {
 		server.ServeHTTP(response, request)
 
 		assertStatus(t, response.Code, http.StatusNotFound)
-		assertErrorInResponseBody(t, response.Body, ErrManifestUnknown)
+		assertErrorInResponseBody(t, response.Body, cascade.ErrManifestUnknown)
 	})
 
 	t.Run("Upload a manifest", func(t *testing.T) {
@@ -137,7 +139,7 @@ func TestManifests(t *testing.T) {
 		server.ServeHTTP(response, request)
 
 		assertStatus(t, response.Code, http.StatusNotFound)
-		assertErrorInResponseBody(t, response.Body, ErrManifestUnknown)
+		assertErrorInResponseBody(t, response.Body, cascade.ErrManifestUnknown)
 	})
 
 	t.Run("Get a manifest by tag", func(t *testing.T) {

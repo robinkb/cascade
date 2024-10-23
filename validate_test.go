@@ -1,4 +1,4 @@
-package main
+package cascade
 
 import "testing"
 
@@ -13,7 +13,7 @@ func TestRepositoryNameValidation(t *testing.T) {
 
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			got := validateRepositoryName(c.name)
+			got := ValidateRepositoryName(c.name)
 			want := c.valid
 
 			if got != want {
@@ -34,7 +34,7 @@ func TestReferenceValidation(t *testing.T) {
 
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			got := validateTag(c.name)
+			got := ValidateTag(c.name)
 			want := c.valid
 
 			if got != want {

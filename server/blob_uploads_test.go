@@ -1,4 +1,4 @@
-package main
+package server
 
 import (
 	"bytes"
@@ -10,11 +10,12 @@ import (
 	"testing"
 
 	"github.com/opencontainers/go-digest"
+	"github.com/robinkb/cascade-registry"
 )
 
 func TestBlobUploadsMonolithic(t *testing.T) {
-	service := NewRegistryService(NewInMemoryStore())
-	server := NewRegistryServer(service)
+	service := cascade.NewRegistryService(cascade.NewInMemoryStore())
+	server := New(service)
 
 	t.Run("Monolithic blob upload - happy path", func(t *testing.T) {
 		session := server.service.InitUpload("library/fedora")
@@ -45,7 +46,7 @@ func TestBlobUploadsMonolithic(t *testing.T) {
 		server.ServeHTTP(response, request)
 
 		assertStatus(t, response.Code, http.StatusNotFound)
-		assertErrorInResponseBody(t, response.Body, ErrBlobUploadUnknown)
+		assertErrorInResponseBody(t, response.Body, cascade.ErrBlobUploadUnknown)
 	})
 
 	t.Run("Uploading without required headers returns 400", func(t *testing.T) {
@@ -100,13 +101,13 @@ func TestBlobUploadsMonolithic(t *testing.T) {
 		server.ServeHTTP(response, request)
 
 		assertStatus(t, response.Code, http.StatusBadRequest)
-		assertErrorInResponseBody(t, response.Body, ErrBlobUploadInvalid)
+		assertErrorInResponseBody(t, response.Body, cascade.ErrBlobUploadInvalid)
 	})
 }
 
 func TestBlobUploadsChunked(t *testing.T) {
-	service := NewRegistryService(NewInMemoryStore())
-	server := NewRegistryServer(service)
+	service := cascade.NewRegistryService(cascade.NewInMemoryStore())
+	server := New(service)
 
 	t.Run("Chunked upload happy path", func(t *testing.T) {
 		// Initialize the upload session by obtaining an ID.
@@ -276,8 +277,8 @@ func TestBlobUploadsChunked(t *testing.T) {
 }
 
 func TestBlobUploadsStreamed(t *testing.T) {
-	service := NewRegistryService(NewInMemoryStore())
-	server := NewRegistryServer(service)
+	service := cascade.NewRegistryService(cascade.NewInMemoryStore())
+	server := New(service)
 
 	t.Run("Streamed upload happy path", func(t *testing.T) {
 		// Initialize the upload session by obtaining an ID.

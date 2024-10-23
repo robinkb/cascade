@@ -1,4 +1,4 @@
-package main
+package cascade
 
 import (
 	"fmt"
@@ -15,10 +15,10 @@ var (
 	reTag            = regexp.MustCompile(fmt.Sprintf("^%s$", tagRegexp))
 )
 
-func validateRepositoryName(name string) bool {
+func ValidateRepositoryName(name string) bool {
 	return reRepositoryName.MatchString(name)
 }
 
-func validateTag(reference string) bool {
+func ValidateTag(reference string) bool {
 	return reTag.MatchString(reference)
 }

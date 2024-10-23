@@ -1,4 +1,4 @@
-package main
+package server
 
 import (
 	"encoding/json"
@@ -6,6 +6,8 @@ import (
 	"net/http"
 	"slices"
 	"strings"
+
+	"github.com/robinkb/cascade-registry"
 )
 
 const (
@@ -18,8 +20,8 @@ const (
 	contentTypeOctetStream = "application/octet-stream"
 )
 
-func NewRegistryServer(service RegistryService) *RegistryServer {
-	s := new(RegistryServer)
+func New(service cascade.RegistryService) *Server {
+	s := new(Server)
 
 	s.service = service
 
@@ -57,8 +59,8 @@ func NewRegistryServer(service RegistryService) *RegistryServer {
 	return s
 }
 
-type RegistryServer struct {
-	service RegistryService
+type Server struct {
+	service cascade.RegistryService
 	http.Handler
 }
 
@@ -69,23 +71,42 @@ func writeErrorResponse(w http.ResponseWriter, err error) {
 	code := http.StatusInternalServerError
 
 	switch {
-	case errors.Is(err, ErrBlobUnknown):
+	case errors.Is(err, cascade.ErrBlobUnknown):
 		code = http.StatusNotFound
-		response = NewErrorResponse(err.(Error))
-	case errors.Is(err, ErrBlobUploadUnknown):
+		response = NewErrorResponse(err.(cascade.Error))
+	case errors.Is(err, cascade.ErrBlobUploadUnknown):
 		code = http.StatusNotFound
-		response = NewErrorResponse(err.(Error))
-	case errors.Is(err, ErrManifestUnknown):
+		response = NewErrorResponse(err.(cascade.Error))
+	case errors.Is(err, cascade.ErrManifestUnknown):
 		code = http.StatusNotFound
-		response = NewErrorResponse(err.(Error))
-	case errors.Is(err, ErrDigestInvalid):
+		response = NewErrorResponse(err.(cascade.Error))
+	case errors.Is(err, cascade.ErrDigestInvalid):
 		code = http.StatusNotFound
-		response = NewErrorResponse(err.(Error))
-	case errors.Is(err, ErrBlobUploadInvalid):
+		response = NewErrorResponse(err.(cascade.Error))
+	case errors.Is(err, cascade.ErrBlobUploadInvalid):
 		code = http.StatusBadRequest
-		response = NewErrorResponse(err.(Error))
+		response = NewErrorResponse(err.(cascade.Error))
 	}
 
 	w.WriteHeader(code)
 	json.NewEncoder(w).Encode(response)
+}
+
+func NewErrorResponse(err ...cascade.Error) *ErrorResponse {
+	return &ErrorResponse{
+		Errors: err,
+	}
+}
+
+type ErrorResponse struct {
+	Errors []cascade.Error `json:"errors"`
+}
+
+func (e ErrorResponse) Error() string {
+	errs := make([]string, len(e.Errors))
+	for i := range e.Errors {
+		errs[i] = e.Errors[i].Error()
+	}
+
+	return strings.Join(errs, ", ")
 }

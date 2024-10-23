@@ -1,8 +1,8 @@
-package main
+package server
 
 import "net/http"
 
-func (s *RegistryServer) blobsHandler(w http.ResponseWriter, r *http.Request) {
+func (s *Server) blobsHandler(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case http.MethodHead:
 		s.statBlobsHandler(w, r)
@@ -13,7 +13,7 @@ func (s *RegistryServer) blobsHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (s *RegistryServer) statBlobsHandler(w http.ResponseWriter, r *http.Request) {
+func (s *Server) statBlobsHandler(w http.ResponseWriter, r *http.Request) {
 	repository := r.PathValue("repository")
 	digest := r.PathValue("digest")
 
@@ -25,7 +25,7 @@ func (s *RegistryServer) statBlobsHandler(w http.ResponseWriter, r *http.Request
 	w.WriteHeader(http.StatusOK)
 }
 
-func (s *RegistryServer) getBlobsHandler(w http.ResponseWriter, r *http.Request) {
+func (s *Server) getBlobsHandler(w http.ResponseWriter, r *http.Request) {
 	repository := r.PathValue("repository")
 	digest := r.PathValue("digest")
 

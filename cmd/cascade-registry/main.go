@@ -3,12 +3,15 @@ package main
 import (
 	"log"
 	"net/http"
+
+	"github.com/robinkb/cascade-registry"
+	"github.com/robinkb/cascade-registry/server"
 )
 
 func main() {
-	store := NewInMemoryStore()
-	service := NewRegistryService(store)
-	server := NewRegistryServer(service)
+	store := cascade.NewInMemoryStore()
+	service := cascade.NewRegistryService(store)
+	server := server.New(service)
 	log.Fatal(http.ListenAndServe(":5000", logger(server)))
 }
 

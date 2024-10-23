@@ -1,4 +1,4 @@
-package main
+package server
 
 import (
 	"bytes"
@@ -8,16 +8,18 @@ import (
 	"testing"
 
 	"github.com/opencontainers/go-digest"
+	"github.com/robinkb/cascade-registry"
 	"github.com/robinkb/cascade-registry/paths"
 )
 
 func TestStatBlob(t *testing.T) {
-	service := NewRegistryService(NewInMemoryStore())
-	server := NewRegistryServer(service)
+	store := cascade.NewInMemoryStore()
+	service := cascade.NewRegistryService(store)
+	server := New(service)
 
-	service.store.Set(paths.MetaStore.BlobLink("library/fedora", "sha256:6c3c624b58dbbcd3c0dd82b4c53f04194d1247c6eebdaab7c610cf7d66709b3b"), nil)
-	service.store.Set(paths.BlobStore.BlobData("sha256:6c3c624b58dbbcd3c0dd82b4c53f04194d1247c6eebdaab7c610cf7d66709b3b"), []byte("my blob content"))
-	service.store.Set(paths.BlobStore.BlobData("sha256:d0dc9f3a77cfc4c7d8408016c721d12559fcc40a07aca3826622f68fe6215aa9/data"), []byte("my other blob content"))
+	store.Set(paths.MetaStore.BlobLink("library/fedora", "sha256:6c3c624b58dbbcd3c0dd82b4c53f04194d1247c6eebdaab7c610cf7d66709b3b"), nil)
+	store.Set(paths.BlobStore.BlobData("sha256:6c3c624b58dbbcd3c0dd82b4c53f04194d1247c6eebdaab7c610cf7d66709b3b"), []byte("my blob content"))
+	store.Set(paths.BlobStore.BlobData("sha256:d0dc9f3a77cfc4c7d8408016c721d12559fcc40a07aca3826622f68fe6215aa9/data"), []byte("my other blob content"))
 
 	t.Run("check if blob exists", func(t *testing.T) {
 		request := newCheckBlobRequest("library/fedora", "sha256:6c3c624b58dbbcd3c0dd82b4c53f04194d1247c6eebdaab7c610cf7d66709b3b")
@@ -36,7 +38,7 @@ func TestStatBlob(t *testing.T) {
 		server.ServeHTTP(response, request)
 
 		assertStatus(t, response.Code, http.StatusNotFound)
-		assertErrorInResponseBody(t, response.Body, ErrBlobUnknown)
+		assertErrorInResponseBody(t, response.Body, cascade.ErrBlobUnknown)
 	})
 
 	t.Run("unknown blob returns 404", func(t *testing.T) {
@@ -46,20 +48,21 @@ func TestStatBlob(t *testing.T) {
 		server.ServeHTTP(response, request)
 
 		assertStatus(t, response.Code, http.StatusNotFound)
-		assertErrorInResponseBody(t, response.Body, ErrBlobUnknown)
+		assertErrorInResponseBody(t, response.Body, cascade.ErrBlobUnknown)
 	})
 }
 
 func TestGetBlob(t *testing.T) {
-	service := NewRegistryService(NewInMemoryStore())
-	server := NewRegistryServer(service)
+	store := cascade.NewInMemoryStore()
+	service := cascade.NewRegistryService(store)
+	server := New(service)
 
-	service.store.Set(paths.MetaStore.BlobLink("library/fedora", "sha256:6c3c624b58dbbcd3c0dd82b4c53f04194d1247c6eebdaab7c610cf7d66709b3b"), nil)
-	service.store.Set(paths.BlobStore.BlobData("sha256:6c3c624b58dbbcd3c0dd82b4c53f04194d1247c6eebdaab7c610cf7d66709b3b"), []byte("my blob content"))
-	service.store.Set(paths.MetaStore.BlobLink("library/fedora", "sha256:d0dc9f3a77cfc4c7d8408016c721d12559fcc40a07aca3826622f68fe6215aa9"), nil)
-	service.store.Set(paths.BlobStore.BlobData("sha256:d0dc9f3a77cfc4c7d8408016c721d12559fcc40a07aca3826622f68fe6215aa9"), []byte("my other blob content"))
-	service.store.Set(paths.MetaStore.BlobLink("containers/skopeo", "sha256:090d62172504756bea09f64a28920d4f13ab6d375d436f936967f5fe4bd98a64"), nil)
-	service.store.Set(paths.BlobStore.BlobData("sha256:090d62172504756bea09f64a28920d4f13ab6d375d436f936967f5fe4bd98a64"), []byte("skopeo container content"))
+	store.Set(paths.MetaStore.BlobLink("library/fedora", "sha256:6c3c624b58dbbcd3c0dd82b4c53f04194d1247c6eebdaab7c610cf7d66709b3b"), nil)
+	store.Set(paths.BlobStore.BlobData("sha256:6c3c624b58dbbcd3c0dd82b4c53f04194d1247c6eebdaab7c610cf7d66709b3b"), []byte("my blob content"))
+	store.Set(paths.MetaStore.BlobLink("library/fedora", "sha256:d0dc9f3a77cfc4c7d8408016c721d12559fcc40a07aca3826622f68fe6215aa9"), nil)
+	store.Set(paths.BlobStore.BlobData("sha256:d0dc9f3a77cfc4c7d8408016c721d12559fcc40a07aca3826622f68fe6215aa9"), []byte("my other blob content"))
+	store.Set(paths.MetaStore.BlobLink("containers/skopeo", "sha256:090d62172504756bea09f64a28920d4f13ab6d375d436f936967f5fe4bd98a64"), nil)
+	store.Set(paths.BlobStore.BlobData("sha256:090d62172504756bea09f64a28920d4f13ab6d375d436f936967f5fe4bd98a64"), []byte("skopeo container content"))
 
 	t.Run("get blob for library/fedora", func(t *testing.T) {
 		request := newGetBlobRequest("library/fedora", "sha256:6c3c624b58dbbcd3c0dd82b4c53f04194d1247c6eebdaab7c610cf7d66709b3b")
@@ -98,7 +101,7 @@ func TestGetBlob(t *testing.T) {
 		server.ServeHTTP(response, request)
 
 		assertStatus(t, response.Code, http.StatusNotFound)
-		assertErrorInResponseBody(t, response.Body, ErrBlobUnknown)
+		assertErrorInResponseBody(t, response.Body, cascade.ErrBlobUnknown)
 	})
 }
 

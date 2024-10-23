@@ -1,6 +1,7 @@
-package main
+package cascade
 
 import (
+	"crypto/rand"
 	"crypto/sha256"
 	"errors"
 	"fmt"
@@ -149,4 +150,10 @@ func assertErrorIs(t *testing.T, got, want error) {
 	if !errors.Is(got, want) {
 		t.Errorf("unexpected error: got %q, want %q", got, want)
 	}
+}
+
+func randomContents(length int64) []byte {
+	data := make([]byte, length)
+	rand.Read(data)
+	return data
 }

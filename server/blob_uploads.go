@@ -1,4 +1,4 @@
-package main
+package server
 
 import (
 	"errors"
@@ -7,9 +7,11 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+
+	"github.com/robinkb/cascade-registry"
 )
 
-func (s *RegistryServer) blobsUploadsHandler(w http.ResponseWriter, r *http.Request) {
+func (s *Server) blobsUploadsHandler(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case http.MethodGet:
 		s.checkUploadHandler(w, r)
@@ -31,7 +33,7 @@ func (s *RegistryServer) blobsUploadsHandler(w http.ResponseWriter, r *http.Requ
 	}
 }
 
-func (s *RegistryServer) checkUploadHandler(w http.ResponseWriter, r *http.Request) {
+func (s *Server) checkUploadHandler(w http.ResponseWriter, r *http.Request) {
 	repository := r.PathValue("repository")
 	reference := r.PathValue("reference")
 
@@ -49,7 +51,7 @@ func (s *RegistryServer) checkUploadHandler(w http.ResponseWriter, r *http.Reque
 	w.WriteHeader(http.StatusNoContent)
 }
 
-func (s *RegistryServer) chunkedUploadHandler(w http.ResponseWriter, r *http.Request) {
+func (s *Server) chunkedUploadHandler(w http.ResponseWriter, r *http.Request) {
 	repository := r.PathValue("repository")
 	reference := r.PathValue("reference")
 
@@ -98,7 +100,7 @@ func (s *RegistryServer) chunkedUploadHandler(w http.ResponseWriter, r *http.Req
 	w.WriteHeader(http.StatusAccepted)
 }
 
-func (s *RegistryServer) streamedUploadHandler(w http.ResponseWriter, r *http.Request) {
+func (s *Server) streamedUploadHandler(w http.ResponseWriter, r *http.Request) {
 	repository := r.PathValue("repository")
 	reference := r.PathValue("reference")
 
@@ -124,7 +126,7 @@ func (s *RegistryServer) streamedUploadHandler(w http.ResponseWriter, r *http.Re
 	w.WriteHeader(http.StatusAccepted)
 }
 
-func (s *RegistryServer) closeUploadHandler(w http.ResponseWriter, r *http.Request) {
+func (s *Server) closeUploadHandler(w http.ResponseWriter, r *http.Request) {
 	repository := r.PathValue("repository")
 	reference := r.PathValue("reference")
 
@@ -158,8 +160,8 @@ func (s *RegistryServer) closeUploadHandler(w http.ResponseWriter, r *http.Reque
 
 	err = s.service.CloseUpload(repository, reference, digest)
 	if err != nil {
-		if errors.Is(err, ErrDigestInvalid) {
-			err = ErrBlobUploadInvalid
+		if errors.Is(err, cascade.ErrDigestInvalid) {
+			err = cascade.ErrBlobUploadInvalid
 		}
 		writeErrorResponse(w, err)
 		return
@@ -171,7 +173,7 @@ func (s *RegistryServer) closeUploadHandler(w http.ResponseWriter, r *http.Reque
 }
 
 func parseContentRange(r string) (start, end int, err error) {
-	err = ErrBlobUploadInvalid
+	err = cascade.ErrBlobUploadInvalid
 
 	parts := strings.Split(r, "-")
 	if len(parts) != 2 {
