@@ -6,7 +6,7 @@ type (
 		GetBlob(repository, digest string) ([]byte, error)
 
 		StatManifest(repository, reference string) (*FileInfo, error)
-		GetManifest(repository, reference string) ([]byte, error)
+		GetManifest(repository, reference string) (*Manifest, error)
 		PutManifest(repository, reference string, content []byte) error
 		DeleteManifest(repository, reference string) error
 

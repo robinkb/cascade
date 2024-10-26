@@ -45,6 +45,6 @@ func TestPutTag(t *testing.T) {
 		gotManifest, err := service.GetManifest(name, gotDigest)
 		assertNoError(t, err)
 
-		assertContent(t, gotManifest, manifest)
+		assertContent(t, gotManifest.Bytes(), manifest)
 	})
 }

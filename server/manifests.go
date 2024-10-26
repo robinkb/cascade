@@ -8,7 +8,6 @@ import (
 	"strconv"
 
 	"github.com/opencontainers/go-digest"
-	v1 "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/robinkb/cascade-registry"
 )
 
@@ -50,19 +49,15 @@ func (s *Server) getManifestsHandler(w http.ResponseWriter, r *http.Request) {
 		reference, _ = s.service.GetTag(repository, reference)
 	}
 
-	// TODO: This is doing too much. GetManifest should verify the Manifest,
-	// and return the media type.
-	var manifest v1.Manifest
-	content, err := s.service.GetManifest(repository, reference)
+	manifest, err := s.service.GetManifest(repository, reference)
 	if err != nil {
 		writeErrorResponse(w, err)
 		return
 	}
-	json.Unmarshal(content, &manifest)
 
 	w.Header().Set(headerContentType, manifest.MediaType)
 	w.WriteHeader(http.StatusOK)
-	w.Write(content)
+	w.Write(manifest.Bytes())
 }
 
 func (s *Server) putManifestsHandler(w http.ResponseWriter, r *http.Request) {

@@ -53,9 +53,9 @@ func TestGetManifests(t *testing.T) {
 	name, digest, manifest := randomManifest()
 
 	t.Run("Retrieving an existing manifest returns 200", func(t *testing.T) {
-		server := New(&StubRegistryService{getManifest: func(repository, reference string) ([]byte, error) {
+		server := New(&StubRegistryService{getManifest: func(repository, reference string) (*cascade.Manifest, error) {
 			if repository == name && reference == digest.String() {
-				return manifest, nil
+				return cascade.NewManifest(manifest)
 			}
 			panic(errDataNotPassedCorrectly)
 		}})
@@ -79,9 +79,9 @@ func TestGetManifests(t *testing.T) {
 				}
 				panic(errDataNotPassedCorrectly)
 			},
-			getManifest: func(repository, reference string) ([]byte, error) {
+			getManifest: func(repository, reference string) (*cascade.Manifest, error) {
 				if repository == name && reference == digest.String() {
-					return manifest, nil
+					return cascade.NewManifest(manifest)
 				}
 				panic(errDataNotPassedCorrectly)
 			},
@@ -97,7 +97,7 @@ func TestGetManifests(t *testing.T) {
 	})
 
 	t.Run("Retrieving a non-existent manifest returns status 404 and ErrManifestUnknown", func(t *testing.T) {
-		server := New(&StubRegistryService{getManifest: func(repository, reference string) ([]byte, error) {
+		server := New(&StubRegistryService{getManifest: func(repository, reference string) (*cascade.Manifest, error) {
 			return nil, cascade.ErrManifestUnknown
 		}})
 		request := newGetManifestRequest("non/existent", "sha256:c9108d165db831a21e1797902d2fb81d57231978d164752225492585e5ca61b3")

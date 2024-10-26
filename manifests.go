@@ -9,6 +9,26 @@ import (
 	"github.com/robinkb/cascade-registry/paths"
 )
 
+func NewManifest(content []byte) (*Manifest, error) {
+	var manifest Manifest
+	err := json.Unmarshal(content, &manifest)
+	if err != nil {
+		err = ErrManifestInvalid
+	}
+	manifest.bytes = content
+
+	return &manifest, err
+}
+
+type Manifest struct {
+	v1.Manifest
+	bytes []byte
+}
+
+func (m *Manifest) Bytes() []byte {
+	return m.bytes
+}
+
 func (s *registryService) StatManifest(repository, id string) (*FileInfo, error) {
 	digest, err := digest.Parse(id)
 	if err != nil {
@@ -30,7 +50,7 @@ func (s *registryService) StatManifest(repository, id string) (*FileInfo, error)
 	return info, err
 }
 
-func (s *registryService) GetManifest(repository, id string) ([]byte, error) {
+func (s *registryService) GetManifest(repository, id string) (*Manifest, error) {
 	digest, err := digest.Parse(id)
 	if err != nil {
 		return nil, ErrBlobUnknown
@@ -48,7 +68,7 @@ func (s *registryService) GetManifest(repository, id string) ([]byte, error) {
 		return nil, ErrManifestUnknown
 	}
 
-	return content, err
+	return NewManifest(content)
 }
 
 func (s *registryService) PutManifest(repository, reference string, content []byte) error {

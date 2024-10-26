@@ -26,7 +26,7 @@ type StubRegistryService struct {
 	getBlob  func(repository, digest string) ([]byte, error)
 
 	statManifest   func(repository, reference string) (*cascade.FileInfo, error)
-	getManifest    func(repository, reference string) ([]byte, error)
+	getManifest    func(repository, reference string) (*cascade.Manifest, error)
 	putManifest    func(repository, reference string, content []byte) error
 	deleteManifest func(repository, reference string) error
 
@@ -49,7 +49,7 @@ func (s *StubRegistryService) GetBlob(repository, digest string) ([]byte, error)
 func (s *StubRegistryService) StatManifest(repository, reference string) (*cascade.FileInfo, error) {
 	return s.statManifest(repository, reference)
 }
-func (s *StubRegistryService) GetManifest(repository, reference string) ([]byte, error) {
+func (s *StubRegistryService) GetManifest(repository, reference string) (*cascade.Manifest, error) {
 	return s.getManifest(repository, reference)
 }
 func (s *StubRegistryService) PutManifest(repository, reference string, content []byte) error {

@@ -60,7 +60,7 @@ func TestGetManifest(t *testing.T) {
 	t.Run("Retrieve an existing manifest", func(t *testing.T) {
 		got, err := service.GetManifest(name, digest.String())
 		assertNoError(t, err)
-		assertContent(t, got, manifest)
+		assertContent(t, got.Bytes(), manifest)
 	})
 
 	t.Run("returns ErrManifestUnknown on unknown manifest", func(t *testing.T) {
@@ -73,7 +73,7 @@ func TestPutManifest(t *testing.T) {
 	store := NewInMemoryStore()
 	service := NewRegistryService(store)
 
-	t.Run("Put a manifest", func(t *testing.T) {
+	t.Run("Put and retrieve a manifest", func(t *testing.T) {
 		name, digest, manifest := randomManifest()
 
 		err := service.PutManifest(name, digest.String(), manifest)
@@ -81,7 +81,7 @@ func TestPutManifest(t *testing.T) {
 
 		got, err := service.GetManifest(name, digest.String())
 		assertNoError(t, err)
-		assertContent(t, got, manifest)
+		assertContent(t, got.Bytes(), manifest)
 	})
 
 	t.Run("Putting a manifest with invalid content returns ErrManifestInvalid", func(t *testing.T) {
