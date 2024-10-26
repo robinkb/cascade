@@ -1,28 +1,32 @@
 package cascade
 
 import (
-	"crypto/sha256"
-	"fmt"
+	"encoding/json"
 	"testing"
+
+	"github.com/opencontainers/go-digest"
+	v1 "github.com/opencontainers/image-spec/specs-go/v1"
+	"github.com/robinkb/cascade-registry/paths"
 )
 
 func TestStatManifest(t *testing.T) {
 	store := NewInMemoryStore()
 	service := NewRegistryService(store)
 
-	t.Run("returns FileInfo on known manifest", func(t *testing.T) {
-		repository := "asflkn/waekln"
-		content := randomContents(32)
-		digest := fmt.Sprintf("sha256:%x", sha256.Sum256(content))
+	name := randomName()
+	manifest, _ := json.Marshal(v1.Manifest{MediaType: v1.MediaTypeImageLayer})
+	digest := digest.FromBytes(manifest)
 
-		err := service.PutManifest(repository, digest, content)
-		assertNoError(t, err)
+	store.Set(paths.BlobStore.BlobData(digest), manifest)
+	store.Set(paths.MetaStore.ManifestLink(name, digest), nil)
+	store.Set(paths.MetaStore.TagLink(name, "40"), []byte(digest.String()))
 
-		info, err := service.StatManifest(repository, digest)
+	t.Run("Returns FileInfo with expected size on known manifest", func(t *testing.T) {
+		info, err := service.StatManifest(name, digest.String())
 		assertNoError(t, err)
 
 		got := info.Size
-		want := int64(len(content))
+		want := int64(len(manifest))
 
 		if got != want {
 			t.Errorf("got size of %d, expected %d", got, want)
@@ -30,8 +34,13 @@ func TestStatManifest(t *testing.T) {
 		assertNoError(t, err)
 	})
 
+	t.Run("Returns ErrManifestUnkonwn on known manifest in other repository", func(t *testing.T) {
+		_, err := service.StatManifest("unknown/repository", digest.String())
+		assertErrorIs(t, err, ErrManifestUnknown)
+	})
+
 	t.Run("returns ErrManifestUnknown on unknown manifest", func(t *testing.T) {
-		_, err := service.StatManifest("do/not", "sha256:ce5449ab65895b60068d164e81b646753d268583a70895acee51e1d711ddf3a2")
+		_, err := service.StatManifest(name, "sha256:ce5449ab65895b60068d164e81b646753d268583a70895acee51e1d711ddf3a2")
 		assertErrorIs(t, err, ErrManifestUnknown)
 	})
 }
@@ -40,8 +49,81 @@ func TestGetManifest(t *testing.T) {
 	store := NewInMemoryStore()
 	service := NewRegistryService(store)
 
+	name := randomName()
+	manifest, _ := json.Marshal(v1.Manifest{MediaType: v1.MediaTypeImageLayer})
+	digest := digest.FromBytes(manifest)
+
+	store.Set(paths.BlobStore.BlobData(digest), manifest)
+	store.Set(paths.MetaStore.ManifestLink(name, digest), nil)
+	store.Set(paths.MetaStore.TagLink(name, "40"), []byte(digest.String()))
+
+	t.Run("Retrieve an existing manifest", func(t *testing.T) {
+		got, err := service.GetManifest(name, digest.String())
+		assertNoError(t, err)
+		assertContent(t, got, manifest)
+	})
+
 	t.Run("returns ErrManifestUnknown on unknown manifest", func(t *testing.T) {
 		_, err := service.GetManifest("i/do/not/exist", "sha256:ce5449ab65895b60068d164e81b646753d268583a70895acee51e1d711ddf3a2")
 		assertErrorIs(t, err, ErrManifestUnknown)
 	})
+}
+
+func TestPutManifest(t *testing.T) {
+	store := NewInMemoryStore()
+	service := NewRegistryService(store)
+
+	t.Run("Put a manifest", func(t *testing.T) {
+		name, digest, manifest := randomManifest()
+
+		err := service.PutManifest(name, digest.String(), manifest)
+		assertNoError(t, err)
+
+		got, err := service.GetManifest(name, digest.String())
+		assertNoError(t, err)
+		assertContent(t, got, manifest)
+	})
+
+	t.Run("Putting a manifest with invalid content returns ErrManifestInvalid", func(t *testing.T) {
+		name, digest, content := randomBlob(32)
+
+		err := service.PutManifest(name, digest.String(), content)
+		assertErrorIs(t, err, ErrManifestInvalid)
+	})
+}
+
+func TestDeleteManifest(t *testing.T) {
+	store := NewInMemoryStore()
+	service := NewRegistryService(store)
+
+	t.Run("Delete manifest and make sure it cannot be retrieved", func(t *testing.T) {
+		name, digest, manifest := randomManifest()
+
+		err := service.PutManifest(name, digest.String(), manifest)
+		assertNoError(t, err)
+
+		_, err = service.StatManifest(name, digest.String())
+		assertNoError(t, err)
+
+		err = service.DeleteManifest(name, digest.String())
+		assertNoError(t, err)
+
+		_, err = service.StatManifest(name, digest.String())
+		assertErrorIs(t, err, ErrManifestUnknown)
+	})
+
+	t.Run("Deleting an unknown manifest returns ErrManifestUknown", func(t *testing.T) {
+		err := service.DeleteManifest("does/not/exist", "123")
+		assertErrorIs(t, err, ErrManifestUnknown)
+	})
+}
+
+func randomManifest() (string, digest.Digest, []byte) {
+	name := randomName()
+	manifest, _ := json.Marshal(v1.Manifest{
+		MediaType: v1.MediaTypeImageLayer,
+	})
+	digest := digest.FromBytes(manifest)
+
+	return name, digest, manifest
 }

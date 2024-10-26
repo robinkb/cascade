@@ -1,9 +1,11 @@
 package cascade
 
 import (
+	"encoding/json"
 	"errors"
 
 	"github.com/opencontainers/go-digest"
+	v1 "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/robinkb/cascade-registry/paths"
 )
 
@@ -55,6 +57,11 @@ func (s *registryService) PutManifest(repository, reference string, content []by
 		return ErrDigestInvalid
 	}
 
+	err = json.Unmarshal(content, &v1.Manifest{})
+	if err != nil {
+		return ErrManifestInvalid
+	}
+
 	dataPath := paths.BlobStore.BlobData(digest)
 	linkPath := paths.MetaStore.ManifestLink(repository, digest)
 
@@ -67,7 +74,7 @@ func (s *registryService) PutManifest(repository, reference string, content []by
 func (s *registryService) DeleteManifest(repository, id string) error {
 	digest, err := digest.Parse(id)
 	if err != nil {
-		return ErrBlobUnknown
+		return ErrManifestUnknown
 	}
 
 	linkPath := paths.MetaStore.ManifestLink(repository, digest)

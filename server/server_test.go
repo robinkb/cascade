@@ -17,6 +17,10 @@ import (
 	"github.com/robinkb/cascade-registry"
 )
 
+var (
+	errDataNotPassedCorrectly = errors.New("data not passed correctly")
+)
+
 type StubRegistryService struct {
 	statBlob func(repository, digest string) (*cascade.FileInfo, error)
 	getBlob  func(repository, digest string) ([]byte, error)
