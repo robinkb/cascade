@@ -12,7 +12,6 @@ import (
 	"github.com/opencontainers/go-digest"
 	v1 "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/robinkb/cascade-registry"
-	"github.com/robinkb/cascade-registry/paths"
 )
 
 func TestStatManifests(t *testing.T) {
@@ -68,12 +67,33 @@ func TestGetManifests(t *testing.T) {
 
 		assertStatus(t, response.Code, http.StatusOK)
 		assertHeader(t, headerContentType, response.Header(), v1.MediaTypeImageLayer)
+		assertResponseBody(t, response.Body.Bytes(), manifest)
+	})
 
-		var got v1.Manifest
-		err := json.NewDecoder(response.Body).Decode(&got)
-		if err != nil {
-			t.Fatalf("Unable to parse response %q from server into %T", response.Body, got)
-		}
+	t.Run("Retrieving a manifest by tag returns 200", func(t *testing.T) {
+		wantTag := "40"
+		server := New(&StubRegistryService{
+			getTag: func(repository, tag string) (string, error) {
+				if repository == name && tag == wantTag {
+					return digest.String(), nil
+				}
+				panic(errDataNotPassedCorrectly)
+			},
+			getManifest: func(repository, reference string) ([]byte, error) {
+				if repository == name && reference == digest.String() {
+					return manifest, nil
+				}
+				panic(errDataNotPassedCorrectly)
+			},
+		})
+
+		request := newGetManifestRequest(name, wantTag)
+		response := httptest.NewRecorder()
+
+		server.ServeHTTP(response, request)
+
+		assertStatus(t, response.Code, http.StatusOK)
+		assertResponseBody(t, response.Body.Bytes(), manifest)
 	})
 
 	t.Run("Retrieving a non-existent manifest returns status 404 and ErrManifestUnknown", func(t *testing.T) {
@@ -91,7 +111,7 @@ func TestGetManifests(t *testing.T) {
 }
 
 func TestPutManifest(t *testing.T) {
-	t.Run("Uploading a manifest returns code 201", func(t *testing.T) {
+	t.Run("Uploading a manifest by digest returns code 201", func(t *testing.T) {
 		name, digest, manifest := randomManifest()
 		server := New(&StubRegistryService{putManifest: func(repository, reference string, content []byte) error {
 			if repository == name && reference == digest.String() && bytes.Equal(content, manifest) {
@@ -104,6 +124,39 @@ func TestPutManifest(t *testing.T) {
 		response := httptest.NewRecorder()
 
 		server.ServeHTTP(response, request)
+
+		assertStatus(t, response.Code, http.StatusCreated)
+		assertResponseBody(t, response.Body.Bytes(), nil)
+	})
+
+	t.Run("Uploading a manifest by tag returns code 201", func(t *testing.T) {
+		wantTag := "0.4.2"
+		putTagCalled := false
+		name, digest, manifest := randomManifest()
+		server := New(&StubRegistryService{
+			putTag: func(repository, tag, id string) error {
+				if repository == name && tag == wantTag && id == digest.String() {
+					putTagCalled = true
+					return nil
+				}
+				panic(errDataNotPassedCorrectly)
+			},
+			putManifest: func(repository, reference string, content []byte) error {
+				if repository == name && reference == digest.String() && bytes.Equal(content, manifest) {
+					return nil
+				}
+				panic(errDataNotPassedCorrectly)
+			},
+		})
+
+		request := newPutManifestRequest(name, wantTag, manifest)
+		response := httptest.NewRecorder()
+
+		server.ServeHTTP(response, request)
+
+		if !putTagCalled {
+			t.Error("service.PutTag was never called")
+		}
 
 		assertStatus(t, response.Code, http.StatusCreated)
 		assertResponseBody(t, response.Body.Bytes(), nil)
@@ -157,36 +210,10 @@ func TestDeleteManifest(t *testing.T) {
 	})
 }
 
-func TestTags(t *testing.T) {
-	store := cascade.NewInMemoryStore()
-	service := cascade.NewRegistryService(store)
-	server := New(service)
-
-	store.Set(paths.BlobStore.BlobData("sha256:0538c8bd672371fd3bc9eafb2500c046b7334e823b6682a11ea04d843c14cea9"), []byte(`{"mediaType":"something"}`))
-	store.Set(paths.MetaStore.ManifestLink("library/fedora", "sha256:0538c8bd672371fd3bc9eafb2500c046b7334e823b6682a11ea04d843c14cea9"), nil)
-	store.Set(paths.MetaStore.TagLink("library/fedora", "40"), []byte("sha256:0538c8bd672371fd3bc9eafb2500c046b7334e823b6682a11ea04d843c14cea9"))
-
-	t.Run("Get a manifest by tag", func(t *testing.T) {
-		request := newGetManifestRequest("library/fedora", "40")
-		response := httptest.NewRecorder()
-
-		server.ServeHTTP(response, request)
-
-		assertStatus(t, response.Code, http.StatusOK)
-		assertResponseBody(t, response.Body.Bytes(), []byte(`{"mediaType":"something"}`))
-	})
-
-	t.Run("Upload a manifest by tag", func(t *testing.T) {
-		content := []byte(`{"mediaType":"something.else"}`)
-		request := newPutManifestRequest("library/fedora", "41", content)
-		response := httptest.NewRecorder()
-
-		server.ServeHTTP(response, request)
-
-		assertStatus(t, response.Code, http.StatusCreated)
-	})
-
+func TestManifestsOthers(t *testing.T) {
 	t.Run("Other methods are not allowed", func(t *testing.T) {
+		server := New(nil)
+
 		request, _ := http.NewRequest(http.MethodTrace, "/v2/library/fedora/manifests/1.0.0", nil)
 		response := httptest.NewRecorder()
 
