@@ -29,7 +29,7 @@ type (
 
 		InitUpload(repository string) *UploadSession
 		StatUpload(repository, sessionID string) (*FileInfo, error)
-		AppendUpload(repository, sessionID string, content []byte) error
+		AppendUpload(repository, sessionID string, content []byte, offset int64) error
 		CloseUpload(repository, id, digest string) error
 	}
 
@@ -223,7 +223,7 @@ func (s *registryService) DeleteTag(repository, tag string) error {
 	return errors.New("not implemented")
 }
 
-// TODO: This should be able to return errors, and very that upload sessions
+// TODO: This should be able to return errors, and verify that upload sessions
 // cannot be overwritten _just in case_ the generated UUID is not unique... lol.
 func (s *registryService) InitUpload(repository string) *UploadSession {
 	sessionID, _ := uuid.NewV7()
@@ -259,12 +259,16 @@ func (s *registryService) InitUpload(repository string) *UploadSession {
 }
 
 // TODO: Verify that this is properly scoped to a repository.
-func (s *registryService) AppendUpload(repository, sessionID string, content []byte) error {
+func (s *registryService) AppendUpload(repository, sessionID string, content []byte, offset int64) error {
 	dataPath := paths.BlobStore.UploadData(sessionID)
 
-	_, err := s.StatUpload(repository, sessionID)
+	info, err := s.StatUpload(repository, sessionID)
 	if err != nil {
 		return err
+	}
+
+	if info.Size != offset {
+		return ErrUploadOffsetInvalid
 	}
 
 	// As of Distribution Spec v1.1, clients and servers do not negotiate

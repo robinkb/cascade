@@ -29,7 +29,7 @@ type StubRegistryService struct {
 
 	initUpload   func(repository string) *cascade.UploadSession
 	statUpload   func(repository, sessionID string) (*cascade.FileInfo, error)
-	appendUpload func(repository, sessionID string, content []byte) error
+	appendUpload func(repository, sessionID string, content []byte, offset int64) error
 	closeUpload  func(repository, id, digest string) error
 }
 
@@ -66,8 +66,8 @@ func (s *StubRegistryService) InitUpload(repository string) *cascade.UploadSessi
 func (s *StubRegistryService) StatUpload(repository, sessionID string) (*cascade.FileInfo, error) {
 	return s.statUpload(repository, sessionID)
 }
-func (s *StubRegistryService) AppendUpload(repository, sessionID string, content []byte) error {
-	return s.appendUpload(repository, sessionID, content)
+func (s *StubRegistryService) AppendUpload(repository, sessionID string, content []byte, size int64) error {
+	return s.appendUpload(repository, sessionID, content, size)
 }
 func (s *StubRegistryService) CloseUpload(repository, id, digest string) error {
 	return s.closeUpload(repository, id, digest)

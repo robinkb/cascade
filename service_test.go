@@ -108,7 +108,7 @@ func TestBlobUploadsMonolithic(t *testing.T) {
 
 		session := service.InitUpload(name)
 
-		err := service.AppendUpload(name, session.ID, content)
+		err := service.AppendUpload(name, session.ID, content, 0)
 		assertNoError(t, err)
 
 		err = service.CloseUpload(name, session.ID, digest.String())
@@ -120,7 +120,7 @@ func TestBlobUploadsMonolithic(t *testing.T) {
 	})
 
 	t.Run("Uploading without a session returns ErrBlobUploadUknown", func(t *testing.T) {
-		err := service.AppendUpload("fake", "abc", []byte{})
+		err := service.AppendUpload("fake", "abc", []byte{}, 0)
 		assertErrorIs(t, err, ErrBlobUploadUnknown)
 	})
 }
@@ -135,7 +135,7 @@ func TestServiceUpload(t *testing.T) {
 
 		session := service.InitUpload(repository)
 
-		err := service.AppendUpload(repository, session.ID, content)
+		err := service.AppendUpload(repository, session.ID, content, 0)
 		assertNoError(t, err)
 
 		got, err := store.Get(paths.BlobStore.UploadData(session.ID))
@@ -152,10 +152,10 @@ func TestServiceUpload(t *testing.T) {
 
 		session := service.InitUpload(repository)
 
-		err := service.AppendUpload(repository, session.ID, content[:16])
+		err := service.AppendUpload(repository, session.ID, content[:16], 0)
 		assertNoError(t, err)
 
-		err = service.AppendUpload(repository, session.ID, content[16:])
+		err = service.AppendUpload(repository, session.ID, content[16:], 16)
 		assertNoError(t, err)
 
 		info, err := service.StatUpload(repository, session.ID)
@@ -170,7 +170,7 @@ func TestServiceUpload(t *testing.T) {
 	})
 
 	t.Run("writing to unknown upload returns ErrBlobUploadUnknown", func(t *testing.T) {
-		err := service.AppendUpload("1/2/3", "i-dont-exist", []byte{})
+		err := service.AppendUpload("1/2/3", "i-dont-exist", []byte{}, 0)
 		assertErrorIs(t, err, ErrBlobUploadUnknown)
 	})
 }

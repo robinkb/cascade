@@ -55,20 +55,9 @@ func (s *Server) chunkedUploadHandler(w http.ResponseWriter, r *http.Request) {
 	repository := r.PathValue("repository")
 	reference := r.PathValue("reference")
 
-	info, err := s.service.StatUpload(repository, reference)
-	if err != nil {
-		writeErrorResponse(w, err)
-		return
-	}
-
 	givenStart, givenEnd, err := parseContentRange(r.Header.Get(headerContentRange))
 	if err != nil {
 		writeErrorResponse(w, err)
-		return
-	}
-
-	if info.Size != int64(givenStart) {
-		w.WriteHeader(http.StatusRequestedRangeNotSatisfiable)
 		return
 	}
 
@@ -78,25 +67,19 @@ func (s *Server) chunkedUploadHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if len(content) != givenEnd-givenStart {
+	if int64(len(content)) != givenEnd-givenStart {
 		w.WriteHeader(http.StatusRequestedRangeNotSatisfiable)
 		return
 	}
 
-	if err := s.service.AppendUpload(repository, reference, content); err != nil {
-		writeErrorResponse(w, err)
-		return
-	}
-
-	info, err = s.service.StatUpload(repository, reference)
-	if err != nil {
+	if err := s.service.AppendUpload(repository, reference, content, givenStart); err != nil {
 		writeErrorResponse(w, err)
 		return
 	}
 
 	location := fmt.Sprintf("/v2/%s/blobs/uploads/%s", repository, reference)
 	w.Header().Set(headerLocation, location)
-	w.Header().Set(headerRange, fmt.Sprintf("0-%d", info.Size))
+	w.Header().Set(headerRange, fmt.Sprintf("0-%d", givenEnd))
 	w.WriteHeader(http.StatusAccepted)
 }
 
@@ -116,7 +99,7 @@ func (s *Server) streamedUploadHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := s.service.AppendUpload(repository, reference, content); err != nil {
+	if err := s.service.AppendUpload(repository, reference, content, 0); err != nil {
 		writeErrorResponse(w, err)
 		return
 	}
@@ -149,7 +132,7 @@ func (s *Server) closeUploadHandler(w http.ResponseWriter, r *http.Request) {
 
 		content, _ := io.ReadAll(r.Body)
 		// TODO: Check this error
-		s.service.AppendUpload(repository, reference, content)
+		s.service.AppendUpload(repository, reference, content, 0)
 	}
 
 	digest := r.URL.Query().Get("digest")
@@ -172,7 +155,7 @@ func (s *Server) closeUploadHandler(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusCreated)
 }
 
-func parseContentRange(r string) (start, end int, err error) {
+func parseContentRange(r string) (start, end int64, err error) {
 	err = cascade.ErrBlobUploadInvalid
 
 	parts := strings.Split(r, "-")
@@ -180,12 +163,12 @@ func parseContentRange(r string) (start, end int, err error) {
 		return
 	}
 
-	start, e := strconv.Atoi(parts[0])
+	start, e := strconv.ParseInt(parts[0], 10, 64)
 	if e != nil {
 		return
 	}
 
-	end, e = strconv.Atoi(parts[1])
+	end, e = strconv.ParseInt(parts[1], 10, 64)
 	if e != nil {
 		return
 	}

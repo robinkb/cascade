@@ -19,7 +19,8 @@ var (
 	ErrTooManyRequests     = Error{Code: "TOOMANYREQUESTS", Message: "too many requests"}
 
 	// Extra error codes not defined in the spec.
-	ErrTagInvalid = Error{Code: "TAG_INVALID", Message: "tag invalid"}
+	ErrTagInvalid          = Error{Code: "TAG_INVALID", Message: "tag invalid"}
+	ErrUploadOffsetInvalid = Error{Code: "UPLOAD_OFFSET_INVALID", Message: "provided upload content range is invalid"}
 )
 
 type Error struct {
