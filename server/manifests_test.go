@@ -75,6 +75,20 @@ func TestStatManifests(t *testing.T) {
 		assertStatus(t, response.Code, http.StatusNotFound)
 		assertErrorInResponseBody(t, response.Body, cascade.ErrManifestUnknown)
 	})
+
+	t.Run("Stat non-existent manifest by tag returns 404 and ErrManifestUknown", func(t *testing.T) {
+		server := New(&StubRegistryService{getTag: func(repository, tag string) (string, error) {
+			return "", cascade.ErrManifestUnknown
+		}})
+
+		request := newHeadManifestRequest("non/existent", "v1.2.3")
+		response := httptest.NewRecorder()
+
+		server.ServeHTTP(response, request)
+
+		assertStatus(t, response.Code, http.StatusNotFound)
+		assertErrorInResponseBody(t, response.Body, cascade.ErrManifestUnknown)
+	})
 }
 
 func TestGetManifests(t *testing.T) {

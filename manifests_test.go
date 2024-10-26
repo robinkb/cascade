@@ -43,6 +43,11 @@ func TestStatManifest(t *testing.T) {
 		_, err := service.StatManifest(name, "sha256:ce5449ab65895b60068d164e81b646753d268583a70895acee51e1d711ddf3a2")
 		assertErrorIs(t, err, ErrManifestUnknown)
 	})
+
+	t.Run("returns ErrManifestUnknown on invalid digest", func(t *testing.T) {
+		_, err := service.StatManifest(name, "sha256:i-am-not-valid-lol")
+		assertErrorIs(t, err, ErrManifestUnknown)
+	})
 }
 
 func TestGetManifest(t *testing.T) {

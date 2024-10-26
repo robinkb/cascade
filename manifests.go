@@ -32,7 +32,7 @@ func (m *Manifest) Bytes() []byte {
 func (s *registryService) StatManifest(repository, id string) (*FileInfo, error) {
 	digest, err := digest.Parse(id)
 	if err != nil {
-		return nil, ErrDigestInvalid
+		return nil, ErrManifestUnknown
 	}
 
 	linkPath := paths.MetaStore.ManifestLink(repository, digest)

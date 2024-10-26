@@ -32,7 +32,12 @@ func (s *Server) statManifestsHandler(w http.ResponseWriter, r *http.Request) {
 
 	// If the reference is a tag, fetch the digest first.
 	if cascade.ValidateTag(reference) {
-		reference, _ = s.service.GetTag(repository, reference)
+		var err error
+		reference, err = s.service.GetTag(repository, reference)
+		if err != nil {
+			writeErrorResponse(w, err)
+			return
+		}
 	}
 
 	info, err := s.service.StatManifest(repository, reference)

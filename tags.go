@@ -13,6 +13,9 @@ func (s *registryService) GetTag(repository, tag string) (string, error) {
 
 	tagLink := paths.MetaStore.TagLink(repository, tag)
 	digest, err := s.store.Get(tagLink)
+	if errors.Is(err, ErrFileNotFound) {
+		err = ErrManifestUnknown
+	}
 
 	return string(digest), err
 }

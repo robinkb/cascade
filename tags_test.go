@@ -7,12 +7,12 @@ import (
 )
 
 func TestGetTag(t *testing.T) {
+	store := NewInMemoryStore()
+	service := NewRegistryService(store)
+
 	t.Run("Manifest digest is retrievable by tag", func(t *testing.T) {
 		name, digest, _ := randomManifest()
 		tag := "v1.2.3"
-
-		store := NewInMemoryStore()
-		service := NewRegistryService(store)
 
 		store.Set(paths.MetaStore.TagLink(name, tag), []byte(digest))
 
@@ -22,6 +22,11 @@ func TestGetTag(t *testing.T) {
 		if got != digest.String() {
 			t.Errorf("wrong digest retrieved; got %s, want %s", got, digest.String())
 		}
+	})
+
+	t.Run("Unknown tag returns ErrManifestUnknown", func(t *testing.T) {
+		_, err := service.GetTag("non/existant", "v1.2.3")
+		assertErrorIs(t, err, ErrManifestUnknown)
 	})
 }
 
