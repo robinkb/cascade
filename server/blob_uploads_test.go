@@ -170,6 +170,63 @@ func TestBlobUploadsChunked(t *testing.T) {
 		assertResponseBody(t, response.Body.Bytes(), content)
 	})
 
+	t.Run("Chunked upload with content in the closing call", func(t *testing.T) {
+		request := newInitUploadRequest("library/fedora")
+		request.Header.Add(headerContentLength, "0")
+		response := httptest.NewRecorder()
+
+		server.ServeHTTP(response, request)
+
+		assertStatus(t, response.Code, http.StatusAccepted)
+
+		location := response.Header().Get(headerLocation)
+
+		// Prepare content to upload
+		content := randomContents(2 * 1024)
+		digest := digest.FromBytes(content)
+		r := bytes.NewReader(content)
+		buffer := make([]byte, 1*1024)
+		written := 0
+
+		n, err := io.ReadFull(r, buffer)
+		assertNoError(t, err)
+
+		// Do an upload
+		request = newUploadChunkRequest(location, buffer, written)
+		response = httptest.NewRecorder()
+		server.ServeHTTP(response, request)
+		written += n
+
+		assertStatus(t, response.Code, http.StatusAccepted)
+		assertHeader(t, headerRange, response.Header(), fmt.Sprintf("0-%d", written))
+
+		// Close the upload with the final chunk.
+		_, err = io.ReadFull(r, buffer)
+		assertNoError(t, err)
+
+		request = newCloseUploadRequest(location, digest.String(), buffer)
+		request.Header.Set(headerContentType, contentTypeOctetStream)
+		request.Header.Set(headerContentLength, strconv.Itoa((len(buffer))))
+		request.Header.Set(headerContentRange, fmt.Sprintf("%d-%d", written, written+len(buffer)))
+		response = httptest.NewRecorder()
+
+		server.ServeHTTP(response, request)
+
+		assertStatus(t, response.Code, http.StatusCreated)
+		assertHeaderSet(t, headerLocation, response.Header())
+
+		location = response.Header().Get(headerLocation)
+
+		// Verify that the content was uploaded successfully.
+		request, _ = http.NewRequest(http.MethodGet, location, nil)
+		response = httptest.NewRecorder()
+
+		server.ServeHTTP(response, request)
+
+		assertStatus(t, response.Code, http.StatusOK)
+		assertResponseBody(t, response.Body.Bytes(), content)
+	})
+
 	t.Run("Chunked upload with dyscalculic client (gets the ranges wrong)", func(t *testing.T) {
 		request := newInitUploadRequest("library/fedora")
 		request.Header.Add(headerContentLength, "0")

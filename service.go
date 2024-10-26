@@ -304,6 +304,11 @@ func (s *registryService) AppendUpload(repository, sessionID string, content []b
 }
 
 func (s *registryService) CloseUpload(repository, sessionID, digest string) error {
+	_, err := s.StatUpload(repository, sessionID)
+	if err != nil {
+		return err
+	}
+
 	id, err := godigest.Parse(digest)
 	if err != nil {
 		return ErrDigestInvalid

@@ -87,12 +87,6 @@ func (s *Server) streamedUploadHandler(w http.ResponseWriter, r *http.Request) {
 	repository := r.PathValue("repository")
 	reference := r.PathValue("reference")
 
-	_, err := s.service.StatUpload(repository, reference)
-	if err != nil {
-		writeErrorResponse(w, err)
-		return
-	}
-
 	content, err := io.ReadAll(r.Body)
 	if err != nil {
 		writeErrorResponse(w, err)
@@ -113,12 +107,6 @@ func (s *Server) closeUploadHandler(w http.ResponseWriter, r *http.Request) {
 	repository := r.PathValue("repository")
 	reference := r.PathValue("reference")
 
-	_, err := s.service.StatUpload(repository, reference)
-	if err != nil {
-		writeErrorResponse(w, err)
-		return
-	}
-
 	// This is either a monolithic upload, or closing a chunked upload
 	// with a final chunk.
 	if r.Body != nil {
@@ -130,9 +118,20 @@ func (s *Server) closeUploadHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
+		// If it's a chunked upload, Content-Range should have the offset.
+		var offset int64
+		if contentRange := r.Header.Get(headerContentRange); contentRange != "" {
+			var err error
+			offset, _, err = parseContentRange(contentRange)
+			if err != nil {
+				writeErrorResponse(w, err)
+				return
+			}
+		}
+
 		content, _ := io.ReadAll(r.Body)
 		// TODO: Check this error
-		s.service.AppendUpload(repository, reference, content, 0)
+		s.service.AppendUpload(repository, reference, content, offset)
 	}
 
 	digest := r.URL.Query().Get("digest")
@@ -141,7 +140,7 @@ func (s *Server) closeUploadHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err = s.service.CloseUpload(repository, reference, digest)
+	err := s.service.CloseUpload(repository, reference, digest)
 	if err != nil {
 		if errors.Is(err, cascade.ErrDigestInvalid) {
 			err = cascade.ErrBlobUploadInvalid
