@@ -109,7 +109,7 @@ func (s *Server) closeUploadHandler(w http.ResponseWriter, r *http.Request) {
 
 	// This is either a monolithic upload, or closing a chunked upload
 	// with a final chunk.
-	if r.Body != http.NoBody {
+	if r.Body != nil && r.Body != http.NoBody {
 		// Content-Type and Content-Length should be set if the request
 		// contains a body.
 		if r.Header.Get(headerContentType) != contentTypeOctetStream ||
