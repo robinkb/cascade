@@ -40,6 +40,10 @@ func TestBlobUploadsMonolithic(t *testing.T) {
 	})
 
 	t.Run("Uploading without session returns 404", func(t *testing.T) {
+		server := New(&StubRegistryService{closeUpload: func(repository, id, digest string) error {
+			return cascade.ErrBlobUploadUnknown
+		}})
+
 		request := newBlobUploadRequest("/v2/library/fedora/blobs/uploads/123", nil)
 		response := httptest.NewRecorder()
 
