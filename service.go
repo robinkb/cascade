@@ -328,7 +328,7 @@ func (s *registryService) CloseUpload(repository, sessionID, digest string) erro
 
 	calculatedId := godigest.NewDigest(godigest.Canonical, hash)
 	if id != calculatedId {
-		return ErrDigestInvalid
+		return ErrBlobUploadInvalid
 	}
 
 	sourcePath := paths.BlobStore.UploadData(sessionID)

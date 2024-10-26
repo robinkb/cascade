@@ -14,22 +14,33 @@ import (
 )
 
 func TestBlobUploadsMonolithic(t *testing.T) {
-	service := cascade.NewRegistryService(cascade.NewInMemoryStore())
-	server := New(service)
-
+	// TODO: This test feels too heavy.
 	t.Run("Monolithic blob upload - happy path", func(t *testing.T) {
-		session := server.service.InitUpload("library/fedora")
-		content := randomContents(32)
+		service := cascade.NewRegistryService(cascade.NewInMemoryStore())
+		server := New(service)
 
-		request := newBlobUploadRequest(session.Location, content)
+		name, digest, content := randomBlob(32)
+
+		request := newInitUploadRequest(name)
 		response := httptest.NewRecorder()
+
+		server.ServeHTTP(response, request)
+
+		assertStatus(t, response.Code, http.StatusAccepted)
+		assertHeaderSet(t, headerLocation, response.Header())
+
+		location := response.Header().Get(headerLocation)
+
+		request = newCloseUploadRequest(location, digest.String(), content)
+		response = httptest.NewRecorder()
 
 		server.ServeHTTP(response, request)
 
 		assertStatus(t, response.Code, http.StatusCreated)
 		assertHeaderSet(t, headerLocation, response.Header())
 
-		location := response.Header().Get(headerLocation)
+		location = response.Header().Get(headerLocation)
+
 		request, _ = http.NewRequest(http.MethodGet, location, nil)
 		response = httptest.NewRecorder()
 
@@ -54,9 +65,10 @@ func TestBlobUploadsMonolithic(t *testing.T) {
 	})
 
 	t.Run("Uploading without required headers returns 400", func(t *testing.T) {
-		session := server.service.InitUpload("library/fedora")
+		server := New(&StubRegistryService{})
 		content := randomContents(32)
-		request := newBlobUploadRequest(session.Location, content)
+
+		request := newBlobUploadRequest("/v2/library/fedora/blobs/uploads/123", content)
 		request.Header.Del(headerContentType)
 		request.Header.Del(headerContentLength)
 		response := httptest.NewRecorder()
@@ -66,10 +78,10 @@ func TestBlobUploadsMonolithic(t *testing.T) {
 		assertStatus(t, response.Code, http.StatusBadRequest)
 	})
 
-	t.Run("Uploading without digest returns 400", func(t *testing.T) {
-		session := server.service.InitUpload("library/fedora")
-		content := randomContents(32)
-		request := newBlobUploadRequest(session.Location, content)
+	t.Run("Closing upload without digest returns 400", func(t *testing.T) {
+		server := New(&StubRegistryService{})
+
+		request := newBlobUploadRequest("/v2/library/fedora/blobs/uploads/123", nil)
 		request.URL.RawQuery = ""
 		response := httptest.NewRecorder()
 
@@ -78,29 +90,28 @@ func TestBlobUploadsMonolithic(t *testing.T) {
 		assertStatus(t, response.Code, http.StatusBadRequest)
 	})
 
-	t.Run("Uploading with invalid digest returns 400", func(t *testing.T) {
-		session := server.service.InitUpload("library/fedora")
-		content := randomContents(32)
-		request := newBlobUploadRequest(session.Location, content)
+	t.Run("Closing upload with invalid digest returns 400", func(t *testing.T) {
+		server := New(&StubRegistryService{closeUpload: func(repository, id, digest string) error {
+			return cascade.ErrDigestInvalid
+		}})
+
+		request := newBlobUploadRequest("/v2/library/fedora/blobs/uploads/123", nil)
 		request.URL.RawQuery = "digest=blablabla"
 		response := httptest.NewRecorder()
 
 		server.ServeHTTP(response, request)
 
 		assertStatus(t, response.Code, http.StatusBadRequest)
+		assertErrorInResponseBody(t, response.Body, cascade.ErrDigestInvalid)
 	})
 
 	t.Run("Uploading with wrong digest returns 400", func(t *testing.T) {
-		session := server.service.InitUpload("library/fedora")
-		content := randomContents(32)
-		request := newBlobUploadRequest(session.Location, content)
-		response := httptest.NewRecorder()
+		server := New(&StubRegistryService{closeUpload: func(repository, id, digest string) error {
+			return cascade.ErrBlobUploadInvalid
+		}})
 
-		otherContent := randomContents(64)
-		id := digest.FromBytes(otherContent)
-		query := request.URL.Query()
-		query.Set("digest", id.String())
-		request.URL.RawQuery = query.Encode()
+		request := newBlobUploadRequest("/v2/library/fedora/blobs/uploads/123", nil)
+		response := httptest.NewRecorder()
 
 		server.ServeHTTP(response, request)
 
@@ -113,10 +124,13 @@ func TestBlobUploadsChunked(t *testing.T) {
 	service := cascade.NewRegistryService(cascade.NewInMemoryStore())
 	server := New(service)
 
+	// TODO: This test feels too heavy.
 	t.Run("Chunked upload happy path", func(t *testing.T) {
+		name, digest, content := randomBlob(16 * 1024)
+
 		// Initialize the upload session by obtaining an ID.
 		// For chunked uploads, header Content-Length: 0 must be set.
-		request := newInitUploadRequest("library/fedora")
+		request := newInitUploadRequest(name)
 		request.Header.Add(headerContentLength, "0")
 		response := httptest.NewRecorder()
 
@@ -127,8 +141,6 @@ func TestBlobUploadsChunked(t *testing.T) {
 
 		location := response.Header().Get(headerLocation)
 
-		content := randomContents(16 * 1024)
-		digest := digest.FromBytes(content)
 		r := bytes.NewReader(content)
 		buffer := make([]byte, 1*1024)
 		written := 0
@@ -175,7 +187,9 @@ func TestBlobUploadsChunked(t *testing.T) {
 	})
 
 	t.Run("Chunked upload with content in the closing call", func(t *testing.T) {
-		request := newInitUploadRequest("library/fedora")
+		name, digest, content := randomBlob(2 * 1024)
+
+		request := newInitUploadRequest(name)
 		request.Header.Add(headerContentLength, "0")
 		response := httptest.NewRecorder()
 
@@ -186,8 +200,6 @@ func TestBlobUploadsChunked(t *testing.T) {
 		location := response.Header().Get(headerLocation)
 
 		// Prepare content to upload
-		content := randomContents(2 * 1024)
-		digest := digest.FromBytes(content)
 		r := bytes.NewReader(content)
 		buffer := make([]byte, 1*1024)
 		written := 0
@@ -209,8 +221,6 @@ func TestBlobUploadsChunked(t *testing.T) {
 		assertNoError(t, err)
 
 		request = newCloseUploadRequest(location, digest.String(), buffer)
-		request.Header.Set(headerContentType, contentTypeOctetStream)
-		request.Header.Set(headerContentLength, strconv.Itoa((len(buffer))))
 		request.Header.Set(headerContentRange, fmt.Sprintf("%d-%d", written, written+len(buffer)))
 		response = httptest.NewRecorder()
 
@@ -232,7 +242,9 @@ func TestBlobUploadsChunked(t *testing.T) {
 	})
 
 	t.Run("Chunked upload with dyscalculic client (gets the ranges wrong)", func(t *testing.T) {
-		request := newInitUploadRequest("library/fedora")
+		name, digest, content := randomBlob(2 * 1024)
+
+		request := newInitUploadRequest(name)
 		request.Header.Add(headerContentLength, "0")
 		response := httptest.NewRecorder()
 
@@ -243,8 +255,6 @@ func TestBlobUploadsChunked(t *testing.T) {
 		location := response.Header().Get(headerLocation)
 
 		// Prepare content to upload
-		content := randomContents(2 * 1024)
-		digest := digest.FromBytes(content)
 		r := bytes.NewReader(content)
 		buffer := make([]byte, 1*1024)
 		written := 0
@@ -342,8 +352,10 @@ func TestBlobUploadsStreamed(t *testing.T) {
 	server := New(service)
 
 	t.Run("Streamed upload happy path", func(t *testing.T) {
+		name, digest, content := randomBlob(32 * 1024)
+
 		// Initialize the upload session by obtaining an ID.
-		request := newInitUploadRequest("library/fedora")
+		request := newInitUploadRequest(name)
 		response := httptest.NewRecorder()
 
 		server.ServeHTTP(response, request)
@@ -353,8 +365,6 @@ func TestBlobUploadsStreamed(t *testing.T) {
 
 		location := response.Header().Get(headerLocation)
 
-		content := randomContents(32 * 1024)
-		digest := digest.FromBytes(content)
 		r := bytes.NewReader(content)
 
 		request, _ = http.NewRequest(http.MethodPatch, location, r)
@@ -414,12 +424,12 @@ func newUploadChunkRequest(location string, content []byte, written int) *http.R
 }
 
 func newCloseUploadRequest(location, digest string, content []byte) *http.Request {
-	var body io.Reader
-	if len(content) > 0 {
-		body = bytes.NewBuffer(content)
-	}
-
+	body := bytes.NewBuffer(content)
 	req, _ := http.NewRequest(http.MethodPut, location, body)
+	if len(content) > 0 {
+		req.Header.Set(headerContentType, contentTypeOctetStream)
+		req.Header.Set(headerContentLength, strconv.Itoa(len(content)))
+	}
 	query := req.URL.Query()
 	query.Set("digest", digest)
 	req.URL.RawQuery = query.Encode()

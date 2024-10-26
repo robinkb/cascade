@@ -123,6 +123,32 @@ func TestBlobUploadsMonolithic(t *testing.T) {
 		err := service.AppendUpload("fake", "abc", []byte{}, 0)
 		assertErrorIs(t, err, ErrBlobUploadUnknown)
 	})
+
+	t.Run("Closing upload with invalid digest returns ErrDigestInvalid", func(t *testing.T) {
+		name, _, content := randomBlob(32)
+		digest := "blablabla"
+
+		session := service.InitUpload(name)
+
+		err := service.AppendUpload(name, session.ID, content[0:16], 0)
+		assertNoError(t, err)
+
+		err = service.CloseUpload(name, session.ID, digest)
+		assertErrorIs(t, err, ErrDigestInvalid)
+	})
+
+	t.Run("Closing upload with wrong digest returns ErrBlobUploadInvalid", func(t *testing.T) {
+		name, digest, _ := randomBlob(32)
+		otherContent := randomContents(32)
+
+		session := service.InitUpload(name)
+
+		err := service.AppendUpload(name, session.ID, otherContent, 0)
+		assertNoError(t, err)
+
+		err = service.CloseUpload(name, session.ID, digest.String())
+		assertErrorIs(t, err, ErrBlobUploadInvalid)
+	})
 }
 
 func TestServiceUpload(t *testing.T) {

@@ -5,12 +5,15 @@ import (
 	"crypto/rand"
 	"encoding/json"
 	"errors"
+	"strings"
 
 	"net/http"
 	"net/http/httptest"
 	"reflect"
 	"testing"
 
+	"github.com/moby/moby/pkg/namesgenerator"
+	"github.com/opencontainers/go-digest"
 	"github.com/robinkb/cascade-registry"
 )
 
@@ -143,6 +146,17 @@ func assertResponseBody(t *testing.T, got, want []byte) {
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("response body did not match the expected content")
 	}
+}
+
+func randomBlob(length int64) (name string, id digest.Digest, content []byte) {
+	name = randomName()
+	content = randomContents(length)
+	id = digest.FromBytes(content)
+	return
+}
+
+func randomName() string {
+	return strings.Replace(namesgenerator.GetRandomName(0), "_", "/", -1)
 }
 
 func randomContents(length int64) []byte {

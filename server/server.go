@@ -81,7 +81,7 @@ func writeErrorResponse(w http.ResponseWriter, err error) {
 		code = http.StatusNotFound
 		response = NewErrorResponse(err.(cascade.Error))
 	case errors.Is(err, cascade.ErrDigestInvalid):
-		code = http.StatusNotFound
+		code = http.StatusBadRequest
 		response = NewErrorResponse(err.(cascade.Error))
 	case errors.Is(err, cascade.ErrBlobUploadInvalid):
 		code = http.StatusBadRequest

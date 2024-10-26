@@ -1,7 +1,6 @@
 package server
 
 import (
-	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -142,9 +141,6 @@ func (s *Server) closeUploadHandler(w http.ResponseWriter, r *http.Request) {
 
 	err := s.service.CloseUpload(repository, reference, digest)
 	if err != nil {
-		if errors.Is(err, cascade.ErrDigestInvalid) {
-			err = cascade.ErrBlobUploadInvalid
-		}
 		writeErrorResponse(w, err)
 		return
 	}
