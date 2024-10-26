@@ -34,6 +34,34 @@ func TestStatManifests(t *testing.T) {
 		assertResponseBody(t, response.Body.Bytes(), nil)
 	})
 
+	t.Run("Stat existing manifest by tag returns 200 with correct size in Content-Length header", func(t *testing.T) {
+		wantTag := "v0.9.1"
+		name, digest, manifest := randomManifest()
+		server := New(&StubRegistryService{
+			getTag: func(repository, tag string) (string, error) {
+				if repository == name && tag == wantTag {
+					return digest.String(), nil
+				}
+				panic(errDataNotPassedCorrectly)
+			},
+			statManifest: func(repository, reference string) (*cascade.FileInfo, error) {
+				if repository == name && reference == digest.String() {
+					return &cascade.FileInfo{Size: int64(len(manifest))}, nil
+				}
+				panic(errDataNotPassedCorrectly)
+			},
+		})
+
+		request := newHeadManifestRequest(name, wantTag)
+		response := httptest.NewRecorder()
+
+		server.ServeHTTP(response, request)
+
+		assertStatus(t, response.Code, http.StatusOK)
+		assertHeader(t, headerContentLength, response.Header(), strconv.Itoa(len(manifest)))
+		assertResponseBody(t, response.Body.Bytes(), nil)
+	})
+
 	t.Run("Stat non-existent manifest returns 404 and ErrManifestUknown", func(t *testing.T) {
 		server := New(&StubRegistryService{statManifest: func(repository, reference string) (*cascade.FileInfo, error) {
 			return nil, cascade.ErrManifestUnknown
