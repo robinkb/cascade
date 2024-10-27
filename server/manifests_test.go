@@ -168,6 +168,7 @@ func TestPutManifest(t *testing.T) {
 		server.ServeHTTP(response, request)
 
 		assertStatus(t, response.Code, http.StatusCreated)
+		assertHeaderSet(t, headerLocation, response.Header())
 		assertResponseBody(t, response.Body.Bytes(), nil)
 	})
 
@@ -201,6 +202,7 @@ func TestPutManifest(t *testing.T) {
 		}
 
 		assertStatus(t, response.Code, http.StatusCreated)
+		assertHeaderSet(t, headerLocation, response.Header())
 		assertResponseBody(t, response.Body.Bytes(), nil)
 	})
 

@@ -3,6 +3,7 @@ package server
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"strconv"
@@ -103,6 +104,7 @@ func (s *Server) putManifestsHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	w.Header().Set(headerLocation, fmt.Sprintf("/v2/%s/manifests/%s", repository, reference))
 	w.WriteHeader(http.StatusCreated)
 }
 
