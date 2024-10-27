@@ -53,3 +53,25 @@ func TestPutTag(t *testing.T) {
 		assertContent(t, gotManifest.Bytes(), manifest)
 	})
 }
+
+func TestDeleteTag(t *testing.T) {
+	store := NewInMemoryStore()
+	service := NewRegistryService(store)
+
+	t.Run("Deleted tag is not retrievable", func(t *testing.T) {
+		name, digest, _ := randomManifest()
+		tag := "v0.5.1"
+
+		err := service.PutTag(name, tag, digest.String())
+		assertNoError(t, err)
+
+		_, err = service.GetTag(name, tag)
+		assertNoError(t, err)
+
+		err = service.DeleteTag(name, tag)
+		assertNoError(t, err)
+
+		_, err = service.GetTag(name, tag)
+		assertErrorIs(t, err, ErrManifestUnknown)
+	})
+}

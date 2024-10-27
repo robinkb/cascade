@@ -112,14 +112,20 @@ func (s *Server) deleteManifestsHandler(w http.ResponseWriter, r *http.Request) 
 	repository := r.PathValue("repository")
 	reference := r.PathValue("reference")
 
-	err := s.service.DeleteManifest(repository, reference)
-	if err != nil {
-		if errors.Is(err, cascade.ErrManifestUnknown) {
-			w.WriteHeader(http.StatusNotFound)
-			json.NewEncoder(w).Encode(NewErrorResponse(err.(cascade.Error)))
-			return
-		}
-	}
+	if cascade.ValidateTag(reference) {
+		s.service.DeleteTag(repository, reference)
 
-	w.WriteHeader(http.StatusAccepted)
+		w.WriteHeader(http.StatusAccepted)
+	} else {
+		err := s.service.DeleteManifest(repository, reference)
+		if err != nil {
+			if errors.Is(err, cascade.ErrManifestUnknown) {
+				w.WriteHeader(http.StatusNotFound)
+				json.NewEncoder(w).Encode(NewErrorResponse(err.(cascade.Error)))
+				return
+			}
+		}
+
+		w.WriteHeader(http.StatusAccepted)
+	}
 }

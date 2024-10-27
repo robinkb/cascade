@@ -30,5 +30,6 @@ func (s *registryService) PutTag(repository, tag, digest string) error {
 }
 
 func (s *registryService) DeleteTag(repository, tag string) error {
-	return errors.New("not implemented")
+	tagLink := paths.MetaStore.TagLink(repository, tag)
+	return s.store.Delete(tagLink)
 }

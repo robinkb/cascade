@@ -239,6 +239,28 @@ func TestDeleteManifest(t *testing.T) {
 		assertStatus(t, response.Code, http.StatusAccepted)
 	})
 
+	t.Run("Deleting a manifest by tag returns 202", func(t *testing.T) {
+		name, wantTag := randomName(), "v4.2.3"
+		deleteTagCalled := false
+		server := New(&StubRegistryService{deleteTag: func(repository, tag string) error {
+			if repository == name && tag == wantTag {
+				deleteTagCalled = true
+				return nil
+			}
+			panic(errDataNotPassedCorrectly)
+		}})
+
+		request := newDeleteManifestRequest(name, wantTag)
+		response := httptest.NewRecorder()
+
+		server.ServeHTTP(response, request)
+
+		assertStatus(t, response.Code, http.StatusAccepted)
+		if !deleteTagCalled {
+			t.Error("DeleteTag was not called")
+		}
+	})
+
 	t.Run("Deleting an unknown manifest returns 404", func(t *testing.T) {
 		server := New(&StubRegistryService{deleteManifest: func(repository, reference string) error {
 			return cascade.ErrManifestUnknown
