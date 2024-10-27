@@ -66,7 +66,7 @@ func (s *Server) chunkedUploadHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if int64(len(content)) != givenEnd-givenStart {
+	if int64(len(content)-1) != givenEnd-givenStart {
 		w.WriteHeader(http.StatusRequestedRangeNotSatisfiable)
 		return
 	}

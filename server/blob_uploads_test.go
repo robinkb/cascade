@@ -158,7 +158,7 @@ func TestBlobUploadsChunked(t *testing.T) {
 
 			assertStatus(t, response.Code, http.StatusAccepted)
 			assertHeaderSet(t, headerLocation, response.Header())
-			assertHeader(t, headerRange, response.Header(), fmt.Sprintf("0-%d", written))
+			assertHeader(t, headerRange, response.Header(), fmt.Sprintf("0-%d", written-1))
 
 			if r.Len() == 0 {
 				break
@@ -214,7 +214,7 @@ func TestBlobUploadsChunked(t *testing.T) {
 		written += n
 
 		assertStatus(t, response.Code, http.StatusAccepted)
-		assertHeader(t, headerRange, response.Header(), fmt.Sprintf("0-%d", written))
+		assertHeader(t, headerRange, response.Header(), fmt.Sprintf("0-%d", written-1))
 
 		// Close the upload with the final chunk.
 		_, err = io.ReadFull(r, buffer)
@@ -269,7 +269,7 @@ func TestBlobUploadsChunked(t *testing.T) {
 		written += n
 
 		assertStatus(t, response.Code, http.StatusAccepted)
-		assertHeader(t, headerRange, response.Header(), fmt.Sprintf("0-%d", written))
+		assertHeader(t, headerRange, response.Header(), fmt.Sprintf("0-%d", written-1))
 
 		_, err = io.ReadFull(r, buffer)
 		assertNoError(t, err)
@@ -323,7 +323,7 @@ func TestBlobUploadsChunked(t *testing.T) {
 		written += n
 
 		assertStatus(t, response.Code, http.StatusAccepted)
-		assertHeader(t, headerRange, response.Header(), fmt.Sprintf("0-%d", written))
+		assertHeader(t, headerRange, response.Header(), fmt.Sprintf("0-%d", written-1))
 
 		// And close the upload.
 		request = newCloseUploadRequest(location, digest.String(), nil)
@@ -418,7 +418,7 @@ func newUploadChunkRequest(location string, content []byte, written int) *http.R
 	buf := bytes.NewBuffer(content)
 	req, _ := http.NewRequest(http.MethodPatch, location, buf)
 	req.Header.Set(headerContentType, contentTypeOctetStream)
-	req.Header.Set(headerContentRange, fmt.Sprintf("%d-%d", written, written+size))
+	req.Header.Set(headerContentRange, fmt.Sprintf("%d-%d", written, written+size-1))
 	req.Header.Set(headerContentLength, strconv.Itoa(size))
 	return req
 }

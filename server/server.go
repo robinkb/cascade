@@ -89,6 +89,9 @@ func writeErrorResponse(w http.ResponseWriter, err error) {
 	case errors.Is(err, cascade.ErrBlobUploadInvalid):
 		code = http.StatusBadRequest
 		response = NewErrorResponse(err.(cascade.Error))
+	case errors.Is(err, cascade.ErrUploadOffsetInvalid):
+		code = http.StatusRequestedRangeNotSatisfiable
+		response = NewErrorResponse(err.(cascade.Error))
 	}
 
 	w.WriteHeader(code)
