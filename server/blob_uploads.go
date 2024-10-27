@@ -46,7 +46,7 @@ func (s *Server) checkUploadHandler(w http.ResponseWriter, r *http.Request) {
 	location := fmt.Sprintf("/v2/%s/blobs/uploads/%s", repository, reference)
 
 	w.Header().Set(headerLocation, location)
-	w.Header().Set(headerRange, fmt.Sprintf("0-%d", info.Size))
+	w.Header().Set(headerRange, fmt.Sprintf("0-%d", max(info.Size-1, 0)))
 	w.WriteHeader(http.StatusNoContent)
 }
 

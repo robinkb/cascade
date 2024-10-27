@@ -289,7 +289,7 @@ func TestBlobUploadsChunked(t *testing.T) {
 
 		server.ServeHTTP(response, request)
 
-		assertHeader(t, headerRange, response.Header(), fmt.Sprintf("0-%d", written))
+		assertHeader(t, headerRange, response.Header(), fmt.Sprintf("0-%d", written-1))
 		r.Seek(int64(written), 0)
 
 		// Try uploading the chunk again, this time missing up
@@ -310,7 +310,7 @@ func TestBlobUploadsChunked(t *testing.T) {
 
 		server.ServeHTTP(response, request)
 
-		assertHeader(t, headerRange, response.Header(), fmt.Sprintf("0-%d", written))
+		assertHeader(t, headerRange, response.Header(), fmt.Sprintf("0-%d", written-1))
 		r.Seek(int64(written), 0)
 
 		// Do it properly this time.
