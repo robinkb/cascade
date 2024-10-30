@@ -6,6 +6,10 @@ import (
 	"github.com/robinkb/cascade-registry/paths"
 )
 
+func (s *registryService) ListTags(repository string) ([]string, error) {
+	return nil, errors.New("not implemented")
+}
+
 func (s *registryService) GetTag(repository, tag string) (string, error) {
 	if !ValidateTag(tag) {
 		return "", ErrTagInvalid

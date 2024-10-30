@@ -30,6 +30,7 @@ type StubRegistryService struct {
 	putManifest    func(repository, reference string, content []byte) error
 	deleteManifest func(repository, reference string) error
 
+	listTags  func(repository string) ([]string, error)
 	getTag    func(repository, tag string) (string, error)
 	putTag    func(repository, tag, digest string) error
 	deleteTag func(repository, tag string) error
@@ -57,6 +58,9 @@ func (s *StubRegistryService) PutManifest(repository, reference string, content 
 }
 func (s *StubRegistryService) DeleteManifest(repository, reference string) error {
 	return s.deleteManifest(repository, reference)
+}
+func (s *StubRegistryService) ListTags(repository string) ([]string, error) {
+	return s.listTags(repository)
 }
 func (s *StubRegistryService) GetTag(repository, tag string) (string, error) {
 	return s.getTag(repository, tag)

@@ -26,10 +26,11 @@ func New(service cascade.RegistryService) *Server {
 	s.service = service
 
 	repositoryRouter := http.NewServeMux()
-	repositoryRouter.Handle("/manifests/{reference}", http.HandlerFunc(s.manifestsHandler))
 	repositoryRouter.Handle("/blobs/{digest}", http.HandlerFunc(s.blobsHandler))
 	repositoryRouter.Handle("/blobs/uploads/", http.HandlerFunc(s.blobsUploadsSessionHandler))
 	repositoryRouter.Handle("/blobs/uploads/{reference}", http.HandlerFunc(s.blobsUploadsHandler))
+	repositoryRouter.Handle("/manifests/{reference}", http.HandlerFunc(s.manifestsHandler))
+	repositoryRouter.Handle("/tags/list", http.HandlerFunc(s.tagsHandler))
 
 	registryRouter := http.NewServeMux()
 	registryRouter.Handle("/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -59,10 +60,17 @@ func New(service cascade.RegistryService) *Server {
 	return s
 }
 
-type Server struct {
-	service cascade.RegistryService
-	http.Handler
-}
+type (
+	Server struct {
+		service cascade.RegistryService
+		http.Handler
+	}
+
+	TagsListResponse struct {
+		Name string   `json:"name"`
+		Tags []string `json:"tags"`
+	}
+)
 
 // This is starting to feel like the wrong approach.
 // ErrDigestInvalid should definitely not result in a 404 in most cases.
