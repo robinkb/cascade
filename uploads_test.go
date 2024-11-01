@@ -1,6 +1,7 @@
 package cascade
 
 import (
+	"bytes"
 	"io"
 	"reflect"
 	"testing"
@@ -17,7 +18,7 @@ func TestStatUpload(t *testing.T) {
 		content := randomContents(32)
 
 		session := service.InitUpload(repository)
-		err := service.AppendUpload(repository, session.ID, content, 0)
+		err := service.AppendUpload(repository, session.ID, bytes.NewBuffer(content), 0)
 		assertNoError(t, err)
 
 		info, err := service.StatUpload(repository, session.ID)
@@ -45,7 +46,7 @@ func TestBlobUploadsMonolithic(t *testing.T) {
 
 		session := service.InitUpload(name)
 
-		err := service.AppendUpload(name, session.ID, content, 0)
+		err := service.AppendUpload(name, session.ID, bytes.NewBuffer(content), 0)
 		assertNoError(t, err)
 
 		err = service.CloseUpload(name, session.ID, digest.String())
@@ -59,7 +60,7 @@ func TestBlobUploadsMonolithic(t *testing.T) {
 	})
 
 	t.Run("Uploading without a session returns ErrBlobUploadUknown", func(t *testing.T) {
-		err := service.AppendUpload("fake", "abc", []byte{}, 0)
+		err := service.AppendUpload("fake", "abc", nil, 0)
 		assertErrorIs(t, err, ErrBlobUploadUnknown)
 	})
 
@@ -69,7 +70,7 @@ func TestBlobUploadsMonolithic(t *testing.T) {
 
 		session := service.InitUpload(name)
 
-		err := service.AppendUpload(name, session.ID, content[0:16], 0)
+		err := service.AppendUpload(name, session.ID, bytes.NewBuffer(content[0:16]), 0)
 		assertNoError(t, err)
 
 		err = service.CloseUpload(name, session.ID, digest)
@@ -82,7 +83,7 @@ func TestBlobUploadsMonolithic(t *testing.T) {
 
 		session := service.InitUpload(name)
 
-		err := service.AppendUpload(name, session.ID, otherContent, 0)
+		err := service.AppendUpload(name, session.ID, bytes.NewBuffer(otherContent), 0)
 		assertNoError(t, err)
 
 		err = service.CloseUpload(name, session.ID, digest.String())
@@ -100,7 +101,7 @@ func TestServiceUpload(t *testing.T) {
 
 		session := service.InitUpload(repository)
 
-		err := service.AppendUpload(repository, session.ID, content, 0)
+		err := service.AppendUpload(repository, session.ID, bytes.NewBuffer(content), 0)
 		assertNoError(t, err)
 
 		r, err := service.b.Reader(paths.BlobStore.UploadData(session.ID))
@@ -120,10 +121,10 @@ func TestServiceUpload(t *testing.T) {
 
 		session := service.InitUpload(repository)
 
-		err := service.AppendUpload(repository, session.ID, content[:16], 0)
+		err := service.AppendUpload(repository, session.ID, bytes.NewBuffer(content[:16]), 0)
 		assertNoError(t, err)
 
-		err = service.AppendUpload(repository, session.ID, content[16:], 16)
+		err = service.AppendUpload(repository, session.ID, bytes.NewBuffer(content[16:]), 16)
 		assertNoError(t, err)
 
 		info, err := service.StatUpload(repository, session.ID)
@@ -138,7 +139,7 @@ func TestServiceUpload(t *testing.T) {
 	})
 
 	t.Run("writing to unknown upload returns ErrBlobUploadUnknown", func(t *testing.T) {
-		err := service.AppendUpload("1/2/3", "i-dont-exist", []byte{}, 0)
+		err := service.AppendUpload("1/2/3", "i-dont-exist", nil, 0)
 		assertErrorIs(t, err, ErrBlobUploadUnknown)
 	})
 }

@@ -19,7 +19,7 @@ type (
 
 		InitUpload(repository string) *UploadSession
 		StatUpload(repository, sessionID string) (*FileInfo, error)
-		AppendUpload(repository, sessionID string, content []byte, offset int64) error
+		AppendUpload(repository, sessionID string, r io.Reader, offset int64) error
 		CloseUpload(repository, id, digest string) error
 	}
 

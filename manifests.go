@@ -3,7 +3,6 @@ package cascade
 import (
 	"encoding/json"
 	"errors"
-	"io"
 
 	"github.com/opencontainers/go-digest"
 	v1 "github.com/opencontainers/image-spec/specs-go/v1"
@@ -64,12 +63,7 @@ func (s *registryService) GetManifest(repository, id string) (*Manifest, error) 
 	}
 
 	dataPath := paths.BlobStore.BlobData(digest)
-	r, err := s.b.Reader(dataPath)
-	if errors.Is(err, ErrFileNotFound) {
-		return nil, ErrManifestUnknown
-	}
-
-	content, err := io.ReadAll(r)
+	content, err := s.b.Get(dataPath)
 	if err != nil {
 		return nil, err
 	}
@@ -91,17 +85,11 @@ func (s *registryService) PutManifest(repository, reference string, content []by
 	dataPath := paths.BlobStore.BlobData(digest)
 	linkPath := paths.MetaStore.ManifestLink(repository, digest)
 
-	w, err := s.b.Writer(dataPath)
+	err = s.b.Put(dataPath, content)
 	if err != nil {
 		return err
 	}
-	if _, err = w.Write(content); err != nil {
-		return err
-	}
-
-	s.store.Set(linkPath, nil)
-
-	return nil
+	return s.store.Set(linkPath, nil)
 }
 
 func (s *registryService) DeleteManifest(repository, id string) error {

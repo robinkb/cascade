@@ -28,6 +28,13 @@ type (
 	BlobStore interface {
 		// Stat returns basic file info about the blob at the given path.
 		Stat(path string) (*FileInfo, error)
+		// Get returns the blob at the given path. Intended for smaller blobs that
+		// must be fully read into memory server-side, like manifests.
+		Get(path string) ([]byte, error)
+		// Put writes content to the given path. Intended for smaller blobs that
+		// must be fully read into memory server-side, like manifests.
+		// Unlike Writer, Put does not append and always writes the entire blob.
+		Put(path string, content []byte) error
 		// Reader returns an io.Reader that can be used to read a blob.
 		Reader(path string) (io.Reader, error)
 		// Writer returns an io.Writer to write to a blob. Blobs are always appended to.
@@ -166,6 +173,26 @@ func (s *InMemoryBlobStore) Stat(path string) (*FileInfo, error) {
 		Name: path,
 		Size: int64(len(data)),
 	}, nil
+}
+
+func (s *InMemoryBlobStore) Get(path string) ([]byte, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	data, ok := s.store[path]
+	if !ok {
+		return nil, ErrFileNotFound
+	}
+	return data, nil
+}
+
+func (s *InMemoryBlobStore) Put(path string, content []byte) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	s.store[path] = content
+
+	return nil
 }
 
 func (s *InMemoryBlobStore) Reader(path string) (io.Reader, error) {

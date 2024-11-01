@@ -5,6 +5,7 @@ import (
 	"encoding"
 	"errors"
 	"fmt"
+	"io"
 
 	"github.com/robinkb/cascade-registry/paths"
 
@@ -65,7 +66,7 @@ func (s *registryService) InitUpload(repository string) *UploadSession {
 }
 
 // TODO: Verify that this is properly scoped to a repository.
-func (s *registryService) AppendUpload(repository, sessionID string, content []byte, offset int64) error {
+func (s *registryService) AppendUpload(repository, sessionID string, r io.Reader, offset int64) error {
 	info, err := s.StatUpload(repository, sessionID)
 	if err != nil {
 		return err
@@ -88,9 +89,17 @@ func (s *registryService) AppendUpload(repository, sessionID string, content []b
 	if err != nil {
 		return err
 	}
-	_, err = hash.Write(content)
+
+	dataPath := paths.BlobStore.UploadData(sessionID)
+	w, err := s.b.Writer(dataPath)
 	if err != nil {
-		panic(err)
+		return err
+	}
+
+	tee := io.TeeReader(r, hash)
+	_, err = io.Copy(w, tee)
+	if err != nil {
+		return err
 	}
 
 	hashState, err = hash.(encoding.BinaryMarshaler).MarshalBinary()
@@ -98,18 +107,7 @@ func (s *registryService) AppendUpload(repository, sessionID string, content []b
 		panic(err)
 	}
 
-	err = s.store.Set(hashPath, hashState)
-	if err != nil {
-		panic(err)
-	}
-
-	dataPath := paths.BlobStore.UploadData(sessionID)
-	w, err := s.b.Writer(dataPath)
-	if err != nil {
-		return err
-	}
-	_, err = w.Write(content)
-	return err
+	return s.store.Set(hashPath, hashState)
 }
 
 func (s *registryService) CloseUpload(repository, sessionID, digest string) error {

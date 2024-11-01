@@ -17,9 +17,7 @@ func TestStatManifest(t *testing.T) {
 	manifest, _ := json.Marshal(v1.Manifest{MediaType: v1.MediaTypeImageLayer})
 	digest := digest.FromBytes(manifest)
 
-	w, _ := service.b.Writer(paths.BlobStore.BlobData(digest))
-	w.Write(manifest)
-
+	service.b.Put(paths.BlobStore.BlobData(digest), manifest)
 	store.Set(paths.MetaStore.ManifestLink(name, digest), nil)
 	store.Set(paths.MetaStore.TagLink(name, "40"), []byte(digest.String()))
 
@@ -60,8 +58,7 @@ func TestGetManifest(t *testing.T) {
 	manifest, _ := json.Marshal(v1.Manifest{MediaType: v1.MediaTypeImageLayer})
 	digest := digest.FromBytes(manifest)
 
-	w, _ := service.b.Writer(paths.BlobStore.BlobData(digest))
-	w.Write(manifest)
+	service.b.Put(paths.BlobStore.BlobData(digest), manifest)
 	store.Set(paths.MetaStore.ManifestLink(name, digest), nil)
 	store.Set(paths.MetaStore.TagLink(name, "40"), []byte(digest.String()))
 
