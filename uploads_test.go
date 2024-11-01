@@ -1,6 +1,7 @@
 package cascade
 
 import (
+	"io"
 	"reflect"
 	"testing"
 
@@ -13,13 +14,13 @@ func TestStatUpload(t *testing.T) {
 
 	t.Run("stat upload returns correct FileInfo", func(t *testing.T) {
 		repository := "a/v/c"
-		sessionID := "123"
 		content := randomContents(32)
 
-		store.Set(paths.MetaStore.UploadLink(repository, sessionID), nil)
-		store.Set(paths.BlobStore.UploadData(sessionID), content)
+		session := service.InitUpload(repository)
+		err := service.AppendUpload(repository, session.ID, content, 0)
+		assertNoError(t, err)
 
-		info, err := service.StatUpload(repository, sessionID)
+		info, err := service.StatUpload(repository, session.ID)
 		assertNoError(t, err)
 
 		got := info.Size
@@ -100,7 +101,10 @@ func TestServiceUpload(t *testing.T) {
 		err := service.AppendUpload(repository, session.ID, content, 0)
 		assertNoError(t, err)
 
-		got, err := store.Get(paths.BlobStore.UploadData(session.ID))
+		r, err := service.b.Reader(paths.BlobStore.UploadData(session.ID))
+		assertNoError(t, err)
+
+		got, err := io.ReadAll(r)
 		assertNoError(t, err)
 
 		if !reflect.DeepEqual(got, content) {

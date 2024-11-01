@@ -3,6 +3,7 @@ package cascade
 import (
 	"encoding/json"
 	"errors"
+	"io"
 
 	"github.com/opencontainers/go-digest"
 	v1 "github.com/opencontainers/image-spec/specs-go/v1"
@@ -42,7 +43,7 @@ func (s *registryService) StatManifest(repository, id string) (*FileInfo, error)
 	}
 
 	dataPath := paths.BlobStore.BlobData(digest)
-	info, err := s.store.Stat(dataPath)
+	info, err := s.b.Stat(dataPath)
 	if errors.Is(err, ErrFileNotFound) {
 		return nil, ErrManifestUnknown
 	}
@@ -63,9 +64,14 @@ func (s *registryService) GetManifest(repository, id string) (*Manifest, error) 
 	}
 
 	dataPath := paths.BlobStore.BlobData(digest)
-	content, err := s.store.Get(dataPath)
+	r, err := s.b.Reader(dataPath)
 	if errors.Is(err, ErrFileNotFound) {
 		return nil, ErrManifestUnknown
+	}
+
+	content, err := io.ReadAll(r)
+	if err != nil {
+		return nil, err
 	}
 
 	return NewManifest(content)
@@ -85,7 +91,14 @@ func (s *registryService) PutManifest(repository, reference string, content []by
 	dataPath := paths.BlobStore.BlobData(digest)
 	linkPath := paths.MetaStore.ManifestLink(repository, digest)
 
-	s.store.Set(dataPath, content)
+	w, err := s.b.Writer(dataPath)
+	if err != nil {
+		return err
+	}
+	if _, err = w.Write(content); err != nil {
+		return err
+	}
+
 	s.store.Set(linkPath, nil)
 
 	return nil
@@ -104,7 +117,7 @@ func (s *registryService) DeleteManifest(repository, id string) error {
 	}
 
 	dataPath := paths.BlobStore.BlobData(digest)
-	s.store.Delete(dataPath)
+	s.b.Delete(dataPath)
 	s.store.Delete(linkPath)
 
 	return err

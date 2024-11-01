@@ -1,6 +1,8 @@
 package scratch
 
-import "context"
+import (
+	"context"
+)
 
 type (
 	Registry interface {
@@ -9,7 +11,6 @@ type (
 	}
 
 	RepositoryManager interface {
-
 		// These could do validation on the digest and such?
 		Blob(digest string) (BlobManager, error)
 		Manifest(digest string) (ManifestManager, error)
@@ -49,7 +50,4 @@ type (
 
 	FileInfo      struct{}
 	UploadSession struct{}
-
-	BlobStore     interface{}
-	MetadataStore interface{}
 )

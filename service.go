@@ -47,11 +47,13 @@ type (
 func NewRegistryService(store RegistryStore) *registryService {
 	return &registryService{
 		store:        store,
+		b:            NewInMemoryBlobStore(),
 		sessionStore: make(map[string]map[string]bool),
 	}
 }
 
 type registryService struct {
 	store        RegistryStore
+	b            BlobStore
 	sessionStore map[string]map[string]bool
 }

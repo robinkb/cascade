@@ -17,7 +17,7 @@ import (
 func (s *registryService) StatUpload(repository, sessionID string) (*FileInfo, error) {
 	path := paths.BlobStore.UploadData(sessionID)
 
-	info, err := s.store.Stat(path)
+	info, err := s.b.Stat(path)
 	if errors.Is(err, ErrFileNotFound) {
 		return nil, ErrBlobUploadUnknown
 	}
@@ -49,7 +49,11 @@ func (s *registryService) InitUpload(repository string) *UploadSession {
 	}
 
 	dataPath := paths.BlobStore.UploadData(sessionID.String())
-	err = s.store.Set(dataPath, []byte{})
+	w, err := s.b.Writer(dataPath)
+	if err != nil {
+		panic(err)
+	}
+	_, err = w.Write([]byte{})
 	if err != nil {
 		panic(err)
 	}
@@ -62,8 +66,6 @@ func (s *registryService) InitUpload(repository string) *UploadSession {
 
 // TODO: Verify that this is properly scoped to a repository.
 func (s *registryService) AppendUpload(repository, sessionID string, content []byte, offset int64) error {
-	dataPath := paths.BlobStore.UploadData(sessionID)
-
 	info, err := s.StatUpload(repository, sessionID)
 	if err != nil {
 		return err
@@ -101,7 +103,12 @@ func (s *registryService) AppendUpload(repository, sessionID string, content []b
 		panic(err)
 	}
 
-	err = s.store.Put(dataPath, content)
+	dataPath := paths.BlobStore.UploadData(sessionID)
+	w, err := s.b.Writer(dataPath)
+	if err != nil {
+		return err
+	}
+	_, err = w.Write(content)
 	return err
 }
 
@@ -137,7 +144,7 @@ func (s *registryService) CloseUpload(repository, sessionID, digest string) erro
 	destPath := paths.BlobStore.BlobData(id)
 	linkPath := paths.MetaStore.BlobLink(repository, id)
 
-	s.store.Move(sourcePath, destPath)
+	s.b.Move(sourcePath, destPath)
 	s.store.Set(linkPath, nil)
 	return nil
 }

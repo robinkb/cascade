@@ -13,7 +13,8 @@ func TestStatBlob(t *testing.T) {
 	name, digest, content := randomBlob(32 * 1024)
 
 	store.Set(paths.MetaStore.BlobLink(name, digest), nil)
-	store.Set(paths.BlobStore.BlobData(digest), content)
+	w, _ := service.b.Writer(paths.BlobStore.BlobData(digest))
+	w.Write(content)
 
 	t.Run("Known blob returns no error", func(t *testing.T) {
 		_, err := service.StatBlob(name, digest.String())
@@ -37,7 +38,8 @@ func TestGetBlob(t *testing.T) {
 
 	name, digest, content := randomBlob(32)
 
-	store.Set(paths.BlobStore.BlobData(digest), content)
+	w, _ := service.b.Writer(paths.BlobStore.BlobData(digest))
+	w.Write(content)
 	store.Set(paths.MetaStore.BlobLink(name, digest), nil)
 
 	t.Run("Known blob returns content and no error", func(t *testing.T) {

@@ -2,6 +2,7 @@ package cascade
 
 import (
 	"errors"
+	"io"
 
 	"github.com/opencontainers/go-digest"
 	"github.com/robinkb/cascade-registry/paths"
@@ -20,7 +21,7 @@ func (s *registryService) StatBlob(repository, id string) (*FileInfo, error) {
 	}
 
 	dataPath := paths.BlobStore.BlobData(digest)
-	info, err := s.store.Stat(dataPath)
+	info, err := s.b.Stat(dataPath)
 	if errors.Is(err, ErrFileNotFound) {
 		return nil, ErrBlobUnknown
 	}
@@ -41,7 +42,11 @@ func (s *registryService) GetBlob(repository, id string) ([]byte, error) {
 	}
 
 	dataPath := paths.BlobStore.BlobData(digest)
-	data, err := s.store.Get(dataPath)
+	r, err := s.b.Reader(dataPath)
+	if err != nil {
+		return nil, err
+	}
+	data, err := io.ReadAll(r)
 	if errors.Is(err, ErrFileNotFound) {
 		return nil, ErrBlobUnknown
 	}
