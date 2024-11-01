@@ -1,6 +1,7 @@
 package cascade
 
 import (
+	"io"
 	"testing"
 
 	"github.com/robinkb/cascade-registry/paths"
@@ -12,8 +13,8 @@ func TestStatBlob(t *testing.T) {
 
 	name, digest, content := randomBlob(32 * 1024)
 
+	service.b.Put(paths.BlobStore.BlobData(digest), content)
 	store.Set(paths.MetaStore.BlobLink(name, digest), nil)
-	store.Set(paths.BlobStore.BlobData(digest), content)
 
 	t.Run("Known blob returns no error", func(t *testing.T) {
 		_, err := service.StatBlob(name, digest.String())
@@ -37,24 +38,24 @@ func TestGetBlob(t *testing.T) {
 
 	name, digest, content := randomBlob(32)
 
-	store.Set(paths.BlobStore.BlobData(digest), content)
+	service.b.Put(paths.BlobStore.BlobData(digest), content)
 	store.Set(paths.MetaStore.BlobLink(name, digest), nil)
 
 	t.Run("Known blob returns content and no error", func(t *testing.T) {
-		data, err := service.GetBlob(name, digest.String())
-		assertContent(t, data, content)
+		r, err := service.GetBlob(name, digest.String())
 		assertNoError(t, err)
+		data, err := io.ReadAll(r)
+		assertNoError(t, err)
+		assertContent(t, data, content)
 	})
 
 	t.Run("Unknown blob returns no content and ErrBlobUnknown", func(t *testing.T) {
-		data, err := service.GetBlob("fake/repository", "blabla")
-		assertContent(t, data, nil)
+		_, err := service.GetBlob("fake/repository", "blabla")
 		assertErrorIs(t, err, ErrBlobUnknown)
 	})
 
 	t.Run("Known blob on unknown repository still returns no content and ErrBlobUnknown", func(t *testing.T) {
-		data, err := service.GetBlob("fake/repository", digest.String())
-		assertContent(t, data, nil)
+		_, err := service.GetBlob("fake/repository", digest.String())
 		assertErrorIs(t, err, ErrBlobUnknown)
 	})
 }

@@ -1,6 +1,7 @@
 package server
 
 import (
+	"bytes"
 	"fmt"
 	"io"
 	"net/http"
@@ -60,18 +61,20 @@ func (s *Server) chunkedUploadHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	expectedLength := givenEnd - givenStart
+
 	content, err := io.ReadAll(r.Body)
 	if err != nil {
 		writeErrorResponse(w, err)
 		return
 	}
 
-	if int64(len(content)-1) != givenEnd-givenStart {
+	if int64(len(content)-1) != expectedLength {
 		w.WriteHeader(http.StatusRequestedRangeNotSatisfiable)
 		return
 	}
 
-	if err := s.service.AppendUpload(repository, reference, content, givenStart); err != nil {
+	if err := s.service.AppendUpload(repository, reference, bytes.NewBuffer(content), givenStart); err != nil {
 		writeErrorResponse(w, err)
 		return
 	}
@@ -86,13 +89,7 @@ func (s *Server) streamedUploadHandler(w http.ResponseWriter, r *http.Request) {
 	repository := r.PathValue("repository")
 	reference := r.PathValue("reference")
 
-	content, err := io.ReadAll(r.Body)
-	if err != nil {
-		writeErrorResponse(w, err)
-		return
-	}
-
-	if err := s.service.AppendUpload(repository, reference, content, 0); err != nil {
+	if err := s.service.AppendUpload(repository, reference, r.Body, 0); err != nil {
 		writeErrorResponse(w, err)
 		return
 	}
@@ -130,7 +127,7 @@ func (s *Server) closeUploadHandler(w http.ResponseWriter, r *http.Request) {
 
 		content, _ := io.ReadAll(r.Body)
 		// TODO: Check this error
-		s.service.AppendUpload(repository, reference, content, offset)
+		s.service.AppendUpload(repository, reference, bytes.NewBuffer(content), offset)
 	}
 
 	digest := r.URL.Query().Get("digest")

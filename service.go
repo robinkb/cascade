@@ -1,9 +1,11 @@
 package cascade
 
+import "io"
+
 type (
 	RegistryService interface {
 		StatBlob(repository, digest string) (*FileInfo, error)
-		GetBlob(repository, digest string) ([]byte, error)
+		GetBlob(repository, digest string) (io.Reader, error)
 
 		StatManifest(repository, reference string) (*FileInfo, error)
 		GetManifest(repository, reference string) (*Manifest, error)
@@ -17,7 +19,7 @@ type (
 
 		InitUpload(repository string) *UploadSession
 		StatUpload(repository, sessionID string) (*FileInfo, error)
-		AppendUpload(repository, sessionID string, content []byte, offset int64) error
+		AppendUpload(repository, sessionID string, r io.Reader, offset int64) error
 		CloseUpload(repository, id, digest string) error
 	}
 
@@ -47,11 +49,13 @@ type (
 func NewRegistryService(store RegistryStore) *registryService {
 	return &registryService{
 		store:        store,
+		b:            NewInMemoryBlobStore(),
 		sessionStore: make(map[string]map[string]bool),
 	}
 }
 
 type registryService struct {
 	store        RegistryStore
+	b            BlobStore
 	sessionStore map[string]map[string]bool
 }

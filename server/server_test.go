@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"encoding/json"
 	"errors"
+	"io"
 	"strings"
 
 	"net/http"
@@ -23,7 +24,7 @@ var (
 
 type StubRegistryService struct {
 	statBlob func(repository, digest string) (*cascade.FileInfo, error)
-	getBlob  func(repository, digest string) ([]byte, error)
+	getBlob  func(repository, digest string) (io.Reader, error)
 
 	statManifest   func(repository, reference string) (*cascade.FileInfo, error)
 	getManifest    func(repository, reference string) (*cascade.Manifest, error)
@@ -37,14 +38,14 @@ type StubRegistryService struct {
 
 	initUpload   func(repository string) *cascade.UploadSession
 	statUpload   func(repository, sessionID string) (*cascade.FileInfo, error)
-	appendUpload func(repository, sessionID string, content []byte, offset int64) error
+	appendUpload func(repository, sessionID string, r io.Reader, offset int64) error
 	closeUpload  func(repository, id, digest string) error
 }
 
 func (s *StubRegistryService) StatBlob(repository, digest string) (*cascade.FileInfo, error) {
 	return s.statBlob(repository, digest)
 }
-func (s *StubRegistryService) GetBlob(repository, digest string) ([]byte, error) {
+func (s *StubRegistryService) GetBlob(repository, digest string) (io.Reader, error) {
 	return s.getBlob(repository, digest)
 }
 func (s *StubRegistryService) StatManifest(repository, reference string) (*cascade.FileInfo, error) {
@@ -77,8 +78,8 @@ func (s *StubRegistryService) InitUpload(repository string) *cascade.UploadSessi
 func (s *StubRegistryService) StatUpload(repository, sessionID string) (*cascade.FileInfo, error) {
 	return s.statUpload(repository, sessionID)
 }
-func (s *StubRegistryService) AppendUpload(repository, sessionID string, content []byte, size int64) error {
-	return s.appendUpload(repository, sessionID, content, size)
+func (s *StubRegistryService) AppendUpload(repository, sessionID string, r io.Reader, offset int64) error {
+	return s.appendUpload(repository, sessionID, r, offset)
 }
 func (s *StubRegistryService) CloseUpload(repository, id, digest string) error {
 	return s.closeUpload(repository, id, digest)
