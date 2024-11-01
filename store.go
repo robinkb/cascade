@@ -5,6 +5,8 @@ import (
 	"errors"
 	"io"
 	"sync"
+
+	"github.com/opencontainers/go-digest"
 )
 
 var (
@@ -23,6 +25,10 @@ type (
 	}
 
 	MetadataStore interface {
+		ListTags(repository string) ([]string, error)
+		GetTag(repository, tag string) (digest.Digest, error)
+		PutTag(repository, tag string, digest digest.Digest) error
+		DeleteTag(repository, tag string) error
 	}
 
 	BlobStore interface {

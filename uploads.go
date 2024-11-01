@@ -18,7 +18,7 @@ import (
 func (s *registryService) StatUpload(repository, sessionID string) (*FileInfo, error) {
 	path := paths.BlobStore.UploadData(sessionID)
 
-	info, err := s.b.Stat(path)
+	info, err := s.blobs.Stat(path)
 	if errors.Is(err, ErrFileNotFound) {
 		return nil, ErrBlobUploadUnknown
 	}
@@ -50,22 +50,21 @@ func (s *registryService) InitUpload(repository string) *UploadSession {
 	}
 
 	dataPath := paths.BlobStore.UploadData(sessionID.String())
-	w, err := s.b.Writer(dataPath)
-	if err != nil {
-		panic(err)
-	}
-	_, err = w.Write([]byte{})
+	err = s.blobs.Put(dataPath, []byte{})
 	if err != nil {
 		panic(err)
 	}
 
 	return &UploadSession{
-		ID:       sessionID.String(),
+		ID: sessionID.String(),
+		// TODO: The location URL really shouldn't be included here.
+		// That's an HTTP implementation detail.
 		Location: fmt.Sprintf("/v2/%s/blobs/uploads/%s", repository, sessionID.String()),
 	}
 }
 
 // TODO: Verify that this is properly scoped to a repository.
+// Spoilers: It isn't.
 func (s *registryService) AppendUpload(repository, sessionID string, r io.Reader, offset int64) error {
 	info, err := s.StatUpload(repository, sessionID)
 	if err != nil {
@@ -91,7 +90,7 @@ func (s *registryService) AppendUpload(repository, sessionID string, r io.Reader
 	}
 
 	dataPath := paths.BlobStore.UploadData(sessionID)
-	w, err := s.b.Writer(dataPath)
+	w, err := s.blobs.Writer(dataPath)
 	if err != nil {
 		return err
 	}
@@ -142,7 +141,7 @@ func (s *registryService) CloseUpload(repository, sessionID, digest string) erro
 	destPath := paths.BlobStore.BlobData(id)
 	linkPath := paths.MetaStore.BlobLink(repository, id)
 
-	s.b.Move(sourcePath, destPath)
+	s.blobs.Move(sourcePath, destPath)
 	s.store.Set(linkPath, nil)
 	return nil
 }

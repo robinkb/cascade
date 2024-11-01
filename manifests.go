@@ -42,7 +42,7 @@ func (s *registryService) StatManifest(repository, id string) (*FileInfo, error)
 	}
 
 	dataPath := paths.BlobStore.BlobData(digest)
-	info, err := s.b.Stat(dataPath)
+	info, err := s.blobs.Stat(dataPath)
 	if errors.Is(err, ErrFileNotFound) {
 		return nil, ErrManifestUnknown
 	}
@@ -63,7 +63,7 @@ func (s *registryService) GetManifest(repository, id string) (*Manifest, error) 
 	}
 
 	dataPath := paths.BlobStore.BlobData(digest)
-	content, err := s.b.Get(dataPath)
+	content, err := s.blobs.Get(dataPath)
 	if err != nil {
 		return nil, err
 	}
@@ -85,7 +85,7 @@ func (s *registryService) PutManifest(repository, reference string, content []by
 	dataPath := paths.BlobStore.BlobData(digest)
 	linkPath := paths.MetaStore.ManifestLink(repository, digest)
 
-	err = s.b.Put(dataPath, content)
+	err = s.blobs.Put(dataPath, content)
 	if err != nil {
 		return err
 	}
@@ -105,7 +105,7 @@ func (s *registryService) DeleteManifest(repository, id string) error {
 	}
 
 	dataPath := paths.BlobStore.BlobData(digest)
-	s.b.Delete(dataPath)
+	s.blobs.Delete(dataPath)
 	s.store.Delete(linkPath)
 
 	return err

@@ -21,7 +21,7 @@ func (s *registryService) StatBlob(repository, id string) (*FileInfo, error) {
 	}
 
 	dataPath := paths.BlobStore.BlobData(digest)
-	info, err := s.b.Stat(dataPath)
+	info, err := s.blobs.Stat(dataPath)
 	if errors.Is(err, ErrFileNotFound) {
 		return nil, ErrBlobUnknown
 	}
@@ -42,5 +42,5 @@ func (s *registryService) GetBlob(repository, id string) (io.Reader, error) {
 	}
 
 	dataPath := paths.BlobStore.BlobData(digest)
-	return s.b.Reader(dataPath)
+	return s.blobs.Reader(dataPath)
 }

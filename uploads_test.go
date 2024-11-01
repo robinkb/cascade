@@ -104,7 +104,7 @@ func TestServiceUpload(t *testing.T) {
 		err := service.AppendUpload(repository, session.ID, bytes.NewBuffer(content), 0)
 		assertNoError(t, err)
 
-		r, err := service.b.Reader(paths.BlobStore.UploadData(session.ID))
+		r, err := service.blobs.Reader(paths.BlobStore.UploadData(session.ID))
 		assertNoError(t, err)
 
 		got, err := io.ReadAll(r)
