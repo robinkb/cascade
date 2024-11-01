@@ -1,9 +1,11 @@
 package cascade
 
+import "io"
+
 type (
 	RegistryService interface {
 		StatBlob(repository, digest string) (*FileInfo, error)
-		GetBlob(repository, digest string) ([]byte, error)
+		GetBlob(repository, digest string) (io.Reader, error)
 
 		StatManifest(repository, reference string) (*FileInfo, error)
 		GetManifest(repository, reference string) (*Manifest, error)

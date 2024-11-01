@@ -1,6 +1,9 @@
 package server
 
-import "net/http"
+import (
+	"io"
+	"net/http"
+)
 
 func (s *Server) blobsHandler(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
@@ -29,12 +32,12 @@ func (s *Server) getBlobsHandler(w http.ResponseWriter, r *http.Request) {
 	repository := r.PathValue("repository")
 	digest := r.PathValue("digest")
 
-	content, err := s.service.GetBlob(repository, digest)
+	blob, err := s.service.GetBlob(repository, digest)
 	if err != nil {
 		writeErrorResponse(w, err)
 		return
 	}
 
 	w.WriteHeader(http.StatusOK)
-	w.Write(content)
+	io.Copy(w, blob)
 }

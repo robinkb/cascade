@@ -51,9 +51,11 @@ func TestBlobUploadsMonolithic(t *testing.T) {
 		err = service.CloseUpload(name, session.ID, digest.String())
 		assertNoError(t, err)
 
-		data, err := service.GetBlob(name, digest.String())
-		assertContent(t, data, content)
+		r, err := service.GetBlob(name, digest.String())
 		assertNoError(t, err)
+		data, err := io.ReadAll(r)
+		assertNoError(t, err)
+		assertContent(t, data, content)
 	})
 
 	t.Run("Uploading without a session returns ErrBlobUploadUknown", func(t *testing.T) {

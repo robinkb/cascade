@@ -1,7 +1,9 @@
 package server
 
 import (
+	"bytes"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -45,8 +47,8 @@ func TestGetBlob(t *testing.T) {
 	t.Run("Get blob returns 200", func(t *testing.T) {
 		content := randomContents(32)
 		server := New(&StubRegistryService{
-			getBlob: func(repository, digest string) ([]byte, error) {
-				return content, nil
+			getBlob: func(repository, digest string) (io.Reader, error) {
+				return bytes.NewBuffer(content), nil
 			},
 		})
 
@@ -60,7 +62,7 @@ func TestGetBlob(t *testing.T) {
 
 	t.Run("returns 404 on unknown blob", func(t *testing.T) {
 		server := New(&StubRegistryService{
-			getBlob: func(repository, digest string) ([]byte, error) {
+			getBlob: func(repository, digest string) (io.Reader, error) {
 				return nil, cascade.ErrBlobUnknown
 			},
 		})

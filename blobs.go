@@ -29,7 +29,7 @@ func (s *registryService) StatBlob(repository, id string) (*FileInfo, error) {
 	return info, err
 }
 
-func (s *registryService) GetBlob(repository, id string) ([]byte, error) {
+func (s *registryService) GetBlob(repository, id string) (io.Reader, error) {
 	digest, err := digest.Parse(id)
 	if err != nil {
 		return nil, ErrBlobUnknown
@@ -42,14 +42,5 @@ func (s *registryService) GetBlob(repository, id string) ([]byte, error) {
 	}
 
 	dataPath := paths.BlobStore.BlobData(digest)
-	r, err := s.b.Reader(dataPath)
-	if err != nil {
-		return nil, err
-	}
-	data, err := io.ReadAll(r)
-	if errors.Is(err, ErrFileNotFound) {
-		return nil, ErrBlobUnknown
-	}
-
-	return data, err
+	return s.b.Reader(dataPath)
 }

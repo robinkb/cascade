@@ -26,10 +26,17 @@ type (
 	}
 
 	BlobStore interface {
+		// Stat returns basic file info about the blob at the given path.
 		Stat(path string) (*FileInfo, error)
+		// Reader returns an io.Reader that can be used to read a blob.
 		Reader(path string) (io.Reader, error)
+		// Writer returns an io.Writer to write to a blob. Blobs are always appended to.
+		// If a blob must be truncated, delete it first.
 		Writer(path string) (io.Writer, error)
+		// Delete removes the blob at the given path.
 		Delete(path string) error
+		// Move moves the blob from the source path to the destination path.
+		// This may effectively be a rename on some backends.
 		Move(sourcePath, destinationPath string) error
 	}
 

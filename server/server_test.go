@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"encoding/json"
 	"errors"
+	"io"
 	"strings"
 
 	"net/http"
@@ -23,7 +24,7 @@ var (
 
 type StubRegistryService struct {
 	statBlob func(repository, digest string) (*cascade.FileInfo, error)
-	getBlob  func(repository, digest string) ([]byte, error)
+	getBlob  func(repository, digest string) (io.Reader, error)
 
 	statManifest   func(repository, reference string) (*cascade.FileInfo, error)
 	getManifest    func(repository, reference string) (*cascade.Manifest, error)
@@ -44,7 +45,7 @@ type StubRegistryService struct {
 func (s *StubRegistryService) StatBlob(repository, digest string) (*cascade.FileInfo, error) {
 	return s.statBlob(repository, digest)
 }
-func (s *StubRegistryService) GetBlob(repository, digest string) ([]byte, error) {
+func (s *StubRegistryService) GetBlob(repository, digest string) (io.Reader, error) {
 	return s.getBlob(repository, digest)
 }
 func (s *StubRegistryService) StatManifest(repository, reference string) (*cascade.FileInfo, error) {
