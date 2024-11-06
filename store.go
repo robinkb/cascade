@@ -7,6 +7,8 @@ import (
 	"io"
 	"strings"
 	"sync"
+
+	"github.com/opencontainers/go-digest"
 )
 
 var (
@@ -25,6 +27,10 @@ type (
 	}
 
 	MetadataStore interface {
+		GetManifest(repository string, digest digest.Digest) (string, error)
+		PutManifest(repository string, digest digest.Digest, path string) error
+		DeleteManifest(repository string, digest digest.Digest) error
+
 		ListTags(repository string) ([]string, error)
 		GetTag(repository, tag string) (string, error)
 		PutTag(repository, tag, digest string) error
@@ -152,6 +158,23 @@ type InMemoryMetadataStore struct {
 	store map[string][]byte
 }
 
+func (s *InMemoryMetadataStore) GetManifest(repository string, digest digest.Digest) (string, error) {
+	if path, ok := s.store[s.manifestPath(repository, digest)]; ok {
+		return string(path), nil
+	}
+	return "", ErrManifestUnknown
+}
+
+func (s *InMemoryMetadataStore) PutManifest(repository string, digest digest.Digest, path string) error {
+	s.store[s.manifestPath(repository, digest)] = []byte(path)
+	return nil
+}
+
+func (s *InMemoryMetadataStore) DeleteManifest(repository string, digest digest.Digest) error {
+	delete(s.store, s.manifestPath(repository, digest))
+	return nil
+}
+
 func (s *InMemoryMetadataStore) ListTags(repository string) ([]string, error) {
 	tags := []string{}
 	prefix := s.tagPath(repository, "")
@@ -180,6 +203,10 @@ func (s *InMemoryMetadataStore) PutTag(repository, tag, digest string) error {
 func (s *InMemoryMetadataStore) DeleteTag(repository, tag string) error {
 	delete(s.store, s.tagPath(repository, tag))
 	return nil
+}
+
+func (s *InMemoryMetadataStore) manifestPath(repository string, digest digest.Digest) string {
+	return fmt.Sprintf("repositories/%s/manifests/%s/%s", repository, digest.Algorithm(), digest.Encoded())
 }
 
 func (s *InMemoryMetadataStore) tagPath(repository, tag string) string {
