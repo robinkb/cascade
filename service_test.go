@@ -11,6 +11,16 @@ import (
 	"github.com/opencontainers/go-digest"
 )
 
+func newTestRegistry() (RegistryService, MetadataStore, BlobStore) {
+	metadata := NewInMemoryMetadataStore()
+	blobs := NewInMemoryBlobStore()
+	service := NewRegistryService(NewInMemoryStore())
+	service.metadata = metadata
+	service.blobs = blobs
+
+	return service, metadata, blobs
+}
+
 func assertErrorIs(t *testing.T, got, want error) {
 	t.Helper()
 	if !errors.Is(got, want) {

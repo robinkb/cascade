@@ -2,8 +2,6 @@ package cascade
 
 import (
 	"errors"
-
-	"github.com/opencontainers/go-digest"
 )
 
 func (s *registryService) ListTags(repository string) ([]string, error) {
@@ -20,7 +18,7 @@ func (s *registryService) GetTag(repository, tag string) (string, error) {
 		err = ErrManifestUnknown
 	}
 
-	return digest.String(), err
+	return digest, err
 }
 
 func (s *registryService) PutTag(repository, tag, id string) error {
@@ -28,10 +26,7 @@ func (s *registryService) PutTag(repository, tag, id string) error {
 		return ErrTagInvalid
 	}
 
-	// TODO: Add test case for passing invalid digest.
-	digest, _ := digest.Parse(id)
-
-	return s.metadata.PutTag(repository, tag, digest)
+	return s.metadata.PutTag(repository, tag, id)
 }
 
 func (s *registryService) DeleteTag(repository, tag string) error {

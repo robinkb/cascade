@@ -46,9 +46,11 @@ type (
 	}
 )
 
+// TODO: Modify to accept MetadataStore and BlobStore when MetadataStore is implemented.
 func NewRegistryService(store RegistryStore) *registryService {
 	return &registryService{
 		store:        store,
+		metadata:     NewInMemoryMetadataStore(),
 		blobs:        NewInMemoryBlobStore(),
 		sessionStore: make(map[string]map[string]bool),
 	}

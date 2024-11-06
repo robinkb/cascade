@@ -3,10 +3,10 @@ package cascade
 import (
 	"bytes"
 	"errors"
+	"fmt"
 	"io"
+	"strings"
 	"sync"
-
-	"github.com/opencontainers/go-digest"
 )
 
 var (
@@ -26,8 +26,8 @@ type (
 
 	MetadataStore interface {
 		ListTags(repository string) ([]string, error)
-		GetTag(repository, tag string) (digest.Digest, error)
-		PutTag(repository, tag string, digest digest.Digest) error
+		GetTag(repository, tag string) (string, error)
+		PutTag(repository, tag, digest string) error
 		DeleteTag(repository, tag string) error
 	}
 
@@ -140,6 +140,50 @@ func (s *InMemoryStore) Move(sourcePath, destinationPath string) {
 
 	s.store[destinationPath] = s.store[sourcePath]
 	delete(s.store, sourcePath)
+}
+
+func NewInMemoryMetadataStore() MetadataStore {
+	return &InMemoryMetadataStore{
+		store: make(map[string][]byte),
+	}
+}
+
+type InMemoryMetadataStore struct {
+	store map[string][]byte
+}
+
+func (s *InMemoryMetadataStore) ListTags(repository string) ([]string, error) {
+	tags := []string{}
+	prefix := s.tagPath(repository, "")
+
+	for key := range s.store {
+		if tag, found := strings.CutPrefix(key, prefix); found {
+			tags = append(tags, tag)
+		}
+	}
+
+	return tags, nil
+}
+
+func (s *InMemoryMetadataStore) GetTag(repository, tag string) (string, error) {
+	if digest, ok := s.store[s.tagPath(repository, tag)]; ok {
+		return string(digest), nil
+	}
+	return "", ErrManifestUnknown
+}
+
+func (s *InMemoryMetadataStore) PutTag(repository, tag, digest string) error {
+	s.store[s.tagPath(repository, tag)] = []byte(digest)
+	return nil
+}
+
+func (s *InMemoryMetadataStore) DeleteTag(repository, tag string) error {
+	delete(s.store, s.tagPath(repository, tag))
+	return nil
+}
+
+func (s *InMemoryMetadataStore) tagPath(repository, tag string) string {
+	return fmt.Sprintf("repositories/%s/tags/%s", repository, tag)
 }
 
 func NewInMemoryBlobStore() BlobStore {
