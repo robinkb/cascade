@@ -39,3 +39,12 @@ func (s *registryService) GetBlob(repository, id string) (io.Reader, error) {
 
 	return s.blobs.Reader(path)
 }
+
+func (s *registryService) DeleteBlob(repository, id string) error {
+	digest, err := digest.Parse(id)
+	if err != nil {
+		return ErrBlobUnknown
+	}
+
+	return s.metadata.DeleteBlob(repository, digest)
+}

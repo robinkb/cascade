@@ -57,3 +57,24 @@ func TestGetBlob(t *testing.T) {
 		assertErrorIs(t, err, ErrBlobUnknown)
 	})
 }
+
+func TestDeleteBlob(t *testing.T) {
+	service, metadata, blobs := newTestRegistry()
+
+	name, digest, content := randomBlob(32)
+	path := digest.String()
+
+	t.Run("A deleted blob is not retrievable", func(t *testing.T) {
+		metadata.PutBlob(name, digest, path)
+		blobs.Put(path, content)
+
+		_, err := service.GetBlob(name, digest.String())
+		assertNoError(t, err)
+
+		err = service.DeleteBlob(name, digest.String())
+		assertNoError(t, err)
+
+		_, err = service.GetBlob(name, digest.String())
+		assertErrorIs(t, err, ErrBlobUnknown)
+	})
+}

@@ -77,6 +77,27 @@ func TestGetBlob(t *testing.T) {
 
 }
 
+func TestDeleteBlob(t *testing.T) {
+	t.Run("Delete blob returns 202", func(t *testing.T) {
+		name, id, _ := randomBlob(32)
+		server := New(&StubRegistryService{
+			deleteBlob: func(repository, digest string) error {
+				if repository != name || digest != id.String() {
+					t.Error("parameters not passed correctly")
+				}
+				return nil
+			},
+		})
+
+		request := newDeleteBlobRequest(name, id.String())
+		response := httptest.NewRecorder()
+
+		server.ServeHTTP(response, request)
+
+		assertStatus(t, response.Code, http.StatusAccepted)
+	})
+}
+
 func TestBlobsOthers(t *testing.T) {
 	t.Run("other methods return 405", func(t *testing.T) {
 		server := New(nil)
@@ -97,5 +118,10 @@ func newCheckBlobRequest(name, digest string) *http.Request {
 
 func newGetBlobRequest(name, digest string) *http.Request {
 	req, _ := http.NewRequest(http.MethodGet, fmt.Sprintf("/v2/%s/blobs/%s", name, digest), nil)
+	return req
+}
+
+func newDeleteBlobRequest(name, digest string) *http.Request {
+	req, _ := http.NewRequest(http.MethodDelete, fmt.Sprintf("/v2/%s/blobs/%s", name, digest), nil)
 	return req
 }

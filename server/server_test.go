@@ -23,8 +23,9 @@ var (
 )
 
 type StubRegistryService struct {
-	statBlob func(repository, digest string) (*cascade.FileInfo, error)
-	getBlob  func(repository, digest string) (io.Reader, error)
+	statBlob   func(repository, digest string) (*cascade.FileInfo, error)
+	getBlob    func(repository, digest string) (io.Reader, error)
+	deleteBlob func(repository, digest string) error
 
 	statManifest   func(repository, reference string) (*cascade.FileInfo, error)
 	getManifest    func(repository, reference string) (*cascade.Manifest, error)
@@ -47,6 +48,9 @@ func (s *StubRegistryService) StatBlob(repository, digest string) (*cascade.File
 }
 func (s *StubRegistryService) GetBlob(repository, digest string) (io.Reader, error) {
 	return s.getBlob(repository, digest)
+}
+func (s *StubRegistryService) DeleteBlob(repository, digest string) error {
+	return s.deleteBlob(repository, digest)
 }
 func (s *StubRegistryService) StatManifest(repository, reference string) (*cascade.FileInfo, error) {
 	return s.statManifest(repository, reference)

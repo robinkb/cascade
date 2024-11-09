@@ -11,6 +11,8 @@ func (s *Server) blobsHandler(w http.ResponseWriter, r *http.Request) {
 		s.statBlobsHandler(w, r)
 	case http.MethodGet:
 		s.getBlobsHandler(w, r)
+	case http.MethodDelete:
+		s.deleteBlobsHandler(w, r)
 	default:
 		w.WriteHeader(http.StatusMethodNotAllowed)
 	}
@@ -40,4 +42,17 @@ func (s *Server) getBlobsHandler(w http.ResponseWriter, r *http.Request) {
 
 	w.WriteHeader(http.StatusOK)
 	io.Copy(w, blob)
+}
+
+func (s *Server) deleteBlobsHandler(w http.ResponseWriter, r *http.Request) {
+	repository := r.PathValue("repository")
+	digest := r.PathValue("digest")
+
+	err := s.service.DeleteBlob(repository, digest)
+	if err != nil {
+		writeErrorResponse(w, err)
+		return
+	}
+
+	w.WriteHeader(http.StatusAccepted)
 }
