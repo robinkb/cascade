@@ -10,8 +10,7 @@ import (
 )
 
 func TestBlobUploadSession(t *testing.T) {
-	service := cascade.NewRegistryService(cascade.NewInMemoryStore())
-	server := New(service)
+	server := newTestServer()
 
 	t.Run("Initialize upload session and check its status", func(t *testing.T) {
 		// Initialize the upload session by obtaining an ID.

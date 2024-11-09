@@ -14,11 +14,17 @@ import (
 func newTestRegistry() (RegistryService, MetadataStore, BlobStore) {
 	metadata := NewInMemoryMetadataStore()
 	blobs := NewInMemoryBlobStore()
-	service := NewRegistryService(NewInMemoryStore())
-	service.metadata = metadata
-	service.blobs = blobs
+	service := NewRegistryService(metadata, blobs)
 
 	return service, metadata, blobs
+}
+
+func assertNoError(t *testing.T, err error) {
+	t.Helper()
+	if err != nil {
+		t.Errorf("got error where none was expected: %v", err)
+		t.FailNow()
+	}
 }
 
 func assertErrorIs(t *testing.T, got, want error) {

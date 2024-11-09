@@ -16,8 +16,7 @@ import (
 func TestBlobUploadsMonolithic(t *testing.T) {
 	// TODO: This test feels too heavy.
 	t.Run("Monolithic blob upload - happy path", func(t *testing.T) {
-		service := cascade.NewRegistryService(cascade.NewInMemoryStore())
-		server := New(service)
+		server := newTestServer()
 
 		name, digest, content := randomBlob(32)
 
@@ -121,8 +120,7 @@ func TestBlobUploadsMonolithic(t *testing.T) {
 }
 
 func TestBlobUploadsChunked(t *testing.T) {
-	service := cascade.NewRegistryService(cascade.NewInMemoryStore())
-	server := New(service)
+	server := newTestServer()
 
 	// TODO: This test feels too heavy.
 	t.Run("Chunked upload happy path", func(t *testing.T) {
@@ -348,8 +346,7 @@ func TestBlobUploadsChunked(t *testing.T) {
 }
 
 func TestBlobUploadsStreamed(t *testing.T) {
-	service := cascade.NewRegistryService(cascade.NewInMemoryStore())
-	server := New(service)
+	server := newTestServer()
 
 	t.Run("Streamed upload happy path", func(t *testing.T) {
 		name, digest, content := randomBlob(32 * 1024)

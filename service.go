@@ -57,19 +57,14 @@ type (
 	}
 )
 
-// TODO: Modify to accept MetadataStore and BlobStore when MetadataStore is implemented.
-func NewRegistryService(store RegistryStore) *registryService {
+func NewRegistryService(metadata MetadataStore, blobs BlobStore) *registryService {
 	return &registryService{
-		store:        store,
-		metadata:     NewInMemoryMetadataStore(),
-		blobs:        NewInMemoryBlobStore(),
-		sessionStore: make(map[string]map[string]bool),
+		metadata: metadata,
+		blobs:    blobs,
 	}
 }
 
 type registryService struct {
-	store        RegistryStore
-	blobs        BlobStore
-	metadata     MetadataStore
-	sessionStore map[string]map[string]bool
+	blobs    BlobStore
+	metadata MetadataStore
 }

@@ -90,19 +90,20 @@ func TestBlobUploadsMonolithic(t *testing.T) {
 }
 
 func TestServiceUpload(t *testing.T) {
-	store := NewInMemoryStore()
-	service := NewRegistryService(store)
+	service, _, _ := newTestRegistry()
 
 	t.Run("written upload is retrievable", func(t *testing.T) {
-		repository := "a/b/c"
-		content := randomContents(32)
+		name, digest, content := randomManifest()
 
-		session := service.InitUpload(repository)
+		session := service.InitUpload(name)
 
-		err := service.AppendUpload(repository, session.ID.String(), bytes.NewBuffer(content), 0)
+		err := service.AppendUpload(name, session.ID.String(), bytes.NewBuffer(content), 0)
 		assertNoError(t, err)
 
-		r, err := service.blobs.Reader(session.BlobPath)
+		err = service.CloseUpload(name, session.ID.String(), digest.String())
+		assertNoError(t, err)
+
+		r, err := service.GetBlob(name, digest.String())
 		assertNoError(t, err)
 
 		got, err := io.ReadAll(r)
