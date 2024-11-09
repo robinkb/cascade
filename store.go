@@ -2,9 +2,11 @@ package cascade
 
 import (
 	"bytes"
+	"encoding/gob"
 	"errors"
 	"fmt"
 	"io"
+	"slices"
 	"strings"
 	"sync"
 
@@ -27,6 +29,10 @@ type (
 	}
 
 	MetadataStore interface {
+		GetBlob(repository string, digest digest.Digest) (string, error)
+		PutBlob(repository string, digest digest.Digest, path string) error
+		DeleteBlob(repository string, digest digest.Digest) error
+
 		GetManifest(repository string, digest digest.Digest) (string, error)
 		PutManifest(repository string, digest digest.Digest, path string) error
 		DeleteManifest(repository string, digest digest.Digest) error
@@ -35,6 +41,10 @@ type (
 		GetTag(repository, tag string) (string, error)
 		PutTag(repository, tag, digest string) error
 		DeleteTag(repository, tag string) error
+
+		GetUpload(repository string, id string) (*UploadSession, error)
+		PutUpload(repository string, session *UploadSession) error
+		DeleteUpload(repository string, id string) error
 	}
 
 	BlobStore interface {
@@ -158,6 +168,23 @@ type InMemoryMetadataStore struct {
 	store map[string][]byte
 }
 
+func (s *InMemoryMetadataStore) GetBlob(repository string, digest digest.Digest) (string, error) {
+	if path, ok := s.store[s.blobPath(repository, digest)]; ok {
+		return string(path), nil
+	}
+	return "", ErrBlobUnknown
+}
+
+func (s *InMemoryMetadataStore) PutBlob(repository string, digest digest.Digest, path string) error {
+	s.store[s.blobPath(repository, digest)] = []byte(path)
+	return nil
+}
+
+func (s *InMemoryMetadataStore) DeleteBlob(repository string, digest digest.Digest) error {
+	delete(s.store, s.blobPath(repository, digest))
+	return nil
+}
+
 func (s *InMemoryMetadataStore) GetManifest(repository string, digest digest.Digest) (string, error) {
 	if path, ok := s.store[s.manifestPath(repository, digest)]; ok {
 		return string(path), nil
@@ -185,6 +212,8 @@ func (s *InMemoryMetadataStore) ListTags(repository string) ([]string, error) {
 		}
 	}
 
+	slices.Sort(tags)
+
 	return tags, nil
 }
 
@@ -205,12 +234,47 @@ func (s *InMemoryMetadataStore) DeleteTag(repository, tag string) error {
 	return nil
 }
 
+func (s *InMemoryMetadataStore) GetUpload(repository string, id string) (*UploadSession, error) {
+	if data, ok := s.store[s.uploadPath(repository, id)]; ok {
+		var session UploadSession
+		data := bytes.NewBuffer(data)
+		err := gob.NewDecoder(data).Decode(&session)
+		return &session, err
+	}
+
+	return nil, ErrBlobUploadUnknown
+}
+
+func (s *InMemoryMetadataStore) PutUpload(repository string, session *UploadSession) error {
+	var buf bytes.Buffer
+	err := gob.NewEncoder(&buf).Encode(session)
+	if err != nil {
+		return err
+	}
+
+	s.store[s.uploadPath(repository, session.ID.String())] = buf.Bytes()
+	return nil
+}
+
+func (s *InMemoryMetadataStore) DeleteUpload(repository string, session string) error {
+	delete(s.store, s.uploadPath(repository, session))
+	return nil
+}
+
+func (s *InMemoryMetadataStore) blobPath(repository string, digest digest.Digest) string {
+	return fmt.Sprintf("repositories/%s/blobs/%s/%s", repository, digest.Algorithm(), digest.Encoded())
+}
+
 func (s *InMemoryMetadataStore) manifestPath(repository string, digest digest.Digest) string {
 	return fmt.Sprintf("repositories/%s/manifests/%s/%s", repository, digest.Algorithm(), digest.Encoded())
 }
 
 func (s *InMemoryMetadataStore) tagPath(repository, tag string) string {
 	return fmt.Sprintf("repositories/%s/tags/%s", repository, tag)
+}
+
+func (s *InMemoryMetadataStore) uploadPath(repository, sessionID string) string {
+	return fmt.Sprintf("repositories/%s/uploads/%s", repository, sessionID)
 }
 
 func NewInMemoryBlobStore() BlobStore {
