@@ -3,25 +3,21 @@ package cascade
 import (
 	"bytes"
 	"io"
-	"reflect"
 	"testing"
-
-	"github.com/robinkb/cascade-registry/paths"
 )
 
 func TestStatUpload(t *testing.T) {
-	store := NewInMemoryStore()
-	service := NewRegistryService(store)
+	service, _, _ := newTestRegistry()
 
 	t.Run("stat upload returns correct FileInfo", func(t *testing.T) {
 		repository := "a/v/c"
 		content := randomContents(32)
 
 		session := service.InitUpload(repository)
-		err := service.AppendUpload(repository, session.ID, bytes.NewBuffer(content), 0)
+		err := service.AppendUpload(repository, session.ID.String(), bytes.NewBuffer(content), 0)
 		assertNoError(t, err)
 
-		info, err := service.StatUpload(repository, session.ID)
+		info, err := service.StatUpload(repository, session.ID.String())
 		assertNoError(t, err)
 
 		got := info.Size
@@ -36,20 +32,22 @@ func TestStatUpload(t *testing.T) {
 		_, err := service.StatUpload("unknown/repo", "i-dont-exist")
 		assertErrorIs(t, err, ErrBlobUploadUnknown)
 	})
+
+	// TODO: Write test to ensure that uploads are scoped to a repository.
 }
 
 func TestBlobUploadsMonolithic(t *testing.T) {
-	service := NewRegistryService(NewInMemoryStore())
+	service, _, _ := newTestRegistry()
 
 	t.Run("Monolithic blob upload - happy path", func(t *testing.T) {
 		name, digest, content := randomBlob(32)
 
 		session := service.InitUpload(name)
 
-		err := service.AppendUpload(name, session.ID, bytes.NewBuffer(content), 0)
+		err := service.AppendUpload(name, session.ID.String(), bytes.NewBuffer(content), 0)
 		assertNoError(t, err)
 
-		err = service.CloseUpload(name, session.ID, digest.String())
+		err = service.CloseUpload(name, session.ID.String(), digest.String())
 		assertNoError(t, err)
 
 		r, err := service.GetBlob(name, digest.String())
@@ -70,10 +68,10 @@ func TestBlobUploadsMonolithic(t *testing.T) {
 
 		session := service.InitUpload(name)
 
-		err := service.AppendUpload(name, session.ID, bytes.NewBuffer(content[0:16]), 0)
+		err := service.AppendUpload(name, session.ID.String(), bytes.NewBuffer(content[0:16]), 0)
 		assertNoError(t, err)
 
-		err = service.CloseUpload(name, session.ID, digest)
+		err = service.CloseUpload(name, session.ID.String(), digest)
 		assertErrorIs(t, err, ErrDigestInvalid)
 	})
 
@@ -83,34 +81,35 @@ func TestBlobUploadsMonolithic(t *testing.T) {
 
 		session := service.InitUpload(name)
 
-		err := service.AppendUpload(name, session.ID, bytes.NewBuffer(otherContent), 0)
+		err := service.AppendUpload(name, session.ID.String(), bytes.NewBuffer(otherContent), 0)
 		assertNoError(t, err)
 
-		err = service.CloseUpload(name, session.ID, digest.String())
+		err = service.CloseUpload(name, session.ID.String(), digest.String())
 		assertErrorIs(t, err, ErrBlobUploadInvalid)
 	})
 }
 
 func TestServiceUpload(t *testing.T) {
-	store := NewInMemoryStore()
-	service := NewRegistryService(store)
+	service, _, _ := newTestRegistry()
 
 	t.Run("written upload is retrievable", func(t *testing.T) {
-		repository := "a/b/c"
-		content := randomContents(32)
+		name, digest, content := randomManifest()
 
-		session := service.InitUpload(repository)
+		session := service.InitUpload(name)
 
-		err := service.AppendUpload(repository, session.ID, bytes.NewBuffer(content), 0)
+		err := service.AppendUpload(name, session.ID.String(), bytes.NewBuffer(content), 0)
 		assertNoError(t, err)
 
-		r, err := service.b.Reader(paths.BlobStore.UploadData(session.ID))
+		err = service.CloseUpload(name, session.ID.String(), digest.String())
+		assertNoError(t, err)
+
+		r, err := service.GetBlob(name, digest.String())
 		assertNoError(t, err)
 
 		got, err := io.ReadAll(r)
 		assertNoError(t, err)
 
-		if !reflect.DeepEqual(got, content) {
+		if !bytes.Equal(got, content) {
 			t.Errorf("got unexpected byte content; not equal to written content")
 		}
 	})
@@ -121,13 +120,13 @@ func TestServiceUpload(t *testing.T) {
 
 		session := service.InitUpload(repository)
 
-		err := service.AppendUpload(repository, session.ID, bytes.NewBuffer(content[:16]), 0)
+		err := service.AppendUpload(repository, session.ID.String(), bytes.NewBuffer(content[:16]), 0)
 		assertNoError(t, err)
 
-		err = service.AppendUpload(repository, session.ID, bytes.NewBuffer(content[16:]), 16)
+		err = service.AppendUpload(repository, session.ID.String(), bytes.NewBuffer(content[16:]), 16)
 		assertNoError(t, err)
 
-		info, err := service.StatUpload(repository, session.ID)
+		info, err := service.StatUpload(repository, session.ID.String())
 		assertNoError(t, err)
 
 		got := info.Size

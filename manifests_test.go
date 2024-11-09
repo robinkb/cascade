@@ -6,20 +6,18 @@ import (
 
 	"github.com/opencontainers/go-digest"
 	v1 "github.com/opencontainers/image-spec/specs-go/v1"
-	"github.com/robinkb/cascade-registry/paths"
 )
 
 func TestStatManifest(t *testing.T) {
-	store := NewInMemoryStore()
-	service := NewRegistryService(store)
+	service, metadata, blobs := newTestRegistry()
 
 	name := randomName()
 	manifest, _ := json.Marshal(v1.Manifest{MediaType: v1.MediaTypeImageLayer})
 	digest := digest.FromBytes(manifest)
 
-	service.b.Put(paths.BlobStore.BlobData(digest), manifest)
-	store.Set(paths.MetaStore.ManifestLink(name, digest), nil)
-	store.Set(paths.MetaStore.TagLink(name, "40"), []byte(digest.String()))
+	path := digest.String()
+	blobs.Put(path, manifest)
+	metadata.PutManifest(name, digest, path)
 
 	t.Run("Returns FileInfo with expected size on known manifest", func(t *testing.T) {
 		info, err := service.StatManifest(name, digest.String())
@@ -51,16 +49,15 @@ func TestStatManifest(t *testing.T) {
 }
 
 func TestGetManifest(t *testing.T) {
-	store := NewInMemoryStore()
-	service := NewRegistryService(store)
+	service, metadata, blobs := newTestRegistry()
 
 	name := randomName()
 	manifest, _ := json.Marshal(v1.Manifest{MediaType: v1.MediaTypeImageLayer})
 	digest := digest.FromBytes(manifest)
 
-	service.b.Put(paths.BlobStore.BlobData(digest), manifest)
-	store.Set(paths.MetaStore.ManifestLink(name, digest), nil)
-	store.Set(paths.MetaStore.TagLink(name, "40"), []byte(digest.String()))
+	path := digest.String()
+	blobs.Put(path, manifest)
+	metadata.PutManifest(name, digest, path)
 
 	t.Run("Retrieve an existing manifest", func(t *testing.T) {
 		got, err := service.GetManifest(name, digest.String())
@@ -75,8 +72,7 @@ func TestGetManifest(t *testing.T) {
 }
 
 func TestPutManifest(t *testing.T) {
-	store := NewInMemoryStore()
-	service := NewRegistryService(store)
+	service, _, _ := newTestRegistry()
 
 	t.Run("Put and retrieve a manifest", func(t *testing.T) {
 		name, digest, manifest := randomManifest()
@@ -98,8 +94,7 @@ func TestPutManifest(t *testing.T) {
 }
 
 func TestDeleteManifest(t *testing.T) {
-	store := NewInMemoryStore()
-	service := NewRegistryService(store)
+	service, _, _ := newTestRegistry()
 
 	t.Run("Delete manifest and make sure it cannot be retrieved", func(t *testing.T) {
 		name, digest, manifest := randomManifest()

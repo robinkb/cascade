@@ -1,6 +1,11 @@
 package cascade
 
-import "io"
+import (
+	"io"
+	"time"
+
+	"github.com/gofrs/uuid/v5"
+)
 
 type (
 	RegistryService interface {
@@ -42,20 +47,24 @@ type (
 	// }
 
 	UploadSession struct {
-		ID, Location string
+		ID uuid.UUID
+		// TODO: This should not be here, as it's an HTTP implementation detail.
+		Location  string
+		BlobPath  string
+		StartDate time.Time
+		// TODO: Could we make this a hash.Hash and make it easier?
+		HashState []byte
 	}
 )
 
-func NewRegistryService(store RegistryStore) *registryService {
+func NewRegistryService(metadata MetadataStore, blobs BlobStore) *registryService {
 	return &registryService{
-		store:        store,
-		b:            NewInMemoryBlobStore(),
-		sessionStore: make(map[string]map[string]bool),
+		metadata: metadata,
+		blobs:    blobs,
 	}
 }
 
 type registryService struct {
-	store        RegistryStore
-	b            BlobStore
-	sessionStore map[string]map[string]bool
+	blobs    BlobStore
+	metadata MetadataStore
 }

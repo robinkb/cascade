@@ -2,12 +2,10 @@ package cascade
 
 import (
 	"errors"
-
-	"github.com/robinkb/cascade-registry/paths"
 )
 
 func (s *registryService) ListTags(repository string) ([]string, error) {
-	return nil, errors.New("not implemented")
+	return s.metadata.ListTags(repository)
 }
 
 func (s *registryService) GetTag(repository, tag string) (string, error) {
@@ -15,25 +13,22 @@ func (s *registryService) GetTag(repository, tag string) (string, error) {
 		return "", ErrTagInvalid
 	}
 
-	tagLink := paths.MetaStore.TagLink(repository, tag)
-	digest, err := s.store.Get(tagLink)
+	digest, err := s.metadata.GetTag(repository, tag)
 	if errors.Is(err, ErrFileNotFound) {
 		err = ErrManifestUnknown
 	}
 
-	return string(digest), err
+	return digest, err
 }
 
-func (s *registryService) PutTag(repository, tag, digest string) error {
+func (s *registryService) PutTag(repository, tag, id string) error {
 	if !ValidateTag(tag) {
 		return ErrTagInvalid
 	}
 
-	tagLink := paths.MetaStore.TagLink(repository, tag)
-	return s.store.Set(tagLink, []byte(digest))
+	return s.metadata.PutTag(repository, tag, id)
 }
 
 func (s *registryService) DeleteTag(repository, tag string) error {
-	tagLink := paths.MetaStore.TagLink(repository, tag)
-	return s.store.Delete(tagLink)
+	return s.metadata.DeleteTag(repository, tag)
 }

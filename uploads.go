@@ -6,8 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
-
-	"github.com/robinkb/cascade-registry/paths"
+	"time"
 
 	"github.com/gofrs/uuid/v5"
 	godigest "github.com/opencontainers/go-digest"
@@ -16,9 +15,14 @@ import (
 // TODO: Should write a test to verify that uploads can only be accessed
 // from the repository where it was created. Spoiler alert: not the case.
 func (s *registryService) StatUpload(repository, sessionID string) (*FileInfo, error) {
-	path := paths.BlobStore.UploadData(sessionID)
+	session, err := s.metadata.GetUpload(repository, sessionID)
+	if err != nil {
+		return nil, err
+	}
 
-	info, err := s.b.Stat(path)
+	path := fmt.Sprintf("uploads/%s", session.ID)
+
+	info, err := s.blobs.Stat(path)
 	if errors.Is(err, ErrFileNotFound) {
 		return nil, ErrBlobUploadUnknown
 	}
@@ -29,9 +33,7 @@ func (s *registryService) StatUpload(repository, sessionID string) (*FileInfo, e
 // TODO: This should be able to return errors, and verify that upload sessions
 // cannot be overwritten _just in case_ the generated UUID is not unique... lol.
 func (s *registryService) InitUpload(repository string) *UploadSession {
-	sessionID, _ := uuid.NewV7()
-
-	hashPath := paths.MetaStore.UploadHashState(repository, sessionID.String(), "sha256")
+	id, _ := uuid.NewV7()
 
 	hash := sha256.New()
 	_, err := hash.Write([]byte{})
@@ -44,30 +46,38 @@ func (s *registryService) InitUpload(repository string) *UploadSession {
 		panic(err)
 	}
 
-	err = s.store.Set(hashPath, hashState)
+	path := fmt.Sprintf("uploads/%s", id.String())
+
+	session := UploadSession{
+		ID: id,
+		// TODO: The location URL really shouldn't be included here.
+		// That's an HTTP implementation detail.
+		Location:  fmt.Sprintf("/v2/%s/blobs/uploads/%s", repository, id.String()),
+		StartDate: time.Now(),
+		HashState: hashState,
+		BlobPath:  path,
+	}
+
+	err = s.blobs.Put(path, []byte{})
 	if err != nil {
 		panic(err)
 	}
 
-	dataPath := paths.BlobStore.UploadData(sessionID.String())
-	w, err := s.b.Writer(dataPath)
-	if err != nil {
-		panic(err)
-	}
-	_, err = w.Write([]byte{})
+	err = s.metadata.PutUpload(repository, &session)
 	if err != nil {
 		panic(err)
 	}
 
-	return &UploadSession{
-		ID:       sessionID.String(),
-		Location: fmt.Sprintf("/v2/%s/blobs/uploads/%s", repository, sessionID.String()),
-	}
+	return &session
 }
 
-// TODO: Verify that this is properly scoped to a repository.
 func (s *registryService) AppendUpload(repository, sessionID string, r io.Reader, offset int64) error {
-	info, err := s.StatUpload(repository, sessionID)
+	session, err := s.metadata.GetUpload(repository, sessionID)
+	if err != nil {
+		return err
+	}
+
+	info, err := s.blobs.Stat(session.BlobPath)
 	if err != nil {
 		return err
 	}
@@ -76,22 +86,13 @@ func (s *registryService) AppendUpload(repository, sessionID string, r io.Reader
 		return ErrUploadOffsetInvalid
 	}
 
-	// As of Distribution Spec v1.1, clients and servers do not negotiate
-	// the hashing algorithm. So we have to assume sha256 for resumable hashing.
-	hashPath := paths.MetaStore.UploadHashState(repository, sessionID, "sha256")
-	hashState, err := s.store.Get(hashPath)
-	if err != nil {
-		return err
-	}
-
 	hash := sha256.New()
-	err = hash.(encoding.BinaryUnmarshaler).UnmarshalBinary(hashState)
+	err = hash.(encoding.BinaryUnmarshaler).UnmarshalBinary(session.HashState)
 	if err != nil {
 		return err
 	}
 
-	dataPath := paths.BlobStore.UploadData(sessionID)
-	w, err := s.b.Writer(dataPath)
+	w, err := s.blobs.Writer(session.BlobPath)
 	if err != nil {
 		return err
 	}
@@ -102,16 +103,16 @@ func (s *registryService) AppendUpload(repository, sessionID string, r io.Reader
 		return err
 	}
 
-	hashState, err = hash.(encoding.BinaryMarshaler).MarshalBinary()
+	session.HashState, err = hash.(encoding.BinaryMarshaler).MarshalBinary()
 	if err != nil {
 		panic(err)
 	}
 
-	return s.store.Set(hashPath, hashState)
+	return s.metadata.PutUpload(repository, session)
 }
 
 func (s *registryService) CloseUpload(repository, sessionID, digest string) error {
-	_, err := s.StatUpload(repository, sessionID)
+	session, err := s.metadata.GetUpload(repository, sessionID)
 	if err != nil {
 		return err
 	}
@@ -121,14 +122,8 @@ func (s *registryService) CloseUpload(repository, sessionID, digest string) erro
 		return ErrDigestInvalid
 	}
 
-	hashPath := paths.MetaStore.UploadHashState(repository, sessionID, id.Algorithm())
-	hashState, err := s.store.Get(hashPath)
-	if err != nil {
-		return err
-	}
-
 	hash := sha256.New()
-	err = hash.(encoding.BinaryUnmarshaler).UnmarshalBinary(hashState)
+	err = hash.(encoding.BinaryUnmarshaler).UnmarshalBinary(session.HashState)
 	if err != nil {
 		return err
 	}
@@ -138,11 +133,9 @@ func (s *registryService) CloseUpload(repository, sessionID, digest string) erro
 		return ErrBlobUploadInvalid
 	}
 
-	sourcePath := paths.BlobStore.UploadData(sessionID)
-	destPath := paths.BlobStore.BlobData(id)
-	linkPath := paths.MetaStore.BlobLink(repository, id)
+	destPath := fmt.Sprintf("blobs/%s/%s/%s", calculatedId.Algorithm(), calculatedId.Encoded()[0:2], calculatedId.Encoded())
 
-	s.b.Move(sourcePath, destPath)
-	s.store.Set(linkPath, nil)
-	return nil
+	s.blobs.Move(session.BlobPath, destPath)
+
+	return s.metadata.PutBlob(repository, calculatedId, destPath)
 }

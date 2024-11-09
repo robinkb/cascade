@@ -1,20 +1,18 @@
 package cascade
 
 import (
+	"slices"
 	"testing"
-
-	"github.com/robinkb/cascade-registry/paths"
 )
 
 func TestGetTag(t *testing.T) {
-	store := NewInMemoryStore()
-	service := NewRegistryService(store)
+	service, metadata, _ := newTestRegistry()
 
 	t.Run("Manifest digest is retrievable by tag", func(t *testing.T) {
 		name, digest, _ := randomManifest()
 		tag := "v1.2.3"
 
-		store.Set(paths.MetaStore.TagLink(name, tag), []byte(digest))
+		metadata.PutTag(name, tag, digest.String())
 
 		got, err := service.GetTag(name, tag)
 		assertNoError(t, err)
@@ -31,12 +29,11 @@ func TestGetTag(t *testing.T) {
 }
 
 func TestPutTag(t *testing.T) {
+	service, _, _ := newTestRegistry()
+
 	t.Run("Tag creates a link to the manifest digest", func(t *testing.T) {
 		name, digest, manifest := randomManifest()
 		tag := "v0.5.1"
-
-		store := NewInMemoryStore()
-		service := NewRegistryService(store)
 
 		err := service.PutManifest(name, digest.String(), manifest)
 		assertNoError(t, err)
@@ -55,8 +52,7 @@ func TestPutTag(t *testing.T) {
 }
 
 func TestDeleteTag(t *testing.T) {
-	store := NewInMemoryStore()
-	service := NewRegistryService(store)
+	service, _, _ := newTestRegistry()
 
 	t.Run("Deleted tag is not retrievable", func(t *testing.T) {
 		name, digest, _ := randomManifest()
@@ -73,5 +69,33 @@ func TestDeleteTag(t *testing.T) {
 
 		_, err = service.GetTag(name, tag)
 		assertErrorIs(t, err, ErrManifestUnknown)
+	})
+}
+
+func TestListTag(t *testing.T) {
+	service, _, _ := newTestRegistry()
+
+	t.Run("Listing tags returns all", func(t *testing.T) {
+		name, digest, _ := randomManifest()
+		tags := []string{
+			"v1.0.0",
+			"v1.1.0",
+			"v1.1.1",
+			"v1.1.2",
+		}
+
+		for _, tag := range tags {
+			err := service.PutTag(name, tag, string(digest))
+			assertNoError(t, err)
+		}
+
+		got, err := service.ListTags(name)
+		assertNoError(t, err)
+
+		want := tags
+
+		if !slices.Equal(got, want) {
+			t.Fatalf("expected to see all tags; got %q, want %q", got, want)
+		}
 	})
 }

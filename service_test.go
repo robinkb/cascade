@@ -11,6 +11,22 @@ import (
 	"github.com/opencontainers/go-digest"
 )
 
+func newTestRegistry() (RegistryService, MetadataStore, BlobStore) {
+	metadata := NewInMemoryMetadataStore()
+	blobs := NewInMemoryBlobStore()
+	service := NewRegistryService(metadata, blobs)
+
+	return service, metadata, blobs
+}
+
+func assertNoError(t *testing.T, err error) {
+	t.Helper()
+	if err != nil {
+		t.Errorf("got error where none was expected: %v", err)
+		t.FailNow()
+	}
+}
+
 func assertErrorIs(t *testing.T, got, want error) {
 	t.Helper()
 	if !errors.Is(got, want) {

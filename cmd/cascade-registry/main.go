@@ -9,8 +9,9 @@ import (
 )
 
 func main() {
-	store := cascade.NewInMemoryStore()
-	service := cascade.NewRegistryService(store)
+	metadata := cascade.NewInMemoryMetadataStore()
+	blobs := cascade.NewInMemoryBlobStore()
+	service := cascade.NewRegistryService(metadata, blobs)
 	server := server.New(service)
 	log.Fatal(http.ListenAndServe(":5000", logger(server)))
 }

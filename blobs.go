@@ -5,7 +5,6 @@ import (
 	"io"
 
 	"github.com/opencontainers/go-digest"
-	"github.com/robinkb/cascade-registry/paths"
 )
 
 func (s *registryService) StatBlob(repository, id string) (*FileInfo, error) {
@@ -14,14 +13,12 @@ func (s *registryService) StatBlob(repository, id string) (*FileInfo, error) {
 		return nil, ErrBlobUnknown
 	}
 
-	linkPath := paths.MetaStore.BlobLink(repository, digest)
-	_, err = s.store.Stat(linkPath)
+	path, err := s.metadata.GetBlob(repository, digest)
 	if err != nil {
-		return nil, ErrBlobUnknown
+		return nil, err
 	}
 
-	dataPath := paths.BlobStore.BlobData(digest)
-	info, err := s.b.Stat(dataPath)
+	info, err := s.blobs.Stat(path)
 	if errors.Is(err, ErrFileNotFound) {
 		return nil, ErrBlobUnknown
 	}
@@ -35,12 +32,10 @@ func (s *registryService) GetBlob(repository, id string) (io.Reader, error) {
 		return nil, ErrBlobUnknown
 	}
 
-	linkPath := paths.MetaStore.BlobLink(repository, digest)
-	_, err = s.store.Stat(linkPath)
+	path, err := s.metadata.GetBlob(repository, digest)
 	if err != nil {
-		return nil, ErrBlobUnknown
+		return nil, err
 	}
 
-	dataPath := paths.BlobStore.BlobData(digest)
-	return s.b.Reader(dataPath)
+	return s.blobs.Reader(path)
 }

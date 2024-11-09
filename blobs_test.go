@@ -3,18 +3,16 @@ package cascade
 import (
 	"io"
 	"testing"
-
-	"github.com/robinkb/cascade-registry/paths"
 )
 
 func TestStatBlob(t *testing.T) {
-	store := NewInMemoryStore()
-	service := NewRegistryService(store)
+	service, metadata, blobs := newTestRegistry()
 
 	name, digest, content := randomBlob(32 * 1024)
+	path := digest.Encoded()
 
-	service.b.Put(paths.BlobStore.BlobData(digest), content)
-	store.Set(paths.MetaStore.BlobLink(name, digest), nil)
+	blobs.Put(path, content)
+	metadata.PutBlob(name, digest, path)
 
 	t.Run("Known blob returns no error", func(t *testing.T) {
 		_, err := service.StatBlob(name, digest.String())
@@ -33,13 +31,13 @@ func TestStatBlob(t *testing.T) {
 }
 
 func TestGetBlob(t *testing.T) {
-	store := NewInMemoryStore()
-	service := NewRegistryService(store)
+	service, metadata, blobs := newTestRegistry()
 
 	name, digest, content := randomBlob(32)
+	path := digest.Encoded()
 
-	service.b.Put(paths.BlobStore.BlobData(digest), content)
-	store.Set(paths.MetaStore.BlobLink(name, digest), nil)
+	blobs.Put(path, content)
+	metadata.PutBlob(name, digest, path)
 
 	t.Run("Known blob returns content and no error", func(t *testing.T) {
 		r, err := service.GetBlob(name, digest.String())

@@ -86,8 +86,7 @@ func (s *StubRegistryService) CloseUpload(repository, id, digest string) error {
 }
 
 func TestRoot(t *testing.T) {
-	service := cascade.NewRegistryService(cascade.NewInMemoryStore())
-	server := New(service)
+	server := newTestServer()
 
 	t.Run("GET /v2/ should return 200", func(t *testing.T) {
 		request, _ := http.NewRequest(http.MethodGet, "/v2/", nil)
@@ -97,6 +96,15 @@ func TestRoot(t *testing.T) {
 
 		assertStatus(t, response.Code, http.StatusOK)
 	})
+}
+
+func newTestServer() *Server {
+	return New(
+		cascade.NewRegistryService(
+			cascade.NewInMemoryMetadataStore(),
+			cascade.NewInMemoryBlobStore(),
+		),
+	)
 }
 
 func assertNoError(t *testing.T, err error) {
