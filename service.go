@@ -18,7 +18,7 @@ type (
 		PutManifest(repository, reference string, content []byte) error
 		DeleteManifest(repository, reference string) error
 
-		ListTags(repository string) ([]string, error)
+		ListTags(repository string, count int, from string) ([]string, error)
 		GetTag(repository, tag string) (string, error)
 		PutTag(repository, tag, digest string) error
 		DeleteTag(repository, tag string) error

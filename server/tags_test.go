@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"slices"
+	"strconv"
 	"testing"
 )
 
@@ -13,8 +14,8 @@ func TestListTags(t *testing.T) {
 	t.Run("Listing tags returns 200", func(t *testing.T) {
 		wantName := randomName()
 		wantTags := []string{"40", "1.2.3", "latest"}
-		server := New(&StubRegistryService{listTags: func(repository string) ([]string, error) {
-			if repository == wantName {
+		server := New(&StubRegistryService{listTags: func(repository string, count int, last string) ([]string, error) {
+			if repository == wantName && count == -1 && last == "" {
 				return wantTags, nil
 			}
 			panic(errDataNotPassedCorrectly)
@@ -41,5 +42,30 @@ func TestListTags(t *testing.T) {
 		if !slices.Equal(gotTags, wantTags) {
 			t.Errorf("retrieved tags incorrect; got %q, want %q", gotTags, wantTags)
 		}
+	})
+
+	t.Run("n and last query parameters are handled correctly", func(t *testing.T) {
+		wantName := randomName()
+		wantCount := 3
+		wantLast := "40"
+
+		server := New(&StubRegistryService{listTags: func(repository string, count int, last string) ([]string, error) {
+			if !(repository == wantName && count == wantCount && last == wantLast) {
+				t.Fatal(errDataNotPassedCorrectly)
+			}
+			return nil, nil
+		}})
+
+		request, _ := http.NewRequest(http.MethodGet, fmt.Sprintf("/v2/%s/tags/list", wantName), nil)
+		query := request.URL.Query()
+		query.Add("n", strconv.Itoa(wantCount))
+		query.Add("last", wantLast)
+		request.URL.RawQuery = query.Encode()
+
+		response := httptest.NewRecorder()
+
+		server.ServeHTTP(response, request)
+
+		assertStatus(t, response.Code, http.StatusOK)
 	})
 }

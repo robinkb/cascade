@@ -4,8 +4,8 @@ import (
 	"errors"
 )
 
-func (s *registryService) ListTags(repository string) ([]string, error) {
-	return s.metadata.ListTags(repository)
+func (s *registryService) ListTags(repository string, count int, last string) ([]string, error) {
+	return s.metadata.ListTags(repository, count, last)
 }
 
 func (s *registryService) GetTag(repository, tag string) (string, error) {

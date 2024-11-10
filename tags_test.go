@@ -1,6 +1,8 @@
 package cascade
 
 import (
+	"fmt"
+	"math/rand/v2"
 	"slices"
 	"testing"
 )
@@ -75,7 +77,7 @@ func TestDeleteTag(t *testing.T) {
 func TestListTag(t *testing.T) {
 	service, _, _ := newTestRegistry()
 
-	t.Run("Listing tags returns all", func(t *testing.T) {
+	t.Run("Listing tags returns all in lexical order", func(t *testing.T) {
 		name, digest, _ := randomManifest()
 		tags := []string{
 			"v1.0.0",
@@ -89,7 +91,7 @@ func TestListTag(t *testing.T) {
 			assertNoError(t, err)
 		}
 
-		got, err := service.ListTags(name)
+		got, err := service.ListTags(name, -1, "")
 		assertNoError(t, err)
 
 		want := tags
@@ -98,4 +100,75 @@ func TestListTag(t *testing.T) {
 			t.Fatalf("expected to see all tags; got %q, want %q", got, want)
 		}
 	})
+
+	t.Run("Listing tags with a count limit returns fewer tags", func(t *testing.T) {
+		name, digest, _ := randomManifest()
+		tags := randomTags(20)
+		count := 5
+
+		for _, tag := range tags {
+			err := service.PutTag(name, tag, digest.String())
+			assertNoError(t, err)
+		}
+
+		got, err := service.ListTags(name, count, "")
+		assertNoError(t, err)
+
+		want := tags[0:count]
+
+		if !slices.Equal(got, want) {
+			t.Fatalf("Unexpected subset of tags; got %q, want %q", got, want)
+		}
+	})
+
+	t.Run("Listing tags with a count of 0 must return an empty list", func(t *testing.T) {
+		name, digest, _ := randomManifest()
+		tags := randomTags(5)
+		count := 0
+
+		for _, tag := range tags {
+			err := service.PutTag(name, tag, digest.String())
+			assertNoError(t, err)
+		}
+
+		got, err := service.ListTags(name, count, "")
+		assertNoError(t, err)
+
+		if len(got) != count {
+			t.Fatal("List tags with count of 0 returned a non-empty list")
+		}
+	})
+
+	t.Run("Listing tags from a certain tag only returns tags after that tag", func(t *testing.T) {
+		name, digest, _ := randomManifest()
+		tags := randomTags(10)
+		count := 3
+		last := 4
+
+		for _, tag := range tags {
+			err := service.PutTag(name, tag, digest.String())
+			assertNoError(t, err)
+		}
+
+		got, err := service.ListTags(name, count, tags[last])
+		assertNoError(t, err)
+
+		want := tags[last+1 : last+1+count]
+
+		if !slices.Equal(got, want) {
+			t.Fatalf("Unexpected subset of tags; last %q, got %q, want %q", tags[last], got, want)
+		}
+	})
+}
+
+func randomTags(count int) (tags []string) {
+	for range count {
+		tags = append(tags, fmt.Sprintf("v%d.%d.%d",
+			rand.IntN(100), rand.IntN(100), rand.IntN(100),
+		))
+	}
+
+	slices.Sort(tags)
+
+	return
 }

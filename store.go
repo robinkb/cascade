@@ -27,7 +27,7 @@ type (
 		PutManifest(repository string, digest digest.Digest, path string) error
 		DeleteManifest(repository string, digest digest.Digest) error
 
-		ListTags(repository string) ([]string, error)
+		ListTags(repository string, count int, last string) ([]string, error)
 		GetTag(repository, tag string) (string, error)
 		PutTag(repository, tag, digest string) error
 		DeleteTag(repository, tag string) error
@@ -110,7 +110,7 @@ func (s *InMemoryMetadataStore) DeleteManifest(repository string, digest digest.
 	return nil
 }
 
-func (s *InMemoryMetadataStore) ListTags(repository string) ([]string, error) {
+func (s *InMemoryMetadataStore) ListTags(repository string, count int, last string) ([]string, error) {
 	tags := []string{}
 	prefix := s.tagPath(repository, "")
 
@@ -122,7 +122,21 @@ func (s *InMemoryMetadataStore) ListTags(repository string) ([]string, error) {
 
 	slices.Sort(tags)
 
-	return tags, nil
+	if count == -1 {
+		count = len(tags)
+	}
+
+	start := 0
+	if last != "" {
+		for _, tag := range tags {
+			start++
+			if tag == last {
+				break
+			}
+		}
+	}
+
+	return tags[start : start+count], nil
 }
 
 func (s *InMemoryMetadataStore) GetTag(repository, tag string) (string, error) {
