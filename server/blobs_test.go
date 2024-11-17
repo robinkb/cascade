@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"testing"
 
 	"github.com/robinkb/cascade-registry"
@@ -13,9 +14,12 @@ import (
 
 func TestStatBlob(t *testing.T) {
 	t.Run("known blob returns 200", func(t *testing.T) {
+		size := 42
 		server := New(&StubRegistryService{
 			statBlob: func(repository, digest string) (*cascade.FileInfo, error) {
-				return nil, nil
+				return &cascade.FileInfo{
+					Size: 42,
+				}, nil
 			},
 		})
 
@@ -24,6 +28,7 @@ func TestStatBlob(t *testing.T) {
 
 		server.ServeHTTP(response, request)
 		assertStatus(t, response.Code, http.StatusOK)
+		assertHeader(t, headerContentLength, response.Header(), strconv.Itoa(size))
 		assertResponseBody(t, response.Body.Bytes(), nil)
 	})
 
