@@ -34,7 +34,7 @@ func TestPush(t *testing.T) {
 				location, err := resp.Location()
 				RequireNoError(t, err)
 
-				resp = client.UploadBlob(location.String(), digest, blob)
+				resp = client.UploadBlobMonolithic(location.String(), digest, blob)
 
 				// Upon successful completion of the request, the response MUST have code 201 Created.
 				AssertResponseCode(t, resp, http.StatusCreated)
@@ -47,6 +47,21 @@ func TestPush(t *testing.T) {
 
 				AssertResponseCode(t, resp, http.StatusOK)
 				AssertResponseBody(t, resp, blob)
+			})
+
+			t.Run("Single POST", func(t *testing.T) {
+				client := NewClient(t, ts.URL)
+
+				// Registries MAY support pushing blobs using a single POST request.
+				// Cascade does not.
+				name, digest, blob := RandomBlob(32)
+				resp := client.UploadBlobSinglePOST(name, digest, blob)
+
+				// Registries that do not support single request monolithic uploads
+				// SHOULD return a 202 Accepted status code and Location header.
+				AssertResponseCode(t, resp, http.StatusAccepted)
+				_, err := resp.Location()
+				AssertNoError(t, err)
 			})
 		})
 	})

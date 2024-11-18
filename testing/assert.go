@@ -9,6 +9,16 @@ import (
 	"testing"
 )
 
+func AssertNoError(t *testing.T, got error) bool {
+	t.Helper()
+
+	if got != nil {
+		t.Errorf("unexpected error: %s", got)
+		return false
+	}
+	return true
+}
+
 func AssertResponseCode(t *testing.T, got *http.Response, want int) {
 	t.Helper()
 

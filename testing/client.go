@@ -56,7 +56,24 @@ func (c *Client) InitUpload(name string) *http.Response {
 	return c.Do(http.MethodPost, path, nil, nil)
 }
 
-func (c *Client) UploadBlob(location string, digest digest.Digest, content []byte) *http.Response {
+func (c *Client) UploadBlobSinglePOST(name string, digest digest.Digest, content []byte) *http.Response {
+	path := fmt.Sprintf("/v2/%s/blobs/uploads/", name)
+
+	url, err := url.Parse(path)
+	RequireNoError(c.t, err)
+
+	query := url.Query()
+	query.Add("digest", digest.String())
+	url.RawQuery = query.Encode()
+
+	headers := make(http.Header)
+	headers.Set("Content-Type", "application/octet-stream")
+	headers.Set("Content-length", strconv.Itoa(len(content)))
+
+	return c.Do(http.MethodPost, path, headers, bytes.NewBuffer(content))
+}
+
+func (c *Client) UploadBlobMonolithic(location string, digest digest.Digest, content []byte) *http.Response {
 	url, err := url.ParseRequestURI(location)
 	if err != nil {
 		c.t.Fatalf("failed to parse location: %s", err)
