@@ -73,21 +73,36 @@ func (c *Client) UploadBlobSinglePOST(name string, digest digest.Digest, content
 	return c.Do(http.MethodPost, path, headers, bytes.NewBuffer(content))
 }
 
-func (c *Client) UploadBlobMonolithic(location string, digest digest.Digest, content []byte) *http.Response {
-	url, err := url.ParseRequestURI(location)
-	if err != nil {
-		c.t.Fatalf("failed to parse location: %s", err)
-	}
-
-	query := url.Query()
+// CloseUpload performs a POST to the upload location to close the upload session.
+// It is functionally the same as a monolithic POST then PUT upload.
+func (c *Client) CloseUpload(location *url.URL, digest digest.Digest, content []byte) *http.Response {
+	query := location.Query()
 	query.Add("digest", digest.String())
-	url.RawQuery = query.Encode()
+	location.RawQuery = query.Encode()
 
 	headers := make(http.Header)
-	headers.Set("Content-Length", strconv.Itoa(len(content)))
-	headers.Set("Content-Type", "application/octet-stream")
+	var body io.Reader
 
-	return c.Do(http.MethodPut, url.RequestURI(), headers, bytes.NewBuffer(content))
+	if content != nil {
+		headers.Set("Content-Type", "application/octet-stream")
+		headers.Set("Content-Length", strconv.Itoa(len(content)))
+		body = bytes.NewBuffer(content)
+	}
+
+	return c.Do(http.MethodPut, location.RequestURI(), headers, body)
+}
+
+func (c *Client) UploadBlobChunk(location *url.URL, chunk []byte, written int) *http.Response {
+	buf := bytes.NewBuffer(chunk)
+	size := len(chunk)
+	rnge := fmt.Sprintf("%d-%d", written, written+size-1)
+
+	headers := make(http.Header)
+	headers.Set("Content-Type", "application/octet-stream")
+	headers.Set("Content-Range", rnge)
+	headers.Set("Content-Length", strconv.Itoa(size))
+
+	return c.Do(http.MethodPatch, location.RequestURI(), headers, buf)
 }
 
 func (c *Client) Do(method string, path string, header http.Header, body io.Reader) *http.Response {

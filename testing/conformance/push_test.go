@@ -1,6 +1,9 @@
 package conformance
 
 import (
+	"bytes"
+	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -25,26 +28,23 @@ func TestPush(t *testing.T) {
 				client := NewClient(t, ts.URL)
 
 				name, digest, blob := RandomBlob(32)
-				resp := client.InitUpload(name)
 
 				// When obtaining a session ID, the response MUST have a code of 202 Accepted.
+				resp := client.InitUpload(name)
 				AssertResponseCode(t, resp, http.StatusAccepted)
 
 				// The <location> MUST contain a UUID representing a unique session ID for the upload to follow.
 				location, err := resp.Location()
 				RequireNoError(t, err)
 
-				resp = client.UploadBlobMonolithic(location.String(), digest, blob)
-
 				// Upon successful completion of the request, the response MUST have code 201 Created.
+				resp = client.CloseUpload(location, digest, blob)
 				AssertResponseCode(t, resp, http.StatusCreated)
-
-				// The Location header MUST be a pullable blob URL.
 				location, err = resp.Location()
 				RequireNoError(t, err)
 
+				// The Location header MUST be a pullable blob URL.
 				resp = client.Do(http.MethodGet, location.RequestURI(), nil, nil)
-
 				AssertResponseCode(t, resp, http.StatusOK)
 				AssertResponseBody(t, resp, blob)
 			})
@@ -62,6 +62,58 @@ func TestPush(t *testing.T) {
 				AssertResponseCode(t, resp, http.StatusAccepted)
 				_, err := resp.Location()
 				AssertNoError(t, err)
+			})
+		})
+
+		t.Run("Pushing a blob in chunks", func(t *testing.T) {
+			t.Run("Happy path", func(t *testing.T) {
+				client := NewClient(t, ts.URL)
+
+				name, digest, blob := RandomBlob(64 * 1024)
+
+				// Obtain a session ID
+				resp := client.InitUpload(name)
+				AssertResponseCode(t, resp, http.StatusAccepted)
+
+				location, err := resp.Location()
+				RequireNoError(t, err)
+
+				r := bytes.NewReader(blob)
+				buffer := make([]byte, 16*1024)
+				written := 0
+
+				for {
+					n, err := io.ReadFull(r, buffer)
+					RequireNoError(t, err)
+
+					resp := client.UploadBlobChunk(location, buffer, written)
+
+					written += n
+
+					// Each successful chunk upload MUST have a 202 Accepted response code,
+					AssertResponseCode(t, resp, http.StatusAccepted)
+					// and MUST have the following headers:
+					location, err = resp.Location()
+					RequireNoError(t, err)
+					AssertResponseHeader(t, resp, "Range", fmt.Sprintf("0-%d", written-1))
+
+					if r.Len() == 0 {
+						break
+					}
+				}
+
+				resp = client.CloseUpload(location, digest, nil)
+
+				// The response to a successful closing of the session MUST be 201 Created
+				AssertResponseCode(t, resp, http.StatusCreated)
+				// and MUST have the following header:
+				location, err = resp.Location()
+				RequireNoError(t, err)
+
+				// The Location header MUST be a pullable blob URL.
+				resp = client.Do(http.MethodGet, location.RequestURI(), nil, nil)
+				AssertResponseCode(t, resp, http.StatusOK)
+				AssertResponseBody(t, resp, blob)
 			})
 		})
 	})
