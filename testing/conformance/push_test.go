@@ -74,7 +74,6 @@ func TestPush(t *testing.T) {
 			// Obtain a session ID
 			resp := client.InitUpload(name)
 			AssertResponseCode(t, resp, http.StatusAccepted)
-
 			location, err := resp.Location()
 			RequireNoError(t, err)
 
@@ -135,6 +134,30 @@ func TestPush(t *testing.T) {
 			RequireNoError(t, err)
 
 			// The Location header MUST be a pullable blob URL.
+			resp = client.Do(http.MethodGet, location.RequestURI(), nil, nil)
+			AssertResponseCode(t, resp, http.StatusOK)
+			AssertResponseBody(t, resp, blob)
+		})
+
+		// This is not part of the spec (yet).
+		t.Run("Pushing a blob as a stream", func(t *testing.T) {
+			client := NewClient(t, ts.URL)
+
+			name, digest, blob := RandomBlob(64 * 1024)
+
+			resp := client.InitUpload(name)
+			AssertResponseCode(t, resp, http.StatusAccepted)
+			location, err := resp.Location()
+			RequireNoError(t, err)
+
+			resp = client.UploadBlobStream(location, bytes.NewBuffer(blob))
+			AssertResponseCode(t, resp, http.StatusAccepted)
+
+			resp = client.CloseUpload(location, digest)
+			AssertResponseCode(t, resp, http.StatusCreated)
+			location, err = resp.Location()
+			RequireNoError(t, err)
+
 			resp = client.Do(http.MethodGet, location.RequestURI(), nil, nil)
 			AssertResponseCode(t, resp, http.StatusOK)
 			AssertResponseBody(t, resp, blob)

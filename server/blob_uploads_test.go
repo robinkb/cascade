@@ -93,50 +93,8 @@ func TestBlobUploadsChunked(t *testing.T) {
 }
 
 func TestBlobUploadsStreamed(t *testing.T) {
-	server := newTestServer()
-
-	t.Run("Streamed upload happy path", func(t *testing.T) {
-		name, digest, content := randomBlob(32 * 1024)
-
-		// Initialize the upload session by obtaining an ID.
-		request := newInitUploadRequest(name)
-		response := httptest.NewRecorder()
-
-		server.ServeHTTP(response, request)
-
-		assertStatus(t, response.Code, http.StatusAccepted)
-		assertHeaderSet(t, headerLocation, response.Header())
-
-		location := response.Header().Get(headerLocation)
-
-		r := bytes.NewReader(content)
-
-		request, _ = http.NewRequest(http.MethodPatch, location, r)
-		request.Header.Set(headerContentType, contentTypeOctetStream)
-		response = httptest.NewRecorder()
-
-		server.ServeHTTP(response, request)
-
-		assertStatus(t, response.Code, http.StatusAccepted)
-
-		request = newCloseUploadRequest(location, digest.String(), nil)
-		response = httptest.NewRecorder()
-
-		server.ServeHTTP(response, request)
-
-		assertStatus(t, response.Code, http.StatusCreated)
-		assertHeaderSet(t, headerLocation, response.Header())
-
-		location = response.Header().Get(headerLocation)
-
-		request, _ = http.NewRequest(http.MethodGet, location, nil)
-		response = httptest.NewRecorder()
-
-		server.ServeHTTP(response, request)
-
-		assertStatus(t, response.Code, http.StatusOK)
-		assertResponseBody(t, response.Body.Bytes(), content)
-	})
+	// TODO: This used to have integration-style tests that have been moved
+	// to the conformance test. There should be more basic handler unit tests here.
 }
 
 func newBlobUploadRequest(location string, content []byte) *http.Request {

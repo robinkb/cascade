@@ -119,6 +119,13 @@ func (c *Client) UploadBlobChunk(location *url.URL, chunk []byte, written int) *
 	return c.Do(http.MethodPatch, location.RequestURI(), headers, buf)
 }
 
+func (c *Client) UploadBlobStream(location *url.URL, content io.Reader) *http.Response {
+	headers := make(http.Header)
+	headers.Set("Content-Type", "application/octet-stream")
+
+	return c.Do(http.MethodPatch, location.RequestURI(), headers, content)
+}
+
 func (c *Client) Do(method string, path string, headers http.Header, body io.Reader) *http.Response {
 	c.t.Helper()
 
