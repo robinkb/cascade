@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/opencontainers/go-digest"
+	"github.com/robinkb/cascade-registry"
 )
 
 // NewClient returns an initialized Client for the given base URL.
@@ -49,6 +50,14 @@ func (c *Client) CheckManifest(name string, digest digest.Digest) *http.Response
 func (c *Client) GetManifest(name string, digest digest.Digest) *http.Response {
 	path := fmt.Sprintf("/v2/%s/manifests/%s", name, digest)
 	return c.Do(http.MethodGet, path, nil, nil)
+}
+
+func (c *Client) PutManifest(name string, reference string, manifest *cascade.Manifest) *http.Response {
+	path := fmt.Sprintf("/v2/%s/manifests/%s", name, reference)
+	headers := make(http.Header)
+	headers.Set("Content-Type", manifest.MediaType)
+
+	return c.Do(http.MethodPut, path, headers, bytes.NewBuffer(manifest.Bytes()))
 }
 
 func (c *Client) InitUpload(name string) *http.Response {

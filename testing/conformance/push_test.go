@@ -163,4 +163,51 @@ func TestPush(t *testing.T) {
 			AssertResponseBody(t, resp, blob)
 		})
 	})
+
+	t.Run("Pushing manifests", func(t *testing.T) {
+		t.Run("Pushing manifest by digest", func(t *testing.T) {
+			client := NewClient(t, ts.URL)
+
+			name, digest, manifest := RandomManifest()
+
+			// Upon a successful upload, the registry MUST return response code 201 Created,
+			resp := client.PutManifest(name, digest.String(), manifest)
+			AssertResponseCode(t, resp, http.StatusCreated)
+			// and MUST have the following header:
+			location, err := resp.Location()
+			AssertNoError(t, err)
+
+			resp = client.Do(http.MethodGet, location.RequestURI(), nil, nil)
+			AssertResponseCode(t, resp, http.StatusOK)
+			// The registry MUST store the manifest in the exact byte representation provided by the client.
+			AssertResponseBody(t, resp, manifest.Bytes())
+		})
+
+		t.Run("Pushing manifest by tag", func(t *testing.T) {
+			client := NewClient(t, ts.URL)
+
+			name, digest, manifest := RandomManifest()
+			tag := "40"
+
+			// Upon a successful upload, the registry MUST return response code 201 Created,
+			resp := client.PutManifest(name, tag, manifest)
+			AssertResponseCode(t, resp, http.StatusCreated)
+			// and MUST have the following header:
+			location, err := resp.Location()
+			AssertNoError(t, err)
+
+			resp = client.Do(http.MethodGet, location.RequestURI(), nil, nil)
+			AssertResponseCode(t, resp, http.StatusOK)
+			// The registry MUST store the manifest in the exact byte representation provided by the client.
+			AssertResponseBody(t, resp, manifest.Bytes())
+
+			resp = client.GetManifest(name, digest)
+			AssertResponseCode(t, resp, http.StatusOK)
+			AssertResponseBody(t, resp, manifest.Bytes())
+		})
+
+		t.Run("Pushing manifest with layers", func(t *testing.T) {})
+
+		t.Run("Pushing manifests with Subject", func(t *testing.T) {})
+	})
 }
