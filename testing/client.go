@@ -56,6 +56,10 @@ func (c *Client) InitUpload(name string) *http.Response {
 	return c.Do(http.MethodPost, path, nil, nil)
 }
 
+func (c *Client) CheckUpload(location *url.URL) *http.Response {
+	return c.Do(http.MethodGet, location.RequestURI(), nil, nil)
+}
+
 func (c *Client) UploadBlobSinglePOST(name string, digest digest.Digest, content []byte) *http.Response {
 	path := fmt.Sprintf("/v2/%s/blobs/uploads/", name)
 
@@ -73,23 +77,33 @@ func (c *Client) UploadBlobSinglePOST(name string, digest digest.Digest, content
 	return c.Do(http.MethodPost, path, headers, bytes.NewBuffer(content))
 }
 
-// CloseUpload performs a POST to the upload location to close the upload session.
-// It is functionally the same as a monolithic POST then PUT upload.
-func (c *Client) CloseUpload(location *url.URL, digest digest.Digest, content []byte) *http.Response {
+// CloseUpload performs a PUT to the upload location to close the upload session.
+func (c *Client) CloseUpload(location *url.URL, digest digest.Digest) *http.Response {
 	query := location.Query()
 	query.Add("digest", digest.String())
 	location.RawQuery = query.Encode()
 
+	return c.Do(http.MethodPut, location.RequestURI(), nil, nil)
+}
+
+// CloseUploadWithContent performs a PUT to the upload location to close the upload session
+// while uploading a final chunk. It is functionally the same as a the PUT request
+// in a monolithic POST then PUT upload.
+func (c *Client) CloseUploadWithContent(location *url.URL, digest digest.Digest, content []byte, written int) *http.Response {
+	buf := bytes.NewBuffer(content)
+	size := len(content)
+	rnge := fmt.Sprintf("%d-%d", written, written+size-1)
+
 	headers := make(http.Header)
-	var body io.Reader
+	headers.Set("Content-Type", "application/octet-stream")
+	headers.Set("Content-Range", rnge)
+	headers.Set("Content-Length", strconv.Itoa(len(content)))
 
-	if content != nil {
-		headers.Set("Content-Type", "application/octet-stream")
-		headers.Set("Content-Length", strconv.Itoa(len(content)))
-		body = bytes.NewBuffer(content)
-	}
+	query := location.Query()
+	query.Add("digest", digest.String())
+	location.RawQuery = query.Encode()
 
-	return c.Do(http.MethodPut, location.RequestURI(), headers, body)
+	return c.Do(http.MethodPut, location.RequestURI(), headers, buf)
 }
 
 func (c *Client) UploadBlobChunk(location *url.URL, chunk []byte, written int) *http.Response {
@@ -105,7 +119,7 @@ func (c *Client) UploadBlobChunk(location *url.URL, chunk []byte, written int) *
 	return c.Do(http.MethodPatch, location.RequestURI(), headers, buf)
 }
 
-func (c *Client) Do(method string, path string, header http.Header, body io.Reader) *http.Response {
+func (c *Client) Do(method string, path string, headers http.Header, body io.Reader) *http.Response {
 	c.t.Helper()
 
 	url := c.baseUrl + path
@@ -114,16 +128,9 @@ func (c *Client) Do(method string, path string, header http.Header, body io.Read
 		c.t.Fatalf("failed to build request: %s", err)
 	}
 
-	req.Header = header
+	req.Header = headers
 
 	resp, err := c.http.Do(req)
-	if err != nil {
-		c.t.Fatalf("unexpected HTTP error: %s", err)
-	}
-	return resp
-}
-
-func (c *Client) unwrap(resp *http.Response, err error) *http.Response {
 	if err != nil {
 		c.t.Fatalf("unexpected HTTP error: %s", err)
 	}
