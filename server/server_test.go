@@ -6,16 +6,16 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"strings"
 
 	"net/http"
 	"net/http/httptest"
 	"reflect"
 	"testing"
 
-	"github.com/robinkb/cascade-registry"
-	. "github.com/robinkb/cascade-registry/testing"
-
+	"github.com/moby/moby/pkg/namesgenerator"
 	"github.com/opencontainers/go-digest"
+	"github.com/robinkb/cascade-registry"
 )
 
 var (
@@ -177,7 +177,7 @@ func randomBlob(length int64) (name string, id digest.Digest, content []byte) {
 }
 
 func randomName() string {
-	return RandomName()
+	return strings.Replace(namesgenerator.GetRandomName(0), "_", "/", -1)
 }
 
 func randomContents(length int64) []byte {
