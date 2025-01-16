@@ -4,11 +4,10 @@ import (
 	"bytes"
 	"crypto/rand"
 	"errors"
-	"strings"
 	"testing"
 
-	"github.com/moby/moby/pkg/namesgenerator"
 	"github.com/opencontainers/go-digest"
+	. "github.com/robinkb/cascade-registry/testing"
 )
 
 func newTestRegistry() (RegistryService, MetadataStore, BlobStore) {
@@ -42,14 +41,14 @@ func assertContent(t *testing.T, got, want []byte) {
 }
 
 func randomBlob(length int64) (name string, id digest.Digest, content []byte) {
-	name = randomName()
+	name = RandomName()
 	content = randomContents(length)
 	id = digest.FromBytes(content)
 	return
 }
 
 func randomName() string {
-	return strings.Replace(namesgenerator.GetRandomName(0), "_", "/", -1)
+	return RandomName()
 }
 
 func randomContents(length int64) []byte {

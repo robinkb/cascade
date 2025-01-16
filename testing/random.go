@@ -1,18 +1,27 @@
 package testing
 
 import (
-	"crypto/rand"
 	"encoding/json"
-	"strings"
+	"fmt"
+	"math/rand"
 
-	"github.com/moby/moby/pkg/namesgenerator"
 	"github.com/opencontainers/go-digest"
 	v1 "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/robinkb/cascade-registry"
 )
 
+var letters = []rune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ")
+
+func RandomSequence(n int) string {
+	b := make([]rune, n)
+	for i := range b {
+		b[i] = letters[rand.Intn(len(letters))]
+	}
+	return string(b)
+}
+
 func RandomName() string {
-	return strings.Replace(namesgenerator.GetRandomName(0), "_", "/", -1)
+	return fmt.Sprintf("%s/%s", RandomSequence(16), RandomSequence(16))
 }
 
 func RandomContents(length int64) []byte {
