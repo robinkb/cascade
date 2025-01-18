@@ -2,6 +2,7 @@ package testing
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -44,7 +45,16 @@ func AssertResponseHeader(t *testing.T, got *http.Response, header string, want 
 	}
 }
 
-func AssertResponseBody(t *testing.T, got *http.Response, want []byte) {
+func AssertResponseHeaderUnset(t *testing.T, got *http.Response, header string) {
+	t.Helper()
+
+	_, ok := got.Header[header]
+	if ok {
+		t.Errorf("header %q is set", header)
+	}
+}
+
+func AssertResponseBodyEquals(t *testing.T, got *http.Response, want []byte) {
 	t.Helper()
 
 	data, err := io.ReadAll(got.Body)
@@ -54,6 +64,33 @@ func AssertResponseBody(t *testing.T, got *http.Response, want []byte) {
 
 	if !bytes.Equal(data, want) {
 		t.Errorf("request did not return the expected content")
+	}
+}
+
+func AssertResponseBodyUnmarshals[T any](t *testing.T, got *http.Response, obj T) {
+	t.Helper()
+
+	data, err := io.ReadAll(got.Body)
+	if err != nil {
+		t.Fatalf("unexpected error while reading response body: %s", err)
+	}
+
+	err = json.Unmarshal(data, obj)
+	if err != nil {
+		t.Errorf("could not unmarshal response body as %T: %s", obj, err)
+	}
+}
+
+func AssertSlicesEqual[S ~[]E, E comparable](t *testing.T, s1 S, s2 S) {
+	t.Helper()
+
+	if len(s1) != len(s2) {
+		t.Errorf("slices are of unequal length; got %d, want %d", len(s2), len(s1))
+		return
+	}
+
+	if !slices.Equal(s1, s2) {
+		t.Errorf("slices are not equal; got %v, want %v", s2, s1)
 	}
 }
 

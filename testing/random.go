@@ -1,8 +1,10 @@
 package testing
 
 import (
-	"crypto/rand"
+	crand "crypto/rand"
 	"encoding/json"
+	"fmt"
+	"math/rand/v2"
 	"strings"
 
 	"github.com/moby/moby/pkg/namesgenerator"
@@ -17,7 +19,7 @@ func RandomName() string {
 
 func RandomContents(length int64) []byte {
 	data := make([]byte, length)
-	rand.Read(data)
+	crand.Read(data)
 	return data
 }
 
@@ -40,4 +42,14 @@ func RandomBlob(length int64) (name string, id digest.Digest, content []byte) {
 	content = RandomContents(length)
 	id = digest.FromBytes(content)
 	return
+}
+
+func RandomVersion() string {
+	var major, minor, patch int
+
+	major = rand.IntN(5)
+	minor = rand.IntN(20)
+	patch = rand.IntN(60)
+
+	return fmt.Sprintf("v%d.%d.%d", major, minor, patch)
 }

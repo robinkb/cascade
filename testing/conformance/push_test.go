@@ -47,7 +47,7 @@ func TestPush(t *testing.T) {
 				// The Location header MUST be a pullable blob URL.
 				resp = client.Do(http.MethodGet, location.RequestURI(), nil, nil)
 				AssertResponseCode(t, resp, http.StatusOK)
-				AssertResponseBody(t, resp, blob)
+				AssertResponseBodyEquals(t, resp, blob)
 			})
 
 			t.Run("Single POST", func(t *testing.T) {
@@ -136,7 +136,7 @@ func TestPush(t *testing.T) {
 			// The Location header MUST be a pullable blob URL.
 			resp = client.Do(http.MethodGet, location.RequestURI(), nil, nil)
 			AssertResponseCode(t, resp, http.StatusOK)
-			AssertResponseBody(t, resp, blob)
+			AssertResponseBodyEquals(t, resp, blob)
 		})
 
 		// This is not part of the spec (yet).
@@ -160,7 +160,7 @@ func TestPush(t *testing.T) {
 
 			resp = client.Do(http.MethodGet, location.RequestURI(), nil, nil)
 			AssertResponseCode(t, resp, http.StatusOK)
-			AssertResponseBody(t, resp, blob)
+			AssertResponseBodyEquals(t, resp, blob)
 		})
 	})
 
@@ -180,7 +180,7 @@ func TestPush(t *testing.T) {
 			resp = client.Do(http.MethodGet, location.RequestURI(), nil, nil)
 			AssertResponseCode(t, resp, http.StatusOK)
 			// The registry MUST store the manifest in the exact byte representation provided by the client.
-			AssertResponseBody(t, resp, manifest.Bytes())
+			AssertResponseBodyEquals(t, resp, manifest.Bytes())
 		})
 
 		t.Run("Pushing manifest by tag", func(t *testing.T) {
@@ -199,11 +199,11 @@ func TestPush(t *testing.T) {
 			resp = client.Do(http.MethodGet, location.RequestURI(), nil, nil)
 			AssertResponseCode(t, resp, http.StatusOK)
 			// The registry MUST store the manifest in the exact byte representation provided by the client.
-			AssertResponseBody(t, resp, manifest.Bytes())
+			AssertResponseBodyEquals(t, resp, manifest.Bytes())
 
 			resp = client.GetManifest(name, digest)
 			AssertResponseCode(t, resp, http.StatusOK)
-			AssertResponseBody(t, resp, manifest.Bytes())
+			AssertResponseBodyEquals(t, resp, manifest.Bytes())
 		})
 
 		t.Run("Pushing manifest with layers", func(t *testing.T) {})

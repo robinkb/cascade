@@ -139,6 +139,24 @@ func TestListTag(t *testing.T) {
 		}
 	})
 
+	t.Run("Listing tags with a count greater than the number of tags returns all tags", func(t *testing.T) {
+		name, digest, _ := randomManifest()
+		tags := randomTags(5)
+		count := 6
+
+		for _, tag := range tags {
+			err := service.PutTag(name, tag, digest.String())
+			assertNoError(t, err)
+		}
+
+		got, err := service.ListTags(name, count, "")
+		assertNoError(t, err)
+
+		if !slices.Equal(got, tags) {
+			t.Fatalf("Returned tags is not equal to actual tags; got %q, want %q", got, tags)
+		}
+	})
+
 	t.Run("Listing tags from a certain tag only returns tags after that tag", func(t *testing.T) {
 		name, digest, _ := randomManifest()
 		tags := randomTags(10)

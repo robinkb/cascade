@@ -122,7 +122,7 @@ func (s *InMemoryMetadataStore) ListTags(repository string, count int, last stri
 
 	slices.Sort(tags)
 
-	if count == -1 {
+	if count == -1 || count > len(tags) {
 		count = len(tags)
 	}
 

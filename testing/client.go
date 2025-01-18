@@ -60,6 +60,29 @@ func (c *Client) PutManifest(name string, reference string, manifest *cascade.Ma
 	return c.Do(http.MethodPut, path, headers, bytes.NewBuffer(manifest.Bytes()))
 }
 
+type ListTagsOptions struct {
+	N    *int
+	Last string
+}
+
+func (c *Client) ListTags(name string, opts *ListTagsOptions) *http.Response {
+	u := url.URL{}
+
+	u.Path = fmt.Sprintf("/v2/%s/tags/list", name)
+	if opts != nil {
+		query := make(url.Values, 0)
+		if opts.N != nil {
+			query.Set("n", strconv.Itoa(*opts.N))
+		}
+		if opts.Last != "" {
+			query.Set("last", opts.Last)
+		}
+		u.RawQuery = query.Encode()
+	}
+
+	return c.Do(http.MethodGet, u.RequestURI(), nil, nil)
+}
+
 func (c *Client) InitUpload(name string) *http.Response {
 	path := fmt.Sprintf("/v2/%s/blobs/uploads/", name)
 	return c.Do(http.MethodPost, path, nil, nil)
@@ -151,4 +174,8 @@ func (c *Client) Do(method string, path string, headers http.Header, body io.Rea
 		c.t.Fatalf("unexpected HTTP error: %s", err)
 	}
 	return resp
+}
+
+func Pointer[K any](val K) *K {
+	return &val
 }

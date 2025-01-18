@@ -32,7 +32,7 @@ func TestPull(t *testing.T) {
 
 			// A GET request to an existing manifest URL MUST provide the expected manifest, with a response code that MUST be 200 OK.
 			AssertResponseCode(t, resp, http.StatusOK)
-			AssertResponseBody(t, resp, manifest.Bytes())
+			AssertResponseBodyEquals(t, resp, manifest.Bytes())
 
 			// In a successful response, the Content-Type header will indicate the type of the returned manifest.
 			// The registry SHOULD NOT include parameters on the Content-Type header.
@@ -62,7 +62,7 @@ func TestPull(t *testing.T) {
 
 			// A GET request to an existing blob URL MUST provide the expected blob, with a response code that MUST be 200 OK.
 			AssertResponseCode(t, resp, http.StatusOK)
-			AssertResponseBody(t, resp, blob)
+			AssertResponseBodyEquals(t, resp, blob)
 		})
 
 		t.Run("GET request to an unknown blob", func(t *testing.T) {
