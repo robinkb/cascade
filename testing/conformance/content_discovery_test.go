@@ -101,5 +101,36 @@ func TestContentDiscovery(t *testing.T) {
 			// and MUST NOT include a Link header.
 			AssertResponseHeaderUnset(t, resp, "Link")
 		})
+
+		t.Run("Fetch tags with the 'last' query parameter", func(t *testing.T) {
+			client := NewClient(t, ts.URL)
+
+			n := 10
+			lastIndex := 10
+			lastTag := tags[lastIndex]
+
+			resp := client.ListTags(repository, &ListTagsOptions{
+				Last: lastTag,
+				N:    Pointer(n),
+			})
+
+			AssertResponseCode(t, resp, http.StatusOK)
+			var tagsList server.TagsListResponse
+			AssertResponseBodyUnmarshals(t, resp, &tagsList)
+			// A list tags request including the last query parameter will return up to tags, beginning non-inclusively with <last>.
+			// That is to say, will not be included in the results, but up to <n> tags after <last> will be returned.
+			AssertSlicesEqual(t, tags[lastIndex+1:lastIndex+1+n], tagsList.Tags)
+
+			lastIndex = 20
+			lastTag = tags[lastIndex]
+
+			// When using the last query parameter, the n parameter is OPTIONAL.
+			resp = client.ListTags(repository, &ListTagsOptions{
+				Last: lastTag,
+			})
+			AssertResponseCode(t, resp, http.StatusOK)
+			AssertResponseBodyUnmarshals(t, resp, &tagsList)
+			AssertSlicesEqual(t, tags[lastIndex+1:], tagsList.Tags)
+		})
 	})
 }

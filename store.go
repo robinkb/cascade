@@ -136,6 +136,10 @@ func (s *InMemoryMetadataStore) ListTags(repository string, count int, last stri
 		}
 	}
 
+	if start+count > len(tags) {
+		count -= start
+	}
+
 	return tags[start : start+count], nil
 }
 

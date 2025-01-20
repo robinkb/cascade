@@ -177,6 +177,27 @@ func TestListTag(t *testing.T) {
 			t.Fatalf("Unexpected subset of tags; last %q, got %q, want %q", tags[last], got, want)
 		}
 	})
+
+	t.Run("When listing tags from a certain tag, the count parameter may be -1 to return all tags", func(t *testing.T) {
+		name, digest, _ := randomManifest()
+		tags := randomTags(10)
+		count := -1
+		last := 4
+
+		for _, tag := range tags {
+			err := service.PutTag(name, tag, digest.String())
+			assertNoError(t, err)
+		}
+
+		got, err := service.ListTags(name, count, tags[last])
+		assertNoError(t, err)
+
+		want := tags[last+1:]
+
+		if !slices.Equal(got, want) {
+			t.Fatalf("Unexpected subset of tags; last %q, got %q, want %q", tags[last], got, want)
+		}
+	})
 }
 
 func randomTags(count int) (tags []string) {
