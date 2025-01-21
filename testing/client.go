@@ -42,13 +42,28 @@ func (c *Client) GetBlob(name string, digest digest.Digest) *http.Response {
 	return c.Do(http.MethodGet, path, nil, nil)
 }
 
-func (c *Client) CheckManifest(name string, digest digest.Digest) *http.Response {
+func (c *Client) DeleteBlob(name string, digest digest.Digest) *http.Response {
+	path := fmt.Sprintf("/v2/%s/blobs/%s", name, digest)
+	return c.Do(http.MethodDelete, path, nil, nil)
+}
+
+func (c *Client) CheckManifestByDigest(name string, digest digest.Digest) *http.Response {
 	path := fmt.Sprintf("/v2/%s/manifests/%s", name, digest)
 	return c.Do(http.MethodHead, path, nil, nil)
 }
 
-func (c *Client) GetManifest(name string, digest digest.Digest) *http.Response {
+func (c *Client) CheckManifestByTag(name string, tag string) *http.Response {
+	path := fmt.Sprintf("/v2/%s/manifests/%s", name, tag)
+	return c.Do(http.MethodHead, path, nil, nil)
+}
+
+func (c *Client) GetManifestByDigest(name string, digest digest.Digest) *http.Response {
 	path := fmt.Sprintf("/v2/%s/manifests/%s", name, digest)
+	return c.Do(http.MethodGet, path, nil, nil)
+}
+
+func (c *Client) GetManifestByTag(name string, tag string) *http.Response {
+	path := fmt.Sprintf("/v2/%s/manifests/%s", name, tag)
 	return c.Do(http.MethodGet, path, nil, nil)
 }
 
@@ -58,6 +73,11 @@ func (c *Client) PutManifest(name string, reference string, manifest *cascade.Ma
 	headers.Set("Content-Type", manifest.MediaType)
 
 	return c.Do(http.MethodPut, path, headers, bytes.NewBuffer(manifest.Bytes()))
+}
+
+func (c *Client) DeleteManifest(name string, digest digest.Digest) *http.Response {
+	path := fmt.Sprintf("/v2/%s/manifests/%s", name, digest)
+	return c.Do(http.MethodDelete, path, nil, nil)
 }
 
 type ListTagsOptions struct {
@@ -81,6 +101,11 @@ func (c *Client) ListTags(name string, opts *ListTagsOptions) *http.Response {
 	}
 
 	return c.Do(http.MethodGet, u.RequestURI(), nil, nil)
+}
+
+func (c *Client) DeleteTag(name string, tag string) *http.Response {
+	path := fmt.Sprintf("/v2/%s/manifests/%s", name, tag)
+	return c.Do(http.MethodDelete, path, nil, nil)
 }
 
 func (c *Client) InitUpload(name string) *http.Response {

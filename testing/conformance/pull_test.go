@@ -28,7 +28,7 @@ func TestPull(t *testing.T) {
 			metadata.PutManifest(name, digest, digest.String())
 			blobs.Put(digest.String(), manifest.Bytes())
 
-			resp := client.GetManifest(name, digest)
+			resp := client.GetManifestByDigest(name, digest)
 
 			// A GET request to an existing manifest URL MUST provide the expected manifest, with a response code that MUST be 200 OK.
 			AssertResponseCode(t, resp, http.StatusOK)
@@ -44,7 +44,7 @@ func TestPull(t *testing.T) {
 			client := NewClient(t, ts.URL)
 
 			name, digest := RandomName(), RandomDigest()
-			resp := client.GetManifest(name, digest)
+			resp := client.GetManifestByDigest(name, digest)
 
 			// If the manifest is not found in the repository, the response code MUST be 404 Not Found.
 			AssertResponseCode(t, resp, http.StatusNotFound)
@@ -109,7 +109,7 @@ func TestPull(t *testing.T) {
 			metadata.PutManifest(name, digest, digest.String())
 			blobs.Put(digest.String(), manifest.Bytes())
 
-			resp := client.CheckManifest(name, digest)
+			resp := client.CheckManifestByDigest(name, digest)
 
 			// A HEAD request to an existing manifest URL MUST return 200 OK
 			AssertResponseCode(t, resp, http.StatusOK)
@@ -124,7 +124,7 @@ func TestPull(t *testing.T) {
 
 			name, digest := RandomName(), RandomDigest()
 
-			resp := client.CheckManifest(name, digest)
+			resp := client.CheckManifestByDigest(name, digest)
 
 			// If the manifest is not found in the repository, the response code MUST be 404 Not Found.
 			AssertResponseCode(t, resp, http.StatusNotFound)

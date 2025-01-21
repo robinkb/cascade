@@ -201,7 +201,7 @@ func TestPush(t *testing.T) {
 			// The registry MUST store the manifest in the exact byte representation provided by the client.
 			AssertResponseBodyEquals(t, resp, manifest.Bytes())
 
-			resp = client.GetManifest(name, digest)
+			resp = client.GetManifestByDigest(name, digest)
 			AssertResponseCode(t, resp, http.StatusOK)
 			AssertResponseBodyEquals(t, resp, manifest.Bytes())
 		})
