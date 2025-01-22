@@ -3,6 +3,7 @@ package server
 import (
 	"io"
 	"net/http"
+	"strconv"
 )
 
 func (s *Server) blobsHandler(w http.ResponseWriter, r *http.Request) {
@@ -22,11 +23,13 @@ func (s *Server) statBlobsHandler(w http.ResponseWriter, r *http.Request) {
 	repository := r.PathValue("repository")
 	digest := r.PathValue("digest")
 
-	if _, err := s.service.StatBlob(repository, digest); err != nil {
+	info, err := s.service.StatBlob(repository, digest)
+	if err != nil {
 		writeErrorResponse(w, err)
 		return
 	}
 
+	w.Header().Set(headerContentLength, strconv.FormatInt(info.Size, 10))
 	w.WriteHeader(http.StatusOK)
 }
 

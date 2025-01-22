@@ -1,0 +1,206 @@
+package testing
+
+import (
+	"bytes"
+	"fmt"
+	"io"
+	"net/http"
+	"net/url"
+	"strconv"
+	"testing"
+
+	"github.com/opencontainers/go-digest"
+	"github.com/robinkb/cascade-registry"
+)
+
+// NewClient returns an initialized Client for the given base URL.
+// A client should be used in the (sub)test where it is created.
+// The given url should be of the form 'http://ipaddr:port' as returned by httptest.Server.URL.
+func NewClient(t *testing.T, url string) *Client {
+	return &Client{
+		baseUrl: url,
+		t:       t,
+	}
+}
+
+// Client is a simple registry client meant for use in testing.
+// It will automatically fail tests if it encounters an unexpected error.
+// Users should initialize it with NewClient().
+type Client struct {
+	http    http.Client
+	baseUrl string
+	t       *testing.T
+}
+
+func (c *Client) CheckBlob(name string, digest digest.Digest) *http.Response {
+	path := fmt.Sprintf("/v2/%s/blobs/%s", name, digest)
+	return c.Do(http.MethodHead, path, nil, nil)
+}
+
+func (c *Client) GetBlob(name string, digest digest.Digest) *http.Response {
+	path := fmt.Sprintf("/v2/%s/blobs/%s", name, digest)
+	return c.Do(http.MethodGet, path, nil, nil)
+}
+
+func (c *Client) DeleteBlob(name string, digest digest.Digest) *http.Response {
+	path := fmt.Sprintf("/v2/%s/blobs/%s", name, digest)
+	return c.Do(http.MethodDelete, path, nil, nil)
+}
+
+func (c *Client) CheckManifestByDigest(name string, digest digest.Digest) *http.Response {
+	path := fmt.Sprintf("/v2/%s/manifests/%s", name, digest)
+	return c.Do(http.MethodHead, path, nil, nil)
+}
+
+func (c *Client) CheckManifestByTag(name string, tag string) *http.Response {
+	path := fmt.Sprintf("/v2/%s/manifests/%s", name, tag)
+	return c.Do(http.MethodHead, path, nil, nil)
+}
+
+func (c *Client) GetManifestByDigest(name string, digest digest.Digest) *http.Response {
+	path := fmt.Sprintf("/v2/%s/manifests/%s", name, digest)
+	return c.Do(http.MethodGet, path, nil, nil)
+}
+
+func (c *Client) GetManifestByTag(name string, tag string) *http.Response {
+	path := fmt.Sprintf("/v2/%s/manifests/%s", name, tag)
+	return c.Do(http.MethodGet, path, nil, nil)
+}
+
+func (c *Client) PutManifest(name string, reference string, manifest *cascade.Manifest) *http.Response {
+	path := fmt.Sprintf("/v2/%s/manifests/%s", name, reference)
+	headers := make(http.Header)
+	headers.Set("Content-Type", manifest.MediaType)
+
+	return c.Do(http.MethodPut, path, headers, bytes.NewBuffer(manifest.Bytes()))
+}
+
+func (c *Client) DeleteManifest(name string, digest digest.Digest) *http.Response {
+	path := fmt.Sprintf("/v2/%s/manifests/%s", name, digest)
+	return c.Do(http.MethodDelete, path, nil, nil)
+}
+
+type ListTagsOptions struct {
+	N    *int
+	Last string
+}
+
+func (c *Client) ListTags(name string, opts *ListTagsOptions) *http.Response {
+	u := url.URL{}
+
+	u.Path = fmt.Sprintf("/v2/%s/tags/list", name)
+	if opts != nil {
+		query := make(url.Values, 0)
+		if opts.N != nil {
+			query.Set("n", strconv.Itoa(*opts.N))
+		}
+		if opts.Last != "" {
+			query.Set("last", opts.Last)
+		}
+		u.RawQuery = query.Encode()
+	}
+
+	return c.Do(http.MethodGet, u.RequestURI(), nil, nil)
+}
+
+func (c *Client) DeleteTag(name string, tag string) *http.Response {
+	path := fmt.Sprintf("/v2/%s/manifests/%s", name, tag)
+	return c.Do(http.MethodDelete, path, nil, nil)
+}
+
+func (c *Client) InitUpload(name string) *http.Response {
+	path := fmt.Sprintf("/v2/%s/blobs/uploads/", name)
+	return c.Do(http.MethodPost, path, nil, nil)
+}
+
+func (c *Client) CheckUpload(location *url.URL) *http.Response {
+	return c.Do(http.MethodGet, location.RequestURI(), nil, nil)
+}
+
+func (c *Client) UploadBlobSinglePOST(name string, digest digest.Digest, content []byte) *http.Response {
+	path := fmt.Sprintf("/v2/%s/blobs/uploads/", name)
+
+	url, err := url.Parse(path)
+	RequireNoError(c.t, err)
+
+	query := url.Query()
+	query.Add("digest", digest.String())
+	url.RawQuery = query.Encode()
+
+	headers := make(http.Header)
+	headers.Set("Content-Type", "application/octet-stream")
+	headers.Set("Content-length", strconv.Itoa(len(content)))
+
+	return c.Do(http.MethodPost, path, headers, bytes.NewBuffer(content))
+}
+
+// CloseUpload performs a PUT to the upload location to close the upload session.
+func (c *Client) CloseUpload(location *url.URL, digest digest.Digest) *http.Response {
+	query := location.Query()
+	query.Add("digest", digest.String())
+	location.RawQuery = query.Encode()
+
+	return c.Do(http.MethodPut, location.RequestURI(), nil, nil)
+}
+
+// CloseUploadWithContent performs a PUT to the upload location to close the upload session
+// while uploading a final chunk. It is functionally the same as a the PUT request
+// in a monolithic POST then PUT upload.
+func (c *Client) CloseUploadWithContent(location *url.URL, digest digest.Digest, content []byte, written int) *http.Response {
+	buf := bytes.NewBuffer(content)
+	size := len(content)
+	rnge := fmt.Sprintf("%d-%d", written, written+size-1)
+
+	headers := make(http.Header)
+	headers.Set("Content-Type", "application/octet-stream")
+	headers.Set("Content-Range", rnge)
+	headers.Set("Content-Length", strconv.Itoa(len(content)))
+
+	query := location.Query()
+	query.Add("digest", digest.String())
+	location.RawQuery = query.Encode()
+
+	return c.Do(http.MethodPut, location.RequestURI(), headers, buf)
+}
+
+func (c *Client) UploadBlobChunk(location *url.URL, chunk []byte, written int) *http.Response {
+	buf := bytes.NewBuffer(chunk)
+	size := len(chunk)
+	rnge := fmt.Sprintf("%d-%d", written, written+size-1)
+
+	headers := make(http.Header)
+	headers.Set("Content-Type", "application/octet-stream")
+	headers.Set("Content-Range", rnge)
+	headers.Set("Content-Length", strconv.Itoa(size))
+
+	return c.Do(http.MethodPatch, location.RequestURI(), headers, buf)
+}
+
+func (c *Client) UploadBlobStream(location *url.URL, content io.Reader) *http.Response {
+	headers := make(http.Header)
+	headers.Set("Content-Type", "application/octet-stream")
+
+	return c.Do(http.MethodPatch, location.RequestURI(), headers, content)
+}
+
+func (c *Client) Do(method string, path string, headers http.Header, body io.Reader) *http.Response {
+	c.t.Helper()
+
+	url := c.baseUrl + path
+	req, err := http.NewRequest(method, url, body)
+	if err != nil {
+		c.t.Fatalf("failed to build request: %s", err)
+	}
+
+	req.Header = headers
+
+	resp, err := c.http.Do(req)
+	if err != nil {
+		c.t.Fatalf("unexpected HTTP error: %s", err)
+	}
+	return resp
+}
+
+func Pointer[K any](val K) *K {
+	return &val
+}

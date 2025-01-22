@@ -122,7 +122,7 @@ func (s *InMemoryMetadataStore) ListTags(repository string, count int, last stri
 
 	slices.Sort(tags)
 
-	if count == -1 {
+	if count == -1 || count > len(tags) {
 		count = len(tags)
 	}
 
@@ -134,6 +134,10 @@ func (s *InMemoryMetadataStore) ListTags(repository string, count int, last stri
 				break
 			}
 		}
+	}
+
+	if start+count > len(tags) {
+		count -= start
 	}
 
 	return tags[start : start+count], nil

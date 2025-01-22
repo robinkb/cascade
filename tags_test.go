@@ -139,6 +139,24 @@ func TestListTag(t *testing.T) {
 		}
 	})
 
+	t.Run("Listing tags with a count greater than the number of tags returns all tags", func(t *testing.T) {
+		name, digest, _ := randomManifest()
+		tags := randomTags(5)
+		count := 6
+
+		for _, tag := range tags {
+			err := service.PutTag(name, tag, digest.String())
+			assertNoError(t, err)
+		}
+
+		got, err := service.ListTags(name, count, "")
+		assertNoError(t, err)
+
+		if !slices.Equal(got, tags) {
+			t.Fatalf("Returned tags is not equal to actual tags; got %q, want %q", got, tags)
+		}
+	})
+
 	t.Run("Listing tags from a certain tag only returns tags after that tag", func(t *testing.T) {
 		name, digest, _ := randomManifest()
 		tags := randomTags(10)
@@ -154,6 +172,27 @@ func TestListTag(t *testing.T) {
 		assertNoError(t, err)
 
 		want := tags[last+1 : last+1+count]
+
+		if !slices.Equal(got, want) {
+			t.Fatalf("Unexpected subset of tags; last %q, got %q, want %q", tags[last], got, want)
+		}
+	})
+
+	t.Run("When listing tags from a certain tag, the count parameter may be -1 to return all tags", func(t *testing.T) {
+		name, digest, _ := randomManifest()
+		tags := randomTags(10)
+		count := -1
+		last := 4
+
+		for _, tag := range tags {
+			err := service.PutTag(name, tag, digest.String())
+			assertNoError(t, err)
+		}
+
+		got, err := service.ListTags(name, count, tags[last])
+		assertNoError(t, err)
+
+		want := tags[last+1:]
 
 		if !slices.Equal(got, want) {
 			t.Fatalf("Unexpected subset of tags; last %q, got %q, want %q", tags[last], got, want)
