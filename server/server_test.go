@@ -15,6 +15,7 @@ import (
 
 	"github.com/moby/moby/pkg/namesgenerator"
 	"github.com/opencontainers/go-digest"
+	v1 "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/robinkb/cascade-registry"
 )
 
@@ -36,6 +37,8 @@ type StubRegistryService struct {
 	getTag    func(repository, tag string) (string, error)
 	putTag    func(repository, tag, digest string) error
 	deleteTag func(repository, tag string) error
+
+	listReferrers func(repository string, digest string) (*v1.Index, error)
 
 	initUpload   func(repository string) *cascade.UploadSession
 	statUpload   func(repository, sessionID string) (*cascade.FileInfo, error)
@@ -87,6 +90,9 @@ func (s *StubRegistryService) AppendUpload(repository, sessionID string, r io.Re
 }
 func (s *StubRegistryService) CloseUpload(repository, id, digest string) error {
 	return s.closeUpload(repository, id, digest)
+}
+func (s *StubRegistryService) ListReferrers(repository, reference string) (*v1.Index, error) {
+	return s.listReferrers(repository, reference)
 }
 
 func TestRoot(t *testing.T) {

@@ -6,6 +6,7 @@ import (
 	"slices"
 	"testing"
 
+	v1 "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/robinkb/cascade-registry"
 	"github.com/robinkb/cascade-registry/server"
 	. "github.com/robinkb/cascade-registry/testing"
@@ -20,22 +21,23 @@ func TestContentDiscovery(t *testing.T) {
 	ts := httptest.NewServer(srv)
 	defer ts.Close()
 
-	repository := RandomName()
-	digest := RandomDigest()
-	tags := make([]string, 50)
-	for i := 0; i < len(tags); i++ {
-		tags[i] = RandomVersion()
-	}
-
-	for _, tag := range tags {
-		metadata.PutTag(repository, tag, digest.String())
-	}
-
-	// Sort the tags _after_ putting them into the registry,
-	// to make sure that the registry is sorting them internally.
-	slices.Sort(tags)
-
 	t.Run("Listing Tags", func(t *testing.T) {
+		repository := RandomName()
+		digest := RandomDigest()
+
+		tags := make([]string, 50)
+		for i := 0; i < len(tags); i++ {
+			tags[i] = RandomVersion()
+		}
+
+		for _, tag := range tags {
+			metadata.PutTag(repository, tag, digest.String())
+		}
+
+		// Sort the tags _after_ putting them into the registry,
+		// to make sure that the registry is sorting them internally.
+		slices.Sort(tags)
+
 		t.Run("Fetching the whole list of tags", func(t *testing.T) {
 			client := NewClient(t, ts.URL)
 
@@ -132,5 +134,50 @@ func TestContentDiscovery(t *testing.T) {
 			AssertResponseBodyUnmarshals(t, resp, &tagsList)
 			AssertSlicesEqual(t, tags[lastIndex+1:], tagsList.Tags)
 		})
+	})
+
+	t.Run("Listing Referrers", func(t *testing.T) {
+		client := NewClient(t, ts.URL)
+
+		repository, digest, manifest := RandomManifest()
+
+		resp := client.PutManifest(repository, digest.String(), manifest)
+		AssertResponseCode(t, resp, http.StatusCreated)
+
+		referrerCount := 3
+		for i := 0; i < referrerCount; i++ {
+			manifest, digest := RandomManifestWithSubject(manifest, digest)
+			resp = client.PutManifest(repository, digest.String(), manifest)
+			AssertResponseCode(t, resp, http.StatusCreated)
+		}
+
+		t.Run("List referrers on existing repository", func(t *testing.T) {
+			resp = client.ListReferrers(repository, digest)
+			// Assuming a repository is found, this request MUST return a 200 OK response code.
+			AssertResponseCode(t, resp, http.StatusOK)
+			// The Content-Type header MUST be set to application/vnd.oci.image.index.v1+json.
+			AssertResponseHeader(t, resp, "Content-Type", "application/vnd.oci.image.index.v1+json")
+
+			// Upon success, the response MUST be a JSON body with an image index containing a list of descriptors.
+			var index v1.Index
+			AssertResponseBodyUnmarshals(t, resp, &index)
+			// TODO: Assert index contents
+		})
+
+		t.Run("List referrers on unknown repository", func(t *testing.T) {
+			repository := RandomName()
+			digest := RandomDigest()
+
+			resp := client.ListReferrers(repository, digest)
+			// If the registry supports the referrers API, the registry MUST NOT return a 404 Not Found to a referrers API requests.
+			AssertResponseCode(t, resp, http.StatusOK)
+		})
+
+		t.Run("List referrers with a bad digest", func(t *testing.T) {
+			resp := client.ListReferrers(repository, "12345")
+			// If the request is invalid, such as a <digest> with an invalid syntax, a 400 Bad Request MUST be returned.
+			AssertResponseCode(t, resp, http.StatusBadRequest)
+		})
+
 	})
 }

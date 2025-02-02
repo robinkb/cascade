@@ -31,6 +31,7 @@ func New(service cascade.RegistryService) *Server {
 	repositoryRouter.Handle("/blobs/uploads/{reference}", http.HandlerFunc(s.blobsUploadsHandler))
 	repositoryRouter.Handle("/manifests/{reference}", http.HandlerFunc(s.manifestsHandler))
 	repositoryRouter.Handle("/tags/list", http.HandlerFunc(s.tagsHandler))
+	repositoryRouter.Handle("/referrers/{digest}", http.HandlerFunc(s.referrersHandler))
 
 	registryRouter := http.NewServeMux()
 	registryRouter.Handle("/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

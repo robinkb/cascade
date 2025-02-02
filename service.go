@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/gofrs/uuid/v5"
+	v1 "github.com/opencontainers/image-spec/specs-go/v1"
 )
 
 type (
@@ -27,6 +28,8 @@ type (
 		StatUpload(repository, sessionID string) (*FileInfo, error)
 		AppendUpload(repository, sessionID string, r io.Reader, offset int64) error
 		CloseUpload(repository, id, digest string) error
+
+		ListReferrers(repository, digest string) (*v1.Index, error)
 	}
 
 	// TODO: Could refactor to this:

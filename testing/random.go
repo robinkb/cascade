@@ -37,6 +37,19 @@ func RandomManifest() (name string, id digest.Digest, manifest *cascade.Manifest
 	return
 }
 
+func RandomManifestWithSubject(subject *cascade.Manifest, id digest.Digest) (*cascade.Manifest, digest.Digest) {
+	content, _ := json.Marshal(v1.Manifest{
+		MediaType: v1.MediaTypeImageManifest,
+		Subject: &v1.Descriptor{
+			MediaType: subject.MediaType,
+			Digest:    id,
+		},
+	})
+	digest := digest.FromBytes(content)
+	manifest, _ := cascade.NewManifest(content)
+	return manifest, digest
+}
+
 func RandomBlob(length int64) (name string, id digest.Digest, content []byte) {
 	name = RandomName()
 	content = RandomContents(length)
