@@ -37,7 +37,7 @@ func TestPutTag(t *testing.T) {
 		name, digest, manifest := randomManifest()
 		tag := "v0.5.1"
 
-		err := service.PutManifest(name, digest.String(), manifest)
+		_, err := service.PutManifest(name, digest.String(), manifest)
 		assertNoError(t, err)
 
 		err = service.PutTag(name, tag, digest.String())

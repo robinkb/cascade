@@ -11,6 +11,7 @@ import (
 	"sync"
 
 	"github.com/opencontainers/go-digest"
+	v1 "github.com/opencontainers/image-spec/specs-go/v1"
 )
 
 var (
@@ -24,13 +25,15 @@ type (
 		DeleteBlob(repository string, digest digest.Digest) error
 
 		GetManifest(repository string, digest digest.Digest) (string, error)
-		PutManifest(repository string, digest digest.Digest, path string) error
+		PutManifest(repository string, digest digest.Digest, path string, subject *v1.Descriptor) error
 		DeleteManifest(repository string, digest digest.Digest) error
 
 		ListTags(repository string, count int, last string) ([]string, error)
 		GetTag(repository, tag string) (string, error)
 		PutTag(repository, tag, digest string) error
 		DeleteTag(repository, tag string) error
+
+		ListReferrers(repository string, digest digest.Digest) ([]*v1.Descriptor, error)
 
 		GetUpload(repository string, id string) (*UploadSession, error)
 		PutUpload(repository string, session *UploadSession) error
@@ -100,7 +103,7 @@ func (s *InMemoryMetadataStore) GetManifest(repository string, digest digest.Dig
 	return "", ErrManifestUnknown
 }
 
-func (s *InMemoryMetadataStore) PutManifest(repository string, digest digest.Digest, path string) error {
+func (s *InMemoryMetadataStore) PutManifest(repository string, digest digest.Digest, path string, subject digest.Digest) error {
 	s.store[s.manifestPath(repository, digest)] = []byte(path)
 	return nil
 }
@@ -193,6 +196,13 @@ func (s *InMemoryMetadataStore) blobPath(repository string, digest digest.Digest
 
 func (s *InMemoryMetadataStore) manifestPath(repository string, digest digest.Digest) string {
 	return fmt.Sprintf("repositories/%s/manifests/%s/%s", repository, digest.Algorithm(), digest.Encoded())
+}
+
+func (s *InMemoryMetadataStore) referrersPath(repository string, digest digest.Digest, subject digest.Digest) string {
+	return fmt.Sprintf("repositories/%s/manifests/%s/%s/referrers/%s/%s", repository,
+		subject.Algorithm(), subject.Encoded(),
+		digest.Algorithm(), digest.Encoded(),
+	)
 }
 
 func (s *InMemoryMetadataStore) tagPath(repository, tag string) string {

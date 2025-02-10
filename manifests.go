@@ -67,25 +67,34 @@ func (s *registryService) GetManifest(repository, id string) (*Manifest, error) 
 	return NewManifest(content)
 }
 
-func (s *registryService) PutManifest(repository, reference string, content []byte) error {
+func (s *registryService) PutManifest(repository, reference string, content []byte) (*v1.Descriptor, error) {
 	digest, err := digest.Parse(reference)
 	if err != nil {
-		return ErrDigestInvalid
+		return nil, ErrDigestInvalid
 	}
 
-	err = json.Unmarshal(content, &v1.Manifest{})
+	var manifest v1.Manifest
+	err = json.Unmarshal(content, &manifest)
 	if err != nil {
-		return ErrManifestInvalid
+		return nil, ErrManifestInvalid
 	}
 
+	// TODO: Layout of the blob store should be left up to the implementation, I think.
+	// Just pass the digest and content, and let the blob store decide how best to organize itself.
 	path := fmt.Sprintf("blobs/%s/%s/%s", digest.Algorithm(), digest.Encoded()[0:2], digest.Encoded())
 
 	err = s.blobs.Put(path, content)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	return s.metadata.PutManifest(repository, digest, path)
+	err = s.metadata.PutManifest(repository, digest, path, manifest.Subject)
+	// TODO: If updating the metadata store fails, we should attempt to delete the blob.
+	if err != nil {
+		return nil, err
+	}
+
+	return manifest.Subject, nil
 }
 
 func (s *registryService) DeleteManifest(repository, id string) error {

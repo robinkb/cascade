@@ -145,8 +145,16 @@ func TestContentDiscovery(t *testing.T) {
 		AssertResponseCode(t, resp, http.StatusCreated)
 
 		referrerCount := 3
+		referrers := make([]v1.Descriptor, referrerCount)
 		for i := 0; i < referrerCount; i++ {
 			manifest, digest := RandomManifestWithSubject(manifest, digest)
+			referrers[i] = v1.Descriptor{
+				MediaType:    manifest.MediaType,
+				ArtifactType: manifest.ArtifactType,
+				Digest:       digest,
+				Size:         int64(len(manifest.Bytes())),
+				Annotations:  manifest.Annotations,
+			}
 			resp = client.PutManifest(repository, digest.String(), manifest)
 			AssertResponseCode(t, resp, http.StatusCreated)
 		}
@@ -161,6 +169,8 @@ func TestContentDiscovery(t *testing.T) {
 			// Upon success, the response MUST be a JSON body with an image index containing a list of descriptors.
 			var index v1.Index
 			AssertResponseBodyUnmarshals(t, resp, &index)
+
+			AssertIndexContainsReferrers(t, &index, referrers...)
 			// TODO: Assert index contents
 		})
 

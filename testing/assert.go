@@ -8,6 +8,8 @@ import (
 	"net/http"
 	"slices"
 	"testing"
+
+	v1 "github.com/opencontainers/image-spec/specs-go/v1"
 )
 
 func AssertNoError(t *testing.T, got error) bool {
@@ -78,6 +80,14 @@ func AssertResponseBodyUnmarshals[T any](t *testing.T, got *http.Response, obj T
 	err = json.Unmarshal(data, obj)
 	if err != nil {
 		t.Errorf("could not unmarshal response body as %T: %s", obj, err)
+	}
+}
+
+func AssertIndexContainsReferrers(t *testing.T, got *v1.Index, want ...v1.Descriptor) {
+	t.Helper()
+
+	if len(got.Manifests) != len(want) {
+		t.Errorf("unexpected referrer count; got %d, want %d", len(got.Manifests), len(want))
 	}
 }
 

@@ -17,7 +17,7 @@ func TestStatManifest(t *testing.T) {
 
 	path := digest.String()
 	blobs.Put(path, manifest)
-	metadata.PutManifest(name, digest, path)
+	metadata.PutManifest(name, digest, path, nil)
 
 	t.Run("Returns FileInfo with expected size on known manifest", func(t *testing.T) {
 		info, err := service.StatManifest(name, digest.String())
@@ -57,7 +57,7 @@ func TestGetManifest(t *testing.T) {
 
 	path := digest.String()
 	blobs.Put(path, manifest)
-	metadata.PutManifest(name, digest, path)
+	metadata.PutManifest(name, digest, path, nil)
 
 	t.Run("Retrieve an existing manifest", func(t *testing.T) {
 		got, err := service.GetManifest(name, digest.String())
@@ -77,7 +77,7 @@ func TestPutManifest(t *testing.T) {
 	t.Run("Put and retrieve a manifest", func(t *testing.T) {
 		name, digest, manifest := randomManifest()
 
-		err := service.PutManifest(name, digest.String(), manifest)
+		_, err := service.PutManifest(name, digest.String(), manifest)
 		assertNoError(t, err)
 
 		got, err := service.GetManifest(name, digest.String())
@@ -88,8 +88,22 @@ func TestPutManifest(t *testing.T) {
 	t.Run("Putting a manifest with invalid content returns ErrManifestInvalid", func(t *testing.T) {
 		name, digest, content := randomBlob(32)
 
-		err := service.PutManifest(name, digest.String(), content)
+		_, err := service.PutManifest(name, digest.String(), content)
 		assertErrorIs(t, err, ErrManifestInvalid)
+	})
+
+	t.Run("Putting a manifest with subject returns the subject's descriptor", func(t *testing.T) {
+		name := randomName()
+		_, digest, content := randomManifest()
+		var manifest Manifest
+		json.Unmarshal(content, &manifest)
+		referrerManifest, referrerDigest := randomManifestWithSubject(&manifest, digest)
+
+		subject, err := service.PutManifest(name, referrerDigest.String(), referrerManifest.Bytes())
+		assertNoError(t, err)
+		if subject.Digest != digest {
+			t.Errorf("invalid subject digest; got %s, want %s", subject.Digest, digest)
+		}
 	})
 }
 
@@ -99,7 +113,7 @@ func TestDeleteManifest(t *testing.T) {
 	t.Run("Delete manifest and make sure it cannot be retrieved", func(t *testing.T) {
 		name, digest, manifest := randomManifest()
 
-		err := service.PutManifest(name, digest.String(), manifest)
+		_, err := service.PutManifest(name, digest.String(), manifest)
 		assertNoError(t, err)
 
 		_, err = service.StatManifest(name, digest.String())
@@ -126,4 +140,17 @@ func randomManifest() (string, digest.Digest, []byte) {
 	digest := digest.FromBytes(manifest)
 
 	return name, digest, manifest
+}
+
+func randomManifestWithSubject(subject *Manifest, id digest.Digest) (*Manifest, digest.Digest) {
+	content, _ := json.Marshal(v1.Manifest{
+		MediaType: v1.MediaTypeImageManifest,
+		Subject: &v1.Descriptor{
+			MediaType: subject.MediaType,
+			Digest:    id,
+		},
+	})
+	digest := digest.FromBytes(content)
+	manifest, _ := NewManifest(content)
+	return manifest, digest
 }

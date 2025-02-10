@@ -12,6 +12,7 @@ import (
 	"github.com/opencontainers/go-digest"
 	v1 "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/robinkb/cascade-registry"
+	. "github.com/robinkb/cascade-registry/testing"
 )
 
 func TestStatManifests(t *testing.T) {
@@ -218,6 +219,26 @@ func TestPutManifest(t *testing.T) {
 
 		assertStatus(t, response.Code, http.StatusBadRequest)
 		assertErrorInResponseBody(t, response.Body, cascade.ErrManifestInvalid)
+	})
+
+	t.Run("Uploading a manifest with subject returns with OCI-Subject header", func(t *testing.T) {
+		name, digest, manifest := RandomManifest()
+		referrerManifest, referrerDigest := RandomManifestWithSubject(manifest, digest)
+
+		server := New(&StubRegistryService{putManifest: func(repository, reference string, content []byte) error {
+			if repository == name && reference == referrerDigest.String() {
+				return nil
+			}
+			panic(errDataNotPassedCorrectly)
+		}})
+
+		request := newPutManifestRequest(name, referrerDigest.String(), referrerManifest.Bytes())
+		response := httptest.NewRecorder()
+
+		server.ServeHTTP(response, request)
+
+		AssertResponseCode(t, response.Result(), http.StatusCreated)
+		AssertResponseHeader(t, response.Result(), "OCI-Subject", referrerDigest.String())
 	})
 }
 

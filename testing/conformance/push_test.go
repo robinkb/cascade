@@ -206,7 +206,24 @@ func TestPush(t *testing.T) {
 			AssertResponseBodyEquals(t, resp, manifest.Bytes())
 		})
 
-		t.Run("Pushing manifest with layers", func(t *testing.T) {})
+		t.Run("Pushing manifest with layers", func(t *testing.T) {
+			client := NewClient(t, ts.URL)
+
+			name, digest, manifest := RandomManifest()
+			referrerManifest, referrerDigest := RandomManifestWithSubject(manifest, digest)
+
+			resp := client.PutManifest(name, digest.String(), manifest)
+			AssertResponseCode(t, resp, http.StatusCreated)
+
+			resp = client.PutManifest(name, referrerDigest.String(), referrerManifest)
+			AssertResponseCode(t, resp, http.StatusCreated)
+
+			// When processing a request for an image manifest with the subject field,
+			// a registry implementation that supports the referrers API MUST respond
+			// with the response header OCI-Subject: <subject digest> to indicate
+			// to the client that the registry processed the request's subject.
+			AssertResponseHeader(t, resp, "OCI-Subject", referrerDigest.String())
+		})
 
 		t.Run("Pushing manifests with Subject", func(t *testing.T) {})
 	})

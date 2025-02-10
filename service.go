@@ -16,7 +16,7 @@ type (
 
 		StatManifest(repository, reference string) (*FileInfo, error)
 		GetManifest(repository, reference string) (*Manifest, error)
-		PutManifest(repository, reference string, content []byte) error
+		PutManifest(repository, reference string, content []byte) (*v1.Descriptor, error)
 		DeleteManifest(repository, reference string) error
 
 		ListTags(repository string, count int, from string) ([]string, error)
