@@ -32,6 +32,7 @@ type (
 		PutTag(repository, tag, digest string) error
 		DeleteTag(repository, tag string) error
 
+		// TODO: Rename to UploadSession
 		GetUpload(repository string, id string) (*UploadSession, error)
 		PutUpload(repository string, session *UploadSession) error
 		DeleteUpload(repository string, id string) error
