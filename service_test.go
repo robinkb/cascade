@@ -15,7 +15,7 @@ import (
 
 func newTestRegistry() (cascade.RegistryService, cascade.MetadataStore, cascade.BlobStore) {
 	metadata := inmemory.NewMetadataStore()
-	blobs := cascade.NewInMemoryBlobStore()
+	blobs := inmemory.NewBlobStore()
 	service := cascade.NewRegistryService(metadata, blobs)
 
 	return service, metadata, blobs
