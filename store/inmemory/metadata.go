@@ -14,6 +14,18 @@ func NewMetadataStore() cascade.MetadataStore {
 	}
 }
 
+// TODO: Should probably be part of the MetadataStore interface?
+func (s *MetadataStore) ensureRepositoryExists(name string) {
+	if _, ok := s.repositories[name]; !ok {
+		s.repositories[name] = &Repository{
+			blobs:          make(map[string]*Blob),
+			manifests:      make(map[string]*Manifest),
+			tags:           make(map[string]*Tag),
+			uploadSessions: make(map[string]*cascade.UploadSession),
+		}
+	}
+}
+
 func (s *MetadataStore) GetBlob(repository string, digest digest.Digest) (string, error) {
 	if repo, ok := s.repositories[repository]; ok {
 		if blob, ok := repo.blobs[digest.String()]; ok {
@@ -24,6 +36,7 @@ func (s *MetadataStore) GetBlob(repository string, digest digest.Digest) (string
 }
 
 func (s *MetadataStore) PutBlob(repository string, digest digest.Digest, path string) error {
+	s.ensureRepositoryExists(repository)
 	s.repositories[repository].blobs[digest.String()] = &Blob{
 		path: path,
 	}
@@ -45,6 +58,7 @@ func (s *MetadataStore) GetManifest(repository string, digest digest.Digest) (st
 }
 
 func (s *MetadataStore) PutManifest(repository string, digest digest.Digest, path string) error {
+	s.ensureRepositoryExists(repository)
 	s.repositories[repository].manifests[digest.String()] = &Manifest{
 		path: path,
 	}
@@ -52,13 +66,16 @@ func (s *MetadataStore) PutManifest(repository string, digest digest.Digest, pat
 }
 
 func (s *MetadataStore) DeleteManifest(repository string, digest digest.Digest) error {
-	delete(s.repositories[repository].manifests, digest.String())
+	if repo, ok := s.repositories[repository]; ok {
+		delete(repo.manifests, digest.String())
+	}
 	return nil
 }
 
 func (s *MetadataStore) ListTags(repository string, count int, last string) ([]string, error) {
 	tags := []string{}
 
+	s.ensureRepositoryExists(repository)
 	for key := range s.repositories[repository].tags {
 		tags = append(tags, key)
 	}
@@ -84,4 +101,50 @@ func (s *MetadataStore) ListTags(repository string, count int, last string) ([]s
 	}
 
 	return tags[start : start+count], nil
+}
+
+func (s *MetadataStore) GetTag(repository, tag string) (string, error) {
+	if repo, ok := s.repositories[repository]; ok {
+		if tag, ok := repo.tags[tag]; ok {
+			return tag.digest.String(), nil
+		}
+	}
+	return "", cascade.ErrManifestUnknown
+}
+
+func (s *MetadataStore) PutTag(repository, tag, id string) error {
+	s.ensureRepositoryExists(repository)
+	digest, err := digest.Parse(id)
+	if err != nil {
+		return err
+	}
+	s.repositories[repository].tags[tag] = &Tag{
+		digest: digest,
+	}
+	return nil
+}
+
+func (s *MetadataStore) DeleteTag(repository, tag string) error {
+	delete(s.repositories[repository].tags, tag)
+	return nil
+}
+
+func (s *MetadataStore) GetUpload(repository, id string) (*cascade.UploadSession, error) {
+	if repo, ok := s.repositories[repository]; ok {
+		if session, ok := repo.uploadSessions[id]; ok {
+			return session, nil
+		}
+	}
+	return nil, cascade.ErrBlobUploadUnknown
+}
+
+func (s *MetadataStore) PutUpload(repository string, session *cascade.UploadSession) error {
+	s.ensureRepositoryExists(repository)
+	s.repositories[repository].uploadSessions[session.ID.String()] = session
+	return nil
+}
+
+func (s *MetadataStore) DeleteUpload(repository string, sessionID string) error {
+	delete(s.repositories[repository].uploadSessions, sessionID)
+	return nil
 }

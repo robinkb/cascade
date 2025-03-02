@@ -1,4 +1,4 @@
-package cascade
+package cascade_test
 
 import (
 	"bytes"
@@ -9,12 +9,14 @@ import (
 
 	"github.com/moby/moby/pkg/namesgenerator"
 	"github.com/opencontainers/go-digest"
+	"github.com/robinkb/cascade-registry"
+	"github.com/robinkb/cascade-registry/store/inmemory"
 )
 
-func newTestRegistry() (RegistryService, MetadataStore, BlobStore) {
-	metadata := NewInMemoryMetadataStore()
-	blobs := NewInMemoryBlobStore()
-	service := NewRegistryService(metadata, blobs)
+func newTestRegistry() (cascade.RegistryService, cascade.MetadataStore, cascade.BlobStore) {
+	metadata := inmemory.NewMetadataStore()
+	blobs := cascade.NewInMemoryBlobStore()
+	service := cascade.NewRegistryService(metadata, blobs)
 
 	return service, metadata, blobs
 }

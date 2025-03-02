@@ -1,4 +1,4 @@
-package cascade
+package cascade_test
 
 import (
 	"encoding/json"
@@ -6,6 +6,7 @@ import (
 
 	"github.com/opencontainers/go-digest"
 	v1 "github.com/opencontainers/image-spec/specs-go/v1"
+	"github.com/robinkb/cascade-registry"
 )
 
 func TestStatManifest(t *testing.T) {
@@ -34,17 +35,17 @@ func TestStatManifest(t *testing.T) {
 
 	t.Run("Returns ErrManifestUnkonwn on known manifest in other repository", func(t *testing.T) {
 		_, err := service.StatManifest("unknown/repository", digest.String())
-		assertErrorIs(t, err, ErrManifestUnknown)
+		assertErrorIs(t, err, cascade.ErrManifestUnknown)
 	})
 
 	t.Run("returns ErrManifestUnknown on unknown manifest", func(t *testing.T) {
 		_, err := service.StatManifest(name, "sha256:ce5449ab65895b60068d164e81b646753d268583a70895acee51e1d711ddf3a2")
-		assertErrorIs(t, err, ErrManifestUnknown)
+		assertErrorIs(t, err, cascade.ErrManifestUnknown)
 	})
 
 	t.Run("returns ErrManifestUnknown on invalid digest", func(t *testing.T) {
 		_, err := service.StatManifest(name, "sha256:i-am-not-valid-lol")
-		assertErrorIs(t, err, ErrManifestUnknown)
+		assertErrorIs(t, err, cascade.ErrManifestUnknown)
 	})
 }
 
@@ -67,7 +68,7 @@ func TestGetManifest(t *testing.T) {
 
 	t.Run("returns ErrManifestUnknown on unknown manifest", func(t *testing.T) {
 		_, err := service.GetManifest("i/do/not/exist", "sha256:ce5449ab65895b60068d164e81b646753d268583a70895acee51e1d711ddf3a2")
-		assertErrorIs(t, err, ErrManifestUnknown)
+		assertErrorIs(t, err, cascade.ErrManifestUnknown)
 	})
 }
 
@@ -89,7 +90,7 @@ func TestPutManifest(t *testing.T) {
 		name, digest, content := randomBlob(32)
 
 		err := service.PutManifest(name, digest.String(), content)
-		assertErrorIs(t, err, ErrManifestInvalid)
+		assertErrorIs(t, err, cascade.ErrManifestInvalid)
 	})
 }
 
@@ -109,12 +110,12 @@ func TestDeleteManifest(t *testing.T) {
 		assertNoError(t, err)
 
 		_, err = service.StatManifest(name, digest.String())
-		assertErrorIs(t, err, ErrManifestUnknown)
+		assertErrorIs(t, err, cascade.ErrManifestUnknown)
 	})
 
 	t.Run("Deleting an unknown manifest returns ErrManifestUknown", func(t *testing.T) {
 		err := service.DeleteManifest("does/not/exist", "123")
-		assertErrorIs(t, err, ErrManifestUnknown)
+		assertErrorIs(t, err, cascade.ErrManifestUnknown)
 	})
 }
 

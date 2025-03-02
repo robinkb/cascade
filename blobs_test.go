@@ -1,8 +1,10 @@
-package cascade
+package cascade_test
 
 import (
 	"io"
 	"testing"
+
+	"github.com/robinkb/cascade-registry"
 )
 
 func TestStatBlob(t *testing.T) {
@@ -21,12 +23,12 @@ func TestStatBlob(t *testing.T) {
 
 	t.Run("Unknown blob returns ErrBlobUnknown", func(t *testing.T) {
 		_, err := service.StatBlob("a", "b")
-		assertErrorIs(t, err, ErrBlobUnknown)
+		assertErrorIs(t, err, cascade.ErrBlobUnknown)
 	})
 
 	t.Run("Known blob in unknown repository returns ErrBlobUnknown", func(t *testing.T) {
 		_, err := service.StatBlob("fake/repository", digest.String())
-		assertErrorIs(t, err, ErrBlobUnknown)
+		assertErrorIs(t, err, cascade.ErrBlobUnknown)
 	})
 }
 
@@ -49,12 +51,12 @@ func TestGetBlob(t *testing.T) {
 
 	t.Run("Unknown blob returns no content and ErrBlobUnknown", func(t *testing.T) {
 		_, err := service.GetBlob("fake/repository", "blabla")
-		assertErrorIs(t, err, ErrBlobUnknown)
+		assertErrorIs(t, err, cascade.ErrBlobUnknown)
 	})
 
 	t.Run("Known blob on unknown repository still returns no content and ErrBlobUnknown", func(t *testing.T) {
 		_, err := service.GetBlob("fake/repository", digest.String())
-		assertErrorIs(t, err, ErrBlobUnknown)
+		assertErrorIs(t, err, cascade.ErrBlobUnknown)
 	})
 }
 
@@ -75,6 +77,6 @@ func TestDeleteBlob(t *testing.T) {
 		assertNoError(t, err)
 
 		_, err = service.GetBlob(name, digest.String())
-		assertErrorIs(t, err, ErrBlobUnknown)
+		assertErrorIs(t, err, cascade.ErrBlobUnknown)
 	})
 }
