@@ -8,12 +8,13 @@ import (
 
 	"github.com/robinkb/cascade-registry"
 	"github.com/robinkb/cascade-registry/server"
+	"github.com/robinkb/cascade-registry/store/inmemory"
 	. "github.com/robinkb/cascade-registry/testing"
 )
 
 func TestContentDiscovery(t *testing.T) {
-	metadata := cascade.NewInMemoryMetadataStore()
-	blobs := cascade.NewInMemoryBlobStore()
+	metadata := inmemory.NewMetadataStore()
+	blobs := inmemory.NewBlobStore()
 	service := cascade.NewRegistryService(metadata, blobs)
 	srv := server.New(service)
 

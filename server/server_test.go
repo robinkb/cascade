@@ -16,6 +16,7 @@ import (
 	"github.com/moby/moby/pkg/namesgenerator"
 	"github.com/opencontainers/go-digest"
 	"github.com/robinkb/cascade-registry"
+	"github.com/robinkb/cascade-registry/store/inmemory"
 )
 
 var (
@@ -105,8 +106,8 @@ func TestRoot(t *testing.T) {
 func newTestServer() *Server {
 	return New(
 		cascade.NewRegistryService(
-			cascade.NewInMemoryMetadataStore(),
-			cascade.NewInMemoryBlobStore(),
+			inmemory.NewMetadataStore(),
+			inmemory.NewBlobStore(),
 		),
 	)
 }

@@ -1,9 +1,11 @@
-package cascade
+package cascade_test
 
 import (
 	"bytes"
 	"io"
 	"testing"
+
+	"github.com/robinkb/cascade-registry"
 )
 
 func TestStatUpload(t *testing.T) {
@@ -30,7 +32,7 @@ func TestStatUpload(t *testing.T) {
 
 	t.Run("stat upload on unknown upload returns ErrBlobUploadUnknown", func(t *testing.T) {
 		_, err := service.StatUpload("unknown/repo", "i-dont-exist")
-		assertErrorIs(t, err, ErrBlobUploadUnknown)
+		assertErrorIs(t, err, cascade.ErrBlobUploadUnknown)
 	})
 
 	// TODO: Write test to ensure that uploads are scoped to a repository.
@@ -59,7 +61,7 @@ func TestBlobUploadsMonolithic(t *testing.T) {
 
 	t.Run("Uploading without a session returns ErrBlobUploadUknown", func(t *testing.T) {
 		err := service.AppendUpload("fake", "abc", nil, 0)
-		assertErrorIs(t, err, ErrBlobUploadUnknown)
+		assertErrorIs(t, err, cascade.ErrBlobUploadUnknown)
 	})
 
 	t.Run("Closing upload with invalid digest returns ErrDigestInvalid", func(t *testing.T) {
@@ -72,7 +74,7 @@ func TestBlobUploadsMonolithic(t *testing.T) {
 		assertNoError(t, err)
 
 		err = service.CloseUpload(name, session.ID.String(), digest)
-		assertErrorIs(t, err, ErrDigestInvalid)
+		assertErrorIs(t, err, cascade.ErrDigestInvalid)
 	})
 
 	t.Run("Closing upload with wrong digest returns ErrBlobUploadInvalid", func(t *testing.T) {
@@ -85,7 +87,7 @@ func TestBlobUploadsMonolithic(t *testing.T) {
 		assertNoError(t, err)
 
 		err = service.CloseUpload(name, session.ID.String(), digest.String())
-		assertErrorIs(t, err, ErrBlobUploadInvalid)
+		assertErrorIs(t, err, cascade.ErrBlobUploadInvalid)
 	})
 }
 
@@ -139,6 +141,6 @@ func TestServiceUpload(t *testing.T) {
 
 	t.Run("writing to unknown upload returns ErrBlobUploadUnknown", func(t *testing.T) {
 		err := service.AppendUpload("1/2/3", "i-dont-exist", nil, 0)
-		assertErrorIs(t, err, ErrBlobUploadUnknown)
+		assertErrorIs(t, err, cascade.ErrBlobUploadUnknown)
 	})
 }
