@@ -14,6 +14,32 @@ func NewMetadataStore() cascade.MetadataStore {
 	}
 }
 
+type (
+	MetadataStore struct {
+		repositories map[string]*Repository
+		blobs        map[string]string
+	}
+
+	Repository struct {
+		blobs          map[string]*Blob
+		manifests      map[string]*Manifest
+		tags           map[string]*Tag
+		uploadSessions map[string]*cascade.UploadSession
+	}
+
+	Manifest struct {
+		path string
+	}
+
+	Blob struct {
+		path string
+	}
+
+	Tag struct {
+		digest digest.Digest
+	}
+)
+
 // TODO: Should probably be part of the MetadataStore interface?
 func (s *MetadataStore) ensureRepositoryExists(name string) {
 	if _, ok := s.repositories[name]; !ok {
