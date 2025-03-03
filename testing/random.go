@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"math/rand/v2"
+	"slices"
 	"strings"
 
 	"github.com/moby/moby/pkg/namesgenerator"
@@ -50,4 +51,14 @@ func RandomVersion() string {
 	patch = rand.IntN(60)
 
 	return fmt.Sprintf("v%d.%d.%d", major, minor, patch)
+}
+
+func RandomTags(count int) (tags []string) {
+	for range count {
+		tags = append(tags, RandomVersion())
+	}
+
+	slices.Sort(tags)
+
+	return
 }
