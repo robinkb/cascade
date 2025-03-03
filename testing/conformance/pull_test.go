@@ -25,7 +25,8 @@ func TestPull(t *testing.T) {
 		t.Run("GET request to a known manifest", func(t *testing.T) {
 			client := NewClient(t, ts.URL)
 
-			name, digest, manifest := RandomManifest()
+			name := RandomName()
+			digest, manifest := RandomManifest()
 			metadata.PutManifest(name, digest, digest.String())
 			blobs.Put(digest.String(), manifest.Bytes())
 
@@ -53,7 +54,9 @@ func TestPull(t *testing.T) {
 	})
 
 	t.Run("Pulling blobs", func(t *testing.T) {
-		name, digest, blob := RandomBlob(32)
+		name := RandomName()
+		digest, blob := RandomBlob(32)
+
 		metadata.PutBlob(name, digest, digest.String())
 		blobs.Put(digest.String(), blob)
 
@@ -81,7 +84,9 @@ func TestPull(t *testing.T) {
 		t.Run("HEAD request to an existing blob", func(t *testing.T) {
 			client := NewClient(t, ts.URL)
 
-			name, digest, blob := RandomBlob(32)
+			name := RandomName()
+			digest, blob := RandomBlob(32)
+
 			metadata.PutBlob(name, digest, digest.String())
 			blobs.Put(digest.String(), blob)
 
@@ -106,7 +111,9 @@ func TestPull(t *testing.T) {
 		t.Run("HEAD request to an existing manifest", func(t *testing.T) {
 			client := NewClient(t, ts.URL)
 
-			name, digest, manifest := RandomManifest()
+			name := RandomName()
+			digest, manifest := RandomManifest()
+
 			metadata.PutManifest(name, digest, digest.String())
 			blobs.Put(digest.String(), manifest.Bytes())
 

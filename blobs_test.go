@@ -5,11 +5,16 @@ import (
 	"testing"
 
 	"github.com/robinkb/cascade-registry"
+	"github.com/robinkb/cascade-registry/store/inmemory"
+	. "github.com/robinkb/cascade-registry/testing"
 )
 
 func TestStatBlob(t *testing.T) {
-	service, metadata, blobs := newTestRegistry()
+	metadata := inmemory.NewMetadataStore()
+	blobs := inmemory.NewBlobStore()
+	service := cascade.NewRegistryService(metadata, blobs)
 
+	name := RandomName()
 	name, digest, content := randomBlob(32 * 1024)
 	path := digest.Encoded()
 
@@ -18,7 +23,7 @@ func TestStatBlob(t *testing.T) {
 
 	t.Run("Known blob returns no error", func(t *testing.T) {
 		_, err := service.StatBlob(name, digest.String())
-		assertNoError(t, err)
+		AssertNoError(t, err)
 	})
 
 	t.Run("Unknown blob returns ErrBlobUnknown", func(t *testing.T) {
