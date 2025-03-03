@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/robinkb/cascade-registry"
+	. "github.com/robinkb/cascade-registry/testing"
 )
 
 func TestStatBlob(t *testing.T) {
@@ -29,7 +30,7 @@ func TestStatBlob(t *testing.T) {
 		server.ServeHTTP(response, request)
 		assertStatus(t, response.Code, http.StatusOK)
 		assertHeader(t, headerContentLength, response.Header(), strconv.Itoa(size))
-		assertResponseBody(t, response.Body.Bytes(), nil)
+		AssertResponseBodyEquals(t, response.Result(), nil)
 	})
 
 	t.Run("unknown blob returns 404", func(t *testing.T) {
@@ -50,7 +51,7 @@ func TestStatBlob(t *testing.T) {
 
 func TestGetBlob(t *testing.T) {
 	t.Run("Get blob returns 200", func(t *testing.T) {
-		content := randomContents(32)
+		content := RandomContents(32)
 		server := New(&StubRegistryService{
 			getBlob: func(repository, digest string) (io.Reader, error) {
 				return bytes.NewBuffer(content), nil
@@ -62,7 +63,7 @@ func TestGetBlob(t *testing.T) {
 
 		server.ServeHTTP(response, request)
 		assertStatus(t, response.Code, http.StatusOK)
-		assertResponseBody(t, response.Body.Bytes(), content)
+		AssertResponseBodyEquals(t, response.Result(), content)
 	})
 
 	t.Run("returns 404 on unknown blob", func(t *testing.T) {
@@ -84,7 +85,9 @@ func TestGetBlob(t *testing.T) {
 
 func TestDeleteBlob(t *testing.T) {
 	t.Run("Delete blob returns 202", func(t *testing.T) {
-		name, id, _ := randomBlob(32)
+		name := RandomName()
+		id := RandomDigest()
+
 		server := New(&StubRegistryService{
 			deleteBlob: func(repository, digest string) error {
 				if repository != name || digest != id.String() {

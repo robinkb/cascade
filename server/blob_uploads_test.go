@@ -10,6 +10,7 @@ import (
 
 	"github.com/opencontainers/go-digest"
 	"github.com/robinkb/cascade-registry"
+	. "github.com/robinkb/cascade-registry/testing"
 )
 
 func TestBlobUploadsMonolithic(t *testing.T) {
@@ -33,7 +34,7 @@ func TestBlobUploadsMonolithic(t *testing.T) {
 
 	t.Run("Uploading without required headers returns 400", func(t *testing.T) {
 		server := New(&StubRegistryService{})
-		content := randomContents(32)
+		content := RandomContents(32)
 
 		request := newBlobUploadRequest("/v2/library/fedora/blobs/uploads/123", content)
 		request.Header.Del(headerContentType)

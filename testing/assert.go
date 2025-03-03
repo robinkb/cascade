@@ -60,6 +60,17 @@ func AssertResponseHeader(t *testing.T, got *http.Response, header string, want 
 	return true
 }
 
+func AssertResponseHeaderSet(t *testing.T, got *http.Response, header string) bool {
+	t.Helper()
+
+	_, ok := got.Header[header]
+	if !ok {
+		t.Errorf("header %q is not set", header)
+		return false
+	}
+	return true
+}
+
 func AssertResponseHeaderUnset(t *testing.T, got *http.Response, header string) bool {
 	t.Helper()
 

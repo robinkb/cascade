@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/robinkb/cascade-registry"
+	. "github.com/robinkb/cascade-registry/testing"
 )
 
 func TestBlobUploadSession(t *testing.T) {
@@ -21,7 +22,7 @@ func TestBlobUploadSession(t *testing.T) {
 		server.ServeHTTP(response, request)
 
 		assertStatus(t, response.Code, http.StatusAccepted)
-		assertHeaderSet(t, headerLocation, response.Header())
+		AssertResponseHeaderSet(t, response.Result(), headerLocation)
 
 		location := response.Header().Get(headerLocation)
 
