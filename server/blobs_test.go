@@ -28,8 +28,8 @@ func TestStatBlob(t *testing.T) {
 		response := httptest.NewRecorder()
 
 		server.ServeHTTP(response, request)
-		assertStatus(t, response.Code, http.StatusOK)
-		assertHeader(t, headerContentLength, response.Header(), strconv.Itoa(size))
+		AssertResponseCode(t, response.Result(), http.StatusOK)
+		AssertResponseHeader(t, response.Result(), headerContentLength, strconv.Itoa(size))
 		AssertResponseBodyEquals(t, response.Result(), nil)
 	})
 
@@ -44,8 +44,8 @@ func TestStatBlob(t *testing.T) {
 		response := httptest.NewRecorder()
 
 		server.ServeHTTP(response, request)
-		assertStatus(t, response.Code, http.StatusNotFound)
-		assertErrorInResponseBody(t, response.Body, cascade.ErrBlobUnknown)
+		AssertResponseCode(t, response.Result(), http.StatusNotFound)
+		AssertResponseBodyContainsError(t, response.Result(), cascade.ErrBlobUnknown)
 	})
 }
 
@@ -62,7 +62,7 @@ func TestGetBlob(t *testing.T) {
 		response := httptest.NewRecorder()
 
 		server.ServeHTTP(response, request)
-		assertStatus(t, response.Code, http.StatusOK)
+		AssertResponseCode(t, response.Result(), http.StatusOK)
 		AssertResponseBodyEquals(t, response.Result(), content)
 	})
 
@@ -77,8 +77,9 @@ func TestGetBlob(t *testing.T) {
 		response := httptest.NewRecorder()
 
 		server.ServeHTTP(response, request)
-		assertStatus(t, response.Code, http.StatusNotFound)
-		assertErrorInResponseBody(t, response.Body, cascade.ErrBlobUnknown)
+
+		AssertResponseCode(t, response.Result(), http.StatusNotFound)
+		AssertResponseBodyContainsError(t, response.Result(), cascade.ErrBlobUnknown)
 	})
 
 }
@@ -102,7 +103,7 @@ func TestDeleteBlob(t *testing.T) {
 
 		server.ServeHTTP(response, request)
 
-		assertStatus(t, response.Code, http.StatusAccepted)
+		AssertResponseCode(t, response.Result(), http.StatusAccepted)
 	})
 }
 
@@ -115,7 +116,8 @@ func TestBlobsOthers(t *testing.T) {
 		response := httptest.NewRecorder()
 
 		server.ServeHTTP(response, request)
-		assertStatus(t, response.Code, http.StatusMethodNotAllowed)
+
+		AssertResponseCode(t, response.Result(), http.StatusMethodNotAllowed)
 	})
 }
 

@@ -30,8 +30,8 @@ func TestStatManifests(t *testing.T) {
 
 		server.ServeHTTP(response, request)
 
-		assertStatus(t, response.Code, http.StatusOK)
-		assertHeader(t, headerContentLength, response.Header(), strconv.Itoa(len(manifest)))
+		AssertResponseCode(t, response.Result(), http.StatusOK)
+		AssertResponseHeader(t, response.Result(), headerContentLength, strconv.Itoa(len(manifest)))
 		AssertResponseBodyEquals(t, response.Result(), nil)
 	})
 
@@ -58,8 +58,8 @@ func TestStatManifests(t *testing.T) {
 
 		server.ServeHTTP(response, request)
 
-		assertStatus(t, response.Code, http.StatusOK)
-		assertHeader(t, headerContentLength, response.Header(), strconv.Itoa(len(manifest)))
+		AssertResponseCode(t, response.Result(), http.StatusOK)
+		AssertResponseHeader(t, response.Result(), headerContentLength, strconv.Itoa(len(manifest)))
 		AssertResponseBodyEquals(t, response.Result(), nil)
 	})
 
@@ -73,8 +73,8 @@ func TestStatManifests(t *testing.T) {
 
 		server.ServeHTTP(response, request)
 
-		assertStatus(t, response.Code, http.StatusNotFound)
-		assertErrorInResponseBody(t, response.Body, cascade.ErrManifestUnknown)
+		AssertResponseCode(t, response.Result(), http.StatusNotFound)
+		AssertResponseBodyContainsError(t, response.Result(), cascade.ErrManifestUnknown)
 	})
 
 	t.Run("Stat non-existent manifest by tag returns 404 and ErrManifestUknown", func(t *testing.T) {
@@ -87,8 +87,8 @@ func TestStatManifests(t *testing.T) {
 
 		server.ServeHTTP(response, request)
 
-		assertStatus(t, response.Code, http.StatusNotFound)
-		assertErrorInResponseBody(t, response.Body, cascade.ErrManifestUnknown)
+		AssertResponseCode(t, response.Result(), http.StatusNotFound)
+		AssertResponseBodyContainsError(t, response.Result(), cascade.ErrManifestUnknown)
 	})
 }
 
@@ -108,8 +108,8 @@ func TestGetManifests(t *testing.T) {
 
 		server.ServeHTTP(response, request)
 
-		assertStatus(t, response.Code, http.StatusOK)
-		assertHeader(t, headerContentType, response.Header(), v1.MediaTypeImageLayer)
+		AssertResponseCode(t, response.Result(), http.StatusOK)
+		AssertResponseHeader(t, response.Result(), headerContentType, v1.MediaTypeImageLayer)
 		AssertResponseBodyEquals(t, response.Result(), manifest)
 	})
 
@@ -135,7 +135,7 @@ func TestGetManifests(t *testing.T) {
 
 		server.ServeHTTP(response, request)
 
-		assertStatus(t, response.Code, http.StatusOK)
+		AssertResponseCode(t, response.Result(), http.StatusOK)
 		AssertResponseBodyEquals(t, response.Result(), manifest)
 	})
 
@@ -148,8 +148,8 @@ func TestGetManifests(t *testing.T) {
 
 		server.ServeHTTP(response, request)
 
-		assertStatus(t, response.Code, http.StatusNotFound)
-		assertErrorInResponseBody(t, response.Body, cascade.ErrManifestUnknown)
+		AssertResponseCode(t, response.Result(), http.StatusNotFound)
+		AssertResponseBodyContainsError(t, response.Result(), cascade.ErrManifestUnknown)
 	})
 }
 
@@ -168,7 +168,7 @@ func TestPutManifest(t *testing.T) {
 
 		server.ServeHTTP(response, request)
 
-		assertStatus(t, response.Code, http.StatusCreated)
+		AssertResponseCode(t, response.Result(), http.StatusCreated)
 		AssertResponseHeaderSet(t, response.Result(), headerLocation)
 		AssertResponseBodyEquals(t, response.Result(), nil)
 	})
@@ -202,7 +202,7 @@ func TestPutManifest(t *testing.T) {
 			t.Error("service.PutTag was never called")
 		}
 
-		assertStatus(t, response.Code, http.StatusCreated)
+		AssertResponseCode(t, response.Result(), http.StatusCreated)
 		AssertResponseHeaderSet(t, response.Result(), headerLocation)
 		AssertResponseBodyEquals(t, response.Result(), nil)
 	})
@@ -217,14 +217,15 @@ func TestPutManifest(t *testing.T) {
 
 		server.ServeHTTP(response, request)
 
-		assertStatus(t, response.Code, http.StatusBadRequest)
-		assertErrorInResponseBody(t, response.Body, cascade.ErrManifestInvalid)
+		AssertResponseCode(t, response.Result(), http.StatusBadRequest)
+		AssertResponseBodyContainsError(t, response.Result(), cascade.ErrManifestInvalid)
 	})
 }
 
 func TestDeleteManifest(t *testing.T) {
 	t.Run("Deleting a manifest returns code 202", func(t *testing.T) {
-		name, digest, _ := randomManifest()
+		name := RandomName()
+		digest := RandomDigest()
 		server := New(&StubRegistryService{deleteManifest: func(repository, reference string) error {
 			if repository == name && reference == digest.String() {
 				return nil
@@ -237,7 +238,7 @@ func TestDeleteManifest(t *testing.T) {
 
 		server.ServeHTTP(response, request)
 
-		assertStatus(t, response.Code, http.StatusAccepted)
+		AssertResponseCode(t, response.Result(), http.StatusAccepted)
 	})
 
 	t.Run("Deleting a manifest by tag returns 202", func(t *testing.T) {
@@ -256,7 +257,7 @@ func TestDeleteManifest(t *testing.T) {
 
 		server.ServeHTTP(response, request)
 
-		assertStatus(t, response.Code, http.StatusAccepted)
+		AssertResponseCode(t, response.Result(), http.StatusAccepted)
 		if !deleteTagCalled {
 			t.Error("DeleteTag was not called")
 		}
@@ -272,8 +273,8 @@ func TestDeleteManifest(t *testing.T) {
 
 		server.ServeHTTP(response, request)
 
-		assertStatus(t, response.Code, http.StatusNotFound)
-		assertErrorInResponseBody(t, response.Body, cascade.ErrManifestUnknown)
+		AssertResponseCode(t, response.Result(), http.StatusNotFound)
+		AssertResponseBodyContainsError(t, response.Result(), cascade.ErrManifestUnknown)
 	})
 }
 
@@ -286,7 +287,7 @@ func TestManifestsOthers(t *testing.T) {
 
 		server.ServeHTTP(response, request)
 
-		assertStatus(t, response.Code, http.StatusMethodNotAllowed)
+		AssertResponseCode(t, response.Result(), http.StatusMethodNotAllowed)
 	})
 }
 

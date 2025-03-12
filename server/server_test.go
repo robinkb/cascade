@@ -1,8 +1,6 @@
 package server
 
 import (
-	"bytes"
-	"encoding/json"
 	"errors"
 	"io"
 
@@ -95,7 +93,7 @@ func TestRoot(t *testing.T) {
 
 		server.ServeHTTP(response, request)
 
-		assertStatus(t, response.Code, http.StatusOK)
+		AssertResponseCode(t, response.Result(), http.StatusOK)
 	})
 }
 
@@ -106,40 +104,4 @@ func newTestServer() *Server {
 			inmemory.NewBlobStore(),
 		),
 	)
-}
-
-func assertErrorInResponseBody(t *testing.T, body *bytes.Buffer, want cascade.Error) {
-	t.Helper()
-
-	var errs ErrorResponse
-	err := json.NewDecoder(body).Decode(&errs)
-	AssertNoError(t, err)
-
-	for _, err := range errs.Errors {
-		if errors.Is(err, want) {
-			return
-		}
-	}
-
-	t.Errorf("could not find error in response; got %v, want %v", body, want)
-}
-
-func assertStatus(t *testing.T, got, want int) {
-	t.Helper()
-	if got != want {
-		t.Errorf("got status %d, want %d", got, want)
-	}
-}
-
-func assertHeader(t *testing.T, header string, got http.Header, want string) {
-	t.Helper()
-	val := got.Get(header)
-	if val == "" {
-		t.Errorf("Header '%s' not set", header)
-		return
-	}
-
-	if val != want {
-		t.Errorf("Header '%s' set to %q, want %q", header, val, want)
-	}
 }

@@ -28,7 +28,7 @@ func TestListTags(t *testing.T) {
 
 		server.ServeHTTP(response, request)
 
-		assertStatus(t, response.Code, http.StatusOK)
+		AssertResponseCode(t, response.Result(), http.StatusOK)
 
 		var tagsList TagsListResponse
 		err := json.Unmarshal(response.Body.Bytes(), &tagsList)
@@ -68,6 +68,6 @@ func TestListTags(t *testing.T) {
 
 		server.ServeHTTP(response, request)
 
-		assertStatus(t, response.Code, http.StatusOK)
+		AssertResponseCode(t, response.Result(), http.StatusOK)
 	})
 }

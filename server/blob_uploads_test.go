@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
-	"strconv"
 	"testing"
 
 	"github.com/opencontainers/go-digest"
@@ -28,8 +27,8 @@ func TestBlobUploadsMonolithic(t *testing.T) {
 
 		server.ServeHTTP(response, request)
 
-		assertStatus(t, response.Code, http.StatusNotFound)
-		assertErrorInResponseBody(t, response.Body, cascade.ErrBlobUploadUnknown)
+		AssertResponseCode(t, response.Result(), http.StatusNotFound)
+		AssertResponseBodyContainsError(t, response.Result(), cascade.ErrBlobUploadUnknown)
 	})
 
 	t.Run("Uploading without required headers returns 400", func(t *testing.T) {
@@ -43,7 +42,7 @@ func TestBlobUploadsMonolithic(t *testing.T) {
 
 		server.ServeHTTP(response, request)
 
-		assertStatus(t, response.Code, http.StatusBadRequest)
+		AssertResponseCode(t, response.Result(), http.StatusBadRequest)
 	})
 
 	t.Run("Closing upload without digest returns 400", func(t *testing.T) {
@@ -55,7 +54,7 @@ func TestBlobUploadsMonolithic(t *testing.T) {
 
 		server.ServeHTTP(response, request)
 
-		assertStatus(t, response.Code, http.StatusBadRequest)
+		AssertResponseCode(t, response.Result(), http.StatusBadRequest)
 	})
 
 	t.Run("Closing upload with invalid digest returns 400", func(t *testing.T) {
@@ -69,8 +68,8 @@ func TestBlobUploadsMonolithic(t *testing.T) {
 
 		server.ServeHTTP(response, request)
 
-		assertStatus(t, response.Code, http.StatusBadRequest)
-		assertErrorInResponseBody(t, response.Body, cascade.ErrDigestInvalid)
+		AssertResponseCode(t, response.Result(), http.StatusBadRequest)
+		AssertResponseBodyContainsError(t, response.Result(), cascade.ErrDigestInvalid)
 	})
 
 	t.Run("Uploading with wrong digest returns 400", func(t *testing.T) {
@@ -83,8 +82,8 @@ func TestBlobUploadsMonolithic(t *testing.T) {
 
 		server.ServeHTTP(response, request)
 
-		assertStatus(t, response.Code, http.StatusBadRequest)
-		assertErrorInResponseBody(t, response.Body, cascade.ErrBlobUploadInvalid)
+		AssertResponseCode(t, response.Result(), http.StatusBadRequest)
+		AssertResponseBodyContainsError(t, response.Result(), cascade.ErrBlobUploadInvalid)
 	})
 }
 
@@ -113,28 +112,5 @@ func newBlobUploadRequest(location string, content []byte) *http.Request {
 
 func newCheckUploadRequest(location string) *http.Request {
 	req, _ := http.NewRequest(http.MethodGet, location, nil)
-	return req
-}
-
-func newUploadChunkRequest(location string, content []byte, written int) *http.Request {
-	size := len(content)
-	buf := bytes.NewBuffer(content)
-	req, _ := http.NewRequest(http.MethodPatch, location, buf)
-	req.Header.Set(headerContentType, contentTypeOctetStream)
-	req.Header.Set(headerContentRange, fmt.Sprintf("%d-%d", written, written+size-1))
-	req.Header.Set(headerContentLength, strconv.Itoa(size))
-	return req
-}
-
-func newCloseUploadRequest(location, digest string, content []byte) *http.Request {
-	body := bytes.NewBuffer(content)
-	req, _ := http.NewRequest(http.MethodPut, location, body)
-	if len(content) > 0 {
-		req.Header.Set(headerContentType, contentTypeOctetStream)
-		req.Header.Set(headerContentLength, strconv.Itoa(len(content)))
-	}
-	query := req.URL.Query()
-	query.Set("digest", digest)
-	req.URL.RawQuery = query.Encode()
 	return req
 }

@@ -9,6 +9,8 @@ import (
 	"net/http"
 	"slices"
 	"testing"
+
+	"github.com/robinkb/cascade-registry"
 )
 
 func AssertErrorIs(t *testing.T, got, want error) bool {
@@ -112,6 +114,22 @@ func AssertResponseBodyUnmarshals[T any](t *testing.T, got *http.Response, obj T
 		t.Errorf("could not unmarshal response body as %T: %s", obj, err)
 		return false
 	}
+	return true
+}
+
+func AssertResponseBodyContainsError(t *testing.T, got *http.Response, want cascade.Error) bool {
+	t.Helper()
+
+	var errs cascade.ErrorResponse
+	err := json.NewDecoder(got.Body).Decode(&errs)
+	RequireNoError(t, err)
+
+	for _, err := range errs.Errors {
+		if errors.Is(err, want) {
+			return true
+		}
+	}
+
 	return true
 }
 
