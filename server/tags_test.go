@@ -8,11 +8,13 @@ import (
 	"slices"
 	"strconv"
 	"testing"
+
+	. "github.com/robinkb/cascade-registry/testing"
 )
 
 func TestListTags(t *testing.T) {
 	t.Run("Listing tags returns 200", func(t *testing.T) {
-		wantName := randomName()
+		wantName := RandomName()
 		wantTags := []string{"40", "1.2.3", "latest"}
 		server := New(&StubRegistryService{listTags: func(repository string, count int, last string) ([]string, error) {
 			if repository == wantName && count == -1 && last == "" {
@@ -26,11 +28,11 @@ func TestListTags(t *testing.T) {
 
 		server.ServeHTTP(response, request)
 
-		assertStatus(t, response.Code, http.StatusOK)
+		AssertResponseCode(t, response.Result(), http.StatusOK)
 
 		var tagsList TagsListResponse
 		err := json.Unmarshal(response.Body.Bytes(), &tagsList)
-		assertNoError(t, err)
+		AssertNoError(t, err)
 
 		gotName := tagsList.Name
 		gotTags := tagsList.Tags
@@ -45,7 +47,7 @@ func TestListTags(t *testing.T) {
 	})
 
 	t.Run("n and last query parameters are handled correctly", func(t *testing.T) {
-		wantName := randomName()
+		wantName := RandomName()
 		wantCount := 3
 		wantLast := "40"
 
@@ -66,6 +68,6 @@ func TestListTags(t *testing.T) {
 
 		server.ServeHTTP(response, request)
 
-		assertStatus(t, response.Code, http.StatusOK)
+		AssertResponseCode(t, response.Result(), http.StatusOK)
 	})
 }

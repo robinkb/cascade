@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/robinkb/cascade-registry"
+	. "github.com/robinkb/cascade-registry/testing"
 )
 
 func TestBlobUploadSession(t *testing.T) {
@@ -20,8 +21,8 @@ func TestBlobUploadSession(t *testing.T) {
 
 		server.ServeHTTP(response, request)
 
-		assertStatus(t, response.Code, http.StatusAccepted)
-		assertHeaderSet(t, headerLocation, response.Header())
+		AssertResponseCode(t, response.Result(), http.StatusAccepted)
+		AssertResponseHeaderSet(t, response.Result(), headerLocation)
 
 		location := response.Header().Get(headerLocation)
 
@@ -30,9 +31,9 @@ func TestBlobUploadSession(t *testing.T) {
 
 		server.ServeHTTP(response, request)
 
-		assertStatus(t, response.Code, http.StatusNoContent)
-		assertHeader(t, headerLocation, response.Header(), location)
-		assertHeader(t, headerRange, response.Header(), "0-0")
+		AssertResponseCode(t, response.Result(), http.StatusNoContent)
+		AssertResponseHeader(t, response.Result(), headerLocation, location)
+		AssertResponseHeader(t, response.Result(), headerRange, "0-0")
 	})
 
 	t.Run("Checking status of an unknown upload session returns 404 and ErrBlobUploadUnknown", func(t *testing.T) {
@@ -41,8 +42,8 @@ func TestBlobUploadSession(t *testing.T) {
 
 		server.ServeHTTP(response, request)
 
-		assertStatus(t, response.Code, http.StatusNotFound)
-		assertErrorInResponseBody(t, response.Body, cascade.ErrBlobUploadUnknown)
+		AssertResponseCode(t, response.Result(), http.StatusNotFound)
+		AssertResponseBodyContainsError(t, response.Result(), cascade.ErrBlobUploadUnknown)
 	})
 
 	t.Run("Upload session status with some content written returns correct Range header", func(t *testing.T) {
@@ -51,8 +52,7 @@ func TestBlobUploadSession(t *testing.T) {
 
 		server.ServeHTTP(response, request)
 
-		assertStatus(t, response.Code, http.StatusAccepted)
-
+		AssertResponseCode(t, response.Result(), http.StatusAccepted)
 	})
 }
 

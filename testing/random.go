@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"math/rand/v2"
+	"slices"
 	"strings"
 
 	"github.com/moby/moby/pkg/namesgenerator"
@@ -27,8 +28,7 @@ func RandomDigest() digest.Digest {
 	return digest.FromBytes(RandomContents(32))
 }
 
-func RandomManifest() (name string, id digest.Digest, manifest *cascade.Manifest) {
-	name = RandomName()
+func RandomManifest() (id digest.Digest, manifest *cascade.Manifest) {
 	content, _ := json.Marshal(v1.Manifest{
 		MediaType: v1.MediaTypeImageManifest,
 	})
@@ -37,8 +37,7 @@ func RandomManifest() (name string, id digest.Digest, manifest *cascade.Manifest
 	return
 }
 
-func RandomBlob(length int64) (name string, id digest.Digest, content []byte) {
-	name = RandomName()
+func RandomBlob(length int64) (id digest.Digest, content []byte) {
 	content = RandomContents(length)
 	id = digest.FromBytes(content)
 	return
@@ -52,4 +51,14 @@ func RandomVersion() string {
 	patch = rand.IntN(60)
 
 	return fmt.Sprintf("v%d.%d.%d", major, minor, patch)
+}
+
+func RandomTags(count int) (tags []string) {
+	for range count {
+		tags = append(tags, RandomVersion())
+	}
+
+	slices.Sort(tags)
+
+	return
 }
