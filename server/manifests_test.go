@@ -2,14 +2,12 @@ package server
 
 import (
 	"bytes"
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strconv"
 	"testing"
 
-	"github.com/opencontainers/go-digest"
 	v1 "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/robinkb/cascade-registry"
 	. "github.com/robinkb/cascade-registry/testing"
@@ -17,10 +15,11 @@ import (
 
 func TestStatManifests(t *testing.T) {
 	t.Run("Stat existing manifest returns 200 with correct size in Content-Length header", func(t *testing.T) {
-		name, digest, manifest := randomManifest()
+		name := RandomName()
+		digest, manifest := RandomManifest()
 		server := New(&StubRegistryService{statManifest: func(repository, reference string) (*cascade.FileInfo, error) {
 			if repository == name && reference == digest.String() {
-				return &cascade.FileInfo{Size: int64(len(manifest))}, nil
+				return &cascade.FileInfo{Size: int64(len(manifest.Bytes()))}, nil
 			}
 			panic(errDataNotPassedCorrectly)
 		}})
@@ -30,14 +29,15 @@ func TestStatManifests(t *testing.T) {
 
 		server.ServeHTTP(response, request)
 
-		assertStatus(t, response.Code, http.StatusOK)
-		assertHeader(t, headerContentLength, response.Header(), strconv.Itoa(len(manifest)))
-		assertResponseBody(t, response.Body.Bytes(), nil)
+		AssertResponseCode(t, response.Result(), http.StatusOK)
+		AssertResponseHeader(t, response.Result(), headerContentLength, strconv.Itoa(len(manifest.Bytes())))
+		AssertResponseBodyEquals(t, response.Result(), nil)
 	})
 
 	t.Run("Stat existing manifest by tag returns 200 with correct size in Content-Length header", func(t *testing.T) {
 		wantTag := "v0.9.1"
-		name, digest, manifest := randomManifest()
+		name := RandomName()
+		digest, manifest := RandomManifest()
 		server := New(&StubRegistryService{
 			getTag: func(repository, tag string) (string, error) {
 				if repository == name && tag == wantTag {
@@ -47,7 +47,7 @@ func TestStatManifests(t *testing.T) {
 			},
 			statManifest: func(repository, reference string) (*cascade.FileInfo, error) {
 				if repository == name && reference == digest.String() {
-					return &cascade.FileInfo{Size: int64(len(manifest))}, nil
+					return &cascade.FileInfo{Size: int64(len(manifest.Bytes()))}, nil
 				}
 				panic(errDataNotPassedCorrectly)
 			},
@@ -58,9 +58,9 @@ func TestStatManifests(t *testing.T) {
 
 		server.ServeHTTP(response, request)
 
-		assertStatus(t, response.Code, http.StatusOK)
-		assertHeader(t, headerContentLength, response.Header(), strconv.Itoa(len(manifest)))
-		assertResponseBody(t, response.Body.Bytes(), nil)
+		AssertResponseCode(t, response.Result(), http.StatusOK)
+		AssertResponseHeader(t, response.Result(), headerContentLength, strconv.Itoa(len(manifest.Bytes())))
+		AssertResponseBodyEquals(t, response.Result(), nil)
 	})
 
 	t.Run("Stat non-existent manifest returns 404 and ErrManifestUknown", func(t *testing.T) {
@@ -73,8 +73,8 @@ func TestStatManifests(t *testing.T) {
 
 		server.ServeHTTP(response, request)
 
-		assertStatus(t, response.Code, http.StatusNotFound)
-		assertErrorInResponseBody(t, response.Body, cascade.ErrManifestUnknown)
+		AssertResponseCode(t, response.Result(), http.StatusNotFound)
+		AssertResponseBodyContainsError(t, response.Result(), cascade.ErrManifestUnknown)
 	})
 
 	t.Run("Stat non-existent manifest by tag returns 404 and ErrManifestUknown", func(t *testing.T) {
@@ -87,18 +87,19 @@ func TestStatManifests(t *testing.T) {
 
 		server.ServeHTTP(response, request)
 
-		assertStatus(t, response.Code, http.StatusNotFound)
-		assertErrorInResponseBody(t, response.Body, cascade.ErrManifestUnknown)
+		AssertResponseCode(t, response.Result(), http.StatusNotFound)
+		AssertResponseBodyContainsError(t, response.Result(), cascade.ErrManifestUnknown)
 	})
 }
 
 func TestGetManifests(t *testing.T) {
-	name, digest, manifest := randomManifest()
+	name := RandomName()
+	digest, manifest := RandomManifest()
 
 	t.Run("Retrieving an existing manifest returns 200", func(t *testing.T) {
 		server := New(&StubRegistryService{getManifest: func(repository, reference string) (*cascade.Manifest, error) {
 			if repository == name && reference == digest.String() {
-				return cascade.NewManifest(manifest)
+				return cascade.NewManifest(manifest.Bytes())
 			}
 			panic(errDataNotPassedCorrectly)
 		}})
@@ -108,9 +109,9 @@ func TestGetManifests(t *testing.T) {
 
 		server.ServeHTTP(response, request)
 
-		assertStatus(t, response.Code, http.StatusOK)
-		assertHeader(t, headerContentType, response.Header(), v1.MediaTypeImageLayer)
-		assertResponseBody(t, response.Body.Bytes(), manifest)
+		AssertResponseCode(t, response.Result(), http.StatusOK)
+		AssertResponseHeader(t, response.Result(), headerContentType, v1.MediaTypeImageLayer)
+		AssertResponseBodyEquals(t, response.Result(), manifest.Bytes())
 	})
 
 	t.Run("Retrieving a manifest by tag returns 200", func(t *testing.T) {
@@ -124,7 +125,7 @@ func TestGetManifests(t *testing.T) {
 			},
 			getManifest: func(repository, reference string) (*cascade.Manifest, error) {
 				if repository == name && reference == digest.String() {
-					return cascade.NewManifest(manifest)
+					return cascade.NewManifest(manifest.Bytes())
 				}
 				panic(errDataNotPassedCorrectly)
 			},
@@ -135,8 +136,8 @@ func TestGetManifests(t *testing.T) {
 
 		server.ServeHTTP(response, request)
 
-		assertStatus(t, response.Code, http.StatusOK)
-		assertResponseBody(t, response.Body.Bytes(), manifest)
+		AssertResponseCode(t, response.Result(), http.StatusOK)
+		AssertResponseBodyEquals(t, response.Result(), manifest.Bytes())
 	})
 
 	t.Run("Retrieving a non-existent manifest returns status 404 and ErrManifestUnknown", func(t *testing.T) {
@@ -148,35 +149,37 @@ func TestGetManifests(t *testing.T) {
 
 		server.ServeHTTP(response, request)
 
-		assertStatus(t, response.Code, http.StatusNotFound)
-		assertErrorInResponseBody(t, response.Body, cascade.ErrManifestUnknown)
+		AssertResponseCode(t, response.Result(), http.StatusNotFound)
+		AssertResponseBodyContainsError(t, response.Result(), cascade.ErrManifestUnknown)
 	})
 }
 
 func TestPutManifest(t *testing.T) {
 	t.Run("Uploading a manifest by digest returns code 201", func(t *testing.T) {
-		name, digest, manifest := randomManifest()
+		name := RandomName()
+		digest, manifest := RandomManifest()
 		server := New(&StubRegistryService{putManifest: func(repository, reference string, content []byte) error {
-			if repository == name && reference == digest.String() && bytes.Equal(content, manifest) {
+			if repository == name && reference == digest.String() && bytes.Equal(content, manifest.Bytes()) {
 				return nil
 			}
 			panic(errDataNotPassedCorrectly)
 		}})
 
-		request := newPutManifestRequest(name, digest.String(), manifest)
+		request := newPutManifestRequest(name, digest.String(), manifest.Bytes())
 		response := httptest.NewRecorder()
 
 		server.ServeHTTP(response, request)
 
-		assertStatus(t, response.Code, http.StatusCreated)
-		assertHeaderSet(t, headerLocation, response.Header())
-		assertResponseBody(t, response.Body.Bytes(), nil)
+		AssertResponseCode(t, response.Result(), http.StatusCreated)
+		AssertResponseHeaderSet(t, response.Result(), headerLocation)
+		AssertResponseBodyEquals(t, response.Result(), nil)
 	})
 
 	t.Run("Uploading a manifest by tag returns code 201", func(t *testing.T) {
 		wantTag := "0.4.2"
 		putTagCalled := false
-		name, digest, manifest := randomManifest()
+		name := RandomName()
+		digest, manifest := RandomManifest()
 		server := New(&StubRegistryService{
 			putTag: func(repository, tag, id string) error {
 				if repository == name && tag == wantTag && id == digest.String() {
@@ -186,14 +189,14 @@ func TestPutManifest(t *testing.T) {
 				panic(errDataNotPassedCorrectly)
 			},
 			putManifest: func(repository, reference string, content []byte) error {
-				if repository == name && reference == digest.String() && bytes.Equal(content, manifest) {
+				if repository == name && reference == digest.String() && bytes.Equal(content, manifest.Bytes()) {
 					return nil
 				}
 				panic(errDataNotPassedCorrectly)
 			},
 		})
 
-		request := newPutManifestRequest(name, wantTag, manifest)
+		request := newPutManifestRequest(name, wantTag, manifest.Bytes())
 		response := httptest.NewRecorder()
 
 		server.ServeHTTP(response, request)
@@ -202,9 +205,9 @@ func TestPutManifest(t *testing.T) {
 			t.Error("service.PutTag was never called")
 		}
 
-		assertStatus(t, response.Code, http.StatusCreated)
-		assertHeaderSet(t, headerLocation, response.Header())
-		assertResponseBody(t, response.Body.Bytes(), nil)
+		AssertResponseCode(t, response.Result(), http.StatusCreated)
+		AssertResponseHeaderSet(t, response.Result(), headerLocation)
+		AssertResponseBodyEquals(t, response.Result(), nil)
 	})
 
 	t.Run("Uploading an invalid manifest returns 400 and ErrManifestInvalid", func(t *testing.T) {
@@ -217,8 +220,8 @@ func TestPutManifest(t *testing.T) {
 
 		server.ServeHTTP(response, request)
 
-		assertStatus(t, response.Code, http.StatusBadRequest)
-		assertErrorInResponseBody(t, response.Body, cascade.ErrManifestInvalid)
+		AssertResponseCode(t, response.Result(), http.StatusBadRequest)
+		AssertResponseBodyContainsError(t, response.Result(), cascade.ErrManifestInvalid)
 	})
 
 	t.Run("Uploading a manifest with subject returns with OCI-Subject header", func(t *testing.T) {
@@ -244,7 +247,8 @@ func TestPutManifest(t *testing.T) {
 
 func TestDeleteManifest(t *testing.T) {
 	t.Run("Deleting a manifest returns code 202", func(t *testing.T) {
-		name, digest, _ := randomManifest()
+		name := RandomName()
+		digest := RandomDigest()
 		server := New(&StubRegistryService{deleteManifest: func(repository, reference string) error {
 			if repository == name && reference == digest.String() {
 				return nil
@@ -257,11 +261,11 @@ func TestDeleteManifest(t *testing.T) {
 
 		server.ServeHTTP(response, request)
 
-		assertStatus(t, response.Code, http.StatusAccepted)
+		AssertResponseCode(t, response.Result(), http.StatusAccepted)
 	})
 
 	t.Run("Deleting a manifest by tag returns 202", func(t *testing.T) {
-		name, wantTag := randomName(), "v4.2.3"
+		name, wantTag := RandomName(), "v4.2.3"
 		deleteTagCalled := false
 		server := New(&StubRegistryService{deleteTag: func(repository, tag string) error {
 			if repository == name && tag == wantTag {
@@ -276,7 +280,7 @@ func TestDeleteManifest(t *testing.T) {
 
 		server.ServeHTTP(response, request)
 
-		assertStatus(t, response.Code, http.StatusAccepted)
+		AssertResponseCode(t, response.Result(), http.StatusAccepted)
 		if !deleteTagCalled {
 			t.Error("DeleteTag was not called")
 		}
@@ -292,8 +296,8 @@ func TestDeleteManifest(t *testing.T) {
 
 		server.ServeHTTP(response, request)
 
-		assertStatus(t, response.Code, http.StatusNotFound)
-		assertErrorInResponseBody(t, response.Body, cascade.ErrManifestUnknown)
+		AssertResponseCode(t, response.Result(), http.StatusNotFound)
+		AssertResponseBodyContainsError(t, response.Result(), cascade.ErrManifestUnknown)
 	})
 }
 
@@ -306,7 +310,7 @@ func TestManifestsOthers(t *testing.T) {
 
 		server.ServeHTTP(response, request)
 
-		assertStatus(t, response.Code, http.StatusMethodNotAllowed)
+		AssertResponseCode(t, response.Result(), http.StatusMethodNotAllowed)
 	})
 }
 
@@ -328,14 +332,4 @@ func newPutManifestRequest(name, reference string, body []byte) *http.Request {
 func newDeleteManifestRequest(name, reference string) *http.Request {
 	req, _ := http.NewRequest(http.MethodDelete, fmt.Sprintf("/v2/%s/manifests/%s", name, reference), nil)
 	return req
-}
-
-func randomManifest() (string, digest.Digest, []byte) {
-	name := randomName()
-	manifest, _ := json.Marshal(v1.Manifest{
-		MediaType: v1.MediaTypeImageLayer,
-	})
-	digest := digest.FromBytes(manifest)
-
-	return name, digest, manifest
 }

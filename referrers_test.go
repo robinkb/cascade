@@ -1,16 +1,20 @@
-package cascade
+package cascade_test
 
-import "testing"
+import (
+	"testing"
+
+	. "github.com/robinkb/cascade-registry/testing"
+)
 
 func TestListReferrers(t *testing.T) {
 	service, _, _ := newTestRegistry()
 
 	t.Run("Invalid digest returns error", func(t *testing.T) {
-		repository := randomName()
+		repository := RandomName()
 		digest := "12345"
 
 		_, err := service.ListReferrers(repository, digest)
 
-		assertErrorIs(t, err, ErrDigestInvalid)
+		AssertErrorIs(t, err, ErrDigestInvalid)
 	})
 }

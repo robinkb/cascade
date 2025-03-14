@@ -6,11 +6,12 @@ import (
 
 	"github.com/robinkb/cascade-registry"
 	"github.com/robinkb/cascade-registry/server"
+	"github.com/robinkb/cascade-registry/store/inmemory"
 )
 
 func main() {
-	metadata := cascade.NewInMemoryMetadataStore()
-	blobs := cascade.NewInMemoryBlobStore()
+	metadata := inmemory.NewMetadataStore()
+	blobs := inmemory.NewBlobStore()
 	service := cascade.NewRegistryService(metadata, blobs)
 	server := server.New(service)
 	log.Fatal(http.ListenAndServe(":5000", logger(server)))

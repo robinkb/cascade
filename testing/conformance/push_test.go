@@ -10,12 +10,13 @@ import (
 
 	"github.com/robinkb/cascade-registry"
 	"github.com/robinkb/cascade-registry/server"
+	"github.com/robinkb/cascade-registry/store/inmemory"
 	. "github.com/robinkb/cascade-registry/testing"
 )
 
 func TestPush(t *testing.T) {
-	metadata := cascade.NewInMemoryMetadataStore()
-	blobs := cascade.NewInMemoryBlobStore()
+	metadata := inmemory.NewMetadataStore()
+	blobs := inmemory.NewBlobStore()
 	service := cascade.NewRegistryService(metadata, blobs)
 	server := server.New(service)
 
@@ -27,7 +28,8 @@ func TestPush(t *testing.T) {
 			t.Run("POST then PUT", func(t *testing.T) {
 				client := NewClient(t, ts.URL)
 
-				name, digest, blob := RandomBlob(32)
+				name := RandomName()
+				digest, blob := RandomBlob(32)
 
 				// When obtaining a session ID, the response MUST have a code of 202 Accepted.
 				resp := client.InitUpload(name)
@@ -55,7 +57,8 @@ func TestPush(t *testing.T) {
 
 				// Registries MAY support pushing blobs using a single POST request.
 				// Cascade does not.
-				name, digest, blob := RandomBlob(32)
+				name := RandomName()
+				digest, blob := RandomBlob(32)
 				resp := client.UploadBlobSinglePOST(name, digest, blob)
 
 				// Registries that do not support single request monolithic uploads
@@ -69,7 +72,8 @@ func TestPush(t *testing.T) {
 		t.Run("Pushing a blob in chunks", func(t *testing.T) {
 			client := NewClient(t, ts.URL)
 
-			name, digest, blob := RandomBlob(64 * 1024)
+			name := RandomName()
+			digest, blob := RandomBlob(64 * 1024)
 
 			// Obtain a session ID
 			resp := client.InitUpload(name)
@@ -143,7 +147,8 @@ func TestPush(t *testing.T) {
 		t.Run("Pushing a blob as a stream", func(t *testing.T) {
 			client := NewClient(t, ts.URL)
 
-			name, digest, blob := RandomBlob(64 * 1024)
+			name := RandomName()
+			digest, blob := RandomBlob(64 * 1024)
 
 			resp := client.InitUpload(name)
 			AssertResponseCode(t, resp, http.StatusAccepted)
@@ -168,7 +173,8 @@ func TestPush(t *testing.T) {
 		t.Run("Pushing manifest by digest", func(t *testing.T) {
 			client := NewClient(t, ts.URL)
 
-			name, digest, manifest := RandomManifest()
+			name := RandomName()
+			digest, manifest := RandomManifest()
 
 			// Upon a successful upload, the registry MUST return response code 201 Created,
 			resp := client.PutManifest(name, digest.String(), manifest)
@@ -186,7 +192,8 @@ func TestPush(t *testing.T) {
 		t.Run("Pushing manifest by tag", func(t *testing.T) {
 			client := NewClient(t, ts.URL)
 
-			name, digest, manifest := RandomManifest()
+			name := RandomName()
+			digest, manifest := RandomManifest()
 			tag := "40"
 
 			// Upon a successful upload, the registry MUST return response code 201 Created,

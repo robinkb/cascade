@@ -7,12 +7,13 @@ import (
 
 	"github.com/robinkb/cascade-registry"
 	"github.com/robinkb/cascade-registry/server"
+	"github.com/robinkb/cascade-registry/store/inmemory"
 	. "github.com/robinkb/cascade-registry/testing"
 )
 
 func TestContentManagement(t *testing.T) {
-	metadata := cascade.NewInMemoryMetadataStore()
-	blobs := cascade.NewInMemoryBlobStore()
+	metadata := inmemory.NewMetadataStore()
+	blobs := inmemory.NewBlobStore()
 	service := cascade.NewRegistryService(metadata, blobs)
 	srv := server.New(service)
 
@@ -20,7 +21,8 @@ func TestContentManagement(t *testing.T) {
 	defer ts.Close()
 
 	t.Run("Deleting tags", func(t *testing.T) {
-		repository, _, manifest := RandomManifest()
+		repository := RandomName()
+		_, manifest := RandomManifest()
 		tag := RandomVersion()
 
 		client := NewClient(t, ts.URL)
@@ -40,7 +42,8 @@ func TestContentManagement(t *testing.T) {
 	})
 
 	t.Run("Deleting manifests", func(t *testing.T) {
-		repository, digest, manifest := RandomManifest()
+		repository := RandomName()
+		digest, manifest := RandomManifest()
 
 		client := NewClient(t, ts.URL)
 
@@ -65,7 +68,8 @@ func TestContentManagement(t *testing.T) {
 	})
 
 	t.Run("Deleting blobs", func(t *testing.T) {
-		name, digest, content := RandomBlob(64)
+		name := RandomName()
+		digest, content := RandomBlob(64)
 
 		client := NewClient(t, ts.URL)
 
