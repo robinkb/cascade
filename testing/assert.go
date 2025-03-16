@@ -120,6 +120,11 @@ func AssertResponseBodyUnmarshals[T any](t *testing.T, got *http.Response, obj T
 func AssertResponseBodyContainsError(t *testing.T, got *http.Response, want cascade.Error) bool {
 	t.Helper()
 
+	if got.Body == nil || got.Body == http.NoBody {
+		t.Errorf("response body is empty while expecting error")
+		return false
+	}
+
 	var errs cascade.ErrorResponse
 	err := json.NewDecoder(got.Body).Decode(&errs)
 	RequireNoError(t, err)
