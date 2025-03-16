@@ -13,8 +13,9 @@ import (
 )
 
 func TestStatBlob(t *testing.T) {
+	name, digest := RandomName(), RandomDigest()
+
 	t.Run("known blob returns 200", func(t *testing.T) {
-		name, digest := RandomName(), RandomDigest()
 		var size int64 = 42
 
 		service := mock.NewRegistryService(t)
@@ -32,8 +33,6 @@ func TestStatBlob(t *testing.T) {
 	})
 
 	t.Run("unknown blob returns 404", func(t *testing.T) {
-		name, digest := RandomName(), RandomDigest()
-
 		service := mock.NewRegistryService(t)
 		service.EXPECT().
 			StatBlob(name, digest.String()).
@@ -48,10 +47,10 @@ func TestStatBlob(t *testing.T) {
 }
 
 func TestGetBlob(t *testing.T) {
-	t.Run("Get blob returns 200", func(t *testing.T) {
-		name := RandomName()
-		digest, content := RandomBlob(32)
+	name := RandomName()
+	digest, content := RandomBlob(32)
 
+	t.Run("Get blob returns 200", func(t *testing.T) {
 		service := mock.NewRegistryService(t)
 		service.EXPECT().
 			GetBlob(name, digest.String()).
@@ -66,8 +65,6 @@ func TestGetBlob(t *testing.T) {
 	})
 
 	t.Run("returns 404 on unknown blob", func(t *testing.T) {
-		name, digest := RandomName(), RandomDigest()
-
 		service := mock.NewRegistryService(t)
 		service.EXPECT().
 			GetBlob(name, digest.String()).
@@ -84,9 +81,9 @@ func TestGetBlob(t *testing.T) {
 }
 
 func TestDeleteBlob(t *testing.T) {
-	t.Run("Delete blob returns 202", func(t *testing.T) {
-		name, digest := RandomName(), RandomDigest()
+	name, digest := RandomName(), RandomDigest()
 
+	t.Run("Delete blob returns 202", func(t *testing.T) {
 		service := mock.NewRegistryService(t)
 		service.EXPECT().
 			DeleteBlob(name, digest.String()).

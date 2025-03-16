@@ -36,6 +36,7 @@ func (s *Server) statManifestsHandler(w http.ResponseWriter, r *http.Request) {
 		var err error
 		reference, err = s.service.GetTag(repository, reference)
 		if err != nil {
+			// TODO: Writes a body on a HEAD request while it shouldn't.
 			writeErrorResponse(w, err)
 			return
 		}
@@ -43,6 +44,7 @@ func (s *Server) statManifestsHandler(w http.ResponseWriter, r *http.Request) {
 
 	info, err := s.service.StatManifest(repository, reference)
 	if err != nil {
+		// TODO: Writes a body on a HEAD request while it shouldn't.
 		writeErrorResponse(w, err)
 		return
 	}
