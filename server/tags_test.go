@@ -1,4 +1,4 @@
-package server
+package server_test
 
 import (
 	"encoding/json"
@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"testing"
 
+	"github.com/robinkb/cascade-registry/server"
 	. "github.com/robinkb/cascade-registry/testing"
 )
 
@@ -16,7 +17,7 @@ func TestListTags(t *testing.T) {
 	t.Run("Listing tags returns 200", func(t *testing.T) {
 		wantName := RandomName()
 		wantTags := []string{"40", "1.2.3", "latest"}
-		server := New(&StubRegistryService{listTags: func(repository string, count int, last string) ([]string, error) {
+		srv := server.New(&StubRegistryService{listTags: func(repository string, count int, last string) ([]string, error) {
 			if repository == wantName && count == -1 && last == "" {
 				return wantTags, nil
 			}
@@ -26,11 +27,11 @@ func TestListTags(t *testing.T) {
 		request, _ := http.NewRequest(http.MethodGet, fmt.Sprintf("/v2/%s/tags/list", wantName), nil)
 		response := httptest.NewRecorder()
 
-		server.ServeHTTP(response, request)
+		srv.ServeHTTP(response, request)
 
 		AssertResponseCode(t, response.Result(), http.StatusOK)
 
-		var tagsList TagsListResponse
+		var tagsList server.TagsListResponse
 		err := json.Unmarshal(response.Body.Bytes(), &tagsList)
 		AssertNoError(t, err)
 
@@ -51,7 +52,7 @@ func TestListTags(t *testing.T) {
 		wantCount := 3
 		wantLast := "40"
 
-		server := New(&StubRegistryService{listTags: func(repository string, count int, last string) ([]string, error) {
+		srv := server.New(&StubRegistryService{listTags: func(repository string, count int, last string) ([]string, error) {
 			if !(repository == wantName && count == wantCount && last == wantLast) {
 				t.Fatal(errDataNotPassedCorrectly)
 			}
@@ -66,7 +67,7 @@ func TestListTags(t *testing.T) {
 
 		response := httptest.NewRecorder()
 
-		server.ServeHTTP(response, request)
+		srv.ServeHTTP(response, request)
 
 		AssertResponseCode(t, response.Result(), http.StatusOK)
 	})

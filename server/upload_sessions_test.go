@@ -1,4 +1,4 @@
-package server
+package server_test
 
 import (
 	"fmt"
@@ -7,11 +7,12 @@ import (
 	"testing"
 
 	"github.com/robinkb/cascade-registry"
+	"github.com/robinkb/cascade-registry/server"
 	. "github.com/robinkb/cascade-registry/testing"
 )
 
 func TestBlobUploadSession(t *testing.T) {
-	server := newTestServer()
+	srv := newTestServer()
 
 	t.Run("Initialize upload session and check its status", func(t *testing.T) {
 		// Initialize the upload session by obtaining an ID.
@@ -19,28 +20,28 @@ func TestBlobUploadSession(t *testing.T) {
 		request := newInitUploadRequest(repository)
 		response := httptest.NewRecorder()
 
-		server.ServeHTTP(response, request)
+		srv.ServeHTTP(response, request)
 
 		AssertResponseCode(t, response.Result(), http.StatusAccepted)
-		AssertResponseHeaderSet(t, response.Result(), headerLocation)
+		AssertResponseHeaderSet(t, response.Result(), server.HeaderLocation)
 
-		location := response.Header().Get(headerLocation)
+		location := response.Header().Get(server.HeaderLocation)
 
 		request = newCheckUploadRequest(location)
 		response = httptest.NewRecorder()
 
-		server.ServeHTTP(response, request)
+		srv.ServeHTTP(response, request)
 
 		AssertResponseCode(t, response.Result(), http.StatusNoContent)
-		AssertResponseHeader(t, response.Result(), headerLocation, location)
-		AssertResponseHeader(t, response.Result(), headerRange, "0-0")
+		AssertResponseHeader(t, response.Result(), server.HeaderLocation, location)
+		AssertResponseHeader(t, response.Result(), server.HeaderRange, "0-0")
 	})
 
 	t.Run("Checking status of an unknown upload session returns 404 and ErrBlobUploadUnknown", func(t *testing.T) {
 		request := newCheckUploadRequest("/v2/library/fedora/blobs/uploads/123")
 		response := httptest.NewRecorder()
 
-		server.ServeHTTP(response, request)
+		srv.ServeHTTP(response, request)
 
 		AssertResponseCode(t, response.Result(), http.StatusNotFound)
 		AssertResponseBodyContainsError(t, response.Result(), cascade.ErrBlobUploadUnknown)
@@ -50,7 +51,7 @@ func TestBlobUploadSession(t *testing.T) {
 		request := newInitUploadRequest("library/fedora")
 		response := httptest.NewRecorder()
 
-		server.ServeHTTP(response, request)
+		srv.ServeHTTP(response, request)
 
 		AssertResponseCode(t, response.Result(), http.StatusAccepted)
 	})

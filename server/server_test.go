@@ -1,4 +1,4 @@
-package server
+package server_test
 
 import (
 	"errors"
@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/robinkb/cascade-registry"
+	"github.com/robinkb/cascade-registry/server"
 	"github.com/robinkb/cascade-registry/store/inmemory"
 	. "github.com/robinkb/cascade-registry/testing"
 )
@@ -97,8 +98,8 @@ func TestRoot(t *testing.T) {
 	})
 }
 
-func newTestServer() *Server {
-	return New(
+func newTestServer() *server.Server {
+	return server.New(
 		cascade.NewRegistryService(
 			inmemory.NewMetadataStore(),
 			inmemory.NewBlobStore(),

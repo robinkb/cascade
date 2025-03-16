@@ -47,7 +47,7 @@ func (s *Server) statManifestsHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	w.Header().Set(headerContentLength, strconv.Itoa(int(info.Size)))
+	w.Header().Set(HeaderContentLength, strconv.Itoa(int(info.Size)))
 	w.WriteHeader(http.StatusOK)
 }
 
@@ -66,7 +66,7 @@ func (s *Server) getManifestsHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	w.Header().Set(headerContentType, manifest.MediaType)
+	w.Header().Set(HeaderContentType, manifest.MediaType)
 	w.WriteHeader(http.StatusOK)
 	w.Write(manifest.Bytes())
 }
@@ -104,7 +104,7 @@ func (s *Server) putManifestsHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	w.Header().Set(headerLocation, fmt.Sprintf("/v2/%s/manifests/%s", repository, reference))
+	w.Header().Set(HeaderLocation, fmt.Sprintf("/v2/%s/manifests/%s", repository, reference))
 	w.WriteHeader(http.StatusCreated)
 }
 

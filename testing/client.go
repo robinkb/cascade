@@ -5,22 +5,38 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/http/httptest"
 	"net/url"
 	"strconv"
 	"testing"
 
 	"github.com/opencontainers/go-digest"
 	"github.com/robinkb/cascade-registry"
+	"github.com/robinkb/cascade-registry/server"
 )
 
-// NewClient returns an initialized Client for the given base URL.
+// NewTestClient returns an initialized Client for the given base URL.
 // A client should be used in the (sub)test where it is created.
 // The given url should be of the form 'http://ipaddr:port' as returned by httptest.Server.URL.
-func NewClient(t *testing.T, url string) *Client {
+func NewTestClient(t *testing.T, url string) *Client {
 	return &Client{
 		baseUrl: url,
 		t:       t,
 	}
+}
+
+// NewTestClient initializes an HTTP test server with the given RegistryService
+// and returns an initialized client. The test server is automatically closed
+// at the end of the test. A client should be used in the (sub)test where it is created.
+func NewTestClientWithServer(t *testing.T, service cascade.RegistryService) *Client {
+	server := server.New(service)
+	ts := httptest.NewServer(server)
+
+	t.Cleanup(func() {
+		ts.Close()
+	})
+
+	return NewTestClient(t, ts.URL)
 }
 
 // Client is a simple registry client meant for use in testing.

@@ -1,15 +1,18 @@
-package server
+package server_test
 
 import (
 	"bytes"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"testing"
 
 	"github.com/opencontainers/go-digest"
 	"github.com/robinkb/cascade-registry"
+	"github.com/robinkb/cascade-registry/server"
 	. "github.com/robinkb/cascade-registry/testing"
+	"github.com/robinkb/cascade-registry/testing/mock"
 )
 
 func TestBlobUploadsMonolithic(t *testing.T) {
@@ -18,47 +21,51 @@ func TestBlobUploadsMonolithic(t *testing.T) {
 	// for the happy scenarios.
 
 	t.Run("Uploading without session returns 404", func(t *testing.T) {
-		server := New(&StubRegistryService{closeUpload: func(repository, id, digest string) error {
-			return cascade.ErrBlobUploadUnknown
-		}})
+		name, digest := RandomName(), RandomDigest()
+		sessionID := "i-do-not-exist"
 
-		request := newBlobUploadRequest("/v2/library/fedora/blobs/uploads/123", nil)
-		response := httptest.NewRecorder()
+		service := mock.NewRegistryService(t)
+		service.EXPECT().
+			CloseUpload(name, sessionID, digest.String()).
+			Return(cascade.ErrBlobUploadUnknown)
 
-		server.ServeHTTP(response, request)
+		client := NewTestClientWithServer(t, service)
+		location := &url.URL{Path: fmt.Sprintf("/v2/%s/blobs/uploads/%s", name, sessionID)}
 
-		AssertResponseCode(t, response.Result(), http.StatusNotFound)
-		AssertResponseBodyContainsError(t, response.Result(), cascade.ErrBlobUploadUnknown)
+		resp := client.CloseUpload(location, digest)
+
+		AssertResponseCode(t, resp, http.StatusNotFound)
+		AssertResponseBodyContainsError(t, resp, cascade.ErrBlobUploadUnknown)
 	})
 
 	t.Run("Uploading without required headers returns 400", func(t *testing.T) {
-		server := New(&StubRegistryService{})
+		srv := server.New(&StubRegistryService{})
 		content := RandomContents(32)
 
 		request := newBlobUploadRequest("/v2/library/fedora/blobs/uploads/123", content)
-		request.Header.Del(headerContentType)
-		request.Header.Del(headerContentLength)
+		request.Header.Del(server.HeaderContentType)
+		request.Header.Del(server.HeaderContentLength)
 		response := httptest.NewRecorder()
 
-		server.ServeHTTP(response, request)
+		srv.ServeHTTP(response, request)
 
 		AssertResponseCode(t, response.Result(), http.StatusBadRequest)
 	})
 
 	t.Run("Closing upload without digest returns 400", func(t *testing.T) {
-		server := New(&StubRegistryService{})
+		srv := server.New(&StubRegistryService{})
 
 		request := newBlobUploadRequest("/v2/library/fedora/blobs/uploads/123", nil)
 		request.URL.RawQuery = ""
 		response := httptest.NewRecorder()
 
-		server.ServeHTTP(response, request)
+		srv.ServeHTTP(response, request)
 
 		AssertResponseCode(t, response.Result(), http.StatusBadRequest)
 	})
 
 	t.Run("Closing upload with invalid digest returns 400", func(t *testing.T) {
-		server := New(&StubRegistryService{closeUpload: func(repository, id, digest string) error {
+		srv := server.New(&StubRegistryService{closeUpload: func(repository, id, digest string) error {
 			return cascade.ErrDigestInvalid
 		}})
 
@@ -66,21 +73,21 @@ func TestBlobUploadsMonolithic(t *testing.T) {
 		request.URL.RawQuery = "digest=blablabla"
 		response := httptest.NewRecorder()
 
-		server.ServeHTTP(response, request)
+		srv.ServeHTTP(response, request)
 
 		AssertResponseCode(t, response.Result(), http.StatusBadRequest)
 		AssertResponseBodyContainsError(t, response.Result(), cascade.ErrDigestInvalid)
 	})
 
 	t.Run("Uploading with wrong digest returns 400", func(t *testing.T) {
-		server := New(&StubRegistryService{closeUpload: func(repository, id, digest string) error {
+		srv := server.New(&StubRegistryService{closeUpload: func(repository, id, digest string) error {
 			return cascade.ErrBlobUploadInvalid
 		}})
 
 		request := newBlobUploadRequest("/v2/library/fedora/blobs/uploads/123", nil)
 		response := httptest.NewRecorder()
 
-		server.ServeHTTP(response, request)
+		srv.ServeHTTP(response, request)
 
 		AssertResponseCode(t, response.Result(), http.StatusBadRequest)
 		AssertResponseBodyContainsError(t, response.Result(), cascade.ErrBlobUploadInvalid)
@@ -101,8 +108,8 @@ func newBlobUploadRequest(location string, content []byte) *http.Request {
 	id := digest.FromBytes(content)
 
 	req, _ := http.NewRequest(http.MethodPut, location, bytes.NewBuffer(content))
-	req.Header.Set(headerContentType, contentTypeOctetStream)
-	req.Header.Set(headerContentLength, fmt.Sprint(len(content)))
+	req.Header.Set(server.HeaderContentType, server.ContentTypeOctetStream)
+	req.Header.Set(server.HeaderContentLength, fmt.Sprint(len(content)))
 
 	query := req.URL.Query()
 	query.Set("digest", id.String())

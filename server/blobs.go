@@ -29,7 +29,7 @@ func (s *Server) statBlobsHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	w.Header().Set(headerContentLength, strconv.FormatInt(info.Size, 10))
+	w.Header().Set(HeaderContentLength, strconv.FormatInt(info.Size, 10))
 	w.WriteHeader(http.StatusOK)
 }
 

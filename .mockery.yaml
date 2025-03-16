@@ -1,0 +1,13 @@
+with-expecter: True
+dir: testing/mock/{{ replaceAll .InterfaceDirRelative "internal" "internal_" }}
+mockname: "{{.InterfaceName}}"
+outpkg: "mock"
+filename: "{{.InterfaceName}}.go"
+resolve-type-alias: False
+disable-version-string: True
+issue-845-fix: true
+packages:
+    github.com/robinkb/cascade-registry:
+        interfaces:
+            # select the interfaces you want mocked
+            RegistryService:

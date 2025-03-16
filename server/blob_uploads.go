@@ -18,9 +18,9 @@ func (s *Server) blobsUploadsHandler(w http.ResponseWriter, r *http.Request) {
 	case http.MethodPut:
 		s.closeUploadHandler(w, r)
 	case http.MethodPatch:
-		if r.Header.Get(headerContentType) == contentTypeOctetStream {
-			if r.Header.Get(headerContentLength) != "" &&
-				r.Header.Get(headerContentRange) != "" {
+		if r.Header.Get(HeaderContentType) == ContentTypeOctetStream {
+			if r.Header.Get(HeaderContentLength) != "" &&
+				r.Header.Get(HeaderContentRange) != "" {
 				s.chunkedUploadHandler(w, r)
 			} else {
 				s.streamedUploadHandler(w, r)
@@ -46,8 +46,8 @@ func (s *Server) checkUploadHandler(w http.ResponseWriter, r *http.Request) {
 	// TODO: This is not the only place where this is generated.
 	location := fmt.Sprintf("/v2/%s/blobs/uploads/%s", repository, reference)
 
-	w.Header().Set(headerLocation, location)
-	w.Header().Set(headerRange, fmt.Sprintf("0-%d", max(info.Size-1, 0)))
+	w.Header().Set(HeaderLocation, location)
+	w.Header().Set(HeaderRange, fmt.Sprintf("0-%d", max(info.Size-1, 0)))
 	w.WriteHeader(http.StatusNoContent)
 }
 
@@ -55,7 +55,7 @@ func (s *Server) chunkedUploadHandler(w http.ResponseWriter, r *http.Request) {
 	repository := r.PathValue("repository")
 	reference := r.PathValue("reference")
 
-	givenStart, givenEnd, err := parseContentRange(r.Header.Get(headerContentRange))
+	givenStart, givenEnd, err := parseContentRange(r.Header.Get(HeaderContentRange))
 	if err != nil {
 		writeErrorResponse(w, err)
 		return
@@ -80,8 +80,8 @@ func (s *Server) chunkedUploadHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	location := fmt.Sprintf("/v2/%s/blobs/uploads/%s", repository, reference)
-	w.Header().Set(headerLocation, location)
-	w.Header().Set(headerRange, fmt.Sprintf("0-%d", givenEnd))
+	w.Header().Set(HeaderLocation, location)
+	w.Header().Set(HeaderRange, fmt.Sprintf("0-%d", givenEnd))
 	w.WriteHeader(http.StatusAccepted)
 }
 
@@ -95,7 +95,7 @@ func (s *Server) streamedUploadHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	location := fmt.Sprintf("/v2/%s/blobs/uploads/%s", repository, reference)
-	w.Header().Set(headerLocation, location)
+	w.Header().Set(HeaderLocation, location)
 	w.WriteHeader(http.StatusAccepted)
 }
 
@@ -108,15 +108,15 @@ func (s *Server) closeUploadHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Body != nil && r.Body != http.NoBody {
 		// Content-Type and Content-Length should be set if the request
 		// contains a body.
-		if r.Header.Get(headerContentType) != contentTypeOctetStream ||
-			r.Header.Get(headerContentLength) == "" {
+		if r.Header.Get(HeaderContentType) != ContentTypeOctetStream ||
+			r.Header.Get(HeaderContentLength) == "" {
 			w.WriteHeader(http.StatusBadRequest)
 			return
 		}
 
 		// If it's a chunked upload, Content-Range should have the offset.
 		var offset int64
-		if contentRange := r.Header.Get(headerContentRange); contentRange != "" {
+		if contentRange := r.Header.Get(HeaderContentRange); contentRange != "" {
 			var err error
 			offset, _, err = parseContentRange(contentRange)
 			if err != nil {
@@ -143,7 +143,7 @@ func (s *Server) closeUploadHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	location := fmt.Sprintf("/v2/%s/blobs/%s", repository, digest)
-	w.Header().Set(headerLocation, location)
+	w.Header().Set(HeaderLocation, location)
 	w.WriteHeader(http.StatusCreated)
 }
 
