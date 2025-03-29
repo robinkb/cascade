@@ -1,89 +1,113 @@
-package server
+package server_test
 
 import (
 	"bytes"
-	"fmt"
 	"net/http"
-	"net/http/httptest"
 	"testing"
 
+	"github.com/gofrs/uuid/v5"
 	"github.com/opencontainers/go-digest"
 	"github.com/robinkb/cascade-registry"
 	. "github.com/robinkb/cascade-registry/testing"
+	"github.com/robinkb/cascade-registry/testing/mock"
 )
 
 func TestBlobUploadsMonolithic(t *testing.T) {
 	// TODO: This used to have integration-style tests that have been moved
 	// to the conformance test. There should be more basic handler unit tests here
 	// for the happy scenarios.
+	// Additionally, these test cases seem confusing and possibly wrong...
 
 	t.Run("Uploading without session returns 404", func(t *testing.T) {
-		server := New(&StubRegistryService{closeUpload: func(repository, id, digest string) error {
-			return cascade.ErrBlobUploadUnknown
-		}})
+		name, digest := RandomName(), RandomDigest()
+		sessionID := "i-do-not-exist"
 
-		request := newBlobUploadRequest("/v2/library/fedora/blobs/uploads/123", nil)
-		response := httptest.NewRecorder()
+		service := mock.NewRegistryService(t)
+		service.EXPECT().
+			CloseUpload(name, sessionID, digest.String()).
+			Return(cascade.ErrBlobUploadUnknown)
 
-		server.ServeHTTP(response, request)
+		client := NewTestClientWithServer(t, service)
 
-		AssertResponseCode(t, response.Result(), http.StatusNotFound)
-		AssertResponseBodyContainsError(t, response.Result(), cascade.ErrBlobUploadUnknown)
+		location := newLocation(name, sessionID)
+		resp := client.CloseUpload(location, digest)
+
+		AssertResponseCode(t, resp, http.StatusNotFound)
+		AssertResponseBodyContainsError(t, resp, cascade.ErrBlobUploadUnknown)
 	})
 
-	t.Run("Uploading without required headers returns 400", func(t *testing.T) {
-		server := New(&StubRegistryService{})
-		content := RandomContents(32)
+	t.Run("Closing upload with content but without required headers returns 400", func(t *testing.T) {
+		name, digest := RandomName(), RandomDigest()
+		sessionID, _ := uuid.NewV7()
 
-		request := newBlobUploadRequest("/v2/library/fedora/blobs/uploads/123", content)
-		request.Header.Del(headerContentType)
-		request.Header.Del(headerContentLength)
-		response := httptest.NewRecorder()
+		location := newLocation(name, sessionID.String())
+		query := location.Query()
+		query.Add("digest", digest.String())
+		location.RawQuery = query.Encode()
 
-		server.ServeHTTP(response, request)
+		client := NewTestClientWithServer(t, mock.NewRegistryService(t))
 
-		AssertResponseCode(t, response.Result(), http.StatusBadRequest)
+		resp := client.Do(
+			http.MethodPut,
+			location.RequestURI(),
+			nil,
+			bytes.NewBuffer(RandomContents(32)),
+		)
+
+		AssertResponseCode(t, resp, http.StatusBadRequest)
 	})
 
 	t.Run("Closing upload without digest returns 400", func(t *testing.T) {
-		server := New(&StubRegistryService{})
+		name := RandomName()
+		sessionID, _ := uuid.NewV7()
+		location := newLocation(name, sessionID.String())
 
-		request := newBlobUploadRequest("/v2/library/fedora/blobs/uploads/123", nil)
-		request.URL.RawQuery = ""
-		response := httptest.NewRecorder()
+		client := NewTestClientWithServer(t, mock.NewRegistryService(t))
 
-		server.ServeHTTP(response, request)
+		resp := client.Do(
+			http.MethodPut,
+			location.RequestURI(),
+			nil,
+			nil,
+		)
 
-		AssertResponseCode(t, response.Result(), http.StatusBadRequest)
+		AssertResponseCode(t, resp, http.StatusBadRequest)
 	})
 
 	t.Run("Closing upload with invalid digest returns 400", func(t *testing.T) {
-		server := New(&StubRegistryService{closeUpload: func(repository, id, digest string) error {
-			return cascade.ErrDigestInvalid
-		}})
+		name, id := RandomName(), "invalid"
+		sessionID, _ := uuid.NewV7()
+		location := newLocation(name, sessionID.String())
 
-		request := newBlobUploadRequest("/v2/library/fedora/blobs/uploads/123", nil)
-		request.URL.RawQuery = "digest=blablabla"
-		response := httptest.NewRecorder()
+		service := mock.NewRegistryService(t)
+		service.EXPECT().
+			CloseUpload(name, sessionID.String(), id).
+			Return(cascade.ErrDigestInvalid)
 
-		server.ServeHTTP(response, request)
+		client := NewTestClientWithServer(t, service)
 
-		AssertResponseCode(t, response.Result(), http.StatusBadRequest)
-		AssertResponseBodyContainsError(t, response.Result(), cascade.ErrDigestInvalid)
+		resp := client.CloseUpload(location, digest.Digest(id))
+
+		AssertResponseCode(t, resp, http.StatusBadRequest)
+		AssertResponseBodyContainsError(t, resp, cascade.ErrDigestInvalid)
 	})
 
 	t.Run("Uploading with wrong digest returns 400", func(t *testing.T) {
-		server := New(&StubRegistryService{closeUpload: func(repository, id, digest string) error {
-			return cascade.ErrBlobUploadInvalid
-		}})
+		name, id := RandomName(), RandomDigest()
+		sessionID, _ := uuid.NewV7()
+		location := newLocation(name, sessionID.String())
 
-		request := newBlobUploadRequest("/v2/library/fedora/blobs/uploads/123", nil)
-		response := httptest.NewRecorder()
+		service := mock.NewRegistryService(t)
+		service.EXPECT().
+			CloseUpload(name, sessionID.String(), id.String()).
+			Return(cascade.ErrBlobUploadInvalid)
 
-		server.ServeHTTP(response, request)
+		client := NewTestClientWithServer(t, service)
 
-		AssertResponseCode(t, response.Result(), http.StatusBadRequest)
-		AssertResponseBodyContainsError(t, response.Result(), cascade.ErrBlobUploadInvalid)
+		resp := client.CloseUpload(location, id)
+
+		AssertResponseCode(t, resp, http.StatusBadRequest)
+		AssertResponseBodyContainsError(t, resp, cascade.ErrBlobUploadInvalid)
 	})
 }
 
@@ -95,22 +119,4 @@ func TestBlobUploadsChunked(t *testing.T) {
 func TestBlobUploadsStreamed(t *testing.T) {
 	// TODO: This used to have integration-style tests that have been moved
 	// to the conformance test. There should be more basic handler unit tests here.
-}
-
-func newBlobUploadRequest(location string, content []byte) *http.Request {
-	id := digest.FromBytes(content)
-
-	req, _ := http.NewRequest(http.MethodPut, location, bytes.NewBuffer(content))
-	req.Header.Set(headerContentType, contentTypeOctetStream)
-	req.Header.Set(headerContentLength, fmt.Sprint(len(content)))
-
-	query := req.URL.Query()
-	query.Set("digest", id.String())
-	req.URL.RawQuery = query.Encode()
-	return req
-}
-
-func newCheckUploadRequest(location string) *http.Request {
-	req, _ := http.NewRequest(http.MethodGet, location, nil)
-	return req
 }

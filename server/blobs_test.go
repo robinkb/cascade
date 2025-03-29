@@ -1,137 +1,108 @@
-package server
+package server_test
 
 import (
 	"bytes"
-	"fmt"
-	"io"
 	"net/http"
-	"net/http/httptest"
 	"strconv"
 	"testing"
 
 	"github.com/robinkb/cascade-registry"
+	"github.com/robinkb/cascade-registry/server"
 	. "github.com/robinkb/cascade-registry/testing"
+	"github.com/robinkb/cascade-registry/testing/mock"
 )
 
 func TestStatBlob(t *testing.T) {
+	name, digest := RandomName(), RandomDigest()
+
 	t.Run("known blob returns 200", func(t *testing.T) {
-		size := 42
-		server := New(&StubRegistryService{
-			statBlob: func(repository, digest string) (*cascade.FileInfo, error) {
-				return &cascade.FileInfo{
-					Size: 42,
-				}, nil
-			},
-		})
+		var size int64 = 42
 
-		request := newCheckBlobRequest("library/fedora", "sha256:6c3c624b58dbbcd3c0dd82b4c53f04194d1247c6eebdaab7c610cf7d66709b3b")
-		response := httptest.NewRecorder()
+		service := mock.NewRegistryService(t)
+		service.EXPECT().
+			StatBlob(name, digest.String()).
+			Return(&cascade.FileInfo{Size: size}, nil)
 
-		server.ServeHTTP(response, request)
-		AssertResponseCode(t, response.Result(), http.StatusOK)
-		AssertResponseHeader(t, response.Result(), headerContentLength, strconv.Itoa(size))
-		AssertResponseBodyEquals(t, response.Result(), nil)
+		client := NewTestClientWithServer(t, service)
+
+		resp := client.CheckBlob(name, digest)
+
+		AssertResponseCode(t, resp, http.StatusOK)
+		AssertResponseHeader(t, resp, server.HeaderContentLength, strconv.FormatInt(size, 10))
+		AssertResponseBodyEquals(t, resp, nil)
 	})
 
 	t.Run("unknown blob returns 404", func(t *testing.T) {
-		server := New(&StubRegistryService{
-			statBlob: func(repository, digest string) (*cascade.FileInfo, error) {
-				return nil, cascade.ErrBlobUnknown
-			},
-		})
+		service := mock.NewRegistryService(t)
+		service.EXPECT().
+			StatBlob(name, digest.String()).
+			Return(nil, cascade.ErrBlobUnknown)
 
-		request := newCheckBlobRequest("library/fedora", "sha256:8029119ed9bf9b748a2233d78e7e124b5c923e1c20a4ec4ea2176b303d2121fa")
-		response := httptest.NewRecorder()
+		client := NewTestClientWithServer(t, service)
 
-		server.ServeHTTP(response, request)
-		AssertResponseCode(t, response.Result(), http.StatusNotFound)
-		AssertResponseBodyContainsError(t, response.Result(), cascade.ErrBlobUnknown)
+		resp := client.CheckBlob(name, digest)
+
+		AssertResponseCode(t, resp, http.StatusNotFound)
 	})
 }
 
 func TestGetBlob(t *testing.T) {
+	name := RandomName()
+	digest, content := RandomBlob(32)
+
 	t.Run("Get blob returns 200", func(t *testing.T) {
-		content := RandomContents(32)
-		server := New(&StubRegistryService{
-			getBlob: func(repository, digest string) (io.Reader, error) {
-				return bytes.NewBuffer(content), nil
-			},
-		})
+		service := mock.NewRegistryService(t)
+		service.EXPECT().
+			GetBlob(name, digest.String()).
+			Return(bytes.NewBuffer(content), nil)
 
-		request := newGetBlobRequest("library/fedora", "sha256:6c3c624b58dbbcd3c0dd82b4c53f04194d1247c6eebdaab7c610cf7d66709b3b")
-		response := httptest.NewRecorder()
+		client := NewTestClientWithServer(t, service)
 
-		server.ServeHTTP(response, request)
-		AssertResponseCode(t, response.Result(), http.StatusOK)
-		AssertResponseBodyEquals(t, response.Result(), content)
+		resp := client.GetBlob(name, digest)
+
+		AssertResponseCode(t, resp, http.StatusOK)
+		AssertResponseBodyEquals(t, resp, content)
 	})
 
 	t.Run("returns 404 on unknown blob", func(t *testing.T) {
-		server := New(&StubRegistryService{
-			getBlob: func(repository, digest string) (io.Reader, error) {
-				return nil, cascade.ErrBlobUnknown
-			},
-		})
+		service := mock.NewRegistryService(t)
+		service.EXPECT().
+			GetBlob(name, digest.String()).
+			Return(nil, cascade.ErrBlobUnknown)
 
-		request := newGetBlobRequest("library/fedora", "sha256:sha256:ee0235dbf464273241b2bb74b883b4f1a6bf6d8c324b7e51d1eb0a2fb6539fdc")
-		response := httptest.NewRecorder()
+		client := NewTestClientWithServer(t, service)
 
-		server.ServeHTTP(response, request)
+		resp := client.GetBlob(name, digest)
 
-		AssertResponseCode(t, response.Result(), http.StatusNotFound)
-		AssertResponseBodyContainsError(t, response.Result(), cascade.ErrBlobUnknown)
+		AssertResponseCode(t, resp, http.StatusNotFound)
+		AssertResponseBodyContainsError(t, resp, cascade.ErrBlobUnknown)
 	})
 
 }
 
 func TestDeleteBlob(t *testing.T) {
+	name, digest := RandomName(), RandomDigest()
+
 	t.Run("Delete blob returns 202", func(t *testing.T) {
-		name := RandomName()
-		id := RandomDigest()
+		service := mock.NewRegistryService(t)
+		service.EXPECT().
+			DeleteBlob(name, digest.String()).
+			Return(nil)
 
-		server := New(&StubRegistryService{
-			deleteBlob: func(repository, digest string) error {
-				if repository != name || digest != id.String() {
-					t.Error("parameters not passed correctly")
-				}
-				return nil
-			},
-		})
+		client := NewTestClientWithServer(t, service)
 
-		request := newDeleteBlobRequest(name, id.String())
-		response := httptest.NewRecorder()
+		resp := client.DeleteBlob(name, digest)
 
-		server.ServeHTTP(response, request)
-
-		AssertResponseCode(t, response.Result(), http.StatusAccepted)
+		AssertResponseCode(t, resp, http.StatusAccepted)
 	})
 }
 
 func TestBlobsOthers(t *testing.T) {
 	t.Run("other methods return 405", func(t *testing.T) {
-		server := New(nil)
+		client := NewTestClientWithServer(t, nil)
 
-		request := newGetBlobRequest("a", "b")
-		request.Method = http.MethodConnect
-		response := httptest.NewRecorder()
+		resp := client.Do(http.MethodConnect, "/v2/library/fedora/blobs/123", nil, nil)
 
-		server.ServeHTTP(response, request)
-
-		AssertResponseCode(t, response.Result(), http.StatusMethodNotAllowed)
+		AssertResponseCode(t, resp, http.StatusMethodNotAllowed)
 	})
-}
-
-func newCheckBlobRequest(name, digest string) *http.Request {
-	req, _ := http.NewRequest(http.MethodHead, fmt.Sprintf("/v2/%s/blobs/%s", name, digest), nil)
-	return req
-}
-
-func newGetBlobRequest(name, digest string) *http.Request {
-	req, _ := http.NewRequest(http.MethodGet, fmt.Sprintf("/v2/%s/blobs/%s", name, digest), nil)
-	return req
-}
-
-func newDeleteBlobRequest(name, digest string) *http.Request {
-	req, _ := http.NewRequest(http.MethodDelete, fmt.Sprintf("/v2/%s/blobs/%s", name, digest), nil)
-	return req
 }

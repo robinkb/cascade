@@ -1,73 +1,53 @@
-package server
+package server_test
 
 import (
-	"encoding/json"
-	"fmt"
 	"net/http"
-	"net/http/httptest"
-	"slices"
-	"strconv"
 	"testing"
 
+	"github.com/robinkb/cascade-registry/server"
 	. "github.com/robinkb/cascade-registry/testing"
+	"github.com/robinkb/cascade-registry/testing/mock"
 )
 
 func TestListTags(t *testing.T) {
+	name := RandomName()
+	tags := RandomTags(20)
+
 	t.Run("Listing tags returns 200", func(t *testing.T) {
-		wantName := RandomName()
-		wantTags := []string{"40", "1.2.3", "latest"}
-		server := New(&StubRegistryService{listTags: func(repository string, count int, last string) ([]string, error) {
-			if repository == wantName && count == -1 && last == "" {
-				return wantTags, nil
-			}
-			panic(errDataNotPassedCorrectly)
-		}})
+		service := mock.NewRegistryService(t)
+		service.EXPECT().
+			ListTags(name, -1, "").
+			Return(tags, nil)
 
-		request, _ := http.NewRequest(http.MethodGet, fmt.Sprintf("/v2/%s/tags/list", wantName), nil)
-		response := httptest.NewRecorder()
+		client := NewTestClientWithServer(t, service)
 
-		server.ServeHTTP(response, request)
+		resp := client.ListTags(name, nil)
 
-		AssertResponseCode(t, response.Result(), http.StatusOK)
-
-		var tagsList TagsListResponse
-		err := json.Unmarshal(response.Body.Bytes(), &tagsList)
-		AssertNoError(t, err)
-
-		gotName := tagsList.Name
-		gotTags := tagsList.Tags
-
-		if gotName != wantName {
-			t.Errorf("retrieved repository name incorrect; got %q, want %q", gotName, wantName)
-		}
-
-		if !slices.Equal(gotTags, wantTags) {
-			t.Errorf("retrieved tags incorrect; got %q, want %q", gotTags, wantTags)
-		}
+		AssertResponseCode(t, resp, http.StatusOK)
+		var tagsList server.TagsListResponse
+		AssertResponseBodyUnmarshals(t, resp, &tagsList)
+		AssertSlicesEqual(t, tagsList.Tags, tags)
 	})
 
 	t.Run("n and last query parameters are handled correctly", func(t *testing.T) {
-		wantName := RandomName()
-		wantCount := 3
-		wantLast := "40"
+		count := 3
+		last := tags[10]
 
-		server := New(&StubRegistryService{listTags: func(repository string, count int, last string) ([]string, error) {
-			if !(repository == wantName && count == wantCount && last == wantLast) {
-				t.Fatal(errDataNotPassedCorrectly)
-			}
-			return nil, nil
-		}})
+		service := mock.NewRegistryService(t)
+		service.EXPECT().
+			ListTags(name, count, last).
+			Return(tags[10:13], nil)
 
-		request, _ := http.NewRequest(http.MethodGet, fmt.Sprintf("/v2/%s/tags/list", wantName), nil)
-		query := request.URL.Query()
-		query.Add("n", strconv.Itoa(wantCount))
-		query.Add("last", wantLast)
-		request.URL.RawQuery = query.Encode()
+		client := NewTestClientWithServer(t, service)
 
-		response := httptest.NewRecorder()
+		resp := client.ListTags(name, &ListTagsOptions{
+			N:    Pointer(count),
+			Last: last,
+		})
 
-		server.ServeHTTP(response, request)
-
-		AssertResponseCode(t, response.Result(), http.StatusOK)
+		AssertResponseCode(t, resp, http.StatusOK)
+		var tagsList server.TagsListResponse
+		AssertResponseBodyUnmarshals(t, resp, &tagsList)
+		AssertSlicesEqual(t, tagsList.Tags, tags[10:13])
 	})
 }
