@@ -1,63 +1,61 @@
 package server_test
 
 import (
-	"fmt"
 	"net/http"
-	"net/http/httptest"
 	"testing"
 
+	"github.com/gofrs/uuid/v5"
 	"github.com/robinkb/cascade-registry"
 	"github.com/robinkb/cascade-registry/server"
 	. "github.com/robinkb/cascade-registry/testing"
+	"github.com/robinkb/cascade-registry/testing/mock"
 )
 
 func TestBlobUploadSession(t *testing.T) {
-	srv := newTestServer()
+	name := RandomName()
+	sessionID, _ := uuid.NewV7()
+	location := newLocation(name, sessionID.String())
 
-	t.Run("Initialize upload session and check its status", func(t *testing.T) {
-		// Initialize the upload session by obtaining an ID.
-		repository := "library/fedora"
-		request := newInitUploadRequest(repository)
-		response := httptest.NewRecorder()
+	t.Run("Initialize upload session returns 200 with session ID", func(t *testing.T) {
+		service := mock.NewRegistryService(t)
+		service.EXPECT().
+			InitUpload(name).
+			Return(&cascade.UploadSession{Location: "123"})
 
-		srv.ServeHTTP(response, request)
+		client := NewTestClientWithServer(t, service)
 
-		AssertResponseCode(t, response.Result(), http.StatusAccepted)
-		AssertResponseHeaderSet(t, response.Result(), server.HeaderLocation)
+		resp := client.InitUpload(name)
 
-		location := response.Header().Get(server.HeaderLocation)
+		AssertResponseCode(t, resp, http.StatusAccepted)
+		AssertResponseHeader(t, resp, server.HeaderLocation, "123")
+	})
 
-		request = newCheckUploadRequest(location)
-		response = httptest.NewRecorder()
+	t.Run("Checking active session returns 200", func(t *testing.T) {
+		service := mock.NewRegistryService(t)
+		service.EXPECT().
+			StatUpload(name, sessionID.String()).
+			Return(&cascade.FileInfo{}, nil)
 
-		srv.ServeHTTP(response, request)
+		client := NewTestClientWithServer(t, service)
 
-		AssertResponseCode(t, response.Result(), http.StatusNoContent)
-		AssertResponseHeader(t, response.Result(), server.HeaderLocation, location)
-		AssertResponseHeader(t, response.Result(), server.HeaderRange, "0-0")
+		resp := client.CheckUpload(location)
+
+		AssertResponseCode(t, resp, http.StatusNoContent)
+		AssertResponseHeader(t, resp, server.HeaderLocation, location.Path)
+		AssertResponseHeader(t, resp, server.HeaderRange, "0-0")
 	})
 
 	t.Run("Checking status of an unknown upload session returns 404 and ErrBlobUploadUnknown", func(t *testing.T) {
-		request := newCheckUploadRequest("/v2/library/fedora/blobs/uploads/123")
-		response := httptest.NewRecorder()
+		service := mock.NewRegistryService(t)
+		service.EXPECT().
+			StatUpload(name, sessionID.String()).
+			Return(nil, cascade.ErrBlobUploadUnknown)
 
-		srv.ServeHTTP(response, request)
+		client := NewTestClientWithServer(t, service)
 
-		AssertResponseCode(t, response.Result(), http.StatusNotFound)
-		AssertResponseBodyContainsError(t, response.Result(), cascade.ErrBlobUploadUnknown)
+		resp := client.CheckUpload(location)
+
+		AssertResponseCode(t, resp, http.StatusNotFound)
+		AssertResponseBodyContainsError(t, resp, cascade.ErrBlobUploadUnknown)
 	})
-
-	t.Run("Upload session status with some content written returns correct Range header", func(t *testing.T) {
-		request := newInitUploadRequest("library/fedora")
-		response := httptest.NewRecorder()
-
-		srv.ServeHTTP(response, request)
-
-		AssertResponseCode(t, response.Result(), http.StatusAccepted)
-	})
-}
-
-func newInitUploadRequest(name string) *http.Request {
-	req, _ := http.NewRequest(http.MethodPost, fmt.Sprintf("/v2/%s/blobs/uploads/", name), nil)
-	return req
 }

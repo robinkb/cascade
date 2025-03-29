@@ -2,9 +2,7 @@ package server_test
 
 import (
 	"bytes"
-	"fmt"
 	"net/http"
-	"net/url"
 	"testing"
 
 	"github.com/gofrs/uuid/v5"
@@ -121,13 +119,4 @@ func TestBlobUploadsChunked(t *testing.T) {
 func TestBlobUploadsStreamed(t *testing.T) {
 	// TODO: This used to have integration-style tests that have been moved
 	// to the conformance test. There should be more basic handler unit tests here.
-}
-
-func newLocation(name, sessionID string) *url.URL {
-	return &url.URL{Path: fmt.Sprintf("/v2/%s/blobs/uploads/%s", name, sessionID)}
-}
-
-func newCheckUploadRequest(location string) *http.Request {
-	req, _ := http.NewRequest(http.MethodGet, location, nil)
-	return req
 }

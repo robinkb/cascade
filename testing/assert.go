@@ -135,7 +135,8 @@ func AssertResponseBodyContainsError(t *testing.T, got *http.Response, want casc
 		}
 	}
 
-	return true
+	t.Errorf("could not find error in response body; got %q, want %q", errs, want)
+	return false
 }
 
 func AssertSlicesEqual[S ~[]E, E comparable](t *testing.T, s1 S, s2 S) bool {

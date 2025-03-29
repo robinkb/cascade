@@ -169,9 +169,14 @@ func TestPutManifest(t *testing.T) {
 	})
 
 	t.Run("Uploading an invalid manifest returns 400 and ErrManifestInvalid", func(t *testing.T) {
-		client := NewTestClientWithServer(t, nil)
+		service := mock.NewRegistryService(t)
+		service.EXPECT().
+			PutManifest(name, digest.String(), manifest.Bytes()).
+			Return(cascade.ErrManifestInvalid)
 
-		resp := client.PutManifest(name, digest.String(), &cascade.Manifest{})
+		client := NewTestClientWithServer(t, service)
+
+		resp := client.PutManifest(name, tag, manifest)
 
 		AssertResponseCode(t, resp, http.StatusBadRequest)
 		AssertResponseBodyContainsError(t, resp, cascade.ErrManifestInvalid)
