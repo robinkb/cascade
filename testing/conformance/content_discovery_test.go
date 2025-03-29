@@ -40,7 +40,7 @@ func TestContentDiscovery(t *testing.T) {
 		slices.Sort(tags)
 
 		t.Run("Fetching the whole list of tags", func(t *testing.T) {
-			client := NewClient(t, ts.URL)
+			client := NewTestClient(t, ts.URL)
 
 			resp := client.ListTags(repository, nil)
 			// Assuming a repository is found, this request MUST return a 200 OK response code.
@@ -61,7 +61,7 @@ func TestContentDiscovery(t *testing.T) {
 		})
 
 		t.Run("Fetching a subset of tags", func(t *testing.T) {
-			client := NewClient(t, ts.URL)
+			client := NewTestClient(t, ts.URL)
 
 			// In addition to fetching the whole list of tags, a subset of the tags can be fetched by providing the n query parameter.
 			resp := client.ListTags(repository, &ListTagsOptions{
@@ -76,7 +76,7 @@ func TestContentDiscovery(t *testing.T) {
 		})
 
 		t.Run("Fetching more tags than are available", func(t *testing.T) {
-			client := NewClient(t, ts.URL)
+			client := NewTestClient(t, ts.URL)
 
 			// The response to such a request MAY return fewer than <int> results, but only when the total number of tags attached to the repository is less than <int> or a Link header is provided.
 			resp := client.ListTags(repository, &ListTagsOptions{
@@ -90,7 +90,7 @@ func TestContentDiscovery(t *testing.T) {
 		})
 
 		t.Run("Fetching 0 tags must return an empty list", func(t *testing.T) {
-			client := NewClient(t, ts.URL)
+			client := NewTestClient(t, ts.URL)
 
 			resp := client.ListTags(repository, &ListTagsOptions{
 				N: Pointer(0),
@@ -106,7 +106,7 @@ func TestContentDiscovery(t *testing.T) {
 		})
 
 		t.Run("Fetch tags with the 'last' query parameter", func(t *testing.T) {
-			client := NewClient(t, ts.URL)
+			client := NewTestClient(t, ts.URL)
 
 			n := 10
 			lastIndex := 10

@@ -15,6 +15,6 @@ func (s *Server) initUploadHandler(w http.ResponseWriter, r *http.Request) {
 	repository := r.PathValue("repository")
 
 	session := s.service.InitUpload(repository)
-	w.Header().Set(headerLocation, session.Location)
+	w.Header().Set(HeaderLocation, session.Location)
 	w.WriteHeader(http.StatusAccepted)
 }

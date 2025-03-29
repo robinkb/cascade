@@ -129,6 +129,11 @@ func AssertIndexContainsReferrers(t *testing.T, got *v1.Index, want ...v1.Descri
 func AssertResponseBodyContainsError(t *testing.T, got *http.Response, want cascade.Error) bool {
 	t.Helper()
 
+	if got.Body == nil || got.Body == http.NoBody {
+		t.Errorf("response body is empty while expecting error")
+		return false
+	}
+
 	var errs cascade.ErrorResponse
 	err := json.NewDecoder(got.Body).Decode(&errs)
 	RequireNoError(t, err)
@@ -139,7 +144,8 @@ func AssertResponseBodyContainsError(t *testing.T, got *http.Response, want casc
 		}
 	}
 
-	return true
+	t.Errorf("could not find error in response body; got %q, want %q", errs, want)
+	return false
 }
 
 func AssertSlicesEqual[S ~[]E, E comparable](t *testing.T, s1 S, s2 S) bool {

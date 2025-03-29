@@ -11,13 +11,13 @@ import (
 )
 
 const (
-	headerContentLength = "Content-Length"
-	headerContentRange  = "Content-Range"
-	headerContentType   = "Content-Type"
-	headerLocation      = "Location"
-	headerRange         = "Range"
+	HeaderContentLength = "Content-Length"
+	HeaderContentRange  = "Content-Range"
+	HeaderContentType   = "Content-Type"
+	HeaderLocation      = "Location"
+	HeaderRange         = "Range"
 
-	contentTypeOctetStream = "application/octet-stream"
+	ContentTypeOctetStream = "application/octet-stream"
 )
 
 func New(service cascade.RegistryService) *Server {
