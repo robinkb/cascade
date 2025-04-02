@@ -20,7 +20,7 @@ func TestListReferrers(t *testing.T) {
 
 		service := mock.NewRegistryService(t)
 		service.EXPECT().
-			ListReferrers(wantName, wantDigest).
+			ListReferrers(wantName, wantDigest.String()).
 			Return(wantIndex, nil)
 
 		client := NewTestClientWithServer(t, service)

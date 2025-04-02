@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/textproto"
 	"slices"
 	"testing"
 
@@ -49,6 +50,10 @@ func AssertResponseCode(t *testing.T, got *http.Response, want int) bool {
 
 func AssertResponseHeader(t *testing.T, got *http.Response, header string, want ...string) bool {
 	t.Helper()
+
+	// Normalize header name, because they are supposed to be case-insensitive.
+	// Go's HTTP library also does this when setting a header on a response.
+	header = textproto.CanonicalMIMEHeaderKey(header)
 
 	val, ok := got.Header[header]
 	if !ok {
@@ -146,6 +151,16 @@ func AssertResponseBodyContainsError(t *testing.T, got *http.Response, want casc
 
 	t.Errorf("could not find error in response body; got %q, want %q", errs, want)
 	return false
+}
+
+func AssertEqual[T comparable](t *testing.T, got T, want T) bool {
+	t.Helper()
+
+	if got != want {
+		t.Errorf("values are not equal; got %v, want %v", got, want)
+		return false
+	}
+	return true
 }
 
 func AssertSlicesEqual[S ~[]E, E comparable](t *testing.T, s1 S, s2 S) bool {

@@ -139,7 +139,7 @@ func TestPutManifest(t *testing.T) {
 		service := mock.NewRegistryService(t)
 		service.EXPECT().
 			PutManifest(name, digest.String(), manifest.Bytes()).
-			Return(nil, nil)
+			Return("", nil)
 
 		client := NewTestClientWithServer(t, service)
 
@@ -157,7 +157,7 @@ func TestPutManifest(t *testing.T) {
 			Return(nil)
 		service.EXPECT().
 			PutManifest(name, digest.String(), manifest.Bytes()).
-			Return(nil, nil)
+			Return("", nil)
 
 		client := NewTestClientWithServer(t, service)
 
@@ -172,7 +172,7 @@ func TestPutManifest(t *testing.T) {
 		service := mock.NewRegistryService(t)
 		service.EXPECT().
 			PutManifest(name, digest.String(), manifest.Bytes()).
-			Return(nil, cascade.ErrManifestInvalid)
+			Return("", cascade.ErrManifestInvalid)
 
 		client := NewTestClientWithServer(t, service)
 
@@ -188,15 +188,15 @@ func TestPutManifest(t *testing.T) {
 
 		service := mock.NewRegistryService(t)
 		service.EXPECT().
-			PutManifest(name, referrerDigest.String(), referrerManifest).
-			Return(referrerManifest.Subject, nil)
+			PutManifest(name, referrerDigest.String(), referrerManifest.Bytes()).
+			Return(subjectDigest, nil)
 
 		client := NewTestClientWithServer(t, service)
 
 		resp := client.PutManifest(name, referrerDigest.String(), referrerManifest)
 
 		AssertResponseCode(t, resp, http.StatusCreated)
-		AssertResponseHeader(t, resp, "OCI-Subject", subjectDigest.String())
+		AssertResponseHeader(t, resp, server.HeaderOCISubject, subjectDigest.String())
 	})
 }
 

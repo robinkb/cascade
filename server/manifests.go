@@ -92,10 +92,14 @@ func (s *Server) putManifestsHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	_, err = s.service.PutManifest(repository, digest.String(), data)
+	subject, err := s.service.PutManifest(repository, digest.String(), data)
 	if err != nil {
 		writeErrorResponse(w, err)
 		return
+	}
+
+	if subject != "" {
+		w.Header().Set(HeaderOCISubject, subject.String())
 	}
 
 	if cascade.ValidateTag(reference) {

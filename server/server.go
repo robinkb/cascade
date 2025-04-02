@@ -18,6 +18,8 @@ const (
 	HeaderRange         = "Range"
 
 	ContentTypeOctetStream = "application/octet-stream"
+
+	HeaderOCISubject = "OCI-Subject"
 )
 
 func New(service cascade.RegistryService) *Server {

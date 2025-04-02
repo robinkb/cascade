@@ -217,11 +217,12 @@ func TestPush(t *testing.T) {
 			client := NewTestClient(t, ts.URL)
 
 			name := RandomName()
-			digest, manifest := RandomManifest()
-			referrerManifest, referrerDigest := RandomManifestWithSubject(manifest)
+			subjectDigest, subjectManifest := RandomManifest()
+			referrerManifest, referrerDigest := RandomManifestWithSubject(subjectManifest)
 
-			resp := client.PutManifest(name, digest.String(), manifest)
+			resp := client.PutManifest(name, subjectDigest.String(), subjectManifest)
 			AssertResponseCode(t, resp, http.StatusCreated)
+			AssertResponseHeaderUnset(t, resp, "OCI-Subject")
 
 			resp = client.PutManifest(name, referrerDigest.String(), referrerManifest)
 			AssertResponseCode(t, resp, http.StatusCreated)
@@ -230,7 +231,7 @@ func TestPush(t *testing.T) {
 			// a registry implementation that supports the referrers API MUST respond
 			// with the response header OCI-Subject: <subject digest> to indicate
 			// to the client that the registry processed the request's subject.
-			AssertResponseHeader(t, resp, "OCI-Subject", referrerDigest.String())
+			AssertResponseHeader(t, resp, "OCI-Subject", subjectDigest.String())
 		})
 
 		t.Run("Pushing manifests with Subject", func(t *testing.T) {})

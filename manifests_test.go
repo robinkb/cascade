@@ -97,14 +97,12 @@ func TestPutManifest(t *testing.T) {
 
 	t.Run("Putting a manifest with subject returns the subject's hash", func(t *testing.T) {
 		name := RandomName()
-		subjectDigest, subject := RandomManifest()
+		want, subject := RandomManifest()
 		referrer, referrerDigest := RandomManifestWithSubject(subject)
 
-		subjectDescriptor, err := service.PutManifest(name, referrerDigest.String(), referrer.Bytes())
+		got, err := service.PutManifest(name, referrerDigest.String(), referrer.Bytes())
 		AssertNoError(t, err)
-		if subjectDescriptor.Digest.String() != subjectDigest.String() {
-			t.Errorf("invalid subject digest; got %s, want %s", subjectDescriptor.Digest, subjectDigest)
-		}
+		AssertEqual(t, got, want)
 	})
 }
 
