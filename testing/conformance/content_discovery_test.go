@@ -27,7 +27,7 @@ func TestContentDiscovery(t *testing.T) {
 		digest := RandomDigest()
 
 		tags := make([]string, 50)
-		for i := 0; i < len(tags); i++ {
+		for i := range len(tags) {
 			tags[i] = RandomVersion()
 		}
 
@@ -148,7 +148,7 @@ func TestContentDiscovery(t *testing.T) {
 
 		referrerCount := 3
 		referrers := make([]v1.Descriptor, referrerCount)
-		for i := 0; i < referrerCount; i++ {
+		for i := range referrerCount {
 			manifest, digest := RandomManifestWithSubject(manifest)
 			referrers[i] = v1.Descriptor{
 				MediaType:    manifest.MediaType,
