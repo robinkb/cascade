@@ -26,7 +26,7 @@ func TestPull(t *testing.T) {
 			client := NewTestClient(t, ts.URL)
 
 			name := RandomName()
-			digest, manifest := RandomManifest()
+			manifest, digest := RandomManifest()
 			metadata.PutManifest(name, digest, digest.String(), nil)
 			blobs.Put(digest.String(), manifest.Bytes())
 
@@ -112,7 +112,7 @@ func TestPull(t *testing.T) {
 			client := NewTestClient(t, ts.URL)
 
 			name := RandomName()
-			digest, manifest := RandomManifest()
+			manifest, digest := RandomManifest()
 
 			metadata.PutManifest(name, digest, digest.String(), nil)
 			blobs.Put(digest.String(), manifest.Bytes())

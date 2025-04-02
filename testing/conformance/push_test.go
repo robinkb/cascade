@@ -174,7 +174,7 @@ func TestPush(t *testing.T) {
 			client := NewTestClient(t, ts.URL)
 
 			name := RandomName()
-			digest, manifest := RandomManifest()
+			manifest, digest := RandomManifest()
 
 			// Upon a successful upload, the registry MUST return response code 201 Created,
 			resp := client.PutManifest(name, digest.String(), manifest)
@@ -193,7 +193,7 @@ func TestPush(t *testing.T) {
 			client := NewTestClient(t, ts.URL)
 
 			name := RandomName()
-			digest, manifest := RandomManifest()
+			manifest, digest := RandomManifest()
 			tag := "40"
 
 			// Upon a successful upload, the registry MUST return response code 201 Created,
@@ -217,7 +217,7 @@ func TestPush(t *testing.T) {
 			client := NewTestClient(t, ts.URL)
 
 			name := RandomName()
-			subjectDigest, subjectManifest := RandomManifest()
+			subjectManifest, subjectDigest := RandomManifest()
 			referrerManifest, referrerDigest := RandomManifestWithSubject(subjectManifest)
 
 			resp := client.PutManifest(name, subjectDigest.String(), subjectManifest)

@@ -100,7 +100,7 @@ func TestServiceUpload(t *testing.T) {
 
 	t.Run("written upload is retrievable", func(t *testing.T) {
 		name := RandomName()
-		digest, manifest := RandomManifest()
+		manifest, digest := RandomManifest()
 
 		session := service.InitUpload(name)
 

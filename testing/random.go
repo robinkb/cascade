@@ -28,13 +28,13 @@ func RandomDigest() digest.Digest {
 	return digest.FromBytes(RandomContents(32))
 }
 
-func RandomManifest() (id digest.Digest, manifest *cascade.Manifest) {
+func RandomManifest() (*cascade.Manifest, digest.Digest) {
 	content, _ := json.Marshal(v1.Manifest{
 		MediaType: v1.MediaTypeImageManifest,
 	})
-	id = digest.FromBytes(content)
-	manifest, _ = cascade.NewManifest(content)
-	return
+	id := digest.FromBytes(content)
+	manifest, _ := cascade.NewManifest(content)
+	return manifest, id
 }
 
 func RandomManifestWithSubject(subject *cascade.Manifest) (*cascade.Manifest, digest.Digest) {

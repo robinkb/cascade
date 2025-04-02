@@ -141,7 +141,7 @@ func TestContentDiscovery(t *testing.T) {
 		client := NewTestClient(t, ts.URL)
 
 		repository := RandomName()
-		digest, manifest := RandomManifest()
+		manifest, digest := RandomManifest()
 
 		resp := client.PutManifest(repository, digest.String(), manifest)
 		AssertResponseCode(t, resp, http.StatusCreated)

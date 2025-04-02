@@ -14,7 +14,7 @@ import (
 
 func TestStatManifests(t *testing.T) {
 	name := RandomName()
-	digest, manifest := RandomManifest()
+	manifest, digest := RandomManifest()
 	length := len(manifest.Bytes())
 	tag := RandomVersion()
 
@@ -80,7 +80,7 @@ func TestStatManifests(t *testing.T) {
 
 func TestGetManifests(t *testing.T) {
 	name := RandomName()
-	digest, manifest := RandomManifest()
+	manifest, digest := RandomManifest()
 	tag := RandomVersion()
 
 	t.Run("Retrieving an existing manifest returns 200", func(t *testing.T) {
@@ -132,7 +132,7 @@ func TestGetManifests(t *testing.T) {
 
 func TestPutManifest(t *testing.T) {
 	name := RandomName()
-	digest, manifest := RandomManifest()
+	manifest, digest := RandomManifest()
 	tag := RandomVersion()
 
 	t.Run("Uploading a manifest by digest returns code 201", func(t *testing.T) {
@@ -183,8 +183,8 @@ func TestPutManifest(t *testing.T) {
 	})
 
 	t.Run("Uploading a manifest with subject returns with OCI-Subject header", func(t *testing.T) {
-		subjectDigest, manifest := RandomManifest()
-		referrerManifest, referrerDigest := RandomManifestWithSubject(manifest)
+		subjectManifest, subjectDigest := RandomManifest()
+		referrerManifest, referrerDigest := RandomManifestWithSubject(subjectManifest)
 
 		service := mock.NewRegistryService(t)
 		service.EXPECT().

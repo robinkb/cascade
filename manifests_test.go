@@ -14,7 +14,7 @@ func TestStatManifest(t *testing.T) {
 	service, metadata, blobs := newTestRegistry()
 
 	name := RandomName()
-	digest, manifest := RandomManifest()
+	manifest, digest := RandomManifest()
 
 	path := digest.String()
 	blobs.Put(path, manifest.Bytes())
@@ -77,7 +77,7 @@ func TestPutManifest(t *testing.T) {
 
 	t.Run("Put and retrieve a manifest", func(t *testing.T) {
 		name := RandomName()
-		digest, manifest := RandomManifest()
+		manifest, digest := RandomManifest()
 
 		_, err := service.PutManifest(name, digest.String(), manifest.Bytes())
 		AssertNoError(t, err)
@@ -97,12 +97,12 @@ func TestPutManifest(t *testing.T) {
 
 	t.Run("Putting a manifest with subject returns the subject's hash", func(t *testing.T) {
 		name := RandomName()
-		want, subject := RandomManifest()
+		subject, subjectDigest := RandomManifest()
 		referrer, referrerDigest := RandomManifestWithSubject(subject)
 
-		got, err := service.PutManifest(name, referrerDigest.String(), referrer.Bytes())
+		gotDigest, err := service.PutManifest(name, referrerDigest.String(), referrer.Bytes())
 		AssertNoError(t, err)
-		AssertEqual(t, got, want)
+		AssertEqual(t, gotDigest, subjectDigest)
 	})
 }
 
@@ -111,7 +111,7 @@ func TestDeleteManifest(t *testing.T) {
 
 	t.Run("Delete manifest and make sure it cannot be retrieved", func(t *testing.T) {
 		name := RandomName()
-		digest, manifest := RandomManifest()
+		manifest, digest := RandomManifest()
 
 		_, err := service.PutManifest(name, digest.String(), manifest.Bytes())
 		RequireNoError(t, err)

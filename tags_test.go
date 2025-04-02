@@ -37,7 +37,7 @@ func TestPutTag(t *testing.T) {
 
 	t.Run("Tag creates a link to the manifest digest", func(t *testing.T) {
 		name := RandomName()
-		digest, manifest := RandomManifest()
+		manifest, digest := RandomManifest()
 		tag := "v0.5.1"
 
 		_, err := service.PutManifest(name, digest.String(), manifest.Bytes())
