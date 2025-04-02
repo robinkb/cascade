@@ -4,6 +4,7 @@ import (
 	"slices"
 
 	"github.com/opencontainers/go-digest"
+	v1 "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/robinkb/cascade-registry"
 )
 
@@ -83,7 +84,7 @@ func (s *MetadataStore) GetManifest(repository string, digest digest.Digest) (st
 	return "", cascade.ErrManifestUnknown
 }
 
-func (s *MetadataStore) PutManifest(repository string, digest digest.Digest, path string) error {
+func (s *MetadataStore) PutManifest(repository string, digest digest.Digest, path string, subject *v1.Descriptor) error {
 	s.ensureRepositoryExists(repository)
 	s.repositories[repository].manifests[digest.String()] = &Manifest{
 		path: path,
@@ -153,6 +154,10 @@ func (s *MetadataStore) PutTag(repository, tag, id string) error {
 func (s *MetadataStore) DeleteTag(repository, tag string) error {
 	delete(s.repositories[repository].tags, tag)
 	return nil
+}
+
+func (s *MetadataStore) ListReferrers(repository string, digest digest.Digest) ([]*v1.Descriptor, error) {
+	panic("not implemented yet")
 }
 
 func (s *MetadataStore) GetUpload(repository, id string) (*cascade.UploadSession, error) {

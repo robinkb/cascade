@@ -138,9 +138,10 @@ func TestContentDiscovery(t *testing.T) {
 	})
 
 	t.Run("Listing Referrers", func(t *testing.T) {
-		client := NewClient(t, ts.URL)
+		client := NewTestClient(t, ts.URL)
 
-		repository, digest, manifest := RandomManifest()
+		repository := RandomName()
+		digest, manifest := RandomManifest()
 
 		resp := client.PutManifest(repository, digest.String(), manifest)
 		AssertResponseCode(t, resp, http.StatusCreated)
@@ -148,7 +149,7 @@ func TestContentDiscovery(t *testing.T) {
 		referrerCount := 3
 		referrers := make([]v1.Descriptor, referrerCount)
 		for i := 0; i < referrerCount; i++ {
-			manifest, digest := RandomManifestWithSubject(manifest, digest)
+			manifest, digest := RandomManifestWithSubject(manifest)
 			referrers[i] = v1.Descriptor{
 				MediaType:    manifest.MediaType,
 				ArtifactType: manifest.ArtifactType,

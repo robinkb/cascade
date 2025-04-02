@@ -18,7 +18,7 @@ func TestStatManifest(t *testing.T) {
 
 	path := digest.String()
 	blobs.Put(path, manifest.Bytes())
-	metadata.PutManifest(name, digest, path)
+	metadata.PutManifest(name, digest, path, nil)
 
 	t.Run("Returns FileInfo with expected size on known manifest", func(t *testing.T) {
 		info, err := service.StatManifest(name, digest.String())
@@ -79,7 +79,7 @@ func TestPutManifest(t *testing.T) {
 		name := RandomName()
 		digest, manifest := RandomManifest()
 
-		err := service.PutManifest(name, digest.String(), manifest.Bytes())
+		_, err := service.PutManifest(name, digest.String(), manifest.Bytes())
 		AssertNoError(t, err)
 
 		got, err := service.GetManifest(name, digest.String())
@@ -91,21 +91,19 @@ func TestPutManifest(t *testing.T) {
 		name := RandomName()
 		digest, content := RandomBlob(32)
 
-		err := service.PutManifest(name, digest.String(), content)
+		_, err := service.PutManifest(name, digest.String(), content)
 		AssertErrorIs(t, err, cascade.ErrManifestInvalid)
 	})
 
-	t.Run("Putting a manifest with subject returns the subject's descriptor", func(t *testing.T) {
-		name := randomName()
-		_, digest, content := randomManifest()
-		var manifest Manifest
-		json.Unmarshal(content, &manifest)
-		referrerManifest, referrerDigest := randomManifestWithSubject(&manifest, digest)
+	t.Run("Putting a manifest with subject returns the subject's hash", func(t *testing.T) {
+		name := RandomName()
+		subjectDigest, subject := RandomManifest()
+		referrer, referrerDigest := RandomManifestWithSubject(subject)
 
-		subject, err := service.PutManifest(name, referrerDigest.String(), referrerManifest.Bytes())
-		assertNoError(t, err)
-		if subject.Digest != digest {
-			t.Errorf("invalid subject digest; got %s, want %s", subject.Digest, digest)
+		subjectDescriptor, err := service.PutManifest(name, referrerDigest.String(), referrer.Bytes())
+		AssertNoError(t, err)
+		if subjectDescriptor.Digest.String() != subjectDigest.String() {
+			t.Errorf("invalid subject digest; got %s, want %s", subjectDescriptor.Digest, subjectDigest)
 		}
 	})
 }
@@ -117,7 +115,7 @@ func TestDeleteManifest(t *testing.T) {
 		name := RandomName()
 		digest, manifest := RandomManifest()
 
-		err := service.PutManifest(name, digest.String(), manifest.Bytes())
+		_, err := service.PutManifest(name, digest.String(), manifest.Bytes())
 		RequireNoError(t, err)
 
 		_, err = service.StatManifest(name, digest.String())

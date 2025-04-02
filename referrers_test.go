@@ -3,6 +3,7 @@ package cascade_test
 import (
 	"testing"
 
+	"github.com/robinkb/cascade-registry"
 	. "github.com/robinkb/cascade-registry/testing"
 )
 
@@ -15,6 +16,6 @@ func TestListReferrers(t *testing.T) {
 
 		_, err := service.ListReferrers(repository, digest)
 
-		AssertErrorIs(t, err, ErrDigestInvalid)
+		AssertErrorIs(t, err, cascade.ErrDigestInvalid)
 	})
 }

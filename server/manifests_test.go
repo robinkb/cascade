@@ -139,7 +139,7 @@ func TestPutManifest(t *testing.T) {
 		service := mock.NewRegistryService(t)
 		service.EXPECT().
 			PutManifest(name, digest.String(), manifest.Bytes()).
-			Return(nil)
+			Return(nil, nil)
 
 		client := NewTestClientWithServer(t, service)
 
@@ -157,7 +157,7 @@ func TestPutManifest(t *testing.T) {
 			Return(nil)
 		service.EXPECT().
 			PutManifest(name, digest.String(), manifest.Bytes()).
-			Return(nil)
+			Return(nil, nil)
 
 		client := NewTestClientWithServer(t, service)
 
@@ -172,7 +172,7 @@ func TestPutManifest(t *testing.T) {
 		service := mock.NewRegistryService(t)
 		service.EXPECT().
 			PutManifest(name, digest.String(), manifest.Bytes()).
-			Return(cascade.ErrManifestInvalid)
+			Return(nil, cascade.ErrManifestInvalid)
 
 		client := NewTestClientWithServer(t, service)
 
@@ -183,23 +183,20 @@ func TestPutManifest(t *testing.T) {
 	})
 
 	t.Run("Uploading a manifest with subject returns with OCI-Subject header", func(t *testing.T) {
-		name, digest, manifest := RandomManifest()
-		referrerManifest, referrerDigest := RandomManifestWithSubject(manifest, digest)
+		subjectDigest, manifest := RandomManifest()
+		referrerManifest, referrerDigest := RandomManifestWithSubject(manifest)
 
-		server := New(&StubRegistryService{putManifest: func(repository, reference string, content []byte) error {
-			if repository == name && reference == referrerDigest.String() {
-				return nil
-			}
-			panic(errDataNotPassedCorrectly)
-		}})
+		service := mock.NewRegistryService(t)
+		service.EXPECT().
+			PutManifest(name, referrerDigest.String(), referrerManifest).
+			Return(referrerManifest.Subject, nil)
 
-		request := newPutManifestRequest(name, referrerDigest.String(), referrerManifest.Bytes())
-		response := httptest.NewRecorder()
+		client := NewTestClientWithServer(t, service)
 
-		server.ServeHTTP(response, request)
+		resp := client.PutManifest(name, referrerDigest.String(), referrerManifest)
 
-		AssertResponseCode(t, response.Result(), http.StatusCreated)
-		AssertResponseHeader(t, response.Result(), "OCI-Subject", referrerDigest.String())
+		AssertResponseCode(t, resp, http.StatusCreated)
+		AssertResponseHeader(t, resp, "OCI-Subject", subjectDigest.String())
 	})
 }
 

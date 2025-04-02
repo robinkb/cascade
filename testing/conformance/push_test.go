@@ -214,10 +214,11 @@ func TestPush(t *testing.T) {
 		})
 
 		t.Run("Pushing manifest with layers", func(t *testing.T) {
-			client := NewClient(t, ts.URL)
+			client := NewTestClient(t, ts.URL)
 
-			name, digest, manifest := RandomManifest()
-			referrerManifest, referrerDigest := RandomManifestWithSubject(manifest, digest)
+			name := RandomName()
+			digest, manifest := RandomManifest()
+			referrerManifest, referrerDigest := RandomManifestWithSubject(manifest)
 
 			resp := client.PutManifest(name, digest.String(), manifest)
 			AssertResponseCode(t, resp, http.StatusCreated)

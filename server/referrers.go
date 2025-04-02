@@ -28,7 +28,7 @@ func (s *Server) listReferrersHandler(w http.ResponseWriter, r *http.Request) {
 	case cascade.ErrDigestInvalid:
 		w.WriteHeader(http.StatusBadRequest)
 	case nil:
-		w.Header().Add(headerContentType, v1.MediaTypeImageIndex)
+		w.Header().Add(HeaderContentType, v1.MediaTypeImageIndex)
 		json.NewEncoder(w).Encode(index)
 	}
 }

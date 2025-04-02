@@ -92,7 +92,7 @@ func (s *Server) putManifestsHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	err = s.service.PutManifest(repository, digest.String(), data)
+	_, err = s.service.PutManifest(repository, digest.String(), data)
 	if err != nil {
 		writeErrorResponse(w, err)
 		return

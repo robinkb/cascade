@@ -1,14 +1,15 @@
-package server
+package server_test
 
 import (
-	"fmt"
 	"net/http"
-	"net/http/httptest"
 	"testing"
 
+	"github.com/opencontainers/go-digest"
 	v1 "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/robinkb/cascade-registry"
+	"github.com/robinkb/cascade-registry/server"
 	. "github.com/robinkb/cascade-registry/testing"
+	"github.com/robinkb/cascade-registry/testing/mock"
 )
 
 func TestListReferrers(t *testing.T) {
@@ -17,42 +18,36 @@ func TestListReferrers(t *testing.T) {
 		wantDigest := RandomDigest()
 		wantIndex := &v1.Index{}
 
-		server := New(&StubRegistryService{listReferrers: func(repository string, digest string) (*v1.Index, error) {
-			if repository == wantName && digest == wantDigest.String() {
-				return wantIndex, nil
-			}
-			panic(errDataNotPassedCorrectly)
-		}})
+		service := mock.NewRegistryService(t)
+		service.EXPECT().
+			ListReferrers(wantName, wantDigest).
+			Return(wantIndex, nil)
 
-		request, _ := http.NewRequest(http.MethodGet, fmt.Sprintf("/v2/%s/referrers/%s", wantName, wantDigest), nil)
-		response := httptest.NewRecorder()
+		client := NewTestClientWithServer(t, service)
 
-		server.ServeHTTP(response, request)
+		resp := client.ListReferrers(wantName, wantDigest)
 
-		AssertResponseCode(t, response.Result(), http.StatusOK)
-		AssertResponseHeader(t, response.Result(), headerContentType, v1.MediaTypeImageIndex)
+		AssertResponseCode(t, resp, http.StatusOK)
+		AssertResponseHeader(t, resp, server.HeaderContentType, v1.MediaTypeImageIndex)
 
 		var gotIndex v1.Index
-		AssertResponseBodyUnmarshals(t, response.Result(), &gotIndex)
+		AssertResponseBodyUnmarshals(t, resp, &gotIndex)
 	})
 
 	t.Run("Listing referrers with invalid digest returns 400 Bad Request", func(t *testing.T) {
-		wantName := randomName()
+		wantName := RandomName()
 		wantDigest := "invalid"
 		wantErr := cascade.ErrDigestInvalid
 
-		server := New(&StubRegistryService{listReferrers: func(repository, digest string) (*v1.Index, error) {
-			if repository == wantName && digest == wantDigest {
-				return nil, wantErr
-			}
-			panic(errDataNotPassedCorrectly)
-		}})
+		service := mock.NewRegistryService(t)
+		service.EXPECT().
+			ListReferrers(wantName, wantDigest).
+			Return(nil, wantErr)
 
-		request, _ := http.NewRequest(http.MethodGet, fmt.Sprintf("/v2/%s/referrers/%s", wantName, wantDigest), nil)
-		response := httptest.NewRecorder()
+		client := NewTestClientWithServer(t, service)
 
-		server.ServeHTTP(response, request)
+		resp := client.ListReferrers(wantName, digest.Digest(wantDigest))
 
-		AssertResponseCode(t, response.Result(), http.StatusBadRequest)
+		AssertResponseCode(t, resp, http.StatusBadRequest)
 	})
 }

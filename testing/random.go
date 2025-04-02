@@ -37,12 +37,13 @@ func RandomManifest() (id digest.Digest, manifest *cascade.Manifest) {
 	return
 }
 
-func RandomManifestWithSubject(subject *cascade.Manifest, id digest.Digest) (*cascade.Manifest, digest.Digest) {
+func RandomManifestWithSubject(subject *cascade.Manifest) (*cascade.Manifest, digest.Digest) {
+	subjDigest := digest.FromBytes(subject.Bytes())
 	content, _ := json.Marshal(v1.Manifest{
 		MediaType: v1.MediaTypeImageManifest,
 		Subject: &v1.Descriptor{
 			MediaType: subject.MediaType,
-			Digest:    id,
+			Digest:    subjDigest,
 		},
 	})
 	digest := digest.FromBytes(content)
