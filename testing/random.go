@@ -45,6 +45,11 @@ func RandomManifestWithSubject(subject *cascade.Manifest) (*cascade.Manifest, di
 			MediaType: subject.MediaType,
 			Digest:    subjDigest,
 		},
+		Annotations: map[string]string{
+			// Small amount of random content to make sure that
+			// every generated manifest has a unique digest.
+			"random": string(RandomContents(32)),
+		},
 	})
 	digest := digest.FromBytes(content)
 	manifest, _ := cascade.NewManifest(content)

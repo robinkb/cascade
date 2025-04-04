@@ -8,7 +8,9 @@ import (
 	"io"
 	"net/http"
 	"net/textproto"
+	"reflect"
 	"slices"
+	"strings"
 	"testing"
 
 	v1 "github.com/opencontainers/image-spec/specs-go/v1"
@@ -123,12 +125,28 @@ func AssertResponseBodyUnmarshals[T any](t *testing.T, got *http.Response, obj T
 	return true
 }
 
-func AssertIndexContainsReferrers(t *testing.T, got *v1.Index, want ...v1.Descriptor) {
+func AssertIndexContainsReferrers(t *testing.T, got *v1.Index, want ...v1.Descriptor) bool {
 	t.Helper()
 
-	if len(got.Manifests) != len(want) {
-		t.Errorf("unexpected referrer count; got %d, want %d", len(got.Manifests), len(want))
+	slices.SortFunc(got.Manifests, descriptorSortFunc)
+	slices.SortFunc(want, descriptorSortFunc)
+
+	if !slices.EqualFunc(got.Manifests, want, descriptorEqualFunc) {
+		gotS, _ := json.MarshalIndent(got, "", "\t")
+		wantS, _ := json.MarshalIndent(v1.Index{Manifests: want}, "", "\t")
+		t.Errorf("incorrect index contents; \ngot = %s, \nwant = %s", gotS, wantS)
+		return false
 	}
+
+	return true
+}
+
+func descriptorSortFunc(a, b v1.Descriptor) int {
+	return strings.Compare(a.Digest.String(), b.Digest.String())
+}
+
+func descriptorEqualFunc(a, b v1.Descriptor) bool {
+	return reflect.DeepEqual(a, b)
 }
 
 func AssertResponseBodyContainsError(t *testing.T, got *http.Response, want cascade.Error) bool {

@@ -3,9 +3,10 @@ package inmemory
 import (
 	"slices"
 
-	"github.com/opencontainers/go-digest"
+	godigest "github.com/opencontainers/go-digest"
 	v1 "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/robinkb/cascade-registry"
+	"golang.org/x/exp/maps"
 )
 
 func NewMetadataStore() cascade.MetadataStore {
@@ -29,7 +30,8 @@ type (
 	}
 
 	Manifest struct {
-		path string
+		path      string
+		referrers map[godigest.Digest]any
 	}
 
 	Blob struct {
@@ -37,11 +39,11 @@ type (
 	}
 
 	Tag struct {
-		digest digest.Digest
+		digest godigest.Digest
 	}
 )
 
-// TODO: Should probably be part of the MetadataStore interface?
+// TODO: Should this be part of the MetadataStore interface?
 func (s *MetadataStore) ensureRepositoryExists(name string) {
 	if _, ok := s.repositories[name]; !ok {
 		s.repositories[name] = &Repository{
@@ -53,7 +55,7 @@ func (s *MetadataStore) ensureRepositoryExists(name string) {
 	}
 }
 
-func (s *MetadataStore) GetBlob(repository string, digest digest.Digest) (string, error) {
+func (s *MetadataStore) GetBlob(repository string, digest godigest.Digest) (string, error) {
 	if repo, ok := s.repositories[repository]; ok {
 		if blob, ok := repo.blobs[digest.String()]; ok {
 			return blob.path, nil
@@ -62,7 +64,7 @@ func (s *MetadataStore) GetBlob(repository string, digest digest.Digest) (string
 	return "", cascade.ErrBlobUnknown
 }
 
-func (s *MetadataStore) PutBlob(repository string, digest digest.Digest, path string) error {
+func (s *MetadataStore) PutBlob(repository string, digest godigest.Digest, path string) error {
 	s.ensureRepositoryExists(repository)
 	s.repositories[repository].blobs[digest.String()] = &Blob{
 		path: path,
@@ -70,12 +72,12 @@ func (s *MetadataStore) PutBlob(repository string, digest digest.Digest, path st
 	return nil
 }
 
-func (s *MetadataStore) DeleteBlob(repository string, digest digest.Digest) error {
+func (s *MetadataStore) DeleteBlob(repository string, digest godigest.Digest) error {
 	delete(s.repositories[repository].blobs, digest.String())
 	return nil
 }
 
-func (s *MetadataStore) GetManifest(repository string, digest digest.Digest) (string, error) {
+func (s *MetadataStore) GetManifest(repository string, digest godigest.Digest) (string, error) {
 	if repo, ok := s.repositories[repository]; ok {
 		if manifest, ok := repo.manifests[digest.String()]; ok {
 			return manifest.path, nil
@@ -84,15 +86,24 @@ func (s *MetadataStore) GetManifest(repository string, digest digest.Digest) (st
 	return "", cascade.ErrManifestUnknown
 }
 
-func (s *MetadataStore) PutManifest(repository string, digest digest.Digest, path string, subject *v1.Descriptor) error {
+func (s *MetadataStore) PutManifest(repository string, digest godigest.Digest, path string, subject *v1.Descriptor) error {
 	s.ensureRepositoryExists(repository)
 	s.repositories[repository].manifests[digest.String()] = &Manifest{
 		path: path,
 	}
+	if subject != nil {
+		if s.repositories[repository].manifests == nil {
+			s.repositories[repository].manifests = make(map[string]*Manifest)
+		}
+		if s.repositories[repository].manifests[subject.Digest.String()].referrers == nil {
+			s.repositories[repository].manifests[subject.Digest.String()].referrers = make(map[godigest.Digest]any)
+		}
+		s.repositories[repository].manifests[subject.Digest.String()].referrers[digest] = nil
+	}
 	return nil
 }
 
-func (s *MetadataStore) DeleteManifest(repository string, digest digest.Digest) error {
+func (s *MetadataStore) DeleteManifest(repository string, digest godigest.Digest) error {
 	if repo, ok := s.repositories[repository]; ok {
 		delete(repo.manifests, digest.String())
 	}
@@ -141,7 +152,7 @@ func (s *MetadataStore) GetTag(repository, tag string) (string, error) {
 
 func (s *MetadataStore) PutTag(repository, tag, id string) error {
 	s.ensureRepositoryExists(repository)
-	digest, err := digest.Parse(id)
+	digest, err := godigest.Parse(id)
 	if err != nil {
 		return err
 	}
@@ -156,8 +167,16 @@ func (s *MetadataStore) DeleteTag(repository, tag string) error {
 	return nil
 }
 
-func (s *MetadataStore) ListReferrers(repository string, digest digest.Digest) ([]*v1.Descriptor, error) {
-	panic("not implemented yet")
+func (s *MetadataStore) ListReferrers(repository string, digest godigest.Digest) ([]godigest.Digest, error) {
+	if s.repositories[repository] != nil {
+		if s.repositories[repository].manifests[digest.String()] != nil {
+			return maps.Keys(s.repositories[repository].manifests[digest.String()].referrers), nil
+		}
+
+		return nil, nil
+	}
+
+	return nil, nil
 }
 
 func (s *MetadataStore) GetUpload(repository, id string) (*cascade.UploadSession, error) {

@@ -33,7 +33,7 @@ type (
 		PutTag(repository, tag, digest string) error
 		DeleteTag(repository, tag string) error
 
-		ListReferrers(repository string, digest digest.Digest) ([]*v1.Descriptor, error)
+		ListReferrers(repository string, digest digest.Digest) ([]digest.Digest, error)
 
 		// TODO: Rename to UploadSession
 		GetUpload(repository string, id string) (*UploadSession, error)

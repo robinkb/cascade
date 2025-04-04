@@ -141,15 +141,15 @@ func TestContentDiscovery(t *testing.T) {
 		client := NewTestClient(t, ts.URL)
 
 		repository := RandomName()
-		manifest, digest := RandomManifest()
+		subjectManifest, subjectDigest := RandomManifest()
 
-		resp := client.PutManifest(repository, digest.String(), manifest)
+		resp := client.PutManifest(repository, subjectDigest.String(), subjectManifest)
 		AssertResponseCode(t, resp, http.StatusCreated)
 
 		referrerCount := 3
 		referrers := make([]v1.Descriptor, referrerCount)
 		for i := range referrerCount {
-			manifest, digest := RandomManifestWithSubject(manifest)
+			manifest, digest := RandomManifestWithSubject(subjectManifest)
 			referrers[i] = v1.Descriptor{
 				MediaType:    manifest.MediaType,
 				ArtifactType: manifest.ArtifactType,
@@ -162,7 +162,7 @@ func TestContentDiscovery(t *testing.T) {
 		}
 
 		t.Run("List referrers on existing repository", func(t *testing.T) {
-			resp = client.ListReferrers(repository, digest)
+			resp = client.ListReferrers(repository, subjectDigest)
 			// Assuming a repository is found, this request MUST return a 200 OK response code.
 			AssertResponseCode(t, resp, http.StatusOK)
 			// The Content-Type header MUST be set to application/vnd.oci.image.index.v1+json.
