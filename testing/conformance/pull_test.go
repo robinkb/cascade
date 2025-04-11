@@ -27,7 +27,9 @@ func TestPull(t *testing.T) {
 
 			name := RandomName()
 			digest, manifest := RandomManifest()
-			metadata.PutManifest(name, digest, digest.String())
+			metadata.PutManifest(name, digest, &cascade.ManifestMetadata{
+				Path: digest.String(),
+			})
 			blobs.Put(digest.String(), manifest.Bytes())
 
 			resp := client.GetManifestByDigest(name, digest)
@@ -114,7 +116,9 @@ func TestPull(t *testing.T) {
 			name := RandomName()
 			digest, manifest := RandomManifest()
 
-			metadata.PutManifest(name, digest, digest.String())
+			metadata.PutManifest(name, digest, &cascade.ManifestMetadata{
+				Path: digest.String(),
+			})
 			blobs.Put(digest.String(), manifest.Bytes())
 
 			resp := client.CheckManifestByDigest(name, digest)

@@ -73,7 +73,8 @@ func (s *registryService) PutManifest(repository, reference string, content []by
 		return ErrDigestInvalid
 	}
 
-	err = json.Unmarshal(content, &v1.Manifest{})
+	var manifest v1.Manifest
+	err = json.Unmarshal(content, &manifest)
 	if err != nil {
 		return ErrManifestInvalid
 	}
@@ -85,7 +86,10 @@ func (s *registryService) PutManifest(repository, reference string, content []by
 		return err
 	}
 
-	return s.metadata.PutManifest(repository, digest, path)
+	return s.metadata.PutManifest(repository, digest, &ManifestMetadata{
+		Path:      path,
+		MediaType: manifest.MediaType,
+	})
 }
 
 func (s *registryService) DeleteManifest(repository, id string) error {

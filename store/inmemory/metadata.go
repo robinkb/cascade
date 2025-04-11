@@ -28,7 +28,8 @@ type (
 	}
 
 	Manifest struct {
-		path string
+		path      string
+		mediaType string
 	}
 
 	Blob struct {
@@ -83,10 +84,11 @@ func (s *MetadataStore) GetManifest(repository string, digest digest.Digest) (st
 	return "", cascade.ErrManifestUnknown
 }
 
-func (s *MetadataStore) PutManifest(repository string, digest digest.Digest, path string) error {
+func (s *MetadataStore) PutManifest(repository string, digest digest.Digest, meta *cascade.ManifestMetadata) error {
 	s.ensureRepositoryExists(repository)
 	s.repositories[repository].manifests[digest.String()] = &Manifest{
-		path: path,
+		path:      meta.Path,
+		mediaType: meta.MediaType,
 	}
 	return nil
 }

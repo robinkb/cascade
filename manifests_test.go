@@ -18,7 +18,9 @@ func TestStatManifest(t *testing.T) {
 
 	path := digest.String()
 	blobs.Put(path, manifest.Bytes())
-	metadata.PutManifest(name, digest, path)
+	metadata.PutManifest(name, digest, &cascade.ManifestMetadata{
+		Path: path,
+	})
 
 	t.Run("Returns FileInfo with expected size on known manifest", func(t *testing.T) {
 		info, err := service.StatManifest(name, digest.String())
@@ -58,7 +60,10 @@ func TestGetManifest(t *testing.T) {
 
 	path := digest.String()
 	blobs.Put(path, manifest)
-	metadata.PutManifest(name, digest, path)
+	metadata.PutManifest(name, digest, &cascade.ManifestMetadata{
+		Path:      path,
+		MediaType: v1.MediaTypeImageLayer,
+	})
 
 	t.Run("Retrieve an existing manifest", func(t *testing.T) {
 		got, err := service.GetManifest(name, digest.String())

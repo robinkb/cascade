@@ -22,7 +22,7 @@ type (
 		DeleteBlob(repository string, digest digest.Digest) error
 
 		GetManifest(repository string, digest digest.Digest) (string, error)
-		PutManifest(repository string, digest digest.Digest, path string) error
+		PutManifest(repository string, digest digest.Digest, meta *ManifestMetadata) error
 		DeleteManifest(repository string, digest digest.Digest) error
 
 		ListTags(repository string, count int, last string) ([]string, error)
@@ -64,5 +64,11 @@ type (
 	FileInfo struct {
 		Name string
 		Size int64
+	}
+
+	// ManifestMetadata represents the metadata of a manifest that is stored in the MetadataStore.
+	ManifestMetadata struct {
+		Path      string
+		MediaType string
 	}
 )
