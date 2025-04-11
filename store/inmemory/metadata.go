@@ -157,7 +157,7 @@ func (s *MetadataStore) DeleteTag(repository, tag string) error {
 	return nil
 }
 
-func (s *MetadataStore) GetUpload(repository, id string) (*cascade.UploadSession, error) {
+func (s *MetadataStore) GetUploadSession(repository, id string) (*cascade.UploadSession, error) {
 	if repo, ok := s.repositories[repository]; ok {
 		if session, ok := repo.uploadSessions[id]; ok {
 			return session, nil
@@ -166,13 +166,13 @@ func (s *MetadataStore) GetUpload(repository, id string) (*cascade.UploadSession
 	return nil, cascade.ErrBlobUploadUnknown
 }
 
-func (s *MetadataStore) PutUpload(repository string, session *cascade.UploadSession) error {
+func (s *MetadataStore) PutUploadSession(repository string, session *cascade.UploadSession) error {
 	s.ensureRepositoryExists(repository)
 	s.repositories[repository].uploadSessions[session.ID.String()] = session
 	return nil
 }
 
-func (s *MetadataStore) DeleteUpload(repository string, sessionID string) error {
+func (s *MetadataStore) DeleteUploadSession(repository string, sessionID string) error {
 	delete(s.repositories[repository].uploadSessions, sessionID)
 	return nil
 }

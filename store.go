@@ -30,10 +30,9 @@ type (
 		PutTag(repository, tag string, digest digest.Digest) error
 		DeleteTag(repository, tag string) error
 
-		// TODO: Rename to UploadSession
-		GetUpload(repository string, id string) (*UploadSession, error)
-		PutUpload(repository string, session *UploadSession) error
-		DeleteUpload(repository string, id string) error
+		GetUploadSession(repository string, id string) (*UploadSession, error)
+		PutUploadSession(repository string, session *UploadSession) error
+		DeleteUploadSession(repository string, id string) error
 	}
 
 	BlobStore interface {

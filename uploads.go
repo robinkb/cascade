@@ -15,7 +15,7 @@ import (
 // TODO: Should write a test to verify that uploads can only be accessed
 // from the repository where it was created. Spoiler alert: not the case.
 func (s *registryService) StatUpload(repository, sessionID string) (*FileInfo, error) {
-	session, err := s.metadata.GetUpload(repository, sessionID)
+	session, err := s.metadata.GetUploadSession(repository, sessionID)
 	if err != nil {
 		return nil, err
 	}
@@ -63,7 +63,7 @@ func (s *registryService) InitUpload(repository string) *UploadSession {
 		panic(err)
 	}
 
-	err = s.metadata.PutUpload(repository, &session)
+	err = s.metadata.PutUploadSession(repository, &session)
 	if err != nil {
 		panic(err)
 	}
@@ -72,7 +72,7 @@ func (s *registryService) InitUpload(repository string) *UploadSession {
 }
 
 func (s *registryService) AppendUpload(repository, sessionID string, r io.Reader, offset int64) error {
-	session, err := s.metadata.GetUpload(repository, sessionID)
+	session, err := s.metadata.GetUploadSession(repository, sessionID)
 	if err != nil {
 		return err
 	}
@@ -108,11 +108,11 @@ func (s *registryService) AppendUpload(repository, sessionID string, r io.Reader
 		panic(err)
 	}
 
-	return s.metadata.PutUpload(repository, session)
+	return s.metadata.PutUploadSession(repository, session)
 }
 
 func (s *registryService) CloseUpload(repository, sessionID, digest string) error {
-	session, err := s.metadata.GetUpload(repository, sessionID)
+	session, err := s.metadata.GetUploadSession(repository, sessionID)
 	if err != nil {
 		return err
 	}
