@@ -134,21 +134,18 @@ func (s *MetadataStore) ListTags(repository string, count int, last string) ([]s
 	return tags[start : start+count], nil
 }
 
-func (s *MetadataStore) GetTag(repository, tag string) (string, error) {
+func (s *MetadataStore) GetTag(repository, tag string) (digest.Digest, error) {
 	if repo, ok := s.repositories[repository]; ok {
 		if tag, ok := repo.tags[tag]; ok {
-			return tag.digest.String(), nil
+			return tag.digest, nil
 		}
 	}
 	return "", cascade.ErrManifestUnknown
 }
 
-func (s *MetadataStore) PutTag(repository, tag, id string) error {
+func (s *MetadataStore) PutTag(repository, tag string, digest digest.Digest) error {
 	s.ensureRepositoryExists(repository)
-	digest, err := digest.Parse(id)
-	if err != nil {
-		return err
-	}
+
 	s.repositories[repository].tags[tag] = &Tag{
 		digest: digest,
 	}
@@ -160,7 +157,7 @@ func (s *MetadataStore) DeleteTag(repository, tag string) error {
 	return nil
 }
 
-func (s *MetadataStore) GetUpload(repository, id string) (*cascade.UploadSession, error) {
+func (s *MetadataStore) GetUploadSession(repository, id string) (*cascade.UploadSession, error) {
 	if repo, ok := s.repositories[repository]; ok {
 		if session, ok := repo.uploadSessions[id]; ok {
 			return session, nil
@@ -169,13 +166,13 @@ func (s *MetadataStore) GetUpload(repository, id string) (*cascade.UploadSession
 	return nil, cascade.ErrBlobUploadUnknown
 }
 
-func (s *MetadataStore) PutUpload(repository string, session *cascade.UploadSession) error {
+func (s *MetadataStore) PutUploadSession(repository string, session *cascade.UploadSession) error {
 	s.ensureRepositoryExists(repository)
 	s.repositories[repository].uploadSessions[session.ID.String()] = session
 	return nil
 }
 
-func (s *MetadataStore) DeleteUpload(repository string, sessionID string) error {
+func (s *MetadataStore) DeleteUploadSession(repository string, sessionID string) error {
 	delete(s.repositories[repository].uploadSessions, sessionID)
 	return nil
 }
