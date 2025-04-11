@@ -9,26 +9,6 @@ import (
 	v1 "github.com/opencontainers/image-spec/specs-go/v1"
 )
 
-func NewManifest(content []byte) (*Manifest, error) {
-	var manifest Manifest
-	err := json.Unmarshal(content, &manifest)
-	if err != nil {
-		err = ErrManifestInvalid
-	}
-	manifest.bytes = content
-
-	return &manifest, err
-}
-
-type Manifest struct {
-	v1.Manifest
-	bytes []byte
-}
-
-func (m *Manifest) Bytes() []byte {
-	return m.bytes
-}
-
 func (s *registryService) StatManifest(repository, id string) (*FileInfo, error) {
 	digest, err := digest.Parse(id)
 	if err != nil {
