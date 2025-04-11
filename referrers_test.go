@@ -23,7 +23,6 @@ func TestListReferrers(t *testing.T) {
 		for i := range referrerCount {
 			manifest, digest := RandomManifestWithSubject(subjectManifest)
 			referrers[i] = v1.Descriptor{
-				MediaType:    manifest.MediaType,
 				ArtifactType: manifest.ArtifactType,
 				Digest:       digest,
 				Size:         int64(len(manifest.Bytes())),
@@ -37,7 +36,11 @@ func TestListReferrers(t *testing.T) {
 		idx, err := service.ListReferrers(repository, subjectDigest.String())
 		AssertNoError(t, err)
 
+		AssertEqual(t, idx.MediaType, "application/vnd.oci.image.index.v1+json")
 		AssertIndexContainsReferrers(t, idx, referrers...)
+	})
+
+	t.Run("Listed referrer ", func(t *testing.T) {
 	})
 
 	t.Run("Invalid digest returns error", func(t *testing.T) {

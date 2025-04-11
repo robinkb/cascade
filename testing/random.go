@@ -31,6 +31,11 @@ func RandomDigest() digest.Digest {
 func RandomManifest() (*cascade.Manifest, digest.Digest) {
 	content, _ := json.Marshal(v1.Manifest{
 		MediaType: v1.MediaTypeImageManifest,
+		Annotations: map[string]string{
+			// Small amount of random content to make sure that
+			// every generated manifest has a unique digest.
+			"random": string(RandomContents(32)),
+		},
 	})
 	id := digest.FromBytes(content)
 	manifest, _ := cascade.NewManifest(content)

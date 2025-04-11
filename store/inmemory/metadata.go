@@ -1,6 +1,7 @@
 package inmemory
 
 import (
+	"errors"
 	"slices"
 
 	godigest "github.com/opencontainers/go-digest"
@@ -95,6 +96,9 @@ func (s *MetadataStore) PutManifest(repository string, digest godigest.Digest, p
 		if s.repositories[repository].manifests == nil {
 			s.repositories[repository].manifests = make(map[string]*Manifest)
 		}
+		if s.repositories[repository].manifests[subject.Digest.String()] == nil {
+			s.repositories[repository].manifests[subject.Digest.String()] = &Manifest{}
+		}
 		if s.repositories[repository].manifests[subject.Digest.String()].referrers == nil {
 			s.repositories[repository].manifests[subject.Digest.String()].referrers = make(map[godigest.Digest]any)
 		}
@@ -173,10 +177,10 @@ func (s *MetadataStore) ListReferrers(repository string, digest godigest.Digest)
 			return maps.Keys(s.repositories[repository].manifests[digest.String()].referrers), nil
 		}
 
-		return nil, nil
+		return nil, errors.New("unexpected error")
 	}
 
-	return nil, nil
+	return nil, errors.New("unexpected error?")
 }
 
 func (s *MetadataStore) GetUpload(repository, id string) (*cascade.UploadSession, error) {

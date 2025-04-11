@@ -1,11 +1,13 @@
 package conformance
 
 import (
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"slices"
 	"testing"
 
+	"github.com/opencontainers/go-digest"
 	v1 "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/robinkb/cascade-registry"
 	"github.com/robinkb/cascade-registry/server"
@@ -146,22 +148,22 @@ func TestContentDiscovery(t *testing.T) {
 		resp := client.PutManifest(repository, subjectDigest.String(), subjectManifest)
 		AssertResponseCode(t, resp, http.StatusCreated)
 
-		referrerCount := 3
-		referrers := make([]v1.Descriptor, referrerCount)
-		for i := range referrerCount {
-			manifest, digest := RandomManifestWithSubject(subjectManifest)
-			referrers[i] = v1.Descriptor{
-				MediaType:    manifest.MediaType,
-				ArtifactType: manifest.ArtifactType,
-				Digest:       digest,
-				Size:         int64(len(manifest.Bytes())),
-				Annotations:  manifest.Annotations,
-			}
-			resp = client.PutManifest(repository, digest.String(), manifest)
+		subjectDescriptor := v1.Descriptor{
+			MediaType: subjectManifest.MediaType,
+			Digest:    subjectDigest,
+			Size:      int64(len(subjectManifest.Bytes())),
+		}
+
+		referrerManifests, wantIndex := generateIndex(&subjectDescriptor)
+
+		for i := range referrerManifests {
+			resp = client.PutManifest(repository, wantIndex.Manifests[i].Digest.String(), manifest)
 			AssertResponseCode(t, resp, http.StatusCreated)
 		}
 
 		t.Run("List referrers on existing repository", func(t *testing.T) {
+			client := NewTestClient(t, ts.URL)
+
 			resp = client.ListReferrers(repository, subjectDigest)
 			// Assuming a repository is found, this request MUST return a 200 OK response code.
 			AssertResponseCode(t, resp, http.StatusOK)
@@ -172,11 +174,36 @@ func TestContentDiscovery(t *testing.T) {
 			var index v1.Index
 			AssertResponseBodyUnmarshals(t, resp, &index)
 
+			AssertEqual(t, index.MediaType, "application/vnd.oci.image.index.v1+json")
+
+			// Each descriptor is of an image manifest or index in the same <name> namespace with a subject field that specifies the value of <digest>.
+			// The descriptors MUST include an artifactType field that is set to the value of the artifactType in the image manifest or index, if present.
+			// The descriptors MUST include annotations from the image manifest or index.
 			AssertIndexContainsReferrers(t, &index, referrers...)
-			// TODO: Assert index contents
+		})
+
+		t.Run("List referrers of a manifest without referrers", func(t *testing.T) {
+			client := NewTestClient(t, ts.URL)
+
+			manifest, digest := RandomManifest()
+
+			resp := client.PutManifest(repository, digest.String(), manifest)
+			AssertResponseCode(t, resp, http.StatusCreated)
+
+			resp = client.ListReferrers(repository, digest)
+			AssertResponseCode(t, resp, http.StatusOK)
+
+			// Upon success, the response MUST be a JSON body with an image index containing a list of descriptors.
+			var index v1.Index
+			AssertResponseBodyUnmarshals(t, resp, &index)
+
+			// If a query results in no matching referrers, an empty manifest list MUST be returned.
+			AssertIndexContainsReferrers(t, &index)
 		})
 
 		t.Run("List referrers on unknown repository", func(t *testing.T) {
+			client := NewTestClient(t, ts.URL)
+
 			repository := RandomName()
 			digest := RandomDigest()
 
@@ -186,10 +213,108 @@ func TestContentDiscovery(t *testing.T) {
 		})
 
 		t.Run("List referrers with a bad digest", func(t *testing.T) {
+			client := NewTestClient(t, ts.URL)
+
 			resp := client.ListReferrers(repository, "12345")
 			// If the request is invalid, such as a <digest> with an invalid syntax, a 400 Bad Request MUST be returned.
 			AssertResponseCode(t, resp, http.StatusBadRequest)
 		})
 
 	})
+}
+
+func generateIndex(subject *v1.Descriptor) ([]*v1.Manifest, *v1.Index) {
+	manifests := make([]*v1.Manifest, 5)
+	idx := &v1.Index{
+		MediaType: v1.MediaTypeImageIndex,
+		Manifests: make([]v1.Descriptor, 0),
+	}
+
+	imageManifestWithArtifactType := v1.Manifest{
+		ArtifactType: "application/vnd.example.sbom.v1",
+		MediaType:    v1.MediaTypeImageManifest,
+		Annotations: map[string]string{
+			"test/case": "image manifest with artifact type",
+			"random":    string(RandomContents(32)),
+		},
+		Subject: subject,
+	}
+	size, digest := calculateSizeAndDigest(imageManifestWithArtifactType)
+	idx.Manifests = append(idx.Manifests, v1.Descriptor{
+		// The descriptors MUST include an artifactType field that is set to the value
+		// of the artifactType in the image manifest or index, if present.
+		ArtifactType: imageManifestWithArtifactType.ArtifactType,
+		Size:         size,
+		Digest:       digest,
+		Annotations:  imageManifestWithArtifactType.Annotations,
+	})
+
+	imageManifestWithoutArtifactType := v1.Manifest{
+		MediaType: v1.MediaTypeImageManifest,
+		Annotations: map[string]string{
+			"test/case": "image manifest without artifact type",
+			"random":    string(RandomContents(32)),
+		},
+		Subject: subject,
+	}
+	size, digest = calculateSizeAndDigest(imageManifestWithArtifactType)
+	idx.Manifests = append(idx.Manifests, v1.Descriptor{
+		// If the artifactType is empty or missing in the image manifest,
+		// the value of artifactType MUST be set to the config descriptor
+		// mediaType value.
+		ArtifactType: imageManifestWithoutArtifactType.Config.MediaType,
+		Size:         size,
+		Digest:       digest,
+		Annotations:  imageManifestWithoutArtifactType.Annotations,
+	})
+
+	indexManifestWithArtifactType := v1.Manifest{
+		ArtifactType: "application/vnd.example.index.v1",
+		MediaType:    v1.MediaTypeImageIndex,
+		Annotations: map[string]string{
+			"test/case": "index manifest with artifact type",
+			"random":    string(RandomContents(32)),
+		},
+		Subject: subject,
+	}
+	size, digest = calculateSizeAndDigest(imageManifestWithArtifactType)
+	idx.Manifests = append(idx.Manifests, v1.Descriptor{
+		// The descriptors MUST include an artifactType field that is set to the value
+		// of the artifactType in the image manifest or index, if present.
+		ArtifactType: indexManifestWithArtifactType.ArtifactType,
+		Size:         size,
+		Digest:       digest,
+		Annotations:  indexManifestWithArtifactType.Annotations,
+	})
+
+	indexManifestWithoutArtifactType := v1.Manifest{
+		MediaType: v1.MediaTypeImageIndex,
+		Annotations: map[string]string{
+			"test/case": "index manifest without artifact type",
+			"random":    string(RandomContents(32)),
+		},
+		Subject: subject,
+	}
+	size, digest = calculateSizeAndDigest(indexManifestWithoutArtifactType)
+	idx.Manifests = append(idx.Manifests, v1.Descriptor{
+		// If the artifactType is empty or missing in an index, the artifactType MUST be omitted.
+		Size:        size,
+		Digest:      digest,
+		Annotations: indexManifestWithoutArtifactType.Annotations,
+	})
+
+	manifests = append(manifests,
+		&imageManifestWithArtifactType,
+		&imageManifestWithoutArtifactType,
+		&indexManifestWithArtifactType,
+		&indexManifestWithoutArtifactType,
+	)
+
+	return manifests, idx
+}
+
+func calculateSizeAndDigest(manifest v1.Manifest) (int64, digest.Digest) {
+	data, _ := json.Marshal(manifest)
+	digest := digest.FromBytes(data)
+	return int64(len(data)), digest
 }
