@@ -81,13 +81,17 @@ func TestStatManifests(t *testing.T) {
 func TestGetManifests(t *testing.T) {
 	name := RandomName()
 	digest, manifest := RandomManifest()
+	meta := &cascade.ManifestMetadata{
+		MediaType: manifest.MediaType,
+		Path:      digest.String(),
+	}
 	tag := RandomVersion()
 
 	t.Run("Retrieving an existing manifest returns 200", func(t *testing.T) {
 		service := mock.NewRegistryService(t)
 		service.EXPECT().
 			GetManifest(name, digest.String()).
-			Return(cascade.NewManifest(manifest.Bytes()))
+			Return(meta, manifest.Bytes(), nil)
 
 		client := NewTestClientWithServer(t, service)
 
@@ -105,7 +109,7 @@ func TestGetManifests(t *testing.T) {
 			Return(digest.String(), nil)
 		service.EXPECT().
 			GetManifest(name, digest.String()).
-			Return(cascade.NewManifest(manifest.Bytes()))
+			Return(meta, manifest.Bytes(), nil)
 
 		client := NewTestClientWithServer(t, service)
 
@@ -119,7 +123,7 @@ func TestGetManifests(t *testing.T) {
 		service := mock.NewRegistryService(t)
 		service.EXPECT().
 			GetManifest(name, digest.String()).
-			Return(nil, cascade.ErrManifestUnknown)
+			Return(nil, nil, cascade.ErrManifestUnknown)
 
 		client := NewTestClientWithServer(t, service)
 

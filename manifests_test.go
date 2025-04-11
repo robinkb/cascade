@@ -66,13 +66,13 @@ func TestGetManifest(t *testing.T) {
 	})
 
 	t.Run("Retrieve an existing manifest", func(t *testing.T) {
-		got, err := service.GetManifest(name, digest.String())
+		_, got, err := service.GetManifest(name, digest.String())
 		AssertNoError(t, err)
-		AssertSlicesEqual(t, got.Bytes(), manifest)
+		AssertSlicesEqual(t, got, manifest)
 	})
 
 	t.Run("returns ErrManifestUnknown on unknown manifest", func(t *testing.T) {
-		_, err := service.GetManifest("i/do/not/exist", "sha256:ce5449ab65895b60068d164e81b646753d268583a70895acee51e1d711ddf3a2")
+		_, _, err := service.GetManifest("i/do/not/exist", "sha256:ce5449ab65895b60068d164e81b646753d268583a70895acee51e1d711ddf3a2")
 		AssertErrorIs(t, err, cascade.ErrManifestUnknown)
 	})
 }
@@ -87,9 +87,9 @@ func TestPutManifest(t *testing.T) {
 		err := service.PutManifest(name, digest.String(), manifest.Bytes())
 		AssertNoError(t, err)
 
-		got, err := service.GetManifest(name, digest.String())
+		_, got, err := service.GetManifest(name, digest.String())
 		AssertNoError(t, err)
-		AssertSlicesEqual(t, got.Bytes(), manifest.Bytes())
+		AssertSlicesEqual(t, got, manifest.Bytes())
 	})
 
 	t.Run("Putting a manifest with invalid content returns ErrManifestInvalid", func(t *testing.T) {

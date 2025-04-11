@@ -49,10 +49,10 @@ func TestPutTag(t *testing.T) {
 		gotDigest, err := service.GetTag(name, tag)
 		AssertNoError(t, err)
 
-		gotManifest, err := service.GetManifest(name, gotDigest)
+		_, gotManifest, err := service.GetManifest(name, gotDigest)
 		AssertNoError(t, err)
 
-		AssertSlicesEqual(t, gotManifest.Bytes(), manifest.Bytes())
+		AssertSlicesEqual(t, gotManifest, manifest.Bytes())
 	})
 }
 

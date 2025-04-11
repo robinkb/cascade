@@ -28,7 +28,8 @@ func TestPull(t *testing.T) {
 			name := RandomName()
 			digest, manifest := RandomManifest()
 			metadata.PutManifest(name, digest, &cascade.ManifestMetadata{
-				Path: digest.String(),
+				Path:      digest.String(),
+				MediaType: manifest.MediaType,
 			})
 			blobs.Put(digest.String(), manifest.Bytes())
 

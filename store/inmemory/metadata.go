@@ -75,13 +75,16 @@ func (s *MetadataStore) DeleteBlob(repository string, digest digest.Digest) erro
 	return nil
 }
 
-func (s *MetadataStore) GetManifest(repository string, digest digest.Digest) (string, error) {
+func (s *MetadataStore) GetManifest(repository string, digest digest.Digest) (*cascade.ManifestMetadata, error) {
 	if repo, ok := s.repositories[repository]; ok {
 		if manifest, ok := repo.manifests[digest.String()]; ok {
-			return manifest.path, nil
+			return &cascade.ManifestMetadata{
+				Path:      manifest.path,
+				MediaType: manifest.mediaType,
+			}, nil
 		}
 	}
-	return "", cascade.ErrManifestUnknown
+	return nil, cascade.ErrManifestUnknown
 }
 
 func (s *MetadataStore) PutManifest(repository string, digest digest.Digest, meta *cascade.ManifestMetadata) error {

@@ -21,7 +21,7 @@ type (
 		PutBlob(repository string, digest digest.Digest, path string) error
 		DeleteBlob(repository string, digest digest.Digest) error
 
-		GetManifest(repository string, digest digest.Digest) (string, error)
+		GetManifest(repository string, digest digest.Digest) (*ManifestMetadata, error)
 		PutManifest(repository string, digest digest.Digest, meta *ManifestMetadata) error
 		DeleteManifest(repository string, digest digest.Digest) error
 

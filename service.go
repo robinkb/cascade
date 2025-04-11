@@ -14,7 +14,7 @@ type (
 		DeleteBlob(repository, digest string) error
 
 		StatManifest(repository, reference string) (*FileInfo, error)
-		GetManifest(repository, reference string) (*Manifest, error)
+		GetManifest(repository, reference string) (*ManifestMetadata, []byte, error)
 		PutManifest(repository, reference string, content []byte) error
 		DeleteManifest(repository, reference string) error
 

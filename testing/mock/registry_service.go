@@ -321,33 +321,42 @@ func (_c *RegistryService_GetBlob_Call) RunAndReturn(run func(string, string) (i
 }
 
 // GetManifest provides a mock function with given fields: repository, reference
-func (_m *RegistryService) GetManifest(repository string, reference string) (*cascade.Manifest, error) {
+func (_m *RegistryService) GetManifest(repository string, reference string) (*cascade.ManifestMetadata, []byte, error) {
 	ret := _m.Called(repository, reference)
 
 	if len(ret) == 0 {
 		panic("no return value specified for GetManifest")
 	}
 
-	var r0 *cascade.Manifest
-	var r1 error
-	if rf, ok := ret.Get(0).(func(string, string) (*cascade.Manifest, error)); ok {
+	var r0 *cascade.ManifestMetadata
+	var r1 []byte
+	var r2 error
+	if rf, ok := ret.Get(0).(func(string, string) (*cascade.ManifestMetadata, []byte, error)); ok {
 		return rf(repository, reference)
 	}
-	if rf, ok := ret.Get(0).(func(string, string) *cascade.Manifest); ok {
+	if rf, ok := ret.Get(0).(func(string, string) *cascade.ManifestMetadata); ok {
 		r0 = rf(repository, reference)
 	} else {
 		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(*cascade.Manifest)
+			r0 = ret.Get(0).(*cascade.ManifestMetadata)
 		}
 	}
 
-	if rf, ok := ret.Get(1).(func(string, string) error); ok {
+	if rf, ok := ret.Get(1).(func(string, string) []byte); ok {
 		r1 = rf(repository, reference)
 	} else {
-		r1 = ret.Error(1)
+		if ret.Get(1) != nil {
+			r1 = ret.Get(1).([]byte)
+		}
 	}
 
-	return r0, r1
+	if rf, ok := ret.Get(2).(func(string, string) error); ok {
+		r2 = rf(repository, reference)
+	} else {
+		r2 = ret.Error(2)
+	}
+
+	return r0, r1, r2
 }
 
 // RegistryService_GetManifest_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetManifest'
@@ -369,12 +378,12 @@ func (_c *RegistryService_GetManifest_Call) Run(run func(repository string, refe
 	return _c
 }
 
-func (_c *RegistryService_GetManifest_Call) Return(_a0 *cascade.Manifest, _a1 error) *RegistryService_GetManifest_Call {
-	_c.Call.Return(_a0, _a1)
+func (_c *RegistryService_GetManifest_Call) Return(_a0 *cascade.ManifestMetadata, _a1 []byte, _a2 error) *RegistryService_GetManifest_Call {
+	_c.Call.Return(_a0, _a1, _a2)
 	return _c
 }
 
-func (_c *RegistryService_GetManifest_Call) RunAndReturn(run func(string, string) (*cascade.Manifest, error)) *RegistryService_GetManifest_Call {
+func (_c *RegistryService_GetManifest_Call) RunAndReturn(run func(string, string) (*cascade.ManifestMetadata, []byte, error)) *RegistryService_GetManifest_Call {
 	_c.Call.Return(run)
 	return _c
 }
