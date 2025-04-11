@@ -134,21 +134,18 @@ func (s *MetadataStore) ListTags(repository string, count int, last string) ([]s
 	return tags[start : start+count], nil
 }
 
-func (s *MetadataStore) GetTag(repository, tag string) (string, error) {
+func (s *MetadataStore) GetTag(repository, tag string) (digest.Digest, error) {
 	if repo, ok := s.repositories[repository]; ok {
 		if tag, ok := repo.tags[tag]; ok {
-			return tag.digest.String(), nil
+			return tag.digest, nil
 		}
 	}
 	return "", cascade.ErrManifestUnknown
 }
 
-func (s *MetadataStore) PutTag(repository, tag, id string) error {
+func (s *MetadataStore) PutTag(repository, tag string, digest digest.Digest) error {
 	s.ensureRepositoryExists(repository)
-	digest, err := digest.Parse(id)
-	if err != nil {
-		return err
-	}
+
 	s.repositories[repository].tags[tag] = &Tag{
 		digest: digest,
 	}

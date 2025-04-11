@@ -26,10 +26,8 @@ type (
 		DeleteManifest(repository string, digest digest.Digest) error
 
 		ListTags(repository string, count int, last string) ([]string, error)
-		// TODO: Return digest.Digest instead of string?
-		GetTag(repository, tag string) (string, error)
-		// TODO: Accept digest.Digest instead of string?
-		PutTag(repository, tag, digest string) error
+		GetTag(repository, tag string) (digest.Digest, error)
+		PutTag(repository, tag string, digest digest.Digest) error
 		DeleteTag(repository, tag string) error
 
 		// TODO: Rename to UploadSession

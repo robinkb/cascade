@@ -29,7 +29,7 @@ func TestContentDiscovery(t *testing.T) {
 	}
 
 	for _, tag := range tags {
-		metadata.PutTag(repository, tag, digest.String())
+		metadata.PutTag(repository, tag, digest)
 	}
 
 	// Sort the tags _after_ putting them into the registry,
