@@ -9,38 +9,18 @@ import (
 	v1 "github.com/opencontainers/image-spec/specs-go/v1"
 )
 
-func NewManifest(content []byte) (*Manifest, error) {
-	var manifest Manifest
-	err := json.Unmarshal(content, &manifest)
-	if err != nil {
-		err = ErrManifestInvalid
-	}
-	manifest.bytes = content
-
-	return &manifest, err
-}
-
-type Manifest struct {
-	v1.Manifest
-	bytes []byte
-}
-
-func (m *Manifest) Bytes() []byte {
-	return m.bytes
-}
-
 func (s *registryService) StatManifest(repository, id string) (*FileInfo, error) {
 	digest, err := digest.Parse(id)
 	if err != nil {
 		return nil, ErrManifestUnknown
 	}
 
-	path, err := s.metadata.GetManifest(repository, digest)
+	meta, err := s.metadata.GetManifest(repository, digest)
 	if err != nil {
 		return nil, ErrManifestUnknown
 	}
 
-	info, err := s.blobs.Stat(path)
+	info, err := s.blobs.Stat(meta.Path)
 	if errors.Is(err, ErrFileNotFound) {
 		return nil, ErrManifestUnknown
 	}
@@ -48,23 +28,23 @@ func (s *registryService) StatManifest(repository, id string) (*FileInfo, error)
 	return info, err
 }
 
-func (s *registryService) GetManifest(repository, id string) (*Manifest, error) {
+func (s *registryService) GetManifest(repository, id string) (*ManifestMetadata, []byte, error) {
 	digest, err := digest.Parse(id)
 	if err != nil {
-		return nil, ErrBlobUnknown
+		return nil, nil, ErrBlobUnknown
 	}
 
-	path, err := s.metadata.GetManifest(repository, digest)
+	meta, err := s.metadata.GetManifest(repository, digest)
 	if err != nil {
-		return nil, ErrManifestUnknown
+		return nil, nil, ErrManifestUnknown
 	}
 
-	content, err := s.blobs.Get(path)
+	content, err := s.blobs.Get(meta.Path)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
-	return NewManifest(content)
+	return meta, content, nil
 }
 
 func (s *registryService) PutManifest(repository, reference string, content []byte) error {
@@ -73,7 +53,8 @@ func (s *registryService) PutManifest(repository, reference string, content []by
 		return ErrDigestInvalid
 	}
 
-	err = json.Unmarshal(content, &v1.Manifest{})
+	var manifest v1.Manifest
+	err = json.Unmarshal(content, &manifest)
 	if err != nil {
 		return ErrManifestInvalid
 	}
@@ -85,7 +66,10 @@ func (s *registryService) PutManifest(repository, reference string, content []by
 		return err
 	}
 
-	return s.metadata.PutManifest(repository, digest, path)
+	return s.metadata.PutManifest(repository, digest, &ManifestMetadata{
+		Path:      path,
+		MediaType: manifest.MediaType,
+	})
 }
 
 func (s *registryService) DeleteManifest(repository, id string) error {
@@ -94,12 +78,12 @@ func (s *registryService) DeleteManifest(repository, id string) error {
 		return ErrManifestUnknown
 	}
 
-	path, err := s.metadata.GetManifest(repository, digest)
+	meta, err := s.metadata.GetManifest(repository, digest)
 	if err != nil {
 		return ErrManifestUnknown
 	}
 
-	err = s.blobs.Delete(path)
+	err = s.blobs.Delete(meta.Path)
 	if err != nil {
 		return err
 	}

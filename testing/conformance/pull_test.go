@@ -26,15 +26,18 @@ func TestPull(t *testing.T) {
 			client := NewTestClient(t, ts.URL)
 
 			name := RandomName()
-			digest, manifest := RandomManifest()
-			metadata.PutManifest(name, digest, digest.String())
-			blobs.Put(digest.String(), manifest.Bytes())
+			digest, manifest, content := RandomManifest()
+			metadata.PutManifest(name, digest, &cascade.ManifestMetadata{
+				Path:      digest.String(),
+				MediaType: manifest.MediaType,
+			})
+			blobs.Put(digest.String(), content)
 
 			resp := client.GetManifestByDigest(name, digest)
 
 			// A GET request to an existing manifest URL MUST provide the expected manifest, with a response code that MUST be 200 OK.
 			AssertResponseCode(t, resp, http.StatusOK)
-			AssertResponseBodyEquals(t, resp, manifest.Bytes())
+			AssertResponseBodyEquals(t, resp, content)
 
 			// In a successful response, the Content-Type header will indicate the type of the returned manifest.
 			// The registry SHOULD NOT include parameters on the Content-Type header.
@@ -112,10 +115,12 @@ func TestPull(t *testing.T) {
 			client := NewTestClient(t, ts.URL)
 
 			name := RandomName()
-			digest, manifest := RandomManifest()
+			digest, _, content := RandomManifest()
 
-			metadata.PutManifest(name, digest, digest.String())
-			blobs.Put(digest.String(), manifest.Bytes())
+			metadata.PutManifest(name, digest, &cascade.ManifestMetadata{
+				Path: digest.String(),
+			})
+			blobs.Put(digest.String(), content)
 
 			resp := client.CheckManifestByDigest(name, digest)
 
@@ -123,7 +128,7 @@ func TestPull(t *testing.T) {
 			AssertResponseCode(t, resp, http.StatusOK)
 
 			// A successful response SHOULD contain the size in bytes of the uploaded blob in the header Content-Length.
-			contentLength := strconv.Itoa(len(manifest.Bytes()))
+			contentLength := strconv.Itoa(len(content))
 			AssertResponseHeader(t, resp, "Content-Length", contentLength)
 		})
 

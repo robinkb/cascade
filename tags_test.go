@@ -37,10 +37,10 @@ func TestPutTag(t *testing.T) {
 
 	t.Run("Tag creates a link to the manifest digest", func(t *testing.T) {
 		name := RandomName()
-		digest, manifest := RandomManifest()
+		digest, _, content := RandomManifest()
 		tag := "v0.5.1"
 
-		err := service.PutManifest(name, digest.String(), manifest.Bytes())
+		err := service.PutManifest(name, digest.String(), content)
 		AssertNoError(t, err)
 
 		err = service.PutTag(name, tag, digest.String())
@@ -49,10 +49,10 @@ func TestPutTag(t *testing.T) {
 		gotDigest, err := service.GetTag(name, tag)
 		AssertNoError(t, err)
 
-		gotManifest, err := service.GetManifest(name, gotDigest)
+		_, gotManifest, err := service.GetManifest(name, gotDigest)
 		AssertNoError(t, err)
 
-		AssertSlicesEqual(t, gotManifest.Bytes(), manifest.Bytes())
+		AssertSlicesEqual(t, gotManifest, content)
 	})
 }
 

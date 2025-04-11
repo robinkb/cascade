@@ -14,18 +14,20 @@ func TestStatManifest(t *testing.T) {
 	service, metadata, blobs := newTestRegistry()
 
 	name := RandomName()
-	digest, manifest := RandomManifest()
+	digest, _, content := RandomManifest()
 
 	path := digest.String()
-	blobs.Put(path, manifest.Bytes())
-	metadata.PutManifest(name, digest, path)
+	blobs.Put(path, content)
+	metadata.PutManifest(name, digest, &cascade.ManifestMetadata{
+		Path: path,
+	})
 
 	t.Run("Returns FileInfo with expected size on known manifest", func(t *testing.T) {
 		info, err := service.StatManifest(name, digest.String())
 		AssertNoError(t, err)
 
 		got := info.Size
-		want := int64(len(manifest.Bytes()))
+		want := int64(len(content))
 
 		if got != want {
 			t.Errorf("got size of %d, expected %d", got, want)
@@ -58,16 +60,19 @@ func TestGetManifest(t *testing.T) {
 
 	path := digest.String()
 	blobs.Put(path, manifest)
-	metadata.PutManifest(name, digest, path)
+	metadata.PutManifest(name, digest, &cascade.ManifestMetadata{
+		Path:      path,
+		MediaType: v1.MediaTypeImageLayer,
+	})
 
 	t.Run("Retrieve an existing manifest", func(t *testing.T) {
-		got, err := service.GetManifest(name, digest.String())
+		_, got, err := service.GetManifest(name, digest.String())
 		AssertNoError(t, err)
-		AssertSlicesEqual(t, got.Bytes(), manifest)
+		AssertSlicesEqual(t, got, manifest)
 	})
 
 	t.Run("returns ErrManifestUnknown on unknown manifest", func(t *testing.T) {
-		_, err := service.GetManifest("i/do/not/exist", "sha256:ce5449ab65895b60068d164e81b646753d268583a70895acee51e1d711ddf3a2")
+		_, _, err := service.GetManifest("i/do/not/exist", "sha256:ce5449ab65895b60068d164e81b646753d268583a70895acee51e1d711ddf3a2")
 		AssertErrorIs(t, err, cascade.ErrManifestUnknown)
 	})
 }
@@ -77,14 +82,14 @@ func TestPutManifest(t *testing.T) {
 
 	t.Run("Put and retrieve a manifest", func(t *testing.T) {
 		name := RandomName()
-		digest, manifest := RandomManifest()
+		digest, _, content := RandomManifest()
 
-		err := service.PutManifest(name, digest.String(), manifest.Bytes())
+		err := service.PutManifest(name, digest.String(), content)
 		AssertNoError(t, err)
 
-		got, err := service.GetManifest(name, digest.String())
+		_, got, err := service.GetManifest(name, digest.String())
 		AssertNoError(t, err)
-		AssertSlicesEqual(t, got.Bytes(), manifest.Bytes())
+		AssertSlicesEqual(t, got, content)
 	})
 
 	t.Run("Putting a manifest with invalid content returns ErrManifestInvalid", func(t *testing.T) {
@@ -101,9 +106,9 @@ func TestDeleteManifest(t *testing.T) {
 
 	t.Run("Delete manifest and make sure it cannot be retrieved", func(t *testing.T) {
 		name := RandomName()
-		digest, manifest := RandomManifest()
+		digest, _, content := RandomManifest()
 
-		err := service.PutManifest(name, digest.String(), manifest.Bytes())
+		err := service.PutManifest(name, digest.String(), content)
 		RequireNoError(t, err)
 
 		_, err = service.StatManifest(name, digest.String())

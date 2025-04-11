@@ -62,15 +62,15 @@ func (s *Server) getManifestsHandler(w http.ResponseWriter, r *http.Request) {
 		reference, _ = s.service.GetTag(repository, reference)
 	}
 
-	manifest, err := s.service.GetManifest(repository, reference)
+	meta, content, err := s.service.GetManifest(repository, reference)
 	if err != nil {
 		writeErrorResponse(w, err)
 		return
 	}
 
-	w.Header().Set(HeaderContentType, manifest.MediaType)
+	w.Header().Set(HeaderContentType, meta.MediaType)
 	w.WriteHeader(http.StatusOK)
-	w.Write(manifest.Bytes())
+	w.Write(content)
 }
 
 func (s *Server) putManifestsHandler(w http.ResponseWriter, r *http.Request) {

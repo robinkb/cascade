@@ -100,11 +100,11 @@ func TestServiceUpload(t *testing.T) {
 
 	t.Run("written upload is retrievable", func(t *testing.T) {
 		name := RandomName()
-		digest, manifest := RandomManifest()
+		digest, _, content := RandomManifest()
 
 		session := service.InitUpload(name)
 
-		err := service.AppendUpload(name, session.ID.String(), bytes.NewBuffer(manifest.Bytes()), 0)
+		err := service.AppendUpload(name, session.ID.String(), bytes.NewBuffer(content), 0)
 		RequireNoError(t, err)
 
 		err = service.CloseUpload(name, session.ID.String(), digest.String())
@@ -115,7 +115,7 @@ func TestServiceUpload(t *testing.T) {
 
 		got, err := io.ReadAll(r)
 		AssertNoError(t, err)
-		AssertSlicesEqual(t, got, manifest.Bytes())
+		AssertSlicesEqual(t, got, content)
 	})
 
 	t.Run("writing multiple times to same upload appends", func(t *testing.T) {

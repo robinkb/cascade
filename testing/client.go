@@ -2,6 +2,7 @@ package testing
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -11,6 +12,7 @@ import (
 	"testing"
 
 	"github.com/opencontainers/go-digest"
+	v1 "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/robinkb/cascade-registry"
 	"github.com/robinkb/cascade-registry/server"
 )
@@ -83,12 +85,19 @@ func (c *Client) GetManifestByTag(name string, tag string) *http.Response {
 	return c.Do(http.MethodGet, path, nil, nil)
 }
 
-func (c *Client) PutManifest(name string, reference string, manifest *cascade.Manifest) *http.Response {
+func (c *Client) PutManifest(name string, reference string, content []byte) *http.Response {
 	path := fmt.Sprintf("/v2/%s/manifests/%s", name, reference)
+
+	var manifest v1.Manifest
+	err := json.Unmarshal(content, &manifest)
+	if err != nil {
+		c.t.Fatal("failed to unmarshal manifest")
+	}
+
 	headers := make(http.Header)
 	headers.Set("Content-Type", manifest.MediaType)
 
-	return c.Do(http.MethodPut, path, headers, bytes.NewBuffer(manifest.Bytes()))
+	return c.Do(http.MethodPut, path, headers, bytes.NewBuffer(content))
 }
 
 func (c *Client) DeleteManifest(name string, digest digest.Digest) *http.Response {
