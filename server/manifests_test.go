@@ -14,8 +14,8 @@ import (
 
 func TestStatManifests(t *testing.T) {
 	name := RandomName()
-	digest, manifest := RandomManifest()
-	length := len(manifest.Bytes())
+	digest, _, content := RandomManifest()
+	length := len(content)
 	tag := RandomVersion()
 
 	t.Run("Stat existing manifest returns 200 with correct size in Content-Length header", func(t *testing.T) {
@@ -29,7 +29,7 @@ func TestStatManifests(t *testing.T) {
 		resp := client.CheckManifestByDigest(name, digest)
 
 		AssertResponseCode(t, resp, http.StatusOK)
-		AssertResponseHeader(t, resp, server.HeaderContentLength, strconv.Itoa(len(manifest.Bytes())))
+		AssertResponseHeader(t, resp, server.HeaderContentLength, strconv.Itoa(len(content)))
 		AssertResponseBodyEquals(t, resp, nil)
 	})
 
@@ -47,7 +47,7 @@ func TestStatManifests(t *testing.T) {
 		resp := client.CheckManifestByTag(name, tag)
 
 		AssertResponseCode(t, resp, http.StatusOK)
-		AssertResponseHeader(t, resp, server.HeaderContentLength, strconv.Itoa(len(manifest.Bytes())))
+		AssertResponseHeader(t, resp, server.HeaderContentLength, strconv.Itoa(len(content)))
 		AssertResponseBodyEquals(t, resp, nil)
 	})
 
@@ -80,7 +80,7 @@ func TestStatManifests(t *testing.T) {
 
 func TestGetManifests(t *testing.T) {
 	name := RandomName()
-	digest, manifest := RandomManifest()
+	digest, manifest, content := RandomManifest()
 	meta := &cascade.ManifestMetadata{
 		MediaType: manifest.MediaType,
 		Path:      digest.String(),
@@ -91,7 +91,7 @@ func TestGetManifests(t *testing.T) {
 		service := mock.NewRegistryService(t)
 		service.EXPECT().
 			GetManifest(name, digest.String()).
-			Return(meta, manifest.Bytes(), nil)
+			Return(meta, content, nil)
 
 		client := NewTestClientWithServer(t, service)
 
@@ -99,7 +99,7 @@ func TestGetManifests(t *testing.T) {
 
 		AssertResponseCode(t, resp, http.StatusOK)
 		AssertResponseHeader(t, resp, server.HeaderContentType, v1.MediaTypeImageManifest)
-		AssertResponseBodyEquals(t, resp, manifest.Bytes())
+		AssertResponseBodyEquals(t, resp, content)
 	})
 
 	t.Run("Retrieving a manifest by tag returns 200", func(t *testing.T) {
@@ -109,14 +109,14 @@ func TestGetManifests(t *testing.T) {
 			Return(digest.String(), nil)
 		service.EXPECT().
 			GetManifest(name, digest.String()).
-			Return(meta, manifest.Bytes(), nil)
+			Return(meta, content, nil)
 
 		client := NewTestClientWithServer(t, service)
 
 		resp := client.GetManifestByTag(name, tag)
 
 		AssertResponseCode(t, resp, http.StatusOK)
-		AssertResponseBodyEquals(t, resp, manifest.Bytes())
+		AssertResponseBodyEquals(t, resp, content)
 	})
 
 	t.Run("Retrieving a non-existent manifest returns status 404 and ErrManifestUnknown", func(t *testing.T) {
@@ -136,18 +136,18 @@ func TestGetManifests(t *testing.T) {
 
 func TestPutManifest(t *testing.T) {
 	name := RandomName()
-	digest, manifest := RandomManifest()
+	digest, _, content := RandomManifest()
 	tag := RandomVersion()
 
 	t.Run("Uploading a manifest by digest returns code 201", func(t *testing.T) {
 		service := mock.NewRegistryService(t)
 		service.EXPECT().
-			PutManifest(name, digest.String(), manifest.Bytes()).
+			PutManifest(name, digest.String(), content).
 			Return(nil)
 
 		client := NewTestClientWithServer(t, service)
 
-		resp := client.PutManifest(name, digest.String(), manifest)
+		resp := client.PutManifest(name, digest.String(), content)
 
 		AssertResponseCode(t, resp, http.StatusCreated)
 		AssertResponseHeaderSet(t, resp, server.HeaderLocation)
@@ -160,12 +160,12 @@ func TestPutManifest(t *testing.T) {
 			PutTag(name, tag, digest.String()).
 			Return(nil)
 		service.EXPECT().
-			PutManifest(name, digest.String(), manifest.Bytes()).
+			PutManifest(name, digest.String(), content).
 			Return(nil)
 
 		client := NewTestClientWithServer(t, service)
 
-		resp := client.PutManifest(name, tag, manifest)
+		resp := client.PutManifest(name, tag, content)
 
 		AssertResponseCode(t, resp, http.StatusCreated)
 		AssertResponseHeaderSet(t, resp, server.HeaderLocation)
@@ -175,12 +175,12 @@ func TestPutManifest(t *testing.T) {
 	t.Run("Uploading an invalid manifest returns 400 and ErrManifestInvalid", func(t *testing.T) {
 		service := mock.NewRegistryService(t)
 		service.EXPECT().
-			PutManifest(name, digest.String(), manifest.Bytes()).
+			PutManifest(name, digest.String(), content).
 			Return(cascade.ErrManifestInvalid)
 
 		client := NewTestClientWithServer(t, service)
 
-		resp := client.PutManifest(name, tag, manifest)
+		resp := client.PutManifest(name, tag, content)
 
 		AssertResponseCode(t, resp, http.StatusBadRequest)
 		AssertResponseBodyContainsError(t, resp, cascade.ErrManifestInvalid)

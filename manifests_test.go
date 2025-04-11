@@ -14,10 +14,10 @@ func TestStatManifest(t *testing.T) {
 	service, metadata, blobs := newTestRegistry()
 
 	name := RandomName()
-	digest, manifest := RandomManifest()
+	digest, _, content := RandomManifest()
 
 	path := digest.String()
-	blobs.Put(path, manifest.Bytes())
+	blobs.Put(path, content)
 	metadata.PutManifest(name, digest, &cascade.ManifestMetadata{
 		Path: path,
 	})
@@ -27,7 +27,7 @@ func TestStatManifest(t *testing.T) {
 		AssertNoError(t, err)
 
 		got := info.Size
-		want := int64(len(manifest.Bytes()))
+		want := int64(len(content))
 
 		if got != want {
 			t.Errorf("got size of %d, expected %d", got, want)
@@ -82,14 +82,14 @@ func TestPutManifest(t *testing.T) {
 
 	t.Run("Put and retrieve a manifest", func(t *testing.T) {
 		name := RandomName()
-		digest, manifest := RandomManifest()
+		digest, _, content := RandomManifest()
 
-		err := service.PutManifest(name, digest.String(), manifest.Bytes())
+		err := service.PutManifest(name, digest.String(), content)
 		AssertNoError(t, err)
 
 		_, got, err := service.GetManifest(name, digest.String())
 		AssertNoError(t, err)
-		AssertSlicesEqual(t, got, manifest.Bytes())
+		AssertSlicesEqual(t, got, content)
 	})
 
 	t.Run("Putting a manifest with invalid content returns ErrManifestInvalid", func(t *testing.T) {
@@ -106,9 +106,9 @@ func TestDeleteManifest(t *testing.T) {
 
 	t.Run("Delete manifest and make sure it cannot be retrieved", func(t *testing.T) {
 		name := RandomName()
-		digest, manifest := RandomManifest()
+		digest, _, content := RandomManifest()
 
-		err := service.PutManifest(name, digest.String(), manifest.Bytes())
+		err := service.PutManifest(name, digest.String(), content)
 		RequireNoError(t, err)
 
 		_, err = service.StatManifest(name, digest.String())

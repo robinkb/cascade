@@ -11,7 +11,6 @@ import (
 	"github.com/moby/moby/pkg/namesgenerator"
 	"github.com/opencontainers/go-digest"
 	v1 "github.com/opencontainers/image-spec/specs-go/v1"
-	"github.com/robinkb/cascade-registry"
 )
 
 func RandomName() string {
@@ -28,12 +27,12 @@ func RandomDigest() digest.Digest {
 	return digest.FromBytes(RandomContents(32))
 }
 
-func RandomManifest() (id digest.Digest, manifest *cascade.Manifest) {
-	content, _ := json.Marshal(v1.Manifest{
+func RandomManifest() (id digest.Digest, manifest *v1.Manifest, content []byte) {
+	manifest = &v1.Manifest{
 		MediaType: v1.MediaTypeImageManifest,
-	})
+	}
+	content, _ = json.Marshal(manifest)
 	id = digest.FromBytes(content)
-	manifest, _ = cascade.NewManifest(content)
 	return
 }
 

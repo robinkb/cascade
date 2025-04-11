@@ -174,10 +174,10 @@ func TestPush(t *testing.T) {
 			client := NewTestClient(t, ts.URL)
 
 			name := RandomName()
-			digest, manifest := RandomManifest()
+			digest, _, content := RandomManifest()
 
 			// Upon a successful upload, the registry MUST return response code 201 Created,
-			resp := client.PutManifest(name, digest.String(), manifest)
+			resp := client.PutManifest(name, digest.String(), content)
 			AssertResponseCode(t, resp, http.StatusCreated)
 			// and MUST have the following header:
 			location, err := resp.Location()
@@ -186,18 +186,18 @@ func TestPush(t *testing.T) {
 			resp = client.Do(http.MethodGet, location.RequestURI(), nil, nil)
 			AssertResponseCode(t, resp, http.StatusOK)
 			// The registry MUST store the manifest in the exact byte representation provided by the client.
-			AssertResponseBodyEquals(t, resp, manifest.Bytes())
+			AssertResponseBodyEquals(t, resp, content)
 		})
 
 		t.Run("Pushing manifest by tag", func(t *testing.T) {
 			client := NewTestClient(t, ts.URL)
 
 			name := RandomName()
-			digest, manifest := RandomManifest()
+			digest, _, content := RandomManifest()
 			tag := "40"
 
 			// Upon a successful upload, the registry MUST return response code 201 Created,
-			resp := client.PutManifest(name, tag, manifest)
+			resp := client.PutManifest(name, tag, content)
 			AssertResponseCode(t, resp, http.StatusCreated)
 			// and MUST have the following header:
 			location, err := resp.Location()
@@ -206,11 +206,11 @@ func TestPush(t *testing.T) {
 			resp = client.Do(http.MethodGet, location.RequestURI(), nil, nil)
 			AssertResponseCode(t, resp, http.StatusOK)
 			// The registry MUST store the manifest in the exact byte representation provided by the client.
-			AssertResponseBodyEquals(t, resp, manifest.Bytes())
+			AssertResponseBodyEquals(t, resp, content)
 
 			resp = client.GetManifestByDigest(name, digest)
 			AssertResponseCode(t, resp, http.StatusOK)
-			AssertResponseBodyEquals(t, resp, manifest.Bytes())
+			AssertResponseBodyEquals(t, resp, content)
 		})
 
 		t.Run("Pushing manifest with layers", func(t *testing.T) {})

@@ -22,7 +22,7 @@ func TestContentManagement(t *testing.T) {
 
 	t.Run("Deleting tags", func(t *testing.T) {
 		repository := RandomName()
-		_, manifest := RandomManifest()
+		_, _, manifest := RandomManifest()
 		tag := RandomVersion()
 
 		client := NewTestClient(t, ts.URL)
@@ -43,11 +43,11 @@ func TestContentManagement(t *testing.T) {
 
 	t.Run("Deleting manifests", func(t *testing.T) {
 		repository := RandomName()
-		digest, manifest := RandomManifest()
+		digest, _, content := RandomManifest()
 
 		client := NewTestClient(t, ts.URL)
 
-		resp := client.PutManifest(repository, digest.String(), manifest)
+		resp := client.PutManifest(repository, digest.String(), content)
 		AssertResponseCode(t, resp, http.StatusCreated)
 
 		resp = client.CheckManifestByDigest(repository, digest)
