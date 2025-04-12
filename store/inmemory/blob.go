@@ -9,18 +9,18 @@ import (
 )
 
 func NewBlobStore() cascade.BlobStore {
-	return &BlobStore{
+	return &blobStore{
 		store: make(map[string][]byte),
 	}
 }
 
-type BlobStore struct {
+type blobStore struct {
 	store map[string][]byte
 	mu    sync.RWMutex
 }
 
 type writer struct {
-	s    *BlobStore
+	s    *blobStore
 	path string
 }
 
@@ -32,7 +32,7 @@ func (w *writer) Write(p []byte) (n int, err error) {
 	return len(p), nil
 }
 
-func (s *BlobStore) Stat(path string) (*cascade.FileInfo, error) {
+func (s *blobStore) Stat(path string) (*cascade.FileInfo, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
@@ -47,7 +47,7 @@ func (s *BlobStore) Stat(path string) (*cascade.FileInfo, error) {
 	}, nil
 }
 
-func (s *BlobStore) Get(path string) ([]byte, error) {
+func (s *blobStore) Get(path string) ([]byte, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
@@ -58,7 +58,7 @@ func (s *BlobStore) Get(path string) ([]byte, error) {
 	return data, nil
 }
 
-func (s *BlobStore) Put(path string, content []byte) error {
+func (s *blobStore) Put(path string, content []byte) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -67,18 +67,18 @@ func (s *BlobStore) Put(path string, content []byte) error {
 	return nil
 }
 
-func (s *BlobStore) Reader(path string) (io.Reader, error) {
+func (s *blobStore) Reader(path string) (io.Reader, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
 	return bytes.NewBuffer(s.store[path]), nil
 }
 
-func (s *BlobStore) Writer(path string) (io.Writer, error) {
+func (s *blobStore) Writer(path string) (io.Writer, error) {
 	return &writer{s, path}, nil
 }
 
-func (s *BlobStore) Delete(path string) error {
+func (s *blobStore) Delete(path string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -86,7 +86,7 @@ func (s *BlobStore) Delete(path string) error {
 	return nil
 }
 
-func (s *BlobStore) Move(sourcePath, destinationPath string) error {
+func (s *blobStore) Move(sourcePath, destinationPath string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
