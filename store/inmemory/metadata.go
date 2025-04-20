@@ -8,52 +8,54 @@ import (
 )
 
 func NewMetadataStore() cascade.MetadataStore {
-	return &MetadataStore{
-		repositories: make(map[string]*Repository),
+	return &metadataStore{
+		repositories: make(map[string]*repository),
 		blobs:        make(map[string]string),
 	}
 }
 
 type (
-	MetadataStore struct {
-		repositories map[string]*Repository
+	metadataStore struct {
+		repositories map[string]*repository
 		blobs        map[string]string
 	}
 
-	Repository struct {
-		blobs          map[string]*Blob
-		manifests      map[string]*Manifest
-		tags           map[string]*Tag
+	repository struct {
+		blobs          map[string]*blob
+		manifests      map[string]*manifest
+		tags           map[string]*ttag
 		uploadSessions map[string]*cascade.UploadSession
 	}
 
-	Manifest struct {
+	manifest struct {
 		path      string
 		mediaType string
 	}
 
-	Blob struct {
+	blob struct {
 		path string
 	}
 
-	Tag struct {
+	// Named 'ttag' instead of 'tag', because otherwise
+	// this type would be shadowed by variables named 'tag'.
+	ttag struct {
 		digest digest.Digest
 	}
 )
 
 // TODO: Should probably be part of the MetadataStore interface?
-func (s *MetadataStore) ensureRepositoryExists(name string) {
+func (s *metadataStore) ensureRepositoryExists(name string) {
 	if _, ok := s.repositories[name]; !ok {
-		s.repositories[name] = &Repository{
-			blobs:          make(map[string]*Blob),
-			manifests:      make(map[string]*Manifest),
-			tags:           make(map[string]*Tag),
+		s.repositories[name] = &repository{
+			blobs:          make(map[string]*blob),
+			manifests:      make(map[string]*manifest),
+			tags:           make(map[string]*ttag),
 			uploadSessions: make(map[string]*cascade.UploadSession),
 		}
 	}
 }
 
-func (s *MetadataStore) GetBlob(repository string, digest digest.Digest) (string, error) {
+func (s *metadataStore) GetBlob(repository string, digest digest.Digest) (string, error) {
 	if repo, ok := s.repositories[repository]; ok {
 		if blob, ok := repo.blobs[digest.String()]; ok {
 			return blob.path, nil
@@ -62,20 +64,20 @@ func (s *MetadataStore) GetBlob(repository string, digest digest.Digest) (string
 	return "", cascade.ErrBlobUnknown
 }
 
-func (s *MetadataStore) PutBlob(repository string, digest digest.Digest, path string) error {
+func (s *metadataStore) PutBlob(repository string, digest digest.Digest, path string) error {
 	s.ensureRepositoryExists(repository)
-	s.repositories[repository].blobs[digest.String()] = &Blob{
+	s.repositories[repository].blobs[digest.String()] = &blob{
 		path: path,
 	}
 	return nil
 }
 
-func (s *MetadataStore) DeleteBlob(repository string, digest digest.Digest) error {
+func (s *metadataStore) DeleteBlob(repository string, digest digest.Digest) error {
 	delete(s.repositories[repository].blobs, digest.String())
 	return nil
 }
 
-func (s *MetadataStore) GetManifest(repository string, digest digest.Digest) (*cascade.ManifestMetadata, error) {
+func (s *metadataStore) GetManifest(repository string, digest digest.Digest) (*cascade.ManifestMetadata, error) {
 	if repo, ok := s.repositories[repository]; ok {
 		if manifest, ok := repo.manifests[digest.String()]; ok {
 			return &cascade.ManifestMetadata{
@@ -87,23 +89,23 @@ func (s *MetadataStore) GetManifest(repository string, digest digest.Digest) (*c
 	return nil, cascade.ErrManifestUnknown
 }
 
-func (s *MetadataStore) PutManifest(repository string, digest digest.Digest, meta *cascade.ManifestMetadata) error {
+func (s *metadataStore) PutManifest(repository string, digest digest.Digest, meta *cascade.ManifestMetadata) error {
 	s.ensureRepositoryExists(repository)
-	s.repositories[repository].manifests[digest.String()] = &Manifest{
+	s.repositories[repository].manifests[digest.String()] = &manifest{
 		path:      meta.Path,
 		mediaType: meta.MediaType,
 	}
 	return nil
 }
 
-func (s *MetadataStore) DeleteManifest(repository string, digest digest.Digest) error {
+func (s *metadataStore) DeleteManifest(repository string, digest digest.Digest) error {
 	if repo, ok := s.repositories[repository]; ok {
 		delete(repo.manifests, digest.String())
 	}
 	return nil
 }
 
-func (s *MetadataStore) ListTags(repository string, count int, last string) ([]string, error) {
+func (s *metadataStore) ListTags(repository string, count int, last string) ([]string, error) {
 	tags := []string{}
 
 	s.ensureRepositoryExists(repository)
@@ -134,7 +136,7 @@ func (s *MetadataStore) ListTags(repository string, count int, last string) ([]s
 	return tags[start : start+count], nil
 }
 
-func (s *MetadataStore) GetTag(repository, tag string) (digest.Digest, error) {
+func (s *metadataStore) GetTag(repository, tag string) (digest.Digest, error) {
 	if repo, ok := s.repositories[repository]; ok {
 		if tag, ok := repo.tags[tag]; ok {
 			return tag.digest, nil
@@ -143,21 +145,21 @@ func (s *MetadataStore) GetTag(repository, tag string) (digest.Digest, error) {
 	return "", cascade.ErrManifestUnknown
 }
 
-func (s *MetadataStore) PutTag(repository, tag string, digest digest.Digest) error {
+func (s *metadataStore) PutTag(repository, tag string, digest digest.Digest) error {
 	s.ensureRepositoryExists(repository)
 
-	s.repositories[repository].tags[tag] = &Tag{
+	s.repositories[repository].tags[tag] = &ttag{
 		digest: digest,
 	}
 	return nil
 }
 
-func (s *MetadataStore) DeleteTag(repository, tag string) error {
+func (s *metadataStore) DeleteTag(repository, tag string) error {
 	delete(s.repositories[repository].tags, tag)
 	return nil
 }
 
-func (s *MetadataStore) GetUploadSession(repository, id string) (*cascade.UploadSession, error) {
+func (s *metadataStore) GetUploadSession(repository, id string) (*cascade.UploadSession, error) {
 	if repo, ok := s.repositories[repository]; ok {
 		if session, ok := repo.uploadSessions[id]; ok {
 			return session, nil
@@ -166,13 +168,13 @@ func (s *MetadataStore) GetUploadSession(repository, id string) (*cascade.Upload
 	return nil, cascade.ErrBlobUploadUnknown
 }
 
-func (s *MetadataStore) PutUploadSession(repository string, session *cascade.UploadSession) error {
+func (s *metadataStore) PutUploadSession(repository string, session *cascade.UploadSession) error {
 	s.ensureRepositoryExists(repository)
 	s.repositories[repository].uploadSessions[session.ID.String()] = session
 	return nil
 }
 
-func (s *MetadataStore) DeleteUploadSession(repository string, sessionID string) error {
+func (s *metadataStore) DeleteUploadSession(repository string, sessionID string) error {
 	delete(s.repositories[repository].uploadSessions, sessionID)
 	return nil
 }

@@ -11,12 +11,17 @@ import (
 )
 
 const (
+	// Standard headers
 	HeaderContentLength = "Content-Length"
 	HeaderContentRange  = "Content-Range"
 	HeaderContentType   = "Content-Type"
 	HeaderLocation      = "Location"
 	HeaderRange         = "Range"
 
+	// Distribution headers
+	HeaderOCISubject = "OCI-Subject"
+
+	// Standard content types
 	ContentTypeOctetStream = "application/octet-stream"
 )
 

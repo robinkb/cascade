@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/gofrs/uuid/v5"
+	"github.com/opencontainers/go-digest"
 )
 
 type (
@@ -15,7 +16,7 @@ type (
 
 		StatManifest(repository, reference string) (*FileInfo, error)
 		GetManifest(repository, reference string) (*ManifestMetadata, []byte, error)
-		PutManifest(repository, reference string, content []byte) error
+		PutManifest(repository, reference string, content []byte) (digest.Digest, error)
 		DeleteManifest(repository, reference string) error
 
 		ListTags(repository string, count int, from string) ([]string, error)

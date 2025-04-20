@@ -136,14 +136,14 @@ func TestGetManifests(t *testing.T) {
 
 func TestPutManifest(t *testing.T) {
 	name := RandomName()
-	digest, _, content := RandomManifest()
+	digest, manifest, content := RandomManifest()
 	tag := RandomVersion()
 
 	t.Run("Uploading a manifest by digest returns code 201", func(t *testing.T) {
 		service := mock.NewRegistryService(t)
 		service.EXPECT().
 			PutManifest(name, digest.String(), content).
-			Return(nil)
+			Return("", nil)
 
 		client := NewTestClientWithServer(t, service)
 
@@ -161,7 +161,7 @@ func TestPutManifest(t *testing.T) {
 			Return(nil)
 		service.EXPECT().
 			PutManifest(name, digest.String(), content).
-			Return(nil)
+			Return("", nil)
 
 		client := NewTestClientWithServer(t, service)
 
@@ -172,11 +172,30 @@ func TestPutManifest(t *testing.T) {
 		AssertResponseBodyEquals(t, resp, nil)
 	})
 
+	t.Run("Uploading a manifest with subject returns OCI-Subject header set to subject digest", func(t *testing.T) {
+		subjectDigest, subjectManifest := digest, manifest
+		digest, _, content := RandomManifestWithSubject(subjectDigest, subjectManifest)
+
+		service := mock.NewRegistryService(t)
+		service.EXPECT().
+			PutManifest(name, digest.String(), content).
+			Return(subjectDigest, nil)
+
+		client := NewTestClientWithServer(t, service)
+
+		resp := client.PutManifest(name, digest.String(), content)
+
+		AssertResponseCode(t, resp, http.StatusCreated)
+		AssertResponseHeaderSet(t, resp, server.HeaderLocation)
+		AssertResponseHeader(t, resp, server.HeaderOCISubject, subjectDigest.String())
+		AssertResponseBodyEquals(t, resp, nil)
+	})
+
 	t.Run("Uploading an invalid manifest returns 400 and ErrManifestInvalid", func(t *testing.T) {
 		service := mock.NewRegistryService(t)
 		service.EXPECT().
 			PutManifest(name, digest.String(), content).
-			Return(cascade.ErrManifestInvalid)
+			Return("", cascade.ErrManifestInvalid)
 
 		client := NewTestClientWithServer(t, service)
 

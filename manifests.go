@@ -47,29 +47,37 @@ func (s *registryService) GetManifest(repository, id string) (*ManifestMetadata,
 	return meta, content, nil
 }
 
-func (s *registryService) PutManifest(repository, reference string, content []byte) error {
+func (s *registryService) PutManifest(repository, reference string, content []byte) (digest.Digest, error) {
+	var subject digest.Digest
+
 	digest, err := digest.Parse(reference)
 	if err != nil {
-		return ErrDigestInvalid
+		return "", ErrDigestInvalid
 	}
 
 	var manifest v1.Manifest
 	err = json.Unmarshal(content, &manifest)
 	if err != nil {
-		return ErrManifestInvalid
+		return "", ErrManifestInvalid
+	}
+
+	if manifest.Subject != nil {
+		subject = manifest.Subject.Digest
 	}
 
 	path := fmt.Sprintf("blobs/%s/%s/%s", digest.Algorithm(), digest.Encoded()[0:2], digest.Encoded())
 
 	err = s.blobs.Put(path, content)
 	if err != nil {
-		return err
+		return "", err
 	}
 
-	return s.metadata.PutManifest(repository, digest, &ManifestMetadata{
+	err = s.metadata.PutManifest(repository, digest, &ManifestMetadata{
 		Path:      path,
 		MediaType: manifest.MediaType,
 	})
+
+	return subject, err
 }
 
 func (s *registryService) DeleteManifest(repository, id string) error {
