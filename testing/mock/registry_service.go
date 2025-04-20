@@ -3,9 +3,10 @@
 package mock
 
 import (
-	io "io"
-
+	digest "github.com/opencontainers/go-digest"
 	cascade "github.com/robinkb/cascade-registry"
+
+	io "io"
 
 	mock "github.com/stretchr/testify/mock"
 )
@@ -72,9 +73,9 @@ func (_c *RegistryService_AppendUpload_Call) RunAndReturn(run func(string, strin
 	return _c
 }
 
-// CloseUpload provides a mock function with given fields: repository, id, digest
-func (_m *RegistryService) CloseUpload(repository string, id string, digest string) error {
-	ret := _m.Called(repository, id, digest)
+// CloseUpload provides a mock function with given fields: repository, id, _a2
+func (_m *RegistryService) CloseUpload(repository string, id string, _a2 string) error {
+	ret := _m.Called(repository, id, _a2)
 
 	if len(ret) == 0 {
 		panic("no return value specified for CloseUpload")
@@ -82,7 +83,7 @@ func (_m *RegistryService) CloseUpload(repository string, id string, digest stri
 
 	var r0 error
 	if rf, ok := ret.Get(0).(func(string, string, string) error); ok {
-		r0 = rf(repository, id, digest)
+		r0 = rf(repository, id, _a2)
 	} else {
 		r0 = ret.Error(0)
 	}
@@ -98,12 +99,12 @@ type RegistryService_CloseUpload_Call struct {
 // CloseUpload is a helper method to define mock.On call
 //   - repository string
 //   - id string
-//   - digest string
-func (_e *RegistryService_Expecter) CloseUpload(repository interface{}, id interface{}, digest interface{}) *RegistryService_CloseUpload_Call {
-	return &RegistryService_CloseUpload_Call{Call: _e.mock.On("CloseUpload", repository, id, digest)}
+//   - _a2 string
+func (_e *RegistryService_Expecter) CloseUpload(repository interface{}, id interface{}, _a2 interface{}) *RegistryService_CloseUpload_Call {
+	return &RegistryService_CloseUpload_Call{Call: _e.mock.On("CloseUpload", repository, id, _a2)}
 }
 
-func (_c *RegistryService_CloseUpload_Call) Run(run func(repository string, id string, digest string)) *RegistryService_CloseUpload_Call {
+func (_c *RegistryService_CloseUpload_Call) Run(run func(repository string, id string, _a2 string)) *RegistryService_CloseUpload_Call {
 	_c.Call.Run(func(args mock.Arguments) {
 		run(args[0].(string), args[1].(string), args[2].(string))
 	})
@@ -120,9 +121,9 @@ func (_c *RegistryService_CloseUpload_Call) RunAndReturn(run func(string, string
 	return _c
 }
 
-// DeleteBlob provides a mock function with given fields: repository, digest
-func (_m *RegistryService) DeleteBlob(repository string, digest string) error {
-	ret := _m.Called(repository, digest)
+// DeleteBlob provides a mock function with given fields: repository, _a1
+func (_m *RegistryService) DeleteBlob(repository string, _a1 string) error {
+	ret := _m.Called(repository, _a1)
 
 	if len(ret) == 0 {
 		panic("no return value specified for DeleteBlob")
@@ -130,7 +131,7 @@ func (_m *RegistryService) DeleteBlob(repository string, digest string) error {
 
 	var r0 error
 	if rf, ok := ret.Get(0).(func(string, string) error); ok {
-		r0 = rf(repository, digest)
+		r0 = rf(repository, _a1)
 	} else {
 		r0 = ret.Error(0)
 	}
@@ -145,12 +146,12 @@ type RegistryService_DeleteBlob_Call struct {
 
 // DeleteBlob is a helper method to define mock.On call
 //   - repository string
-//   - digest string
-func (_e *RegistryService_Expecter) DeleteBlob(repository interface{}, digest interface{}) *RegistryService_DeleteBlob_Call {
-	return &RegistryService_DeleteBlob_Call{Call: _e.mock.On("DeleteBlob", repository, digest)}
+//   - _a1 string
+func (_e *RegistryService_Expecter) DeleteBlob(repository interface{}, _a1 interface{}) *RegistryService_DeleteBlob_Call {
+	return &RegistryService_DeleteBlob_Call{Call: _e.mock.On("DeleteBlob", repository, _a1)}
 }
 
-func (_c *RegistryService_DeleteBlob_Call) Run(run func(repository string, digest string)) *RegistryService_DeleteBlob_Call {
+func (_c *RegistryService_DeleteBlob_Call) Run(run func(repository string, _a1 string)) *RegistryService_DeleteBlob_Call {
 	_c.Call.Run(func(args mock.Arguments) {
 		run(args[0].(string), args[1].(string))
 	})
@@ -261,9 +262,9 @@ func (_c *RegistryService_DeleteTag_Call) RunAndReturn(run func(string, string) 
 	return _c
 }
 
-// GetBlob provides a mock function with given fields: repository, digest
-func (_m *RegistryService) GetBlob(repository string, digest string) (io.Reader, error) {
-	ret := _m.Called(repository, digest)
+// GetBlob provides a mock function with given fields: repository, _a1
+func (_m *RegistryService) GetBlob(repository string, _a1 string) (io.Reader, error) {
+	ret := _m.Called(repository, _a1)
 
 	if len(ret) == 0 {
 		panic("no return value specified for GetBlob")
@@ -272,10 +273,10 @@ func (_m *RegistryService) GetBlob(repository string, digest string) (io.Reader,
 	var r0 io.Reader
 	var r1 error
 	if rf, ok := ret.Get(0).(func(string, string) (io.Reader, error)); ok {
-		return rf(repository, digest)
+		return rf(repository, _a1)
 	}
 	if rf, ok := ret.Get(0).(func(string, string) io.Reader); ok {
-		r0 = rf(repository, digest)
+		r0 = rf(repository, _a1)
 	} else {
 		if ret.Get(0) != nil {
 			r0 = ret.Get(0).(io.Reader)
@@ -283,7 +284,7 @@ func (_m *RegistryService) GetBlob(repository string, digest string) (io.Reader,
 	}
 
 	if rf, ok := ret.Get(1).(func(string, string) error); ok {
-		r1 = rf(repository, digest)
+		r1 = rf(repository, _a1)
 	} else {
 		r1 = ret.Error(1)
 	}
@@ -298,12 +299,12 @@ type RegistryService_GetBlob_Call struct {
 
 // GetBlob is a helper method to define mock.On call
 //   - repository string
-//   - digest string
-func (_e *RegistryService_Expecter) GetBlob(repository interface{}, digest interface{}) *RegistryService_GetBlob_Call {
-	return &RegistryService_GetBlob_Call{Call: _e.mock.On("GetBlob", repository, digest)}
+//   - _a1 string
+func (_e *RegistryService_Expecter) GetBlob(repository interface{}, _a1 interface{}) *RegistryService_GetBlob_Call {
+	return &RegistryService_GetBlob_Call{Call: _e.mock.On("GetBlob", repository, _a1)}
 }
 
-func (_c *RegistryService_GetBlob_Call) Run(run func(repository string, digest string)) *RegistryService_GetBlob_Call {
+func (_c *RegistryService_GetBlob_Call) Run(run func(repository string, _a1 string)) *RegistryService_GetBlob_Call {
 	_c.Call.Run(func(args mock.Arguments) {
 		run(args[0].(string), args[1].(string))
 	})
@@ -554,21 +555,31 @@ func (_c *RegistryService_ListTags_Call) RunAndReturn(run func(string, int, stri
 }
 
 // PutManifest provides a mock function with given fields: repository, reference, content
-func (_m *RegistryService) PutManifest(repository string, reference string, content []byte) error {
+func (_m *RegistryService) PutManifest(repository string, reference string, content []byte) (digest.Digest, error) {
 	ret := _m.Called(repository, reference, content)
 
 	if len(ret) == 0 {
 		panic("no return value specified for PutManifest")
 	}
 
-	var r0 error
-	if rf, ok := ret.Get(0).(func(string, string, []byte) error); ok {
+	var r0 digest.Digest
+	var r1 error
+	if rf, ok := ret.Get(0).(func(string, string, []byte) (digest.Digest, error)); ok {
+		return rf(repository, reference, content)
+	}
+	if rf, ok := ret.Get(0).(func(string, string, []byte) digest.Digest); ok {
 		r0 = rf(repository, reference, content)
 	} else {
-		r0 = ret.Error(0)
+		r0 = ret.Get(0).(digest.Digest)
 	}
 
-	return r0
+	if rf, ok := ret.Get(1).(func(string, string, []byte) error); ok {
+		r1 = rf(repository, reference, content)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
 }
 
 // RegistryService_PutManifest_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'PutManifest'
@@ -591,19 +602,19 @@ func (_c *RegistryService_PutManifest_Call) Run(run func(repository string, refe
 	return _c
 }
 
-func (_c *RegistryService_PutManifest_Call) Return(_a0 error) *RegistryService_PutManifest_Call {
-	_c.Call.Return(_a0)
+func (_c *RegistryService_PutManifest_Call) Return(_a0 digest.Digest, _a1 error) *RegistryService_PutManifest_Call {
+	_c.Call.Return(_a0, _a1)
 	return _c
 }
 
-func (_c *RegistryService_PutManifest_Call) RunAndReturn(run func(string, string, []byte) error) *RegistryService_PutManifest_Call {
+func (_c *RegistryService_PutManifest_Call) RunAndReturn(run func(string, string, []byte) (digest.Digest, error)) *RegistryService_PutManifest_Call {
 	_c.Call.Return(run)
 	return _c
 }
 
-// PutTag provides a mock function with given fields: repository, tag, digest
-func (_m *RegistryService) PutTag(repository string, tag string, digest string) error {
-	ret := _m.Called(repository, tag, digest)
+// PutTag provides a mock function with given fields: repository, tag, _a2
+func (_m *RegistryService) PutTag(repository string, tag string, _a2 string) error {
+	ret := _m.Called(repository, tag, _a2)
 
 	if len(ret) == 0 {
 		panic("no return value specified for PutTag")
@@ -611,7 +622,7 @@ func (_m *RegistryService) PutTag(repository string, tag string, digest string) 
 
 	var r0 error
 	if rf, ok := ret.Get(0).(func(string, string, string) error); ok {
-		r0 = rf(repository, tag, digest)
+		r0 = rf(repository, tag, _a2)
 	} else {
 		r0 = ret.Error(0)
 	}
@@ -627,12 +638,12 @@ type RegistryService_PutTag_Call struct {
 // PutTag is a helper method to define mock.On call
 //   - repository string
 //   - tag string
-//   - digest string
-func (_e *RegistryService_Expecter) PutTag(repository interface{}, tag interface{}, digest interface{}) *RegistryService_PutTag_Call {
-	return &RegistryService_PutTag_Call{Call: _e.mock.On("PutTag", repository, tag, digest)}
+//   - _a2 string
+func (_e *RegistryService_Expecter) PutTag(repository interface{}, tag interface{}, _a2 interface{}) *RegistryService_PutTag_Call {
+	return &RegistryService_PutTag_Call{Call: _e.mock.On("PutTag", repository, tag, _a2)}
 }
 
-func (_c *RegistryService_PutTag_Call) Run(run func(repository string, tag string, digest string)) *RegistryService_PutTag_Call {
+func (_c *RegistryService_PutTag_Call) Run(run func(repository string, tag string, _a2 string)) *RegistryService_PutTag_Call {
 	_c.Call.Run(func(args mock.Arguments) {
 		run(args[0].(string), args[1].(string), args[2].(string))
 	})
@@ -649,9 +660,9 @@ func (_c *RegistryService_PutTag_Call) RunAndReturn(run func(string, string, str
 	return _c
 }
 
-// StatBlob provides a mock function with given fields: repository, digest
-func (_m *RegistryService) StatBlob(repository string, digest string) (*cascade.FileInfo, error) {
-	ret := _m.Called(repository, digest)
+// StatBlob provides a mock function with given fields: repository, _a1
+func (_m *RegistryService) StatBlob(repository string, _a1 string) (*cascade.FileInfo, error) {
+	ret := _m.Called(repository, _a1)
 
 	if len(ret) == 0 {
 		panic("no return value specified for StatBlob")
@@ -660,10 +671,10 @@ func (_m *RegistryService) StatBlob(repository string, digest string) (*cascade.
 	var r0 *cascade.FileInfo
 	var r1 error
 	if rf, ok := ret.Get(0).(func(string, string) (*cascade.FileInfo, error)); ok {
-		return rf(repository, digest)
+		return rf(repository, _a1)
 	}
 	if rf, ok := ret.Get(0).(func(string, string) *cascade.FileInfo); ok {
-		r0 = rf(repository, digest)
+		r0 = rf(repository, _a1)
 	} else {
 		if ret.Get(0) != nil {
 			r0 = ret.Get(0).(*cascade.FileInfo)
@@ -671,7 +682,7 @@ func (_m *RegistryService) StatBlob(repository string, digest string) (*cascade.
 	}
 
 	if rf, ok := ret.Get(1).(func(string, string) error); ok {
-		r1 = rf(repository, digest)
+		r1 = rf(repository, _a1)
 	} else {
 		r1 = ret.Error(1)
 	}
@@ -686,12 +697,12 @@ type RegistryService_StatBlob_Call struct {
 
 // StatBlob is a helper method to define mock.On call
 //   - repository string
-//   - digest string
-func (_e *RegistryService_Expecter) StatBlob(repository interface{}, digest interface{}) *RegistryService_StatBlob_Call {
-	return &RegistryService_StatBlob_Call{Call: _e.mock.On("StatBlob", repository, digest)}
+//   - _a1 string
+func (_e *RegistryService_Expecter) StatBlob(repository interface{}, _a1 interface{}) *RegistryService_StatBlob_Call {
+	return &RegistryService_StatBlob_Call{Call: _e.mock.On("StatBlob", repository, _a1)}
 }
 
-func (_c *RegistryService_StatBlob_Call) Run(run func(repository string, digest string)) *RegistryService_StatBlob_Call {
+func (_c *RegistryService_StatBlob_Call) Run(run func(repository string, _a1 string)) *RegistryService_StatBlob_Call {
 	_c.Call.Run(func(args mock.Arguments) {
 		run(args[0].(string), args[1].(string))
 	})

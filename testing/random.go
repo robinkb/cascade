@@ -30,10 +30,33 @@ func RandomDigest() digest.Digest {
 func RandomManifest() (id digest.Digest, manifest *v1.Manifest, content []byte) {
 	manifest = &v1.Manifest{
 		MediaType: v1.MediaTypeImageManifest,
+		Annotations: map[string]string{
+			// Small amount of random content to make sure that
+			// every generated manifest has a unique digest.
+			"random": string(RandomContents(32)),
+		},
 	}
 	content, _ = json.Marshal(manifest)
 	id = digest.FromBytes(content)
 	return
+}
+
+func RandomManifestWithSubject(subjDigest digest.Digest, subject *v1.Manifest) (id digest.Digest, manifest *v1.Manifest, content []byte) {
+	manifest = &v1.Manifest{
+		MediaType: v1.MediaTypeImageManifest,
+		Subject: &v1.Descriptor{
+			MediaType: subject.MediaType,
+			Digest:    subjDigest,
+		},
+		Annotations: map[string]string{
+			// Small amount of random content to make sure that
+			// every generated manifest has a unique digest.
+			"random": string(RandomContents(32)),
+		},
+	}
+	content, _ = json.Marshal(manifest)
+	digest := digest.FromBytes(content)
+	return digest, manifest, content
 }
 
 func RandomBlob(length int64) (id digest.Digest, content []byte) {

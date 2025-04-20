@@ -215,6 +215,17 @@ func TestPush(t *testing.T) {
 
 		t.Run("Pushing manifest with layers", func(t *testing.T) {})
 
-		t.Run("Pushing manifests with Subject", func(t *testing.T) {})
+		t.Run("Pushing manifests with Subject", func(t *testing.T) {
+			client := NewTestClient(t, ts.URL)
+
+			name := RandomName()
+			subjectDigest, subjectManifest, _ := RandomManifest()
+			digest, _, content := RandomManifestWithSubject(subjectDigest, subjectManifest)
+
+			resp := client.PutManifest(name, digest.String(), content)
+
+			AssertResponseCode(t, resp, http.StatusCreated)
+			AssertResponseHeader(t, resp, "OCI-Subject", subjectDigest.String())
+		})
 	})
 }

@@ -84,7 +84,7 @@ func TestPutManifest(t *testing.T) {
 		name := RandomName()
 		digest, _, content := RandomManifest()
 
-		err := service.PutManifest(name, digest.String(), content)
+		_, err := service.PutManifest(name, digest.String(), content)
 		AssertNoError(t, err)
 
 		_, got, err := service.GetManifest(name, digest.String())
@@ -92,11 +92,23 @@ func TestPutManifest(t *testing.T) {
 		AssertSlicesEqual(t, got, content)
 	})
 
+	t.Run("Putting a manifest with subject returns the subject hash", func(t *testing.T) {
+		name := RandomName()
+		subjDigest, subjManifest, _ := RandomManifest()
+
+		digest, _, content := RandomManifestWithSubject(subjDigest, subjManifest)
+
+		gotSubject, err := service.PutManifest(name, digest.String(), content)
+		AssertNoError(t, err)
+
+		AssertEqual(t, gotSubject, subjDigest)
+	})
+
 	t.Run("Putting a manifest with invalid content returns ErrManifestInvalid", func(t *testing.T) {
 		name := RandomName()
 		digest, content := RandomBlob(32)
 
-		err := service.PutManifest(name, digest.String(), content)
+		_, err := service.PutManifest(name, digest.String(), content)
 		AssertErrorIs(t, err, cascade.ErrManifestInvalid)
 	})
 }
@@ -108,7 +120,7 @@ func TestDeleteManifest(t *testing.T) {
 		name := RandomName()
 		digest, _, content := RandomManifest()
 
-		err := service.PutManifest(name, digest.String(), content)
+		_, err := service.PutManifest(name, digest.String(), content)
 		RequireNoError(t, err)
 
 		_, err = service.StatManifest(name, digest.String())
