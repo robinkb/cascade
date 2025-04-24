@@ -133,6 +133,11 @@ func (c *Client) DeleteTag(name string, tag string) *http.Response {
 	return c.Do(http.MethodDelete, path, nil, nil)
 }
 
+func (c *Client) ListReferrers(name string, digest digest.Digest) *http.Response {
+	path := fmt.Sprintf("/v2/%s/referrers/%s", name, digest)
+	return c.Do(http.MethodGet, path, nil, nil)
+}
+
 func (c *Client) InitUpload(name string) *http.Response {
 	path := fmt.Sprintf("/v2/%s/blobs/uploads/", name)
 	return c.Do(http.MethodPost, path, nil, nil)
