@@ -6,6 +6,7 @@ import (
 
 	"github.com/gofrs/uuid/v5"
 	"github.com/opencontainers/go-digest"
+	v1 "github.com/opencontainers/image-spec/specs-go/v1"
 )
 
 type (
@@ -23,6 +24,8 @@ type (
 		GetTag(repository, tag string) (string, error)
 		PutTag(repository, tag, digest string) error
 		DeleteTag(repository, tag string) error
+
+		ListReferrers(repository, digest string) (*v1.Index, error)
 
 		InitUpload(repository string) *UploadSession
 		StatUpload(repository, sessionID string) (*FileInfo, error)
