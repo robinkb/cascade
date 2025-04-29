@@ -1,11 +1,13 @@
 package conformance
 
 import (
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"slices"
 	"testing"
 
+	"github.com/opencontainers/go-digest"
 	v1 "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/robinkb/cascade-registry"
 	"github.com/robinkb/cascade-registry/server"
@@ -139,12 +141,28 @@ func TestContentDiscovery(t *testing.T) {
 	t.Run("Listing Referrers", func(t *testing.T) {
 		repository := RandomName()
 
+		subjectDigest, _, subjectContent := RandomManifest()
+
+		referrerManifest := v1.Manifest{
+			Subject: &v1.Descriptor{
+				Digest: subjectDigest,
+			},
+		}
+		referrerContent, _ := json.Marshal(&referrerManifest)
+		referrerDigest := digest.FromBytes(referrerContent)
+
+		client := NewTestClient(t, ts.URL)
+
+		resp := client.PutManifest(repository, subjectDigest.String(), subjectContent)
+		AssertResponseCode(t, resp, http.StatusCreated)
+
+		resp = client.PutManifest(repository, referrerDigest.String(), referrerContent)
+		AssertResponseCode(t, resp, http.StatusCreated)
+
 		t.Run("Fetching the full list of referrers", func(t *testing.T) {
 			client := NewTestClient(t, ts.URL)
 
-			digest := RandomDigest()
-
-			resp := client.ListReferrers(repository, digest)
+			resp := client.ListReferrers(repository, subjectDigest)
 			// Assuming a repository is found, this request MUST return a 200 OK response code.
 			AssertResponseCode(t, resp, http.StatusOK)
 			// The Content-Type header MUST be set to application/vnd.oci.image.index.v1+json.
@@ -152,6 +170,15 @@ func TestContentDiscovery(t *testing.T) {
 			// Upon success, the response MUST be a JSON body with an image index containing a list of descriptors.
 			var index v1.Index
 			AssertResponseBodyUnmarshals(t, resp, &index)
+
+			// Each descriptor is of an image manifest or index in the same <name> namespace with a subject field that specifies the value of <digest>.
+			if len(index.Manifests) != 1 {
+				t.Fatalf("unexpected count of descriptors")
+			}
+
+			if index.Manifests[0].Digest != referrerDigest {
+				t.Errorf("wrong digest")
+			}
 		})
 
 		t.Run("List referrers on existing repository without referrers", func(t *testing.T) {

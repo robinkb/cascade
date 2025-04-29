@@ -6,10 +6,14 @@ import (
 )
 
 func (s *registryService) ListReferrers(name, reference string) (*v1.Index, error) {
-	_, err := digest.Parse(reference)
+	digest, err := digest.Parse(reference)
 	if err != nil {
 		return nil, ErrDigestInvalid
 	}
 
-	return &v1.Index{}, nil
+	referrers, err := s.metadata.ListReferrers(name, digest)
+
+	return &v1.Index{
+		Manifests: referrers,
+	}, nil
 }
