@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"net/http"
 	"net/textproto"
 	"slices"
@@ -154,11 +155,22 @@ func AssertIndex(t *testing.T, got, want *v1.Index) bool {
 	}
 
 	for i := range got.Manifests {
-		gotDigest := got.Manifests[i].Digest
-		wantDigest := want.Manifests[i].Digest
+		gotDescriptor := got.Manifests[i]
+		wantDescriptor := want.Manifests[i]
+
+		gotDigest := gotDescriptor.Digest
+		wantDigest := wantDescriptor.Digest
 
 		if gotDigest != wantDigest {
-			t.Errorf("wrong digest value; got %q, want %q", gotDigest, wantDigest)
+			t.Errorf("wrong digest value in descriptor; got %q, want %q", gotDigest, wantDigest)
+			return false
+		}
+
+		gotAnnotations := gotDescriptor.Annotations
+		wantAnnotations := wantDescriptor.Annotations
+
+		if !maps.Equal(gotAnnotations, wantAnnotations) {
+			t.Errorf("descriptor annotations do not match; got %v, want %q", gotAnnotations, wantAnnotations)
 			return false
 		}
 	}

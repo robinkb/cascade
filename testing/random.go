@@ -14,6 +14,12 @@ import (
 	v1 "github.com/opencontainers/image-spec/specs-go/v1"
 )
 
+const (
+	charset = "0123456789" +
+		"abcdefghijklmnopqrstuvwxyz" +
+		"ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+)
+
 func RandomName() string {
 	return strings.Replace(namesgenerator.GetRandomName(0), "_", "/", -1)
 }
@@ -22,6 +28,14 @@ func RandomContents(length int64) []byte {
 	data := make([]byte, length)
 	crand.Read(data)
 	return data
+}
+
+func RandomString(length int) string {
+	data := make([]byte, length)
+	for i := range data {
+		data[i] = charset[rand.IntN(len(charset))]
+	}
+	return string(data)
 }
 
 func RandomDigest() digest.Digest {
@@ -34,7 +48,7 @@ func RandomManifest() (id digest.Digest, manifest *v1.Manifest, content []byte) 
 		Annotations: map[string]string{
 			// Small amount of random content to make sure that
 			// every generated manifest has a unique digest.
-			"random": string(RandomContents(32)),
+			"random": RandomString(8),
 		},
 	}
 	content, _ = json.Marshal(manifest)
@@ -52,7 +66,7 @@ func RandomManifestWithSubject(subjDigest digest.Digest, subject *v1.Manifest) (
 		Annotations: map[string]string{
 			// Small amount of random content to make sure that
 			// every generated manifest has a unique digest.
-			"random": string(RandomContents(32)),
+			"random": RandomString(8),
 		},
 	}
 	content, _ = json.Marshal(manifest)
@@ -101,6 +115,10 @@ func GenerateReferrersWithIndex(t *testing.T, subject digest.Digest) (*v1.Index,
 	referrers := make([]*Referrer, 0)
 
 	referrerManifest := v1.Manifest{
+		Annotations: map[string]string{
+			"manifest": "non-special",
+			"random":   RandomString(12),
+		},
 		Subject: &v1.Descriptor{
 			Digest: subject,
 		},
@@ -117,7 +135,8 @@ func GenerateReferrersWithIndex(t *testing.T, subject digest.Digest) (*v1.Index,
 	})
 
 	idx.Manifests = append(idx.Manifests, v1.Descriptor{
-		Digest: referrDigest,
+		Annotations: referrerManifest.Annotations,
+		Digest:      referrDigest,
 	})
 
 	return &idx, referrers
