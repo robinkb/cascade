@@ -105,16 +105,15 @@ func TestPutManifest(t *testing.T) {
 		AssertEqual(t, gotSubject, subjDigest)
 	})
 
-	t.Run("Putting a manifest with subject that points to an unknown blob returns ErrManifestBlobUnknown", func(t *testing.T) {
+	t.Run("Putting a manifest with subject that points to an unknown blob does not error", func(t *testing.T) {
 		// This is actually still up for debate in the specification.
-		// I decided to reject manifests pointing to unknown subjects, because it's easier.
 		// See: https://github.com/opencontainers/distribution-spec/issues/459
 		name := RandomName()
 		subjDigest, subjManifest, _ := RandomManifest()
 		digest, _, content := RandomManifestWithSubject(subjDigest, subjManifest)
 
 		_, err := service.PutManifest(name, digest.String(), content)
-		AssertErrorIs(t, err, cascade.ErrManifestBlobUnknown)
+		AssertNoError(t, err)
 	})
 
 	t.Run("Putting a manifest with invalid content returns ErrManifestInvalid", func(t *testing.T) {

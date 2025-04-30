@@ -93,20 +93,26 @@ func (s *metadataStore) GetManifest(repository string, digest godigest.Digest) (
 
 func (s *metadataStore) PutManifest(repository string, digest godigest.Digest, meta *cascade.ManifestMetadata) error {
 	s.ensureRepositoryExists(repository)
-	s.repositories[repository].manifests[digest.String()] = &manifest{
-		path:      meta.Path,
-		mediaType: meta.MediaType,
+	manifests, ok := s.repositories[repository].manifests[digest.String()]
+	if !ok {
+		manifests = &manifest{
+			referrers: make(map[godigest.Digest]any),
+		}
+		s.repositories[repository].manifests[digest.String()] = manifests
 	}
+
+	manifests.path = meta.Path
+	manifests.mediaType = meta.MediaType
 
 	if meta.Subject != "" {
 		manifests, ok := s.repositories[repository].manifests[meta.Subject.String()]
 		if !ok {
-			return cascade.ErrManifestBlobUnknown
+			manifests = &manifest{
+				referrers: make(map[godigest.Digest]any),
+			}
+			s.repositories[repository].manifests[meta.Subject.String()] = manifests
 		}
 
-		if manifests.referrers == nil {
-			manifests.referrers = make(map[godigest.Digest]any)
-		}
 		manifests.referrers[digest] = nil
 	}
 

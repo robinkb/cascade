@@ -55,6 +55,28 @@ func TestListReferrers(t *testing.T) {
 		AssertEqual(t, len(idx.Manifests), 0)
 	})
 
+	t.Run("List referrers when subject manifest is pushed last", func(t *testing.T) {
+		name := RandomName()
+		subjDigest, subjManifest, subjContent := RandomManifest()
+		digest, _, content := RandomManifestWithSubject(subjDigest, subjManifest)
+
+		_, err := service.PutManifest(name, digest.String(), content)
+		AssertNoError(t, err)
+
+		_, err = service.PutManifest(name, subjDigest.String(), subjContent)
+		AssertNoError(t, err)
+
+		idx, err := service.ListReferrers(name, subjDigest.String())
+
+		if len(idx.Manifests) != 1 {
+			t.Fatalf("unexpected count of descriptors")
+		}
+
+		if idx.Manifests[0].Digest != digest {
+			t.Errorf("wrong digest")
+		}
+	})
+
 	t.Run("List referrers on known repository but on unknown manifest", func(t *testing.T) {
 		name := RandomName()
 		digest, _, content := RandomManifest()

@@ -224,6 +224,11 @@ func TestPush(t *testing.T) {
 
 			resp := client.PutManifest(name, digest.String(), content)
 
+			// When processing a request for an image manifest with the subject field,
+			// a registry implementation that supports the referrers API MUST respond with the
+			// response header OCI-Subject: <subject digest> to indicate to the client
+			// that the registry processed the request's subject.
+			// NOTE: The subject may not exist in the registry.
 			AssertResponseCode(t, resp, http.StatusCreated)
 			AssertResponseHeader(t, resp, "OCI-Subject", subjectDigest.String())
 		})
