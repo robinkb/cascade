@@ -1,13 +1,11 @@
 package conformance
 
 import (
-	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"slices"
 	"testing"
 
-	"github.com/opencontainers/go-digest"
 	v1 "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/robinkb/cascade-registry"
 	"github.com/robinkb/cascade-registry/server"
@@ -143,21 +141,17 @@ func TestContentDiscovery(t *testing.T) {
 
 		subjectDigest, _, subjectContent := RandomManifest()
 
-		referrerManifest := v1.Manifest{
-			Subject: &v1.Descriptor{
-				Digest: subjectDigest,
-			},
-		}
-		referrerContent, _ := json.Marshal(&referrerManifest)
-		referrerDigest := digest.FromBytes(referrerContent)
+		wantIndex, referrers := GenerateReferrersWithIndex(t, subjectDigest)
 
 		client := NewTestClient(t, ts.URL)
 
 		resp := client.PutManifest(repository, subjectDigest.String(), subjectContent)
 		AssertResponseCode(t, resp, http.StatusCreated)
 
-		resp = client.PutManifest(repository, referrerDigest.String(), referrerContent)
-		AssertResponseCode(t, resp, http.StatusCreated)
+		for _, referrer := range referrers {
+			resp = client.PutManifest(repository, referrer.Digest.String(), referrer.Content)
+			AssertResponseCode(t, resp, http.StatusCreated)
+		}
 
 		t.Run("Fetching the full list of referrers", func(t *testing.T) {
 			client := NewTestClient(t, ts.URL)
@@ -167,18 +161,13 @@ func TestContentDiscovery(t *testing.T) {
 			AssertResponseCode(t, resp, http.StatusOK)
 			// The Content-Type header MUST be set to application/vnd.oci.image.index.v1+json.
 			AssertResponseHeader(t, resp, "Content-Type", "application/vnd.oci.image.index.v1+json")
-			// Upon success, the response MUST be a JSON body with an image index containing a list of descriptors.
-			var index v1.Index
-			AssertResponseBodyUnmarshals(t, resp, &index)
+			// Upon success, the response MUST be a JSON body with an image gotIndex containing a list of descriptors.
+			var gotIndex v1.Index
+			AssertResponseBodyUnmarshals(t, resp, &gotIndex)
 
-			// Each descriptor is of an image manifest or index in the same <name> namespace with a subject field that specifies the value of <digest>.
-			if len(index.Manifests) != 1 {
-				t.Fatalf("unexpected count of descriptors")
-			}
-
-			if index.Manifests[0].Digest != referrerDigest {
-				t.Errorf("wrong digest")
-			}
+			// Each descriptor is of an image manifest or index in the same <name> namespace
+			// with a subject field that specifies the value of <digest>.
+			AssertIndex(t, &gotIndex, wantIndex)
 		})
 
 		t.Run("List referrers on existing repository without referrers", func(t *testing.T) {

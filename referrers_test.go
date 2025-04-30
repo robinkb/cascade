@@ -1,11 +1,8 @@
 package cascade_test
 
 import (
-	"encoding/json"
 	"testing"
 
-	"github.com/opencontainers/go-digest"
-	v1 "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/robinkb/cascade-registry"
 	. "github.com/robinkb/cascade-registry/testing"
 )
@@ -15,32 +12,21 @@ func TestListReferrers(t *testing.T) {
 
 	name := RandomName()
 
-	subjectDigest, _, subjectContent := RandomManifest()
-	referrerManifest := v1.Manifest{
-		Subject: &v1.Descriptor{
-			Digest: subjectDigest,
-		},
+	digest, _, content := RandomManifest()
+	wantIndex, referrers := GenerateReferrersWithIndex(t, digest)
+
+	_, err := service.PutManifest(name, digest.String(), content)
+	RequireNoError(t, err)
+
+	for _, referrer := range referrers {
+		_, err = service.PutManifest(name, referrer.Digest.String(), referrer.Content)
+		RequireNoError(t, err)
 	}
-	referrerContent, _ := json.Marshal(&referrerManifest)
-	referrerDigest := digest.FromBytes(referrerContent)
-
-	_, err := service.PutManifest(name, subjectDigest.String(), subjectContent)
-	RequireNoError(t, err)
-
-	_, err = service.PutManifest(name, referrerDigest.String(), referrerContent)
-	RequireNoError(t, err)
 
 	t.Run("Fetch full list of referrers", func(t *testing.T) {
-		idx, err := service.ListReferrers(name, subjectDigest.String())
+		gotIndex, err := service.ListReferrers(name, digest.String())
 		AssertNoError(t, err)
-
-		if len(idx.Manifests) != 1 {
-			t.Fatalf("unexpected count of descriptors")
-		}
-
-		if idx.Manifests[0].Digest != referrerDigest {
-			t.Errorf("wrong digest")
-		}
+		AssertIndex(t, gotIndex, wantIndex)
 	})
 
 	t.Run("List referrers on existing manifest without referrers", func(t *testing.T) {
@@ -57,24 +43,20 @@ func TestListReferrers(t *testing.T) {
 
 	t.Run("List referrers when subject manifest is pushed last", func(t *testing.T) {
 		name := RandomName()
-		subjDigest, subjManifest, subjContent := RandomManifest()
-		digest, _, content := RandomManifestWithSubject(subjDigest, subjManifest)
+
+		digest, _, content := RandomManifest()
+		wantIndex, referrers := GenerateReferrersWithIndex(t, digest)
+
+		for _, referrer := range referrers {
+			_, err = service.PutManifest(name, referrer.Digest.String(), referrer.Content)
+			RequireNoError(t, err)
+		}
 
 		_, err := service.PutManifest(name, digest.String(), content)
-		AssertNoError(t, err)
+		RequireNoError(t, err)
 
-		_, err = service.PutManifest(name, subjDigest.String(), subjContent)
-		AssertNoError(t, err)
-
-		idx, err := service.ListReferrers(name, subjDigest.String())
-
-		if len(idx.Manifests) != 1 {
-			t.Fatalf("unexpected count of descriptors")
-		}
-
-		if idx.Manifests[0].Digest != digest {
-			t.Errorf("wrong digest")
-		}
+		gotIndex, err := service.ListReferrers(name, digest.String())
+		AssertIndex(t, gotIndex, wantIndex)
 	})
 
 	t.Run("List referrers on known repository but on unknown manifest", func(t *testing.T) {
