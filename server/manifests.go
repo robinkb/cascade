@@ -97,7 +97,7 @@ func (s *Server) putManifestsHandler(w http.ResponseWriter, r *http.Request) {
 	default:
 		w.WriteHeader(http.StatusInternalServerError)
 		return
-	case cascade.ErrManifestInvalid, cascade.ErrManifestBlobUnknown:
+	case cascade.ErrManifestInvalid:
 		w.WriteHeader(http.StatusBadRequest)
 		json.NewEncoder(w).Encode(NewErrorResponse(err.(cascade.Error)))
 		return
