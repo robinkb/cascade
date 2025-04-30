@@ -7,6 +7,7 @@ import (
 	"math/rand/v2"
 	"slices"
 	"strings"
+	"testing"
 
 	"github.com/moby/moby/pkg/namesgenerator"
 	"github.com/opencontainers/go-digest"
@@ -83,4 +84,41 @@ func RandomTags(count int) (tags []string) {
 	slices.Sort(tags)
 
 	return
+}
+
+type Referrer struct {
+	Digest  digest.Digest
+	Content []byte
+}
+
+func GenerateReferrersWithIndex(t *testing.T, subject digest.Digest) (*v1.Index, []*Referrer) {
+	t.Helper()
+
+	idx := v1.Index{
+		Manifests: make([]v1.Descriptor, 0),
+	}
+
+	referrers := make([]*Referrer, 0)
+
+	referrerManifest := v1.Manifest{
+		Subject: &v1.Descriptor{
+			Digest: subject,
+		},
+	}
+
+	referrerContent, err := json.Marshal(&referrerManifest)
+	RequireNoError(t, err)
+
+	referrDigest := digest.FromBytes(referrerContent)
+
+	referrers = append(referrers, &Referrer{
+		Digest:  referrDigest,
+		Content: referrerContent,
+	})
+
+	idx.Manifests = append(idx.Manifests, v1.Descriptor{
+		Digest: referrDigest,
+	})
+
+	return &idx, referrers
 }

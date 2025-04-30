@@ -1,6 +1,7 @@
 package server_test
 
 import (
+	"errors"
 	"net/http"
 	"strconv"
 	"testing"
@@ -203,6 +204,19 @@ func TestPutManifest(t *testing.T) {
 
 		AssertResponseCode(t, resp, http.StatusBadRequest)
 		AssertResponseBodyContainsError(t, resp, cascade.ErrManifestInvalid)
+	})
+
+	t.Run("Other service error returns 500", func(t *testing.T) {
+		service := mock.NewRegistryService(t)
+		service.EXPECT().
+			PutManifest(name, digest.String(), content).
+			Return("", errors.New("unknown"))
+
+		client := NewTestClientWithServer(t, service)
+
+		resp := client.PutManifest(name, digest.String(), content)
+
+		AssertResponseCode(t, resp, http.StatusInternalServerError)
 	})
 }
 

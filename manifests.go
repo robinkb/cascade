@@ -75,6 +75,7 @@ func (s *registryService) PutManifest(repository, reference string, content []by
 	err = s.metadata.PutManifest(repository, digest, &ManifestMetadata{
 		Path:      path,
 		MediaType: manifest.MediaType,
+		Subject:   subject,
 	})
 
 	return subject, err

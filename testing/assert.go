@@ -11,6 +11,7 @@ import (
 	"slices"
 	"testing"
 
+	v1 "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/robinkb/cascade-registry"
 )
 
@@ -142,6 +143,27 @@ func AssertResponseBodyContainsError(t *testing.T, got *http.Response, want casc
 
 	t.Errorf("could not find error in response body; got %q, want %q", errs, want)
 	return false
+}
+
+func AssertIndex(t *testing.T, got, want *v1.Index) bool {
+	t.Helper()
+
+	if len(got.Manifests) != len(want.Manifests) {
+		t.Errorf("unexpected descriptor count; got %d, want %d", len(got.Manifests), len(want.Manifests))
+		return false
+	}
+
+	for i := range got.Manifests {
+		gotDigest := got.Manifests[i].Digest
+		wantDigest := want.Manifests[i].Digest
+
+		if gotDigest != wantDigest {
+			t.Errorf("wrong digest value; got %q, want %q", gotDigest, wantDigest)
+			return false
+		}
+	}
+
+	return true
 }
 
 func AssertEqual[T comparable](t *testing.T, got, want T) bool {

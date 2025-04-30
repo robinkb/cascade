@@ -139,19 +139,35 @@ func TestContentDiscovery(t *testing.T) {
 	t.Run("Listing Referrers", func(t *testing.T) {
 		repository := RandomName()
 
+		subjectDigest, _, subjectContent := RandomManifest()
+
+		wantIndex, referrers := GenerateReferrersWithIndex(t, subjectDigest)
+
+		client := NewTestClient(t, ts.URL)
+
+		resp := client.PutManifest(repository, subjectDigest.String(), subjectContent)
+		AssertResponseCode(t, resp, http.StatusCreated)
+
+		for _, referrer := range referrers {
+			resp = client.PutManifest(repository, referrer.Digest.String(), referrer.Content)
+			AssertResponseCode(t, resp, http.StatusCreated)
+		}
+
 		t.Run("Fetching the full list of referrers", func(t *testing.T) {
 			client := NewTestClient(t, ts.URL)
 
-			digest := RandomDigest()
-
-			resp := client.ListReferrers(repository, digest)
+			resp := client.ListReferrers(repository, subjectDigest)
 			// Assuming a repository is found, this request MUST return a 200 OK response code.
 			AssertResponseCode(t, resp, http.StatusOK)
 			// The Content-Type header MUST be set to application/vnd.oci.image.index.v1+json.
 			AssertResponseHeader(t, resp, "Content-Type", "application/vnd.oci.image.index.v1+json")
-			// Upon success, the response MUST be a JSON body with an image index containing a list of descriptors.
-			var index v1.Index
-			AssertResponseBodyUnmarshals(t, resp, &index)
+			// Upon success, the response MUST be a JSON body with an image gotIndex containing a list of descriptors.
+			var gotIndex v1.Index
+			AssertResponseBodyUnmarshals(t, resp, &gotIndex)
+
+			// Each descriptor is of an image manifest or index in the same <name> namespace
+			// with a subject field that specifies the value of <digest>.
+			AssertIndex(t, &gotIndex, wantIndex)
 		})
 
 		t.Run("List referrers on existing repository without referrers", func(t *testing.T) {

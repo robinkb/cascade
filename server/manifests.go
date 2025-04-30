@@ -93,10 +93,17 @@ func (s *Server) putManifestsHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	subject, err := s.service.PutManifest(repository, digest.String(), data)
-	if err != nil {
-		writeErrorResponse(w, err)
+	switch err {
+	default:
+		w.WriteHeader(http.StatusInternalServerError)
 		return
+	case cascade.ErrManifestInvalid:
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(NewErrorResponse(err.(cascade.Error)))
+		return
+	case nil:
 	}
+
 	if subject != "" {
 		w.Header().Set(HeaderOCISubject, subject.String())
 	}
