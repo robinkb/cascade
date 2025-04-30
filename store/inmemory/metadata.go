@@ -99,10 +99,15 @@ func (s *metadataStore) PutManifest(repository string, digest godigest.Digest, m
 	}
 
 	if meta.Subject != "" {
-		if s.repositories[repository].manifests[meta.Subject.String()].referrers == nil {
-			s.repositories[repository].manifests[meta.Subject.String()].referrers = make(map[godigest.Digest]any)
+		manifests, ok := s.repositories[repository].manifests[meta.Subject.String()]
+		if !ok {
+			return cascade.ErrManifestBlobUnknown
 		}
-		s.repositories[repository].manifests[meta.Subject.String()].referrers[digest] = nil
+
+		if manifests.referrers == nil {
+			manifests.referrers = make(map[godigest.Digest]any)
+		}
+		manifests.referrers[digest] = nil
 	}
 
 	return nil
@@ -172,7 +177,17 @@ func (s *metadataStore) DeleteTag(repository, tag string) error {
 func (s *metadataStore) ListReferrers(repository string, digest godigest.Digest) ([]v1.Descriptor, error) {
 	descriptors := make([]v1.Descriptor, 0)
 
-	for d := range s.repositories[repository].manifests[digest.String()].referrers {
+	repo, ok := s.repositories[repository]
+	if !ok {
+		return nil, cascade.ErrNameUnknown
+	}
+
+	manifest, ok := repo.manifests[digest.String()]
+	if !ok {
+		return []v1.Descriptor{}, nil
+	}
+
+	for d := range manifest.referrers {
 		_, err := s.GetManifest(repository, d)
 		if err != nil {
 			return nil, err

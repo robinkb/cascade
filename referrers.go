@@ -12,6 +12,9 @@ func (s *registryService) ListReferrers(name, reference string) (*v1.Index, erro
 	}
 
 	referrers, err := s.metadata.ListReferrers(name, digest)
+	if err != nil {
+		return nil, err
+	}
 
 	return &v1.Index{
 		Manifests: referrers,

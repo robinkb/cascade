@@ -6,6 +6,7 @@ import (
 
 	"github.com/opencontainers/go-digest"
 	v1 "github.com/opencontainers/image-spec/specs-go/v1"
+	"github.com/robinkb/cascade-registry"
 	. "github.com/robinkb/cascade-registry/testing"
 )
 
@@ -42,9 +43,34 @@ func TestListReferrers(t *testing.T) {
 		}
 	})
 
-	t.Run("List referrers on existing repository without referrers", func(t *testing.T) {
+	t.Run("List referrers on existing manifest without referrers", func(t *testing.T) {
+		name := RandomName()
+		digest, _, content := RandomManifest()
+
+		_, err := service.PutManifest(name, digest.String(), content)
+		RequireNoError(t, err)
+
+		idx, err := service.ListReferrers(name, digest.String())
+		AssertNoError(t, err)
+		AssertEqual(t, len(idx.Manifests), 0)
+	})
+
+	t.Run("List referrers on known repository but on unknown manifest", func(t *testing.T) {
+		name := RandomName()
+		digest, _, content := RandomManifest()
+
+		_, err := service.PutManifest(name, digest.String(), content)
+		RequireNoError(t, err)
+
+		digest = RandomDigest()
+		_, err = service.ListReferrers(name, digest.String())
+		AssertNoError(t, err)
 	})
 
 	t.Run("List referrers on non-existent repository", func(t *testing.T) {
+		name, digest := RandomName(), RandomDigest()
+
+		_, err := service.ListReferrers(name, digest.String())
+		AssertErrorIs(t, err, cascade.ErrNameUnknown)
 	})
 }
