@@ -5,7 +5,6 @@ import (
 	"io"
 
 	"github.com/opencontainers/go-digest"
-	v1 "github.com/opencontainers/image-spec/specs-go/v1"
 )
 
 var (
@@ -31,7 +30,7 @@ type (
 		PutTag(repository, tag string, digest digest.Digest) error
 		DeleteTag(repository, tag string) error
 
-		ListReferrers(repository string, digest digest.Digest) ([]v1.Descriptor, error)
+		ListReferrers(repository string, digest digest.Digest) ([]digest.Digest, error)
 
 		GetUploadSession(repository string, id string) (*UploadSession, error)
 		PutUploadSession(repository string, session *UploadSession) error
