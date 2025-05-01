@@ -67,8 +67,10 @@ type (
 
 	// ManifestMetadata represents the metadata of a manifest that is stored in the MetadataStore.
 	ManifestMetadata struct {
-		Path      string
-		MediaType string
-		Subject   digest.Digest
+		Annotations map[string]string
+		MediaType   string
+		Path        string
+		Subject     digest.Digest
+		Size        int64
 	}
 )

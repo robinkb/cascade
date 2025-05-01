@@ -137,6 +137,7 @@ func GenerateReferrersWithIndex(t *testing.T, subject digest.Digest) (*v1.Index,
 	idx.Manifests = append(idx.Manifests, v1.Descriptor{
 		Annotations: referrerManifest.Annotations,
 		Digest:      referrDigest,
+		Size:        int64(len(referrerContent)),
 	})
 
 	return &idx, referrers

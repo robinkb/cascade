@@ -26,7 +26,7 @@ func TestContentDiscovery(t *testing.T) {
 		repository := RandomName()
 		digest := RandomDigest()
 		tags := make([]string, 50)
-		for i := 0; i < len(tags); i++ {
+		for i := range len(tags) {
 			tags[i] = RandomVersion()
 		}
 
