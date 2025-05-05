@@ -208,7 +208,7 @@ func AssertStructsEqual(t *testing.T, got, want any) bool {
 	t.Helper()
 
 	if !reflect.DeepEqual(got, want) {
-		t.Errorf("structs are not equal; got %+v, want %+v", got, want)
+		t.Errorf("structs are not equal;\ngot:\n%+v\nwant:\n%+v", got, want)
 		return false
 	}
 

@@ -114,30 +114,33 @@ func GenerateReferrersWithIndex(t *testing.T, subject digest.Digest) (*v1.Index,
 
 	referrers := make([]*Referrer, 0)
 
-	referrerManifest := v1.Manifest{
+	imageManifest := v1.Manifest{
 		Annotations: map[string]string{
-			"manifest": "non-special",
-			"random":   RandomString(12),
+			"test.case/number":      "0",
+			"test.case/description": "image manifest with an artifactType set",
 		},
+		ArtifactType: "application/vnd.example+type",
 		Subject: &v1.Descriptor{
 			Digest: subject,
 		},
 	}
 
-	referrerContent, err := json.Marshal(&referrerManifest)
+	imageManifestContent, err := json.Marshal(&imageManifest)
 	RequireNoError(t, err)
 
-	referrDigest := digest.FromBytes(referrerContent)
+	imageManifestDigest := digest.FromBytes(imageManifestContent)
 
 	referrers = append(referrers, &Referrer{
-		Digest:  referrDigest,
-		Content: referrerContent,
+		Digest:  imageManifestDigest,
+		Content: imageManifestContent,
 	})
 
 	idx.Manifests = append(idx.Manifests, v1.Descriptor{
-		Annotations: referrerManifest.Annotations,
-		Digest:      referrDigest,
-		Size:        int64(len(referrerContent)),
+		ArtifactType: imageManifest.ArtifactType,
+		MediaType:    imageManifest.MediaType,
+		Annotations:  imageManifest.Annotations,
+		Digest:       imageManifestDigest,
+		Size:         int64(len(imageManifestContent)),
 	})
 
 	return &idx, referrers

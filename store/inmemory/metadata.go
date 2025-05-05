@@ -28,11 +28,12 @@ type (
 	}
 
 	manifest struct {
-		annotations map[string]string
-		mediaType   string
-		path        string
-		referrers   map[godigest.Digest]any
-		size        int64
+		annotations  map[string]string
+		artifactType string
+		mediaType    string
+		path         string
+		referrers    map[godigest.Digest]any
+		size         int64
 	}
 
 	blob struct {
@@ -84,10 +85,11 @@ func (s *metadataStore) GetManifest(repository string, digest godigest.Digest) (
 	if repo, ok := s.repositories[repository]; ok {
 		if manifest, ok := repo.manifests[digest.String()]; ok {
 			return &cascade.ManifestMetadata{
-				Annotations: manifest.annotations,
-				MediaType:   manifest.mediaType,
-				Path:        manifest.path,
-				Size:        manifest.size,
+				Annotations:  manifest.annotations,
+				ArtifactType: manifest.artifactType,
+				MediaType:    manifest.mediaType,
+				Path:         manifest.path,
+				Size:         manifest.size,
 			}, nil
 		}
 	}
@@ -105,6 +107,7 @@ func (s *metadataStore) PutManifest(repository string, digest godigest.Digest, m
 	}
 
 	manifests.annotations = meta.Annotations
+	manifests.artifactType = meta.ArtifactType
 	manifests.mediaType = meta.MediaType
 	manifests.path = meta.Path
 	manifests.size = meta.Size

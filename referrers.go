@@ -27,9 +27,10 @@ func (s *registryService) ListReferrers(name, reference string) (*v1.Index, erro
 		}
 
 		idx.Manifests = append(idx.Manifests, v1.Descriptor{
-			Annotations: meta.Annotations,
-			Digest:      referrer,
-			Size:        meta.Size,
+			Annotations:  meta.Annotations,
+			ArtifactType: meta.ArtifactType,
+			Digest:       referrer,
+			Size:         meta.Size,
 		})
 	}
 
