@@ -119,6 +119,7 @@ func GenerateReferrersWithIndex(t *testing.T, subject digest.Digest) (*v1.Index,
 			"test.case/number":      "0",
 			"test.case/description": "image manifest with an artifactType set",
 		},
+		MediaType:    v1.MediaTypeImageManifest,
 		ArtifactType: "application/vnd.example+type",
 		Subject: &v1.Descriptor{
 			Digest: subject,

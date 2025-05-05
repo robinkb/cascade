@@ -30,6 +30,7 @@ func (s *registryService) ListReferrers(name, reference string) (*v1.Index, erro
 			Annotations:  meta.Annotations,
 			ArtifactType: meta.ArtifactType,
 			Digest:       referrer,
+			MediaType:    meta.MediaType,
 			Size:         meta.Size,
 		})
 	}
