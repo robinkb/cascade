@@ -155,6 +155,9 @@ func AssertIndex(t *testing.T, got, want *v1.Index) bool {
 		return false
 	}
 
+	slices.SortStableFunc(got.Manifests, descriptorSortFunc)
+	slices.SortStableFunc(want.Manifests, descriptorSortFunc)
+
 	for i := range got.Manifests {
 		gotDescriptor := got.Manifests[i]
 		wantDescriptor := want.Manifests[i]
@@ -217,4 +220,14 @@ func AssertStructsEqual(t *testing.T, got, want any) bool {
 
 func httpStatusText(code int) string {
 	return fmt.Sprintf("%d %s", code, http.StatusText(code))
+}
+
+func descriptorSortFunc(a, b v1.Descriptor) int {
+	if a.Digest.String() < b.Digest.String() {
+		return -1
+	}
+	if a.Digest.String() > b.Digest.String() {
+		return 1
+	}
+	return 0
 }
