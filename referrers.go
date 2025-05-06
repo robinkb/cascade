@@ -16,7 +16,24 @@ func (s *registryService) ListReferrers(name, reference string) (*v1.Index, erro
 		return nil, err
 	}
 
-	return &v1.Index{
-		Manifests: referrers,
-	}, nil
+	idx := v1.Index{
+		Manifests: make([]v1.Descriptor, 0),
+	}
+
+	for _, referrer := range referrers {
+		meta, err := s.metadata.GetManifest(name, referrer)
+		if err != nil {
+			return nil, err
+		}
+
+		idx.Manifests = append(idx.Manifests, v1.Descriptor{
+			Annotations:  meta.Annotations,
+			ArtifactType: meta.ArtifactType,
+			Digest:       referrer,
+			MediaType:    meta.MediaType,
+			Size:         meta.Size,
+		})
+	}
+
+	return &idx, nil
 }

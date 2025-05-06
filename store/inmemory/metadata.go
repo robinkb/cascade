@@ -4,7 +4,6 @@ import (
 	"slices"
 
 	godigest "github.com/opencontainers/go-digest"
-	v1 "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/robinkb/cascade-registry"
 )
 
@@ -29,9 +28,12 @@ type (
 	}
 
 	manifest struct {
-		path      string
-		mediaType string
-		referrers map[godigest.Digest]any
+		annotations  map[string]string
+		artifactType string
+		mediaType    string
+		path         string
+		referrers    map[godigest.Digest]any
+		size         int64
 	}
 
 	blob struct {
@@ -83,8 +85,11 @@ func (s *metadataStore) GetManifest(repository string, digest godigest.Digest) (
 	if repo, ok := s.repositories[repository]; ok {
 		if manifest, ok := repo.manifests[digest.String()]; ok {
 			return &cascade.ManifestMetadata{
-				Path:      manifest.path,
-				MediaType: manifest.mediaType,
+				Annotations:  manifest.annotations,
+				ArtifactType: manifest.artifactType,
+				MediaType:    manifest.mediaType,
+				Path:         manifest.path,
+				Size:         manifest.size,
 			}, nil
 		}
 	}
@@ -101,8 +106,11 @@ func (s *metadataStore) PutManifest(repository string, digest godigest.Digest, m
 		s.repositories[repository].manifests[digest.String()] = manifests
 	}
 
-	manifests.path = meta.Path
+	manifests.annotations = meta.Annotations
+	manifests.artifactType = meta.ArtifactType
 	manifests.mediaType = meta.MediaType
+	manifests.path = meta.Path
+	manifests.size = meta.Size
 
 	if meta.Subject != "" {
 		manifests, ok := s.repositories[repository].manifests[meta.Subject.String()]
@@ -180,9 +188,7 @@ func (s *metadataStore) DeleteTag(repository, tag string) error {
 	return nil
 }
 
-func (s *metadataStore) ListReferrers(repository string, digest godigest.Digest) ([]v1.Descriptor, error) {
-	descriptors := make([]v1.Descriptor, 0)
-
+func (s *metadataStore) ListReferrers(repository string, digest godigest.Digest) ([]godigest.Digest, error) {
 	repo, ok := s.repositories[repository]
 	if !ok {
 		return nil, cascade.ErrNameUnknown
@@ -190,21 +196,16 @@ func (s *metadataStore) ListReferrers(repository string, digest godigest.Digest)
 
 	manifest, ok := repo.manifests[digest.String()]
 	if !ok {
-		return []v1.Descriptor{}, nil
+		return []godigest.Digest{}, nil
 	}
+
+	referrers := make([]godigest.Digest, 0)
 
 	for d := range manifest.referrers {
-		_, err := s.GetManifest(repository, d)
-		if err != nil {
-			return nil, err
-		}
-
-		descriptors = append(descriptors, v1.Descriptor{
-			Digest: d,
-		})
+		referrers = append(referrers, d)
 	}
 
-	return descriptors, nil
+	return referrers, nil
 }
 
 func (s *metadataStore) GetUploadSession(repository, id string) (*cascade.UploadSession, error) {

@@ -6,8 +6,10 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"net/http"
 	"net/textproto"
+	"reflect"
 	"slices"
 	"testing"
 
@@ -153,12 +155,14 @@ func AssertIndex(t *testing.T, got, want *v1.Index) bool {
 		return false
 	}
 
-	for i := range got.Manifests {
-		gotDigest := got.Manifests[i].Digest
-		wantDigest := want.Manifests[i].Digest
+	slices.SortStableFunc(got.Manifests, descriptorSortFunc)
+	slices.SortStableFunc(want.Manifests, descriptorSortFunc)
 
-		if gotDigest != wantDigest {
-			t.Errorf("wrong digest value; got %q, want %q", gotDigest, wantDigest)
+	for i := range got.Manifests {
+		gotDescriptor := got.Manifests[i]
+		wantDescriptor := want.Manifests[i]
+
+		if !AssertStructsEqual(t, gotDescriptor, wantDescriptor) {
 			return false
 		}
 	}
@@ -177,21 +181,53 @@ func AssertEqual[T comparable](t *testing.T, got, want T) bool {
 	return true
 }
 
-func AssertSlicesEqual[S ~[]E, E comparable](t *testing.T, s1 S, s2 S) bool {
+func AssertSlicesEqual[S ~[]E, E comparable](t *testing.T, got S, wamt S) bool {
 	t.Helper()
 
-	if len(s1) != len(s2) {
-		t.Errorf("slices are of unequal length; got %d, want %d", len(s2), len(s1))
+	if len(got) != len(wamt) {
+		t.Errorf("slices are of unequal length; got %d, want %d", len(wamt), len(got))
 		return false
 	}
 
-	if !slices.Equal(s1, s2) {
-		t.Errorf("slices are not equal; got %v, want %v", s2, s1)
+	if !slices.Equal(got, wamt) {
+		t.Errorf("slices are not equal; got %v, want %v", wamt, got)
 		return false
 	}
 	return true
 }
 
+func AssertMapsEqual[M1, M2 ~map[K]V, K, V comparable](t *testing.T, got M1, want M2) bool {
+	t.Helper()
+
+	if !maps.Equal(got, want) {
+		t.Errorf("maps are not equal; got %+v, want %+v", got, want)
+		return false
+	}
+
+	return true
+}
+
+func AssertStructsEqual(t *testing.T, got, want any) bool {
+	t.Helper()
+
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("structs are not equal;\ngot:\n%+v\nwant:\n%+v", got, want)
+		return false
+	}
+
+	return true
+}
+
 func httpStatusText(code int) string {
 	return fmt.Sprintf("%d %s", code, http.StatusText(code))
+}
+
+func descriptorSortFunc(a, b v1.Descriptor) int {
+	if a.Digest.String() < b.Digest.String() {
+		return -1
+	}
+	if a.Digest.String() > b.Digest.String() {
+		return 1
+	}
+	return 0
 }
