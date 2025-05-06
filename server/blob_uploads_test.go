@@ -13,10 +13,26 @@ import (
 )
 
 func TestBlobUploadsMonolithic(t *testing.T) {
-	// TODO: This used to have integration-style tests that have been moved
-	// to the conformance test. There should be more basic handler unit tests here
-	// for the happy scenarios.
-	// Additionally, these test cases seem confusing and possibly wrong...
+	t.Run("Performing a monolithic upload", func(t *testing.T) {
+		name, digest, content := RandomName(), RandomDigest(), RandomContents(32)
+		sessionID := RandomString(8)
+
+		service := mock.NewRegistryService(t)
+		service.EXPECT().
+			AppendUpload(name, sessionID, bytes.NewBuffer(content), int64(0)).
+			Return(nil)
+		service.EXPECT().
+			CloseUpload(name, sessionID, digest.String()).
+			Return(nil)
+
+		client := NewTestClientWithServer(t, service)
+
+		location := newLocation(name, sessionID)
+		resp := client.CloseUploadWithContent(location, digest, content, 0)
+
+		AssertResponseCode(t, resp, http.StatusCreated)
+		AssertResponseHeaderSet(t, resp, "Location")
+	})
 
 	t.Run("Uploading without session returns 404", func(t *testing.T) {
 		name, digest := RandomName(), RandomDigest()
@@ -119,4 +135,20 @@ func TestBlobUploadsChunked(t *testing.T) {
 func TestBlobUploadsStreamed(t *testing.T) {
 	// TODO: This used to have integration-style tests that have been moved
 	// to the conformance test. There should be more basic handler unit tests here.
+	t.Run("Performing a streamed upload", func(t *testing.T) {
+		name, content := RandomName(), RandomContents(32)
+		sessionID := RandomString(6)
+
+		service := mock.NewRegistryService(t)
+		service.EXPECT().
+			AppendUpload(name, sessionID, mock.AnythingOfType("*http.body"), int64(0)).
+			Return(nil)
+
+		client := NewTestClientWithServer(t, service)
+
+		location := newLocation(name, sessionID)
+		resp := client.UploadBlobStream(location, bytes.NewBuffer(content))
+		AssertResponseCode(t, resp, http.StatusAccepted)
+		AssertResponseHeaderSet(t, resp, "Location")
+	})
 }
