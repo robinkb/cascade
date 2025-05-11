@@ -57,45 +57,64 @@ func (s *blobStore) GetBlob(id digest.Digest) ([]byte, error) {
 	return data, nil
 }
 
-func (s *blobStore) StatUpload(id uuid.UUID) (*cascade.FileInfo, error) {
-	path := s.uuidToPath(id)
-	return s.stat(path)
+func (s *blobStore) BlobReader(id digest.Digest) (io.Reader, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	path := s.digestToPath(id)
+	return bytes.NewBuffer(s.store[path]), nil
 }
 
-func (s *blobStore) Put(path string, content []byte) error {
+func (s *blobStore) PutBlob(id digest.Digest, content []byte) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
+	path := s.digestToPath(id)
 	s.store[path] = content
 
 	return nil
 }
 
-func (s *blobStore) Reader(path string) (io.Reader, error) {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-
-	return bytes.NewBuffer(s.store[path]), nil
+func (s *blobStore) DeleteBlob(id digest.Digest) error {
+	path := s.digestToPath(id)
+	return s.delete(path)
 }
 
-func (s *blobStore) Writer(path string) (io.Writer, error) {
+func (s *blobStore) StatUpload(id uuid.UUID) (*cascade.FileInfo, error) {
+	path := s.uuidToPath(id)
+	return s.stat(path)
+}
+
+func (s *blobStore) InitUpload(id uuid.UUID) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	path := s.uuidToPath(id)
+	s.store[path] = []byte{}
+
+	return nil
+}
+
+func (s *blobStore) UploadWriter(id uuid.UUID) (io.Writer, error) {
+	path := s.uuidToPath(id)
 	return &writer{s, path}, nil
 }
 
-func (s *blobStore) Delete(path string) error {
+func (s *blobStore) CloseUpload(id uuid.UUID, digest digest.Digest) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	delete(s.store, path)
+	uploadPath := s.uuidToPath(id)
+	blobPath := s.digestToPath(digest)
+
+	s.store[blobPath] = s.store[uploadPath]
+	delete(s.store, uploadPath)
 	return nil
 }
 
-func (s *blobStore) Move(sourcePath, destinationPath string) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	s.store[destinationPath] = s.store[sourcePath]
-	return nil
+func (s *blobStore) DeleteUpload(id uuid.UUID) error {
+	path := s.uuidToPath(id)
+	return s.delete(path)
 }
 
 func (s *blobStore) digestToPath(id digest.Digest) string {
@@ -119,4 +138,12 @@ func (s *blobStore) stat(path string) (*cascade.FileInfo, error) {
 		Name: path,
 		Size: int64(len(data)),
 	}, nil
+}
+
+func (s *blobStore) delete(path string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	delete(s.store, path)
+	return nil
 }

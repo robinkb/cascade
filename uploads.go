@@ -56,7 +56,7 @@ func (s *registryService) InitUpload(repository string) *UploadSession {
 		BlobPath:  path,
 	}
 
-	err = s.blobs.Put(path, []byte{})
+	err = s.blobs.InitUpload(id)
 	if err != nil {
 		panic(err)
 	}
@@ -90,7 +90,7 @@ func (s *registryService) AppendUpload(repository, sessionID string, r io.Reader
 		return err
 	}
 
-	w, err := s.blobs.Writer(session.BlobPath)
+	w, err := s.blobs.UploadWriter(session.ID)
 	if err != nil {
 		return err
 	}
@@ -133,7 +133,7 @@ func (s *registryService) CloseUpload(repository, sessionID, digest string) erro
 
 	destPath := fmt.Sprintf("blobs/%s/%s/%s", calculatedId.Algorithm(), calculatedId.Encoded()[0:2], calculatedId.Encoded())
 
-	s.blobs.Move(session.BlobPath, destPath)
+	s.blobs.CloseUpload(session.ID, calculatedId)
 
 	return s.metadata.PutBlob(repository, calculatedId, destPath)
 }
