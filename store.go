@@ -19,8 +19,7 @@ type (
 	// I do like having the option of just creating repos on the fly, though...
 	MetadataStore interface {
 		GetBlob(repository string, digest digest.Digest) (string, error)
-		// TODO: path parameter will be removed after BlobStore redesign.
-		PutBlob(repository string, digest digest.Digest, path string) error
+		PutBlob(repository string, digest digest.Digest) error
 		DeleteBlob(repository string, digest digest.Digest) error
 
 		GetManifest(repository string, digest digest.Digest) (*ManifestMetadata, error)
@@ -85,9 +84,7 @@ type (
 		Annotations  map[string]string
 		ArtifactType string
 		MediaType    string
-		// TODO: Will go away after BlobStore redesign
-		Path    string
-		Subject digest.Digest
-		Size    int64
+		Subject      digest.Digest
+		Size         int64
 	}
 )

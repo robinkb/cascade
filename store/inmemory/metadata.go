@@ -31,14 +31,11 @@ type (
 		annotations  map[string]string
 		artifactType string
 		mediaType    string
-		path         string
 		referrers    map[godigest.Digest]any
 		size         int64
 	}
 
-	blob struct {
-		path string
-	}
+	blob struct{}
 
 	// Named 'ttag' instead of 'tag', because otherwise
 	// this type would be shadowed by variables named 'tag'.
@@ -61,18 +58,16 @@ func (s *metadataStore) ensureRepositoryExists(name string) {
 
 func (s *metadataStore) GetBlob(repository string, digest godigest.Digest) (string, error) {
 	if repo, ok := s.repositories[repository]; ok {
-		if blob, ok := repo.blobs[digest.String()]; ok {
-			return blob.path, nil
+		if _, ok := repo.blobs[digest.String()]; ok {
+			return "", nil
 		}
 	}
 	return "", cascade.ErrBlobUnknown
 }
 
-func (s *metadataStore) PutBlob(repository string, digest godigest.Digest, path string) error {
+func (s *metadataStore) PutBlob(repository string, digest godigest.Digest) error {
 	s.ensureRepositoryExists(repository)
-	s.repositories[repository].blobs[digest.String()] = &blob{
-		path: path,
-	}
+	s.repositories[repository].blobs[digest.String()] = &blob{}
 	return nil
 }
 
@@ -88,7 +83,6 @@ func (s *metadataStore) GetManifest(repository string, digest godigest.Digest) (
 				Annotations:  manifest.annotations,
 				ArtifactType: manifest.artifactType,
 				MediaType:    manifest.mediaType,
-				Path:         manifest.path,
 				Size:         manifest.size,
 			}, nil
 		}
@@ -109,7 +103,6 @@ func (s *metadataStore) PutManifest(repository string, digest godigest.Digest, m
 	manifests.annotations = meta.Annotations
 	manifests.artifactType = meta.ArtifactType
 	manifests.mediaType = meta.MediaType
-	manifests.path = meta.Path
 	manifests.size = meta.Size
 
 	if meta.Subject != "" {

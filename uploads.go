@@ -131,9 +131,8 @@ func (s *registryService) CloseUpload(repository, sessionID, digest string) erro
 		return ErrBlobUploadInvalid
 	}
 
-	destPath := fmt.Sprintf("blobs/%s/%s/%s", calculatedId.Algorithm(), calculatedId.Encoded()[0:2], calculatedId.Encoded())
-
+	// TODO: This can fail in real imeplementations, test it and check it.
 	s.blobs.CloseUpload(session.ID, calculatedId)
 
-	return s.metadata.PutBlob(repository, calculatedId, destPath)
+	return s.metadata.PutBlob(repository, calculatedId)
 }

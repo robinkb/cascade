@@ -57,7 +57,7 @@ func TestPull(t *testing.T) {
 		name := RandomName()
 		digest, blob := RandomBlob(32)
 
-		metadata.PutBlob(name, digest, digest.String())
+		metadata.PutBlob(name, digest)
 		blobs.PutBlob(digest, blob)
 
 		t.Run("GET request to an existing blob", func(t *testing.T) {

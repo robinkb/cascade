@@ -1,7 +1,6 @@
 package cascade_test
 
 import (
-	"fmt"
 	"io"
 	"testing"
 
@@ -17,11 +16,9 @@ func TestStatBlob(t *testing.T) {
 
 	name := RandomName()
 	digest, content := RandomBlob(32 * 1024)
-	// TODO: This is not good.
-	path := fmt.Sprintf("blobs/%s/%s/%s", digest.Algorithm(), digest.Encoded()[0:2], digest.Encoded())
 
 	blobs.PutBlob(digest, content)
-	metadata.PutBlob(name, digest, path)
+	metadata.PutBlob(name, digest)
 
 	t.Run("Known blob returns no error", func(t *testing.T) {
 		_, err := service.StatBlob(name, digest.String())
@@ -44,10 +41,9 @@ func TestGetBlob(t *testing.T) {
 
 	name := RandomName()
 	digest, content := RandomBlob(32)
-	path := digest.Encoded()
 
 	blobs.PutBlob(digest, content)
-	metadata.PutBlob(name, digest, path)
+	metadata.PutBlob(name, digest)
 
 	t.Run("Known blob returns content and no error", func(t *testing.T) {
 		r, err := service.GetBlob(name, digest.String())
@@ -73,10 +69,9 @@ func TestDeleteBlob(t *testing.T) {
 
 	name := RandomName()
 	digest, content := RandomBlob(32)
-	path := digest.String()
 
 	t.Run("A deleted blob is not retrievable", func(t *testing.T) {
-		metadata.PutBlob(name, digest, path)
+		metadata.PutBlob(name, digest)
 		blobs.PutBlob(digest, content)
 
 		_, err := service.GetBlob(name, digest.String())

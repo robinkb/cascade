@@ -84,7 +84,6 @@ func TestGetManifests(t *testing.T) {
 	digest, manifest, content := RandomManifest()
 	meta := &cascade.ManifestMetadata{
 		MediaType: manifest.MediaType,
-		Path:      digest.String(),
 	}
 	tag := RandomVersion()
 
