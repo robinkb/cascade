@@ -20,9 +20,7 @@ func (s *registryService) StatUpload(repository, sessionID string) (*FileInfo, e
 		return nil, err
 	}
 
-	path := fmt.Sprintf("uploads/%s", session.ID)
-
-	info, err := s.blobs.Stat(path)
+	info, err := s.blobs.StatUpload(session.ID)
 	if errors.Is(err, ErrFileNotFound) {
 		return nil, ErrBlobUploadUnknown
 	}
@@ -77,7 +75,7 @@ func (s *registryService) AppendUpload(repository, sessionID string, r io.Reader
 		return err
 	}
 
-	info, err := s.blobs.Stat(session.BlobPath)
+	info, err := s.blobs.StatUpload(session.ID)
 	if err != nil {
 		return err
 	}

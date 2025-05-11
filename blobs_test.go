@@ -1,6 +1,7 @@
 package cascade_test
 
 import (
+	"fmt"
 	"io"
 	"testing"
 
@@ -16,7 +17,8 @@ func TestStatBlob(t *testing.T) {
 
 	name := RandomName()
 	digest, content := RandomBlob(32 * 1024)
-	path := digest.Encoded()
+	// TODO: This is not good.
+	path := fmt.Sprintf("blobs/%s/%s/%s", digest.Algorithm(), digest.Encoded()[0:2], digest.Encoded())
 
 	blobs.Put(path, content)
 	metadata.PutBlob(name, digest, path)

@@ -90,10 +90,13 @@ func TestPull(t *testing.T) {
 			name := RandomName()
 			digest, blob := RandomBlob(32)
 
-			metadata.PutBlob(name, digest, digest.String())
-			blobs.Put(digest.String(), blob)
+			resp := client.InitUpload(name)
+			AssertResponseCode(t, resp, http.StatusAccepted)
+			location, err := resp.Location()
+			RequireNoError(t, err)
+			resp = client.CloseUploadWithContent(location, digest, blob, 0)
 
-			resp := client.CheckBlob(name, digest)
+			resp = client.CheckBlob(name, digest)
 
 			// A HEAD request to an existing blob URL MUST return 200 OK.
 			AssertResponseCode(t, resp, http.StatusOK)
@@ -117,12 +120,10 @@ func TestPull(t *testing.T) {
 			name := RandomName()
 			digest, _, content := RandomManifest()
 
-			metadata.PutManifest(name, digest, &cascade.ManifestMetadata{
-				Path: digest.String(),
-			})
-			blobs.Put(digest.String(), content)
+			resp := client.PutManifest(name, digest.String(), content)
+			AssertResponseCode(t, resp, http.StatusCreated)
 
-			resp := client.CheckManifestByDigest(name, digest)
+			resp = client.CheckManifestByDigest(name, digest)
 
 			// A HEAD request to an existing manifest URL MUST return 200 OK
 			AssertResponseCode(t, resp, http.StatusOK)

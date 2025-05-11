@@ -2,10 +2,18 @@ package inmemory
 
 import (
 	"bytes"
+	"fmt"
 	"io"
 	"sync"
 
+	"github.com/gofrs/uuid/v5"
+	"github.com/opencontainers/go-digest"
 	"github.com/robinkb/cascade-registry"
+)
+
+const (
+	blobPathFormat   = "blobs/%s/%s/%s"
+	uploadPathFormat = "uploads/%s"
 )
 
 func NewBlobStore() cascade.BlobStore {
@@ -32,19 +40,14 @@ func (w *writer) Write(p []byte) (n int, err error) {
 	return len(p), nil
 }
 
-func (s *blobStore) Stat(path string) (*cascade.FileInfo, error) {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
+func (s *blobStore) StatBlob(id digest.Digest) (*cascade.FileInfo, error) {
+	path := s.digestToPath(id)
+	return s.stat(path)
+}
 
-	data, ok := s.store[path]
-	if !ok {
-		return nil, cascade.ErrFileNotFound
-	}
-
-	return &cascade.FileInfo{
-		Name: path,
-		Size: int64(len(data)),
-	}, nil
+func (s *blobStore) StatUpload(id uuid.UUID) (*cascade.FileInfo, error) {
+	path := s.uuidToPath(id)
+	return s.stat(path)
 }
 
 func (s *blobStore) Get(path string) ([]byte, error) {
@@ -92,4 +95,27 @@ func (s *blobStore) Move(sourcePath, destinationPath string) error {
 
 	s.store[destinationPath] = s.store[sourcePath]
 	return nil
+}
+
+func (s *blobStore) digestToPath(id digest.Digest) string {
+	return fmt.Sprintf(blobPathFormat, id.Algorithm(), id.Encoded()[0:2], id.Encoded())
+}
+
+func (s *blobStore) uuidToPath(id uuid.UUID) string {
+	return fmt.Sprintf(uploadPathFormat, id.String())
+}
+
+func (s *blobStore) stat(path string) (*cascade.FileInfo, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	data, ok := s.store[path]
+	if !ok {
+		return nil, cascade.ErrFileNotFound
+	}
+
+	return &cascade.FileInfo{
+		Name: path,
+		Size: int64(len(data)),
+	}, nil
 }

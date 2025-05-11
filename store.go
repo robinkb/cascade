@@ -4,6 +4,7 @@ import (
 	"errors"
 	"io"
 
+	"github.com/gofrs/uuid/v5"
 	"github.com/opencontainers/go-digest"
 )
 
@@ -37,9 +38,10 @@ type (
 		DeleteUploadSession(repository string, id string) error
 	}
 
+	// BlobStore defines the interface for storing the actual data of the registry.
+	// Implementations of this interface are responsible for deciding how data is persisted.
+	// Blobs must be retrievable by their digest, and uploads by their session ID.
 	BlobStore interface {
-		// Stat returns basic file info about the blob at the given path.
-		Stat(path string) (*FileInfo, error)
 		// Get returns the blob at the given path. Intended for smaller blobs that
 		// must be fully read into memory server-side, like manifests.
 		Get(path string) ([]byte, error)
@@ -57,6 +59,20 @@ type (
 		// Move moves the blob from the source path to the destination path.
 		// This may effectively be a rename on some backends.
 		Move(sourcePath, destinationPath string) error
+
+		// StatBlob returns basic file info about the blob with the given digest.
+		StatBlob(id digest.Digest) (*FileInfo, error)
+
+		// StatBlob returns basic file info about the upload with the given UUID.
+		StatUpload(id uuid.UUID) (*FileInfo, error)
+
+		// GetBlob: Replaces Get - Used in GetManifest
+		// PutBlob: Replaces Put - Used in PutManifest
+		// DeleteBlob: Replaces Delete - Would be used by GC
+		// DeleteUpload: Replaces Delete - Would be used by GC or CloseUpload
+		// BlobReader: Replaces Reader - Used by GetBlob
+		// UploadWriter: Replaces Writer - Used by AppendUpload
+		// CloseUpload: Replaces Move - Used by CloseUpload
 	}
 
 	// Based (at least initially) on fs.FileInfo interface.
@@ -70,8 +86,9 @@ type (
 		Annotations  map[string]string
 		ArtifactType string
 		MediaType    string
-		Path         string
-		Subject      digest.Digest
-		Size         int64
+		// TODO: Will go away?
+		Path    string
+		Subject digest.Digest
+		Size    int64
 	}
 )

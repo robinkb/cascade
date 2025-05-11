@@ -11,20 +11,17 @@ import (
 )
 
 func TestStatManifest(t *testing.T) {
-	service, metadata, blobs := newTestRegistry()
+	service, _, _ := newTestRegistry()
 
 	name := RandomName()
 	digest, _, content := RandomManifest()
 
-	path := digest.String()
-	blobs.Put(path, content)
-	metadata.PutManifest(name, digest, &cascade.ManifestMetadata{
-		Path: path,
-	})
+	_, err := service.PutManifest(name, digest.String(), content)
+	RequireNoError(t, err)
 
 	t.Run("Returns FileInfo with expected size on known manifest", func(t *testing.T) {
 		info, err := service.StatManifest(name, digest.String())
-		AssertNoError(t, err)
+		RequireNoError(t, err)
 
 		got := info.Size
 		want := int64(len(content))

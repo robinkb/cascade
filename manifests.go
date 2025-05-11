@@ -15,12 +15,12 @@ func (s *registryService) StatManifest(repository, id string) (*FileInfo, error)
 		return nil, ErrManifestUnknown
 	}
 
-	meta, err := s.metadata.GetManifest(repository, digest)
+	_, err = s.metadata.GetManifest(repository, digest)
 	if err != nil {
 		return nil, ErrManifestUnknown
 	}
 
-	info, err := s.blobs.Stat(meta.Path)
+	info, err := s.blobs.StatBlob(digest)
 	if errors.Is(err, ErrFileNotFound) {
 		return nil, ErrManifestUnknown
 	}
@@ -101,6 +101,7 @@ func (s *registryService) DeleteManifest(repository, id string) error {
 		return ErrManifestUnknown
 	}
 
+	// TODO: Shouldn't do this. Manifests could be shared between repos.
 	err = s.blobs.Delete(meta.Path)
 	if err != nil {
 		return err

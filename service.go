@@ -53,7 +53,9 @@ type (
 	UploadSession struct {
 		ID uuid.UUID
 		// TODO: This should not be here, as it's an HTTP implementation detail.
-		Location  string
+		Location string
+		// TODO: Will go away with the blob store refactor, as uploads
+		// are saved based on the session ID.
 		BlobPath  string
 		StartDate time.Time
 		// TODO: Could we make this a hash.Hash and make it easier?
