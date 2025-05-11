@@ -142,6 +142,11 @@ func TestContentDiscovery(t *testing.T) {
 		subjectDigest, _, subjectContent := RandomManifest()
 
 		wantIndex, referrers := GenerateReferrersWithIndex(t, subjectDigest)
+		wantFilteredIndex := v1.Index{
+			Manifests: []v1.Descriptor{
+				wantIndex.Manifests[0],
+			},
+		}
 
 		client := NewTestClient(t, ts.URL)
 
@@ -156,7 +161,7 @@ func TestContentDiscovery(t *testing.T) {
 		t.Run("Fetching the full list of referrers", func(t *testing.T) {
 			client := NewTestClient(t, ts.URL)
 
-			resp := client.ListReferrers(repository, subjectDigest)
+			resp := client.ListReferrers(repository, subjectDigest, nil)
 			// Assuming a repository is found, this request MUST return a 200 OK response code.
 			AssertResponseCode(t, resp, http.StatusOK)
 			// The Content-Type header MUST be set to application/vnd.oci.image.index.v1+json.
@@ -170,12 +175,37 @@ func TestContentDiscovery(t *testing.T) {
 			AssertIndex(t, &gotIndex, wantIndex)
 		})
 
+		t.Run("Fetching a filtered list of referrers", func(t *testing.T) {
+			client := NewTestClient(t, ts.URL)
+
+			// The registry SHOULD support filtering on artifactType.
+			resp := client.ListReferrers(repository, subjectDigest, &ListReferrersOptions{
+				ArtifactType: "application/vnd.example+type",
+			})
+
+			// Assuming a repository is found, this request MUST return a 200 OK response code.
+			AssertResponseCode(t, resp, http.StatusOK)
+			// The Content-Type header MUST be set to application/vnd.oci.image.index.v1+json.
+			AssertResponseHeader(t, resp, "Content-Type", "application/vnd.oci.image.index.v1+json")
+			//  If filtering is requested and applied, the response MUST include a header
+			// OCI-Filters-Applied: artifactType denoting that an artifactType filter was applied.
+			AssertResponseHeader(t, resp, "OCI-Filters-Applied", "artifactType")
+
+			// Upon success, the response MUST be a JSON body with an image gotIndex containing a list of descriptors.
+			var gotIndex v1.Index
+			AssertResponseBodyUnmarshals(t, resp, &gotIndex)
+
+			// Each descriptor is of an image manifest or index in the same <name> namespace
+			// with a subject field that specifies the value of <digest>.
+			AssertIndex(t, &gotIndex, &wantFilteredIndex)
+		})
+
 		t.Run("List referrers on existing repository without referrers", func(t *testing.T) {
 			client := NewTestClient(t, ts.URL)
 
 			digest := RandomDigest()
 
-			resp := client.ListReferrers(repository, digest)
+			resp := client.ListReferrers(repository, digest, nil)
 			// If the registry supports the referrers API, the registry MUST NOT return a 404 Not Found to a referrers API requests.
 			AssertResponseCode(t, resp, http.StatusOK)
 		})
@@ -183,7 +213,7 @@ func TestContentDiscovery(t *testing.T) {
 		t.Run("List referrers with an invalid request", func(t *testing.T) {
 			client := NewTestClient(t, ts.URL)
 
-			resp := client.ListReferrers(repository, "12345")
+			resp := client.ListReferrers(repository, "12345", nil)
 			// If the request is invalid, such as a <digest> with an invalid syntax, a 400 Bad Request MUST be returned.
 			AssertResponseCode(t, resp, http.StatusBadRequest)
 		})

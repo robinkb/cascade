@@ -105,6 +105,10 @@ type Referrer struct {
 	Content []byte
 }
 
+// GenerateReferrersWithIndex generates an index with mostly-static manifests.
+// Used for testing the Referrers API. Added manifests should be fine, but take care
+// to leave manifest test case 0 as the first manifest, and do not add another manifest
+// with the same artifact type.
 func GenerateReferrersWithIndex(t *testing.T, subject digest.Digest) (*v1.Index, []*Referrer) {
 	t.Helper()
 

@@ -73,6 +73,8 @@ func AssertResponseHeader(t *testing.T, got *http.Response, header string, want 
 func AssertResponseHeaderSet(t *testing.T, got *http.Response, header string) bool {
 	t.Helper()
 
+	header = textproto.CanonicalMIMEHeaderKey(header)
+
 	_, ok := got.Header[header]
 	if !ok {
 		t.Errorf("header %q is not set", header)
@@ -83,6 +85,8 @@ func AssertResponseHeaderSet(t *testing.T, got *http.Response, header string) bo
 
 func AssertResponseHeaderUnset(t *testing.T, got *http.Response, header string) bool {
 	t.Helper()
+
+	header = textproto.CanonicalMIMEHeaderKey(header)
 
 	_, ok := got.Header[header]
 	if ok {

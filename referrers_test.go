@@ -3,6 +3,7 @@ package cascade_test
 import (
 	"testing"
 
+	v1 "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/robinkb/cascade-registry"
 	. "github.com/robinkb/cascade-registry/testing"
 )
@@ -14,6 +15,11 @@ func TestListReferrers(t *testing.T) {
 
 	digest, _, content := RandomManifest()
 	wantIndex, referrers := GenerateReferrersWithIndex(t, digest)
+	wantFilteredIndex := &v1.Index{
+		Manifests: []v1.Descriptor{
+			wantIndex.Manifests[0],
+		},
+	}
 
 	_, err := service.PutManifest(name, digest.String(), content)
 	RequireNoError(t, err)
@@ -24,9 +30,19 @@ func TestListReferrers(t *testing.T) {
 	}
 
 	t.Run("Fetch full list of referrers", func(t *testing.T) {
-		gotIndex, err := service.ListReferrers(name, digest.String())
+		got, err := service.ListReferrers(name, digest.String(), nil)
 		AssertNoError(t, err)
-		AssertIndex(t, gotIndex, wantIndex)
+		AssertIndex(t, got.Index, wantIndex)
+		AssertSlicesEqual(t, got.AppliedFilters, []string{})
+	})
+
+	t.Run("Fetch filtered list of referrers", func(t *testing.T) {
+		got, err := service.ListReferrers(name, digest.String(), &cascade.ListReferrersOptions{
+			ArtifactType: "application/vnd.example+type",
+		})
+		AssertNoError(t, err)
+		AssertIndex(t, got.Index, wantFilteredIndex)
+		AssertSlicesEqual(t, got.AppliedFilters, []string{"artifactType"})
 	})
 
 	t.Run("List referrers on existing manifest without referrers", func(t *testing.T) {
@@ -36,9 +52,9 @@ func TestListReferrers(t *testing.T) {
 		_, err := service.PutManifest(name, digest.String(), content)
 		RequireNoError(t, err)
 
-		idx, err := service.ListReferrers(name, digest.String())
+		got, err := service.ListReferrers(name, digest.String(), nil)
 		AssertNoError(t, err)
-		AssertEqual(t, len(idx.Manifests), 0)
+		AssertEqual(t, len(got.Index.Manifests), 0)
 	})
 
 	t.Run("List referrers when subject manifest is pushed last", func(t *testing.T) {
@@ -55,8 +71,8 @@ func TestListReferrers(t *testing.T) {
 		_, err := service.PutManifest(name, digest.String(), content)
 		RequireNoError(t, err)
 
-		gotIndex, err := service.ListReferrers(name, digest.String())
-		AssertIndex(t, gotIndex, wantIndex)
+		got, err := service.ListReferrers(name, digest.String(), nil)
+		AssertIndex(t, got.Index, wantIndex)
 	})
 
 	t.Run("List referrers on known repository but on unknown manifest", func(t *testing.T) {
@@ -67,14 +83,14 @@ func TestListReferrers(t *testing.T) {
 		RequireNoError(t, err)
 
 		digest = RandomDigest()
-		_, err = service.ListReferrers(name, digest.String())
+		_, err = service.ListReferrers(name, digest.String(), nil)
 		AssertNoError(t, err)
 	})
 
 	t.Run("List referrers on non-existent repository", func(t *testing.T) {
 		name, digest := RandomName(), RandomDigest()
 
-		_, err := service.ListReferrers(name, digest.String())
+		_, err := service.ListReferrers(name, digest.String(), nil)
 		AssertErrorIs(t, err, cascade.ErrNameUnknown)
 	})
 }
