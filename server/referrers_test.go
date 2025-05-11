@@ -14,9 +14,10 @@ import (
 )
 
 func TestListReferrers(t *testing.T) {
+	wantName := RandomName()
+	wantDigest := RandomDigest()
+
 	t.Run("Listing referrers returns 200 OK", func(t *testing.T) {
-		wantName := RandomName()
-		wantDigest := RandomDigest()
 		wantIndex, _ := GenerateReferrersWithIndex(t, RandomDigest())
 		wantReferrers := cascade.Referrers{
 			Index: wantIndex,
@@ -41,8 +42,6 @@ func TestListReferrers(t *testing.T) {
 	})
 
 	t.Run("Listing referrers with filter parses the query option and sets a header", func(t *testing.T) {
-		wantName := RandomName()
-		wantDigest := RandomDigest()
 		wantArtifactType := RandomString(12)
 		wantOpts := cascade.ListReferrersOptions{
 			ArtifactType: wantArtifactType,
@@ -70,7 +69,6 @@ func TestListReferrers(t *testing.T) {
 	})
 
 	t.Run("Listing referrers with invalid digest returns 400 Bad Request", func(t *testing.T) {
-		wantName := RandomName()
 		wantDigest := "invalid"
 		wantErr := cascade.ErrDigestInvalid
 
@@ -87,9 +85,6 @@ func TestListReferrers(t *testing.T) {
 	})
 
 	t.Run("Unknown service errors return a 500 internal server error", func(t *testing.T) {
-		wantName := RandomName()
-		wantDigest := RandomDigest()
-
 		service := mock.NewRegistryService(t)
 		service.EXPECT().
 			ListReferrers(wantName, wantDigest.String(), mock.Anything).
