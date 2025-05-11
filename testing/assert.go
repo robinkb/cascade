@@ -194,7 +194,7 @@ func AssertSlicesEqual[S ~[]E, E comparable](t *testing.T, got S, wamt S) bool {
 	}
 
 	if !slices.Equal(got, wamt) {
-		t.Errorf("slices are not equal; got %v, want %v", wamt, got)
+		t.Errorf("slices are not equal;\ngot\n%v\nwant\n%v", wamt, got)
 		return false
 	}
 	return true
