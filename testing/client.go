@@ -111,9 +111,10 @@ type ListTagsOptions struct {
 }
 
 func (c *Client) ListTags(name string, opts *ListTagsOptions) *http.Response {
-	u := url.URL{}
+	u := url.URL{
+		Path: fmt.Sprintf("/v2/%s/tags/list", name),
+	}
 
-	u.Path = fmt.Sprintf("/v2/%s/tags/list", name)
 	if opts != nil {
 		query := make(url.Values, 0)
 		if opts.N != nil {
@@ -133,9 +134,23 @@ func (c *Client) DeleteTag(name string, tag string) *http.Response {
 	return c.Do(http.MethodDelete, path, nil, nil)
 }
 
-func (c *Client) ListReferrers(name string, digest digest.Digest) *http.Response {
-	path := fmt.Sprintf("/v2/%s/referrers/%s", name, digest)
-	return c.Do(http.MethodGet, path, nil, nil)
+type ListReferrersOptions struct {
+	ArtifactType string
+}
+
+func (c *Client) ListReferrers(name string, digest digest.Digest, opts *ListReferrersOptions) *http.Response {
+	u := url.URL{
+		Path: fmt.Sprintf("/v2/%s/referrers/%s", name, digest),
+	}
+
+	if opts != nil {
+		query := make(url.Values, 0)
+		if opts.ArtifactType != "" {
+			query.Set("artifactType", opts.ArtifactType)
+		}
+		u.RawQuery = query.Encode()
+	}
+	return c.Do(http.MethodGet, u.RequestURI(), nil, nil)
 }
 
 func (c *Client) InitUpload(name string) *http.Response {

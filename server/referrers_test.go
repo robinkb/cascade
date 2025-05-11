@@ -14,56 +14,85 @@ import (
 )
 
 func TestListReferrers(t *testing.T) {
+	wantName := RandomName()
+	wantDigest := RandomDigest()
+
 	t.Run("Listing referrers returns 200 OK", func(t *testing.T) {
-		wantName := RandomName()
-		wantDigest := RandomDigest()
-		wantIndex := &v1.Index{}
+		wantIndex, _ := GenerateReferrersWithIndex(t, RandomDigest())
+		wantReferrers := cascade.Referrers{
+			Index: wantIndex,
+		}
 
 		service := mock.NewRegistryService(t)
 		service.EXPECT().
-			ListReferrers(wantName, wantDigest.String()).
-			Return(wantIndex, nil)
+			ListReferrers(wantName, wantDigest.String(), mock.Anything).
+			Return(&wantReferrers, nil)
 
 		client := NewTestClientWithServer(t, service)
 
-		resp := client.ListReferrers(wantName, wantDigest)
+		resp := client.ListReferrers(wantName, wantDigest, nil)
 
 		AssertResponseCode(t, resp, http.StatusOK)
 		AssertResponseHeader(t, resp, server.HeaderContentType, v1.MediaTypeImageIndex)
+		AssertResponseHeaderUnset(t, resp, server.HeaderOCIFiltersApplied)
+
+		var gotIndex v1.Index
+		AssertResponseBodyUnmarshals(t, resp, &gotIndex)
+		AssertIndex(t, &gotIndex, wantIndex)
+	})
+
+	t.Run("Listing referrers with filter parses the query option and sets a header", func(t *testing.T) {
+		wantArtifactType := RandomString(12)
+		wantOpts := cascade.ListReferrersOptions{
+			ArtifactType: wantArtifactType,
+		}
+		wantReferrers := cascade.Referrers{
+			AppliedFilters: []string{"artifactType"},
+		}
+
+		service := mock.NewRegistryService(t)
+		service.EXPECT().
+			ListReferrers(wantName, wantDigest.String(), &wantOpts).
+			Return(&wantReferrers, nil)
+
+		client := NewTestClientWithServer(t, service)
+
+		resp := client.ListReferrers(wantName, wantDigest, &ListReferrersOptions{
+			ArtifactType: wantArtifactType,
+		})
+
+		AssertResponseCode(t, resp, http.StatusOK)
+		AssertResponseHeader(t, resp, server.HeaderOCIFiltersApplied, "artifactType")
 
 		var gotIndex v1.Index
 		AssertResponseBodyUnmarshals(t, resp, &gotIndex)
 	})
 
 	t.Run("Listing referrers with invalid digest returns 400 Bad Request", func(t *testing.T) {
-		wantName := RandomName()
 		wantDigest := "invalid"
 		wantErr := cascade.ErrDigestInvalid
 
 		service := mock.NewRegistryService(t)
 		service.EXPECT().
-			ListReferrers(wantName, wantDigest).
+			ListReferrers(wantName, wantDigest, mock.Anything).
 			Return(nil, wantErr)
 
 		client := NewTestClientWithServer(t, service)
 
-		resp := client.ListReferrers(wantName, digest.Digest(wantDigest))
+		resp := client.ListReferrers(wantName, digest.Digest(wantDigest), nil)
 
 		AssertResponseCode(t, resp, http.StatusBadRequest)
 	})
 
 	t.Run("Unknown service errors return a 500 internal server error", func(t *testing.T) {
-		wantName := RandomName()
-		wantDigest := RandomDigest()
-
 		service := mock.NewRegistryService(t)
 		service.EXPECT().
-			ListReferrers(wantName, wantDigest.String()).
+			ListReferrers(wantName, wantDigest.String(), mock.Anything).
 			Return(nil, errors.New("unknown"))
 
 		client := NewTestClientWithServer(t, service)
 
-		resp := client.ListReferrers(wantName, wantDigest)
+		resp := client.ListReferrers(wantName, wantDigest, nil)
 
 		AssertResponseCode(t, resp, http.StatusInternalServerError)
 	})

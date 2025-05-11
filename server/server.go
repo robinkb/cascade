@@ -19,7 +19,8 @@ const (
 	HeaderRange         = "Range"
 
 	// Distribution headers
-	HeaderOCISubject = "OCI-Subject"
+	HeaderOCIFiltersApplied = "OCI-Filters-Applied"
+	HeaderOCISubject        = "OCI-Subject"
 
 	// Standard content types
 	ContentTypeOctetStream = "application/octet-stream"
