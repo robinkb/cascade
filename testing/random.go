@@ -90,14 +90,22 @@ func RandomVersion() string {
 	return fmt.Sprintf("v%d.%d.%d", major, minor, patch)
 }
 
+// RandomTags generates a slice filled with random, unique versions.
+// The returned slice is unsorted, because some tests require random input
+// to ensure that the registry is properly sorting tags internally.
 func RandomTags(count int) (tags []string) {
+	var version string
 	for range count {
-		tags = append(tags, RandomVersion())
+		for {
+			version = RandomVersion()
+			if !slices.Contains(tags, version) {
+				tags = append(tags, version)
+				break
+			}
+		}
 	}
 
-	slices.Sort(tags)
-
-	return
+	return tags
 }
 
 type Referrer struct {

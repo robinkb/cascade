@@ -25,10 +25,7 @@ func TestContentDiscovery(t *testing.T) {
 	t.Run("Listing Tags", func(t *testing.T) {
 		repository := RandomName()
 		digest := RandomDigest()
-		tags := make([]string, 50)
-		for i := range len(tags) {
-			tags[i] = RandomVersion()
-		}
+		tags := RandomTags(50)
 
 		for _, tag := range tags {
 			metadata.PutTag(repository, tag, digest)

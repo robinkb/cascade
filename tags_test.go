@@ -101,9 +101,7 @@ func TestListTag(t *testing.T) {
 
 		want := tags
 
-		if !slices.Equal(got, want) {
-			t.Fatalf("expected to see all tags; got %q, want %q", got, want)
-		}
+		AssertSlicesEqual(t, got, want)
 	})
 
 	t.Run("Listing tags with a count limit returns fewer tags", func(t *testing.T) {
@@ -117,14 +115,14 @@ func TestListTag(t *testing.T) {
 			RequireNoError(t, err)
 		}
 
+		slices.Sort(tags)
+
 		got, err := service.ListTags(name, count, "")
 		AssertNoError(t, err)
 
 		want := tags[0:count]
 
-		if !slices.Equal(got, want) {
-			t.Fatalf("Unexpected subset of tags; got %q, want %q", got, want)
-		}
+		AssertSlicesEqual(t, got, want)
 	})
 
 	t.Run("Listing tags with a count of 0 must return an empty list", func(t *testing.T) {
@@ -141,28 +139,25 @@ func TestListTag(t *testing.T) {
 		got, err := service.ListTags(name, count, "")
 		AssertNoError(t, err)
 
-		if len(got) != count {
-			t.Fatal("List tags with count of 0 returned a non-empty list")
-		}
+		AssertEqual(t, len(got), count)
 	})
 
 	t.Run("Listing tags with a count greater than the number of tags returns all tags", func(t *testing.T) {
 		name := RandomName()
 		digest := RandomDigest()
 		tags := RandomTags(5)
-		count := 6
+		count := 10
 
 		for _, tag := range tags {
 			err := service.PutTag(name, tag, digest.String())
 			RequireNoError(t, err)
 		}
 
+		slices.Sort(tags)
+
 		got, err := service.ListTags(name, count, "")
 		AssertNoError(t, err)
-
-		if !slices.Equal(got, tags) {
-			t.Fatalf("Returned tags is not equal to actual tags; got %q, want %q", got, tags)
-		}
+		AssertSlicesEqual(t, got, tags)
 	})
 
 	t.Run("Listing tags from a certain tag only returns tags after that tag", func(t *testing.T) {
@@ -177,14 +172,14 @@ func TestListTag(t *testing.T) {
 			RequireNoError(t, err)
 		}
 
+		slices.Sort(tags)
+
 		got, err := service.ListTags(name, count, tags[last])
 		AssertNoError(t, err)
 
 		want := tags[last+1 : last+1+count]
 
-		if !slices.Equal(got, want) {
-			t.Fatalf("Unexpected subset of tags; last %q, got %q, want %q", tags[last], got, want)
-		}
+		AssertSlicesEqual(t, got, want)
 	})
 
 	t.Run("When listing tags from a certain tag, the count parameter may be -1 to return all tags", func(t *testing.T) {
@@ -199,13 +194,13 @@ func TestListTag(t *testing.T) {
 			RequireNoError(t, err)
 		}
 
+		slices.Sort(tags)
+
 		got, err := service.ListTags(name, count, tags[last])
 		AssertNoError(t, err)
 
 		want := tags[last+1:]
 
-		if !slices.Equal(got, want) {
-			t.Fatalf("Unexpected subset of tags; last %q, got %q, want %q", tags[last], got, want)
-		}
+		AssertSlicesEqual(t, got, want)
 	})
 }
