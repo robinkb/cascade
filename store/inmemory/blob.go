@@ -45,20 +45,21 @@ func (s *blobStore) StatBlob(id digest.Digest) (*cascade.FileInfo, error) {
 	return s.stat(path)
 }
 
-func (s *blobStore) StatUpload(id uuid.UUID) (*cascade.FileInfo, error) {
-	path := s.uuidToPath(id)
-	return s.stat(path)
-}
-
-func (s *blobStore) Get(path string) ([]byte, error) {
+func (s *blobStore) GetBlob(id digest.Digest) ([]byte, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
+	path := s.digestToPath(id)
 	data, ok := s.store[path]
 	if !ok {
 		return nil, cascade.ErrFileNotFound
 	}
 	return data, nil
+}
+
+func (s *blobStore) StatUpload(id uuid.UUID) (*cascade.FileInfo, error) {
+	path := s.uuidToPath(id)
+	return s.stat(path)
 }
 
 func (s *blobStore) Put(path string, content []byte) error {

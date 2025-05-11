@@ -27,13 +27,10 @@ func TestPull(t *testing.T) {
 
 			name := RandomName()
 			digest, manifest, content := RandomManifest()
-			metadata.PutManifest(name, digest, &cascade.ManifestMetadata{
-				Path:      digest.String(),
-				MediaType: manifest.MediaType,
-			})
-			blobs.Put(digest.String(), content)
+			resp := client.PutManifest(name, digest.String(), content)
+			AssertResponseCode(t, resp, http.StatusCreated)
 
-			resp := client.GetManifestByDigest(name, digest)
+			resp = client.GetManifestByDigest(name, digest)
 
 			// A GET request to an existing manifest URL MUST provide the expected manifest, with a response code that MUST be 200 OK.
 			AssertResponseCode(t, resp, http.StatusOK)

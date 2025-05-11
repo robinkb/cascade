@@ -39,7 +39,7 @@ func (s *registryService) GetManifest(repository, id string) (*ManifestMetadata,
 		return nil, nil, ErrManifestUnknown
 	}
 
-	content, err := s.blobs.Get(meta.Path)
+	content, err := s.blobs.GetBlob(digest)
 	if err != nil {
 		return nil, nil, err
 	}

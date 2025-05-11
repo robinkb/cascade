@@ -42,9 +42,6 @@ type (
 	// Implementations of this interface are responsible for deciding how data is persisted.
 	// Blobs must be retrievable by their digest, and uploads by their session ID.
 	BlobStore interface {
-		// Get returns the blob at the given path. Intended for smaller blobs that
-		// must be fully read into memory server-side, like manifests.
-		Get(path string) ([]byte, error)
 		// Put writes content to the given path. Intended for smaller blobs that
 		// must be fully read into memory server-side, like manifests.
 		// Unlike Writer, Put does not append and always writes the entire blob.
@@ -62,11 +59,12 @@ type (
 
 		// StatBlob returns basic file info about the blob with the given digest.
 		StatBlob(id digest.Digest) (*FileInfo, error)
-
+		// GetBlob returns the blob at the given path. Intended for smaller blobs that
+		// must be fully read into memory server-side, like manifests.
+		GetBlob(id digest.Digest) ([]byte, error)
 		// StatBlob returns basic file info about the upload with the given UUID.
 		StatUpload(id uuid.UUID) (*FileInfo, error)
 
-		// GetBlob: Replaces Get - Used in GetManifest
 		// PutBlob: Replaces Put - Used in PutManifest
 		// DeleteBlob: Replaces Delete - Would be used by GC
 		// DeleteUpload: Replaces Delete - Would be used by GC or CloseUpload
@@ -86,7 +84,7 @@ type (
 		Annotations  map[string]string
 		ArtifactType string
 		MediaType    string
-		// TODO: Will go away?
+		// TODO: Will go away after BlobStore redesign
 		Path    string
 		Subject digest.Digest
 		Size    int64

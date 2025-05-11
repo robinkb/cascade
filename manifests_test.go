@@ -49,18 +49,14 @@ func TestStatManifest(t *testing.T) {
 }
 
 func TestGetManifest(t *testing.T) {
-	service, metadata, blobs := newTestRegistry()
+	service, _, _ := newTestRegistry()
 
 	name := RandomName()
 	manifest, _ := json.Marshal(v1.Manifest{MediaType: v1.MediaTypeImageLayer})
 	digest := digest.FromBytes(manifest)
 
-	path := digest.String()
-	blobs.Put(path, manifest)
-	metadata.PutManifest(name, digest, &cascade.ManifestMetadata{
-		Path:      path,
-		MediaType: v1.MediaTypeImageLayer,
-	})
+	_, err := service.PutManifest(name, digest.String(), manifest)
+	RequireNoError(t, err)
 
 	t.Run("Retrieve an existing manifest", func(t *testing.T) {
 		_, got, err := service.GetManifest(name, digest.String())
