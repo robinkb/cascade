@@ -99,6 +99,8 @@ func (s *Server) streamedUploadHandler(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusAccepted)
 }
 
+// TODO: This should be split up into multiple methods, with the correct method
+// being selected in blobsUploadHandler, just like choosing between chunked and streaming uploads.
 func (s *Server) closeUploadHandler(w http.ResponseWriter, r *http.Request) {
 	repository := r.PathValue("repository")
 	reference := r.PathValue("reference")

@@ -3,7 +3,6 @@ package cascade
 import (
 	"encoding/json"
 	"errors"
-	"fmt"
 
 	"github.com/opencontainers/go-digest"
 	v1 "github.com/opencontainers/image-spec/specs-go/v1"
@@ -15,12 +14,12 @@ func (s *registryService) StatManifest(repository, id string) (*FileInfo, error)
 		return nil, ErrManifestUnknown
 	}
 
-	meta, err := s.metadata.GetManifest(repository, digest)
+	_, err = s.metadata.GetManifest(repository, digest)
 	if err != nil {
 		return nil, ErrManifestUnknown
 	}
 
-	info, err := s.blobs.Stat(meta.Path)
+	info, err := s.blobs.StatBlob(digest)
 	if errors.Is(err, ErrFileNotFound) {
 		return nil, ErrManifestUnknown
 	}
@@ -39,7 +38,7 @@ func (s *registryService) GetManifest(repository, id string) (*ManifestMetadata,
 		return nil, nil, ErrManifestUnknown
 	}
 
-	content, err := s.blobs.Get(meta.Path)
+	content, err := s.blobs.GetBlob(digest)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -65,9 +64,7 @@ func (s *registryService) PutManifest(repository, reference string, content []by
 		subject = manifest.Subject.Digest
 	}
 
-	path := fmt.Sprintf("blobs/%s/%s/%s", digest.Algorithm(), digest.Encoded()[0:2], digest.Encoded())
-
-	err = s.blobs.Put(path, content)
+	err = s.blobs.PutBlob(digest, content)
 	if err != nil {
 		return "", err
 	}
@@ -76,7 +73,6 @@ func (s *registryService) PutManifest(repository, reference string, content []by
 		Annotations:  manifest.Annotations,
 		ArtifactType: manifest.ArtifactType,
 		MediaType:    manifest.MediaType,
-		Path:         path,
 		Subject:      subject,
 		Size:         int64(len(content)),
 	}
@@ -96,14 +92,9 @@ func (s *registryService) DeleteManifest(repository, id string) error {
 		return ErrManifestUnknown
 	}
 
-	meta, err := s.metadata.GetManifest(repository, digest)
+	_, err = s.metadata.GetManifest(repository, digest)
 	if err != nil {
 		return ErrManifestUnknown
-	}
-
-	err = s.blobs.Delete(meta.Path)
-	if err != nil {
-		return err
 	}
 
 	return s.metadata.DeleteManifest(repository, digest)

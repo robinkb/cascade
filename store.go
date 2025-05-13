@@ -4,6 +4,7 @@ import (
 	"errors"
 	"io"
 
+	"github.com/gofrs/uuid/v5"
 	"github.com/opencontainers/go-digest"
 )
 
@@ -18,7 +19,7 @@ type (
 	// I do like having the option of just creating repos on the fly, though...
 	MetadataStore interface {
 		GetBlob(repository string, digest digest.Digest) (string, error)
-		PutBlob(repository string, digest digest.Digest, path string) error
+		PutBlob(repository string, digest digest.Digest) error
 		DeleteBlob(repository string, digest digest.Digest) error
 
 		GetManifest(repository string, digest digest.Digest) (*ManifestMetadata, error)
@@ -37,26 +38,39 @@ type (
 		DeleteUploadSession(repository string, id string) error
 	}
 
+	// BlobStore defines the interface for storing the actual data of the registry.
+	// Implementations of this interface are responsible for deciding how data is persisted.
+	// Blobs must be retrievable by their digest, and uploads by their session ID.
 	BlobStore interface {
-		// Stat returns basic file info about the blob at the given path.
-		Stat(path string) (*FileInfo, error)
-		// Get returns the blob at the given path. Intended for smaller blobs that
+		// StatBlob returns basic file info about the blob with the given digest.
+		StatBlob(id digest.Digest) (*FileInfo, error)
+		// GetBlob returns the blob at the given path. Intended for smaller blobs that
 		// must be fully read into memory server-side, like manifests.
-		Get(path string) ([]byte, error)
-		// Put writes content to the given path. Intended for smaller blobs that
+		GetBlob(id digest.Digest) ([]byte, error)
+		// BlobReader returns an io.Reader that can be used to read a blob in a streaming fashion.
+		BlobReader(id digest.Digest) (io.Reader, error)
+		// PutBlob writes content to the given path. Intended for smaller blobs that
 		// must be fully read into memory server-side, like manifests.
 		// Unlike Writer, Put does not append and always writes the entire blob.
-		Put(path string, content []byte) error
-		// Reader returns an io.Reader that can be used to read a blob.
-		Reader(path string) (io.Reader, error)
-		// Writer returns an io.Writer to write to a blob. Blobs are always appended to.
-		// If a blob must be truncated, delete it first.
-		Writer(path string) (io.Writer, error)
-		// Delete removes the blob at the given path.
-		Delete(path string) error
-		// Move moves the blob from the source path to the destination path.
-		// This may effectively be a rename on some backends.
-		Move(sourcePath, destinationPath string) error
+		PutBlob(id digest.Digest, content []byte) error
+		// DeleteBlob removes a blob from the blobstore.
+		DeleteBlob(id digest.Digest) error
+
+		// StatBlob returns basic file info about the upload with the given UUID.
+		StatUpload(id uuid.UUID) (*FileInfo, error)
+		// InitUpload prepares the BlobStore to start an upload. In most implementations,
+		// it will create an empty file on the blob store that will later be appended.
+		InitUpload(id uuid.UUID) error
+		// UploadWriter returns an io.Writer to write to an initialized upload.
+		// Uploads are always appended to. If an upload fails or must be truncated
+		// a new session must be started instead.
+		UploadWriter(id uuid.UUID) (io.Writer, error)
+		// CloseUpload finishes an upload and makes its contents accessible in the blob store by its digest.
+		// In some implementations, this may effectively be a rename.
+		CloseUpload(id uuid.UUID, digest digest.Digest) error
+		// DeleteUpload removes an upload from the store.
+		// Intended for cleaning up expired or failed uploads.
+		DeleteUpload(id uuid.UUID) error
 	}
 
 	// Based (at least initially) on fs.FileInfo interface.
@@ -70,7 +84,6 @@ type (
 		Annotations  map[string]string
 		ArtifactType string
 		MediaType    string
-		Path         string
 		Subject      digest.Digest
 		Size         int64
 	}

@@ -20,9 +20,7 @@ func (s *registryService) StatUpload(repository, sessionID string) (*FileInfo, e
 		return nil, err
 	}
 
-	path := fmt.Sprintf("uploads/%s", session.ID)
-
-	info, err := s.blobs.Stat(path)
+	info, err := s.blobs.StatUpload(session.ID)
 	if errors.Is(err, ErrFileNotFound) {
 		return nil, ErrBlobUploadUnknown
 	}
@@ -58,7 +56,7 @@ func (s *registryService) InitUpload(repository string) *UploadSession {
 		BlobPath:  path,
 	}
 
-	err = s.blobs.Put(path, []byte{})
+	err = s.blobs.InitUpload(id)
 	if err != nil {
 		panic(err)
 	}
@@ -77,7 +75,7 @@ func (s *registryService) AppendUpload(repository, sessionID string, r io.Reader
 		return err
 	}
 
-	info, err := s.blobs.Stat(session.BlobPath)
+	info, err := s.blobs.StatUpload(session.ID)
 	if err != nil {
 		return err
 	}
@@ -92,7 +90,7 @@ func (s *registryService) AppendUpload(repository, sessionID string, r io.Reader
 		return err
 	}
 
-	w, err := s.blobs.Writer(session.BlobPath)
+	w, err := s.blobs.UploadWriter(session.ID)
 	if err != nil {
 		return err
 	}
@@ -133,9 +131,8 @@ func (s *registryService) CloseUpload(repository, sessionID, digest string) erro
 		return ErrBlobUploadInvalid
 	}
 
-	destPath := fmt.Sprintf("blobs/%s/%s/%s", calculatedId.Algorithm(), calculatedId.Encoded()[0:2], calculatedId.Encoded())
+	// TODO: This can fail in real imeplementations, test it and check it.
+	s.blobs.CloseUpload(session.ID, calculatedId)
 
-	s.blobs.Move(session.BlobPath, destPath)
-
-	return s.metadata.PutBlob(repository, calculatedId, destPath)
+	return s.metadata.PutBlob(repository, calculatedId)
 }

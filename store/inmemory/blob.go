@@ -2,10 +2,18 @@ package inmemory
 
 import (
 	"bytes"
+	"fmt"
 	"io"
 	"sync"
 
+	"github.com/gofrs/uuid/v5"
+	"github.com/opencontainers/go-digest"
 	"github.com/robinkb/cascade-registry"
+)
+
+const (
+	blobPathFormat   = "blobs/%s/%s/%s"
+	uploadPathFormat = "uploads/%s"
 )
 
 func NewBlobStore() cascade.BlobStore {
@@ -32,7 +40,92 @@ func (w *writer) Write(p []byte) (n int, err error) {
 	return len(p), nil
 }
 
-func (s *blobStore) Stat(path string) (*cascade.FileInfo, error) {
+func (s *blobStore) StatBlob(id digest.Digest) (*cascade.FileInfo, error) {
+	path := s.digestToPath(id)
+	return s.stat(path)
+}
+
+func (s *blobStore) GetBlob(id digest.Digest) ([]byte, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	path := s.digestToPath(id)
+	data, ok := s.store[path]
+	if !ok {
+		return nil, cascade.ErrFileNotFound
+	}
+	return data, nil
+}
+
+func (s *blobStore) BlobReader(id digest.Digest) (io.Reader, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	path := s.digestToPath(id)
+	return bytes.NewBuffer(s.store[path]), nil
+}
+
+func (s *blobStore) PutBlob(id digest.Digest, content []byte) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	path := s.digestToPath(id)
+	s.store[path] = content
+
+	return nil
+}
+
+func (s *blobStore) DeleteBlob(id digest.Digest) error {
+	path := s.digestToPath(id)
+	return s.delete(path)
+}
+
+func (s *blobStore) StatUpload(id uuid.UUID) (*cascade.FileInfo, error) {
+	path := s.uuidToPath(id)
+	return s.stat(path)
+}
+
+func (s *blobStore) InitUpload(id uuid.UUID) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	path := s.uuidToPath(id)
+	s.store[path] = []byte{}
+
+	return nil
+}
+
+func (s *blobStore) UploadWriter(id uuid.UUID) (io.Writer, error) {
+	path := s.uuidToPath(id)
+	return &writer{s, path}, nil
+}
+
+func (s *blobStore) CloseUpload(id uuid.UUID, digest digest.Digest) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	uploadPath := s.uuidToPath(id)
+	blobPath := s.digestToPath(digest)
+
+	s.store[blobPath] = s.store[uploadPath]
+	delete(s.store, uploadPath)
+	return nil
+}
+
+func (s *blobStore) DeleteUpload(id uuid.UUID) error {
+	path := s.uuidToPath(id)
+	return s.delete(path)
+}
+
+func (s *blobStore) digestToPath(id digest.Digest) string {
+	return fmt.Sprintf(blobPathFormat, id.Algorithm(), id.Encoded()[0:2], id.Encoded())
+}
+
+func (s *blobStore) uuidToPath(id uuid.UUID) string {
+	return fmt.Sprintf(uploadPathFormat, id.String())
+}
+
+func (s *blobStore) stat(path string) (*cascade.FileInfo, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
@@ -47,49 +140,10 @@ func (s *blobStore) Stat(path string) (*cascade.FileInfo, error) {
 	}, nil
 }
 
-func (s *blobStore) Get(path string) ([]byte, error) {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-
-	data, ok := s.store[path]
-	if !ok {
-		return nil, cascade.ErrFileNotFound
-	}
-	return data, nil
-}
-
-func (s *blobStore) Put(path string, content []byte) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	s.store[path] = content
-
-	return nil
-}
-
-func (s *blobStore) Reader(path string) (io.Reader, error) {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-
-	return bytes.NewBuffer(s.store[path]), nil
-}
-
-func (s *blobStore) Writer(path string) (io.Writer, error) {
-	return &writer{s, path}, nil
-}
-
-func (s *blobStore) Delete(path string) error {
+func (s *blobStore) delete(path string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
 	delete(s.store, path)
-	return nil
-}
-
-func (s *blobStore) Move(sourcePath, destinationPath string) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	s.store[destinationPath] = s.store[sourcePath]
 	return nil
 }

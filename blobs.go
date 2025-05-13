@@ -13,12 +13,12 @@ func (s *registryService) StatBlob(repository, id string) (*FileInfo, error) {
 		return nil, ErrBlobUnknown
 	}
 
-	path, err := s.metadata.GetBlob(repository, digest)
+	_, err = s.metadata.GetBlob(repository, digest)
 	if err != nil {
 		return nil, err
 	}
 
-	info, err := s.blobs.Stat(path)
+	info, err := s.blobs.StatBlob(digest)
 	if errors.Is(err, ErrFileNotFound) {
 		return nil, ErrBlobUnknown
 	}
@@ -32,12 +32,12 @@ func (s *registryService) GetBlob(repository, id string) (io.Reader, error) {
 		return nil, ErrBlobUnknown
 	}
 
-	path, err := s.metadata.GetBlob(repository, digest)
+	_, err = s.metadata.GetBlob(repository, digest)
 	if err != nil {
 		return nil, err
 	}
 
-	return s.blobs.Reader(path)
+	return s.blobs.BlobReader(digest)
 }
 
 func (s *registryService) DeleteBlob(repository, id string) error {

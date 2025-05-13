@@ -21,7 +21,6 @@ func TestManifestMetadataPersistence(t *testing.T) {
 			"random": RandomString(8),
 		},
 		MediaType: v1.MediaTypeDescriptor,
-		Path:      RandomString(8),
 		Size:      42,
 	}
 

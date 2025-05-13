@@ -11,20 +11,17 @@ import (
 )
 
 func TestStatManifest(t *testing.T) {
-	service, metadata, blobs := newTestRegistry()
+	service, _, _ := newTestRegistry()
 
 	name := RandomName()
 	digest, _, content := RandomManifest()
 
-	path := digest.String()
-	blobs.Put(path, content)
-	metadata.PutManifest(name, digest, &cascade.ManifestMetadata{
-		Path: path,
-	})
+	_, err := service.PutManifest(name, digest.String(), content)
+	RequireNoError(t, err)
 
 	t.Run("Returns FileInfo with expected size on known manifest", func(t *testing.T) {
 		info, err := service.StatManifest(name, digest.String())
-		AssertNoError(t, err)
+		RequireNoError(t, err)
 
 		got := info.Size
 		want := int64(len(content))
@@ -58,17 +55,35 @@ func TestGetManifest(t *testing.T) {
 	manifest, _ := json.Marshal(v1.Manifest{MediaType: v1.MediaTypeImageLayer})
 	digest := digest.FromBytes(manifest)
 
-	path := digest.String()
-	blobs.Put(path, manifest)
-	metadata.PutManifest(name, digest, &cascade.ManifestMetadata{
-		Path:      path,
-		MediaType: v1.MediaTypeImageLayer,
-	})
+	_, err := service.PutManifest(name, digest.String(), manifest)
+	RequireNoError(t, err)
 
 	t.Run("Retrieve an existing manifest", func(t *testing.T) {
 		_, got, err := service.GetManifest(name, digest.String())
 		AssertNoError(t, err)
 		AssertSlicesEqual(t, got, manifest)
+	})
+
+	t.Run("Metadata is correctly retrieved", func(t *testing.T) {
+		name := RandomName()
+		want := cascade.ManifestMetadata{
+			Annotations: map[string]string{
+				RandomString(6): RandomString(32),
+			},
+			ArtifactType: RandomString(6),
+			MediaType:    RandomString(6),
+			Size:         42,
+			// Subject field is not persisted, only used for creating links.
+		}
+
+		err := metadata.PutManifest(name, digest, &want)
+		RequireNoError(t, err)
+		err = blobs.PutBlob(digest, manifest)
+		RequireNoError(t, err)
+
+		got, _, err := service.GetManifest(name, digest.String())
+		AssertNoError(t, err)
+		AssertStructsEqual(t, got, &want)
 	})
 
 	t.Run("returns ErrManifestUnknown on unknown manifest", func(t *testing.T) {
