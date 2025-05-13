@@ -21,7 +21,7 @@ const (
 )
 
 func RandomName() string {
-	return strings.Replace(namesgenerator.GetRandomName(0), "_", "/", -1)
+	return strings.ReplaceAll(namesgenerator.GetRandomName(0), "_", "/")
 }
 
 func RandomContents(length int64) []byte {
