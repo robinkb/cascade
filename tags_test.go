@@ -16,7 +16,8 @@ func TestGetTag(t *testing.T) {
 		digest := RandomDigest()
 		tag := "v1.2.3"
 
-		metadata.PutTag(name, tag, digest)
+		err := metadata.PutTag(name, tag, digest)
+		RequireNoError(t, err)
 
 		got, err := service.GetTag(name, tag)
 		AssertNoError(t, err)

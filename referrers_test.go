@@ -72,6 +72,7 @@ func TestListReferrers(t *testing.T) {
 		RequireNoError(t, err)
 
 		got, err := service.ListReferrers(name, digest.String(), nil)
+		AssertNoError(t, err)
 		AssertIndex(t, got.Index, wantIndex)
 	})
 

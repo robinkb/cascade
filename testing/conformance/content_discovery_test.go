@@ -28,7 +28,8 @@ func TestContentDiscovery(t *testing.T) {
 		tags := RandomTags(50)
 
 		for _, tag := range tags {
-			metadata.PutTag(repository, tag, digest)
+			err := metadata.PutTag(repository, tag, digest)
+			RequireNoError(t, err)
 		}
 
 		// Sort the tags _after_ putting them into the registry,

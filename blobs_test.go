@@ -17,8 +17,10 @@ func TestStatBlob(t *testing.T) {
 	name := RandomName()
 	digest, content := RandomBlob(32 * 1024)
 
-	blobs.PutBlob(digest, content)
-	metadata.PutBlob(name, digest)
+	err := blobs.PutBlob(digest, content)
+	RequireNoError(t, err)
+	err = metadata.PutBlob(name, digest)
+	RequireNoError(t, err)
 
 	t.Run("Known blob returns no error", func(t *testing.T) {
 		_, err := service.StatBlob(name, digest.String())
@@ -42,8 +44,10 @@ func TestGetBlob(t *testing.T) {
 	name := RandomName()
 	digest, content := RandomBlob(32)
 
-	blobs.PutBlob(digest, content)
-	metadata.PutBlob(name, digest)
+	err := blobs.PutBlob(digest, content)
+	RequireNoError(t, err)
+	err = metadata.PutBlob(name, digest)
+	RequireNoError(t, err)
 
 	t.Run("Known blob returns content and no error", func(t *testing.T) {
 		r, err := service.GetBlob(name, digest.String())
@@ -71,10 +75,12 @@ func TestDeleteBlob(t *testing.T) {
 	digest, content := RandomBlob(32)
 
 	t.Run("A deleted blob is not retrievable", func(t *testing.T) {
-		metadata.PutBlob(name, digest)
-		blobs.PutBlob(digest, content)
+		err := blobs.PutBlob(digest, content)
+		RequireNoError(t, err)
+		err = metadata.PutBlob(name, digest)
+		RequireNoError(t, err)
 
-		_, err := service.GetBlob(name, digest.String())
+		_, err = service.GetBlob(name, digest.String())
 		RequireNoError(t, err)
 
 		err = service.DeleteBlob(name, digest.String())
