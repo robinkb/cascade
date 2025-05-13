@@ -3,6 +3,7 @@ package server
 import (
 	"encoding/json"
 	"errors"
+	"log"
 	"net/http"
 	"slices"
 	"strings"
@@ -110,7 +111,7 @@ func writeErrorResponse(w http.ResponseWriter, err error) {
 	}
 
 	w.WriteHeader(code)
-	json.NewEncoder(w).Encode(response)
+	encodeOrLog(json.NewEncoder(w).Encode(response))
 }
 
 func NewErrorResponse(err ...cascade.Error) *ErrorResponse {
@@ -130,4 +131,16 @@ func (e ErrorResponse) Error() string {
 	}
 
 	return strings.Join(errs, ", ")
+}
+
+func writeOrLog(_ any, err error) {
+	if err != nil {
+		log.Printf("error writing content to client: %s", err)
+	}
+}
+
+func encodeOrLog(err error) {
+	if err != nil {
+		log.Printf("error writing encoded content to client: %s", err)
+	}
 }

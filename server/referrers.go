@@ -39,6 +39,6 @@ func (s *Server) listReferrersHandler(w http.ResponseWriter, r *http.Request) {
 		if len(referrers.AppliedFilters) > 0 {
 			w.Header().Set(HeaderOCIFiltersApplied, strings.Join(referrers.AppliedFilters, ","))
 		}
-		json.NewEncoder(w).Encode(referrers.Index)
+		encodeOrLog(json.NewEncoder(w).Encode(referrers.Index))
 	}
 }

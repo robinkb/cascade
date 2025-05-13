@@ -46,7 +46,7 @@ func (s *Server) getBlobsHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.WriteHeader(http.StatusOK)
-	io.Copy(w, blob)
+	writeOrLog(io.Copy(w, blob))
 }
 
 func (s *Server) deleteBlobsHandler(w http.ResponseWriter, r *http.Request) {

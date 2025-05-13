@@ -28,6 +28,6 @@ func TestManifestMetadataPersistence(t *testing.T) {
 	RequireNoError(t, err)
 
 	gotMetadata, err := metadata.GetManifest(name, digest)
-
+	AssertNoError(t, err)
 	AssertStructsEqual(t, gotMetadata, wantMetadata)
 }

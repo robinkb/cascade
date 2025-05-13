@@ -131,8 +131,10 @@ func (s *registryService) CloseUpload(repository, sessionID, digest string) erro
 		return ErrBlobUploadInvalid
 	}
 
-	// TODO: This can fail in real imeplementations, test it and check it.
-	s.blobs.CloseUpload(session.ID, calculatedId)
+	err = s.blobs.CloseUpload(session.ID, calculatedId)
+	if err != nil {
+		return err
+	}
 
 	return s.metadata.PutBlob(repository, calculatedId)
 }

@@ -70,7 +70,7 @@ func (s *Server) getManifestsHandler(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set(HeaderContentType, meta.MediaType)
 	w.WriteHeader(http.StatusOK)
-	w.Write(content)
+	writeOrLog(w.Write(content))
 }
 
 func (s *Server) putManifestsHandler(w http.ResponseWriter, r *http.Request) {
@@ -99,7 +99,9 @@ func (s *Server) putManifestsHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	case cascade.ErrManifestInvalid:
 		w.WriteHeader(http.StatusBadRequest)
-		json.NewEncoder(w).Encode(NewErrorResponse(err.(cascade.Error)))
+		encodeOrLog(json.NewEncoder(w).Encode(
+			NewErrorResponse(err.(cascade.Error)),
+		))
 		return
 	case nil:
 	}
@@ -133,7 +135,7 @@ func (s *Server) deleteManifestsHandler(w http.ResponseWriter, r *http.Request) 
 		if err != nil {
 			if errors.Is(err, cascade.ErrManifestUnknown) {
 				w.WriteHeader(http.StatusNotFound)
-				json.NewEncoder(w).Encode(NewErrorResponse(err.(cascade.Error)))
+				encodeOrLog(json.NewEncoder(w).Encode(NewErrorResponse(err.(cascade.Error))))
 				return
 			}
 		}
