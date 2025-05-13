@@ -37,5 +37,5 @@ func (s *Server) listTagsHandler(w http.ResponseWriter, r *http.Request) {
 		Tags: tags,
 	}
 
-	json.NewEncoder(w).Encode(response)
+	encodeOrLog(json.NewEncoder(w).Encode(response))
 }
