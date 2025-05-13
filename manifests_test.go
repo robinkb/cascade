@@ -49,7 +49,7 @@ func TestStatManifest(t *testing.T) {
 }
 
 func TestGetManifest(t *testing.T) {
-	service, _, _ := newTestRegistry()
+	service, metadata, blobs := newTestRegistry()
 
 	name := RandomName()
 	manifest, _ := json.Marshal(v1.Manifest{MediaType: v1.MediaTypeImageLayer})
@@ -62,6 +62,28 @@ func TestGetManifest(t *testing.T) {
 		_, got, err := service.GetManifest(name, digest.String())
 		AssertNoError(t, err)
 		AssertSlicesEqual(t, got, manifest)
+	})
+
+	t.Run("Metadata is correctly retrieved", func(t *testing.T) {
+		name := RandomName()
+		want := cascade.ManifestMetadata{
+			Annotations: map[string]string{
+				RandomString(6): RandomString(32),
+			},
+			ArtifactType: RandomString(6),
+			MediaType:    RandomString(6),
+			Size:         42,
+			// Subject field is not persisted, only used for creating links.
+		}
+
+		err := metadata.PutManifest(name, digest, &want)
+		RequireNoError(t, err)
+		err = blobs.PutBlob(digest, manifest)
+		RequireNoError(t, err)
+
+		got, _, err := service.GetManifest(name, digest.String())
+		AssertNoError(t, err)
+		AssertStructsEqual(t, got, &want)
 	})
 
 	t.Run("returns ErrManifestUnknown on unknown manifest", func(t *testing.T) {
