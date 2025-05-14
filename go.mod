@@ -9,7 +9,7 @@ require (
 )
 
 require (
-	github.com/moby/moby v27.3.1+incompatible
+	github.com/moby/moby v28.1.1+incompatible
 	github.com/stretchr/testify v1.10.0
 )
 
