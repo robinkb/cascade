@@ -80,38 +80,56 @@ type (
 	}
 )
 
-// This is starting to feel like the wrong approach.
-// ErrDigestInvalid should definitely not result in a 404 in most cases.
-func writeErrorResponse(w http.ResponseWriter, err error) {
+func errorHandler(w http.ResponseWriter, r *http.Request, err error) {
 	var response *ErrorResponse
+	var cerr cascade.Error
 	code := http.StatusInternalServerError
 
-	switch {
-	case errors.Is(err, cascade.ErrBlobUnknown):
-		code = http.StatusNotFound
-		response = NewErrorResponse(err.(cascade.Error))
-	case errors.Is(err, cascade.ErrBlobUploadUnknown):
-		code = http.StatusNotFound
-		response = NewErrorResponse(err.(cascade.Error))
-	case errors.Is(err, cascade.ErrManifestUnknown):
-		code = http.StatusNotFound
-		response = NewErrorResponse(err.(cascade.Error))
-	case errors.Is(err, cascade.ErrManifestInvalid):
-		code = http.StatusBadRequest
-		response = NewErrorResponse(err.(cascade.Error))
-	case errors.Is(err, cascade.ErrDigestInvalid):
-		code = http.StatusBadRequest
-		response = NewErrorResponse(err.(cascade.Error))
-	case errors.Is(err, cascade.ErrBlobUploadInvalid):
-		code = http.StatusBadRequest
-		response = NewErrorResponse(err.(cascade.Error))
-	case errors.Is(err, cascade.ErrUploadOffsetInvalid):
-		code = http.StatusRequestedRangeNotSatisfiable
-		response = NewErrorResponse(err.(cascade.Error))
+	if errors.As(err, &cerr) {
+		switch {
+		// Standard Distribution errors
+		case errors.Is(cerr, cascade.ErrBlobUnknown):
+			code = http.StatusNotFound
+		case errors.Is(cerr, cascade.ErrBlobUploadInvalid):
+			code = http.StatusBadRequest
+		case errors.Is(cerr, cascade.ErrBlobUploadUnknown):
+			code = http.StatusNotFound
+		case errors.Is(cerr, cascade.ErrDigestInvalid):
+			code = http.StatusBadRequest
+		case errors.Is(cerr, cascade.ErrManifestBlobUnknown):
+			code = http.StatusNotFound
+		case errors.Is(cerr, cascade.ErrManifestInvalid):
+			code = http.StatusBadRequest
+		case errors.Is(cerr, cascade.ErrManifestUnknown):
+			code = http.StatusNotFound
+		case errors.Is(cerr, cascade.ErrNameInvalid):
+			code = http.StatusBadRequest
+		case errors.Is(cerr, cascade.ErrNameUnknown):
+			code = http.StatusNotFound
+		case errors.Is(cerr, cascade.ErrSizeInvalid):
+			code = http.StatusBadRequest
+		case errors.Is(cerr, cascade.ErrUnauthorized):
+			code = http.StatusUnauthorized
+		case errors.Is(cerr, cascade.ErrDenied):
+			code = http.StatusForbidden
+		case errors.Is(cerr, cascade.ErrUnsupported):
+			code = http.StatusNotFound
+		case errors.Is(cerr, cascade.ErrTooManyRequests):
+			code = http.StatusTooManyRequests
+		// Extra errors
+		case errors.Is(cerr, cascade.ErrTagInvalid):
+			code = http.StatusBadRequest
+		case errors.Is(cerr, cascade.ErrUploadOffsetInvalid):
+			code = http.StatusRequestedRangeNotSatisfiable
+		}
+
+		response = NewErrorResponse(cerr)
 	}
 
 	w.WriteHeader(code)
-	encodeOrLog(json.NewEncoder(w).Encode(response))
+	if r.Method != http.MethodHead {
+		encodeOrLog(json.NewEncoder(w).Encode(response))
+	}
 }
 
 func NewErrorResponse(err ...cascade.Error) *ErrorResponse {

@@ -30,7 +30,7 @@ func (s *registryService) StatUpload(repository, sessionID string) (*FileInfo, e
 
 // TODO: This should be able to return errors, and verify that upload sessions
 // cannot be overwritten _just in case_ the generated UUID is not unique... lol.
-func (s *registryService) InitUpload(repository string) *UploadSession {
+func (s *registryService) InitUpload(repository string) (*UploadSession, error) {
 	id, _ := uuid.NewV7()
 
 	hash := sha256.New()
@@ -58,15 +58,15 @@ func (s *registryService) InitUpload(repository string) *UploadSession {
 
 	err = s.blobs.InitUpload(id)
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
 
 	err = s.metadata.PutUploadSession(repository, &session)
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
 
-	return &session
+	return &session, nil
 }
 
 func (s *registryService) AppendUpload(repository, sessionID string, r io.Reader, offset int64) error {

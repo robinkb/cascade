@@ -30,7 +30,11 @@ func (s *Server) listTagsHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	tags, _ := s.service.ListTags(repository, count, last)
+	tags, err := s.service.ListTags(repository, count, last)
+	if err != nil {
+		errorHandler(w, r, err)
+		return
+	}
 
 	response := TagsListResponse{
 		Name: repository,

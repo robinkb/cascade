@@ -26,7 +26,7 @@ type (
 
 		ListReferrers(repository, digest string, opts *ListReferrersOptions) (*Referrers, error)
 
-		InitUpload(repository string) *UploadSession
+		InitUpload(repository string) (*UploadSession, error)
 		StatUpload(repository, sessionID string) (*FileInfo, error)
 		AppendUpload(repository, sessionID string, r io.Reader, offset int64) error
 		CloseUpload(repository, id, digest string) error
