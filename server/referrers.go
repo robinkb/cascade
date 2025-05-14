@@ -29,16 +29,14 @@ func (s *Server) listReferrersHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	referrers, err := s.service.ListReferrers(repository, digest, &opts)
-	switch err {
-	default:
-		w.WriteHeader(http.StatusInternalServerError)
-	case cascade.ErrDigestInvalid:
-		w.WriteHeader(http.StatusBadRequest)
-	case nil:
-		w.Header().Set(HeaderContentType, v1.MediaTypeImageIndex)
-		if len(referrers.AppliedFilters) > 0 {
-			w.Header().Set(HeaderOCIFiltersApplied, strings.Join(referrers.AppliedFilters, ","))
-		}
-		encodeOrLog(json.NewEncoder(w).Encode(referrers.Index))
+	if err != nil {
+		errorHandler(w, r, err)
+		return
 	}
+
+	w.Header().Set(HeaderContentType, v1.MediaTypeImageIndex)
+	if len(referrers.AppliedFilters) > 0 {
+		w.Header().Set(HeaderOCIFiltersApplied, strings.Join(referrers.AppliedFilters, ","))
+	}
+	encodeOrLog(json.NewEncoder(w).Encode(referrers.Index))
 }

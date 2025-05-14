@@ -16,8 +16,9 @@ func TestStatUpload(t *testing.T) {
 		repository := "a/v/c"
 		content := RandomContents(32)
 
-		session := service.InitUpload(repository)
-		err := service.AppendUpload(repository, session.ID.String(), bytes.NewBuffer(content), 0)
+		session, err := service.InitUpload(repository)
+		RequireNoError(t, err)
+		err = service.AppendUpload(repository, session.ID.String(), bytes.NewBuffer(content), 0)
 		RequireNoError(t, err)
 
 		info, err := service.StatUpload(repository, session.ID.String())
@@ -46,9 +47,10 @@ func TestBlobUploadsMonolithic(t *testing.T) {
 		name := RandomName()
 		digest, content := RandomBlob(32)
 
-		session := service.InitUpload(name)
+		session, err := service.InitUpload(name)
+		RequireNoError(t, err)
 
-		err := service.AppendUpload(name, session.ID.String(), bytes.NewBuffer(content), 0)
+		err = service.AppendUpload(name, session.ID.String(), bytes.NewBuffer(content), 0)
 		AssertNoError(t, err)
 
 		err = service.CloseUpload(name, session.ID.String(), digest.String())
@@ -71,9 +73,10 @@ func TestBlobUploadsMonolithic(t *testing.T) {
 		content := RandomContents(32)
 		digest := "blablabla"
 
-		session := service.InitUpload(name)
+		session, err := service.InitUpload(name)
+		RequireNoError(t, err)
 
-		err := service.AppendUpload(name, session.ID.String(), bytes.NewBuffer(content[0:16]), 0)
+		err = service.AppendUpload(name, session.ID.String(), bytes.NewBuffer(content[0:16]), 0)
 		RequireNoError(t, err)
 
 		err = service.CloseUpload(name, session.ID.String(), digest)
@@ -85,9 +88,10 @@ func TestBlobUploadsMonolithic(t *testing.T) {
 		digest := RandomDigest()
 		otherContent := RandomContents(32)
 
-		session := service.InitUpload(name)
+		session, err := service.InitUpload(name)
+		RequireNoError(t, err)
 
-		err := service.AppendUpload(name, session.ID.String(), bytes.NewBuffer(otherContent), 0)
+		err = service.AppendUpload(name, session.ID.String(), bytes.NewBuffer(otherContent), 0)
 		RequireNoError(t, err)
 
 		err = service.CloseUpload(name, session.ID.String(), digest.String())
@@ -102,9 +106,10 @@ func TestServiceUpload(t *testing.T) {
 		name := RandomName()
 		digest, _, content := RandomManifest()
 
-		session := service.InitUpload(name)
+		session, err := service.InitUpload(name)
+		RequireNoError(t, err)
 
-		err := service.AppendUpload(name, session.ID.String(), bytes.NewBuffer(content), 0)
+		err = service.AppendUpload(name, session.ID.String(), bytes.NewBuffer(content), 0)
 		RequireNoError(t, err)
 
 		err = service.CloseUpload(name, session.ID.String(), digest.String())
@@ -122,9 +127,10 @@ func TestServiceUpload(t *testing.T) {
 		repository := RandomName()
 		content := RandomContents(32)
 
-		session := service.InitUpload(repository)
+		session, err := service.InitUpload(repository)
+		RequireNoError(t, err)
 
-		err := service.AppendUpload(repository, session.ID.String(), bytes.NewBuffer(content[:16]), 0)
+		err = service.AppendUpload(repository, session.ID.String(), bytes.NewBuffer(content[:16]), 0)
 		AssertNoError(t, err)
 
 		err = service.AppendUpload(repository, session.ID.String(), bytes.NewBuffer(content[16:]), 16)

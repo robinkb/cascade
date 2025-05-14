@@ -1,8 +1,6 @@
 package server
 
 import (
-	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -36,8 +34,7 @@ func (s *Server) statManifestsHandler(w http.ResponseWriter, r *http.Request) {
 		var err error
 		reference, err = s.service.GetTag(repository, reference)
 		if err != nil {
-			// TODO: Writes a body on a HEAD request while it shouldn't.
-			writeErrorResponse(w, err)
+			errorHandler(w, r, err)
 			return
 		}
 	}
@@ -45,7 +42,7 @@ func (s *Server) statManifestsHandler(w http.ResponseWriter, r *http.Request) {
 	info, err := s.service.StatManifest(repository, reference)
 	if err != nil {
 		// TODO: Writes a body on a HEAD request while it shouldn't.
-		writeErrorResponse(w, err)
+		errorHandler(w, r, err)
 		return
 	}
 
@@ -59,12 +56,17 @@ func (s *Server) getManifestsHandler(w http.ResponseWriter, r *http.Request) {
 
 	// If the reference is a tag, fetch the digest first.
 	if cascade.ValidateTag(reference) {
-		reference, _ = s.service.GetTag(repository, reference)
+		var err error
+		reference, err = s.service.GetTag(repository, reference)
+		if err != nil {
+			errorHandler(w, r, err)
+			return
+		}
 	}
 
 	meta, content, err := s.service.GetManifest(repository, reference)
 	if err != nil {
-		writeErrorResponse(w, err)
+		errorHandler(w, r, err)
 		return
 	}
 
@@ -79,7 +81,7 @@ func (s *Server) putManifestsHandler(w http.ResponseWriter, r *http.Request) {
 
 	data, err := io.ReadAll(r.Body)
 	if err != nil {
-		writeErrorResponse(w, err)
+		errorHandler(w, r, err)
 		return
 	}
 
@@ -87,23 +89,15 @@ func (s *Server) putManifestsHandler(w http.ResponseWriter, r *http.Request) {
 
 	if !cascade.ValidateTag(reference) {
 		if digest.String() != reference {
-			writeErrorResponse(w, cascade.ErrDigestInvalid)
+			errorHandler(w, r, cascade.ErrDigestInvalid)
 			return
 		}
 	}
 
 	subject, err := s.service.PutManifest(repository, digest.String(), data)
-	switch err {
-	default:
-		w.WriteHeader(http.StatusInternalServerError)
+	if err != nil {
+		errorHandler(w, r, err)
 		return
-	case cascade.ErrManifestInvalid:
-		w.WriteHeader(http.StatusBadRequest)
-		encodeOrLog(json.NewEncoder(w).Encode(
-			NewErrorResponse(err.(cascade.Error)),
-		))
-		return
-	case nil:
 	}
 
 	if subject != "" {
@@ -113,7 +107,7 @@ func (s *Server) putManifestsHandler(w http.ResponseWriter, r *http.Request) {
 	if cascade.ValidateTag(reference) {
 		err = s.service.PutTag(repository, reference, digest.String())
 		if err != nil {
-			writeErrorResponse(w, err)
+			errorHandler(w, r, err)
 			return
 		}
 	}
@@ -127,19 +121,22 @@ func (s *Server) deleteManifestsHandler(w http.ResponseWriter, r *http.Request) 
 	reference := r.PathValue("reference")
 
 	if cascade.ValidateTag(reference) {
-		s.service.DeleteTag(repository, reference)
-
-		w.WriteHeader(http.StatusAccepted)
-	} else {
-		err := s.service.DeleteManifest(repository, reference)
+		err := s.service.DeleteTag(repository, reference)
 		if err != nil {
-			if errors.Is(err, cascade.ErrManifestUnknown) {
-				w.WriteHeader(http.StatusNotFound)
-				encodeOrLog(json.NewEncoder(w).Encode(NewErrorResponse(err.(cascade.Error))))
-				return
-			}
+			errorHandler(w, r, err)
+			return
 		}
 
 		w.WriteHeader(http.StatusAccepted)
+		return
 	}
+
+	err := s.service.DeleteManifest(repository, reference)
+	if err != nil {
+		errorHandler(w, r, err)
+		return
+	}
+
+	w.WriteHeader(http.StatusAccepted)
+
 }

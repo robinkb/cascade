@@ -14,7 +14,12 @@ func (s *Server) blobsUploadsSessionHandler(w http.ResponseWriter, r *http.Reque
 func (s *Server) initUploadHandler(w http.ResponseWriter, r *http.Request) {
 	repository := r.PathValue("repository")
 
-	session := s.service.InitUpload(repository)
+	session, err := s.service.InitUpload(repository)
+	if err != nil {
+		errorHandler(w, r, err)
+		return
+	}
+
 	w.Header().Set(HeaderLocation, session.Location)
 	w.WriteHeader(http.StatusAccepted)
 }

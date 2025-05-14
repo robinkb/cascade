@@ -39,7 +39,7 @@ func (s *Server) checkUploadHandler(w http.ResponseWriter, r *http.Request) {
 
 	info, err := s.service.StatUpload(repository, reference)
 	if err != nil {
-		writeErrorResponse(w, err)
+		errorHandler(w, r, err)
 		return
 	}
 
@@ -57,7 +57,7 @@ func (s *Server) chunkedUploadHandler(w http.ResponseWriter, r *http.Request) {
 
 	givenStart, givenEnd, err := parseContentRange(r.Header.Get(HeaderContentRange))
 	if err != nil {
-		writeErrorResponse(w, err)
+		errorHandler(w, r, err)
 		return
 	}
 
@@ -65,7 +65,7 @@ func (s *Server) chunkedUploadHandler(w http.ResponseWriter, r *http.Request) {
 
 	content, err := io.ReadAll(r.Body)
 	if err != nil {
-		writeErrorResponse(w, err)
+		errorHandler(w, r, err)
 		return
 	}
 
@@ -75,7 +75,7 @@ func (s *Server) chunkedUploadHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := s.service.AppendUpload(repository, reference, bytes.NewBuffer(content), givenStart); err != nil {
-		writeErrorResponse(w, err)
+		errorHandler(w, r, err)
 		return
 	}
 
@@ -90,7 +90,7 @@ func (s *Server) streamedUploadHandler(w http.ResponseWriter, r *http.Request) {
 	reference := r.PathValue("reference")
 
 	if err := s.service.AppendUpload(repository, reference, r.Body, 0); err != nil {
-		writeErrorResponse(w, err)
+		errorHandler(w, r, err)
 		return
 	}
 
@@ -122,14 +122,22 @@ func (s *Server) closeUploadHandler(w http.ResponseWriter, r *http.Request) {
 			var err error
 			offset, _, err = parseContentRange(contentRange)
 			if err != nil {
-				writeErrorResponse(w, err)
+				errorHandler(w, r, err)
 				return
 			}
 		}
 
-		content, _ := io.ReadAll(r.Body)
-		// TODO: Check this error
-		s.service.AppendUpload(repository, reference, bytes.NewBuffer(content), offset)
+		content, err := io.ReadAll(r.Body)
+		if err != nil {
+			errorHandler(w, r, err)
+			return
+		}
+
+		err = s.service.AppendUpload(repository, reference, bytes.NewBuffer(content), offset)
+		if err != nil {
+			errorHandler(w, r, err)
+			return
+		}
 	}
 
 	digest := r.URL.Query().Get("digest")
@@ -140,7 +148,7 @@ func (s *Server) closeUploadHandler(w http.ResponseWriter, r *http.Request) {
 
 	err := s.service.CloseUpload(repository, reference, digest)
 	if err != nil {
-		writeErrorResponse(w, err)
+		errorHandler(w, r, err)
 		return
 	}
 

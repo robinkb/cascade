@@ -447,7 +447,7 @@ func (_c *RegistryService_GetTag_Call) RunAndReturn(run func(string, string) (st
 }
 
 // InitUpload provides a mock function with given fields: repository
-func (_m *RegistryService) InitUpload(repository string) *cascade.UploadSession {
+func (_m *RegistryService) InitUpload(repository string) (*cascade.UploadSession, error) {
 	ret := _m.Called(repository)
 
 	if len(ret) == 0 {
@@ -455,6 +455,10 @@ func (_m *RegistryService) InitUpload(repository string) *cascade.UploadSession 
 	}
 
 	var r0 *cascade.UploadSession
+	var r1 error
+	if rf, ok := ret.Get(0).(func(string) (*cascade.UploadSession, error)); ok {
+		return rf(repository)
+	}
 	if rf, ok := ret.Get(0).(func(string) *cascade.UploadSession); ok {
 		r0 = rf(repository)
 	} else {
@@ -463,7 +467,13 @@ func (_m *RegistryService) InitUpload(repository string) *cascade.UploadSession 
 		}
 	}
 
-	return r0
+	if rf, ok := ret.Get(1).(func(string) error); ok {
+		r1 = rf(repository)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
 }
 
 // RegistryService_InitUpload_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'InitUpload'
@@ -484,12 +494,12 @@ func (_c *RegistryService_InitUpload_Call) Run(run func(repository string)) *Reg
 	return _c
 }
 
-func (_c *RegistryService_InitUpload_Call) Return(_a0 *cascade.UploadSession) *RegistryService_InitUpload_Call {
-	_c.Call.Return(_a0)
+func (_c *RegistryService_InitUpload_Call) Return(_a0 *cascade.UploadSession, _a1 error) *RegistryService_InitUpload_Call {
+	_c.Call.Return(_a0, _a1)
 	return _c
 }
 
-func (_c *RegistryService_InitUpload_Call) RunAndReturn(run func(string) *cascade.UploadSession) *RegistryService_InitUpload_Call {
+func (_c *RegistryService_InitUpload_Call) RunAndReturn(run func(string) (*cascade.UploadSession, error)) *RegistryService_InitUpload_Call {
 	_c.Call.Return(run)
 	return _c
 }

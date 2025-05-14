@@ -20,7 +20,7 @@ func TestBlobUploadSession(t *testing.T) {
 		service := mock.NewRegistryService(t)
 		service.EXPECT().
 			InitUpload(name).
-			Return(&cascade.UploadSession{Location: "123"})
+			Return(&cascade.UploadSession{Location: "123"}, nil)
 
 		client := NewTestClientWithServer(t, service)
 

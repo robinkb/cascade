@@ -25,9 +25,7 @@ func (s *Server) statBlobsHandler(w http.ResponseWriter, r *http.Request) {
 
 	info, err := s.service.StatBlob(repository, digest)
 	if err != nil {
-		// TODO: This currently writes a body, even though HEAD responses
-		// should never write a body. Something to consider when this gets refactored.
-		writeErrorResponse(w, err)
+		errorHandler(w, r, err)
 		return
 	}
 
@@ -41,7 +39,7 @@ func (s *Server) getBlobsHandler(w http.ResponseWriter, r *http.Request) {
 
 	blob, err := s.service.GetBlob(repository, digest)
 	if err != nil {
-		writeErrorResponse(w, err)
+		errorHandler(w, r, err)
 		return
 	}
 
@@ -55,7 +53,7 @@ func (s *Server) deleteBlobsHandler(w http.ResponseWriter, r *http.Request) {
 
 	err := s.service.DeleteBlob(repository, digest)
 	if err != nil {
-		writeErrorResponse(w, err)
+		errorHandler(w, r, err)
 		return
 	}
 
