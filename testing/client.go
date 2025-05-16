@@ -15,6 +15,7 @@ import (
 	v1 "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/robinkb/cascade-registry"
 	"github.com/robinkb/cascade-registry/server"
+	"github.com/robinkb/cascade-registry/testing/mock"
 )
 
 // NewTestClient returns an initialized Client for the given base URL.
@@ -27,7 +28,7 @@ func NewTestClient(t *testing.T, url string) *Client {
 	}
 }
 
-// NewTestClient initializes an HTTP test server with the given RegistryService
+// NewTestClientWithServer initializes an HTTP test server with the given RegistryService
 // and returns an initialized client. The test server is automatically closed
 // at the end of the test. A client should be used in the (sub)test where it is created.
 func NewTestClientWithServer(t *testing.T, service cascade.RegistryService) *Client {
@@ -39,6 +40,18 @@ func NewTestClientWithServer(t *testing.T, service cascade.RegistryService) *Cli
 	})
 
 	return NewTestClient(t, ts.URL)
+}
+
+// NewTestClientWithRepository wraps around NewTestClientWithServer to provide an HTTP test server
+// that only returns the given RepositoryService under the specified name. Attempting to
+// create, read, update, or delete objects in any other repository will panic.
+func NewTestClientWithRepository(t *testing.T, name string, service cascade.RepositoryService) *Client {
+	registry := mock.NewRegistryService(t)
+	registry.EXPECT().
+		GetRepository(name).
+		Return(service, nil)
+
+	return NewTestClientWithServer(t, registry)
 }
 
 // Client is a simple registry client meant for use in testing.

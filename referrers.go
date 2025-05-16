@@ -14,7 +14,7 @@ type Referrers struct {
 	AppliedFilters []string
 }
 
-func (s *registryService) ListReferrers(name, reference string, opts *ListReferrersOptions) (*Referrers, error) {
+func (s *repositoryService) ListReferrers(name, reference string, opts *ListReferrersOptions) (*Referrers, error) {
 	digest, err := digest.Parse(reference)
 	if err != nil {
 		return nil, ErrDigestInvalid

@@ -10,7 +10,7 @@ import (
 )
 
 func TestStatUpload(t *testing.T) {
-	service, _, _ := newTestRegistry()
+	service, _, _ := newTestRepository()
 
 	t.Run("stat upload returns correct FileInfo", func(t *testing.T) {
 		repository := "a/v/c"
@@ -41,7 +41,7 @@ func TestStatUpload(t *testing.T) {
 }
 
 func TestBlobUploadsMonolithic(t *testing.T) {
-	service, _, _ := newTestRegistry()
+	service, _, _ := newTestRepository()
 
 	t.Run("Monolithic blob upload - happy path", func(t *testing.T) {
 		name := RandomName()
@@ -100,7 +100,7 @@ func TestBlobUploadsMonolithic(t *testing.T) {
 }
 
 func TestServiceUpload(t *testing.T) {
-	service, _, _ := newTestRegistry()
+	service, _, _ := newTestRepository()
 
 	t.Run("written upload is retrievable", func(t *testing.T) {
 		name := RandomName()

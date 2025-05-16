@@ -16,9 +16,15 @@ func (s *Server) tagsHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) listTagsHandler(w http.ResponseWriter, r *http.Request) {
-	repository := r.PathValue("repository")
+	name := r.PathValue("name")
 	n := r.URL.Query().Get("n")
 	last := r.URL.Query().Get("last")
+
+	repository, err := s.service.GetRepository(name)
+	if err != nil {
+		errorHandler(w, r, err)
+		return
+	}
 
 	count := -1
 	if n != "" {
@@ -30,14 +36,14 @@ func (s *Server) listTagsHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	tags, err := s.service.ListTags(repository, count, last)
+	tags, err := repository.ListTags(name, count, last)
 	if err != nil {
 		errorHandler(w, r, err)
 		return
 	}
 
 	response := TagsListResponse{
-		Name: repository,
+		Name: name,
 		Tags: tags,
 	}
 

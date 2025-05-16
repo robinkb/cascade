@@ -9,7 +9,7 @@ import (
 )
 
 func TestListReferrers(t *testing.T) {
-	service, _, _ := newTestRegistry()
+	service, _, _ := newTestRepository()
 
 	name := RandomName()
 

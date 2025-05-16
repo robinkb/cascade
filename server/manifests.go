@@ -26,20 +26,26 @@ func (s *Server) manifestsHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) statManifestsHandler(w http.ResponseWriter, r *http.Request) {
-	repository := r.PathValue("repository")
+	name := r.PathValue("name")
 	reference := r.PathValue("reference")
+
+	repository, err := s.service.GetRepository(name)
+	if err != nil {
+		errorHandler(w, r, err)
+		return
+	}
 
 	// If the reference is a tag, fetch the digest first.
 	if cascade.ValidateTag(reference) {
 		var err error
-		reference, err = s.service.GetTag(repository, reference)
+		reference, err = repository.GetTag(name, reference)
 		if err != nil {
 			errorHandler(w, r, err)
 			return
 		}
 	}
 
-	info, err := s.service.StatManifest(repository, reference)
+	info, err := repository.StatManifest(name, reference)
 	if err != nil {
 		// TODO: Writes a body on a HEAD request while it shouldn't.
 		errorHandler(w, r, err)
@@ -51,20 +57,26 @@ func (s *Server) statManifestsHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) getManifestsHandler(w http.ResponseWriter, r *http.Request) {
-	repository := r.PathValue("repository")
+	name := r.PathValue("name")
 	reference := r.PathValue("reference")
+
+	repository, err := s.service.GetRepository(name)
+	if err != nil {
+		errorHandler(w, r, err)
+		return
+	}
 
 	// If the reference is a tag, fetch the digest first.
 	if cascade.ValidateTag(reference) {
 		var err error
-		reference, err = s.service.GetTag(repository, reference)
+		reference, err = repository.GetTag(name, reference)
 		if err != nil {
 			errorHandler(w, r, err)
 			return
 		}
 	}
 
-	meta, content, err := s.service.GetManifest(repository, reference)
+	meta, content, err := repository.GetManifest(name, reference)
 	if err != nil {
 		errorHandler(w, r, err)
 		return
@@ -76,8 +88,14 @@ func (s *Server) getManifestsHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) putManifestsHandler(w http.ResponseWriter, r *http.Request) {
-	repository := r.PathValue("repository")
+	name := r.PathValue("name")
 	reference := r.PathValue("reference")
+
+	repository, err := s.service.GetRepository(name)
+	if err != nil {
+		errorHandler(w, r, err)
+		return
+	}
 
 	data, err := io.ReadAll(r.Body)
 	if err != nil {
@@ -94,7 +112,7 @@ func (s *Server) putManifestsHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	subject, err := s.service.PutManifest(repository, digest.String(), data)
+	subject, err := repository.PutManifest(name, digest.String(), data)
 	if err != nil {
 		errorHandler(w, r, err)
 		return
@@ -105,23 +123,29 @@ func (s *Server) putManifestsHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if cascade.ValidateTag(reference) {
-		err = s.service.PutTag(repository, reference, digest.String())
+		err = repository.PutTag(name, reference, digest.String())
 		if err != nil {
 			errorHandler(w, r, err)
 			return
 		}
 	}
 
-	w.Header().Set(HeaderLocation, fmt.Sprintf("/v2/%s/manifests/%s", repository, reference))
+	w.Header().Set(HeaderLocation, fmt.Sprintf("/v2/%s/manifests/%s", name, reference))
 	w.WriteHeader(http.StatusCreated)
 }
 
 func (s *Server) deleteManifestsHandler(w http.ResponseWriter, r *http.Request) {
-	repository := r.PathValue("repository")
+	name := r.PathValue("name")
 	reference := r.PathValue("reference")
 
+	repository, err := s.service.GetRepository(name)
+	if err != nil {
+		errorHandler(w, r, err)
+		return
+	}
+
 	if cascade.ValidateTag(reference) {
-		err := s.service.DeleteTag(repository, reference)
+		err := repository.DeleteTag(name, reference)
 		if err != nil {
 			errorHandler(w, r, err)
 			return
@@ -131,7 +155,7 @@ func (s *Server) deleteManifestsHandler(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	err := s.service.DeleteManifest(repository, reference)
+	err = repository.DeleteManifest(name, reference)
 	if err != nil {
 		errorHandler(w, r, err)
 		return

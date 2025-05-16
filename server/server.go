@@ -51,7 +51,7 @@ func New(service cascade.RegistryService) *Server {
 		i := len(segments) - 1
 		for ; i > 0; i-- {
 			if slices.Contains([]string{"blobs", "manifests", "tags", "referrers"}, segments[i]) {
-				r.SetPathValue("repository", strings.Join(segments[1:i], "/"))
+				r.SetPathValue("name", strings.Join(segments[1:i], "/"))
 				break
 			}
 		}

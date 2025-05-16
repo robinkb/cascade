@@ -20,12 +20,12 @@ func TestStatManifests(t *testing.T) {
 	tag := RandomVersion()
 
 	t.Run("Stat existing manifest returns 200 with correct size in Content-Length header", func(t *testing.T) {
-		service := mock.NewRegistryService(t)
-		service.EXPECT().
+		repository := mock.NewRepositoryService(t)
+		repository.EXPECT().
 			StatManifest(name, digest.String()).
 			Return(&cascade.FileInfo{Size: int64(length)}, nil)
 
-		client := NewTestClientWithServer(t, service)
+		client := NewTestClientWithRepository(t, name, repository)
 
 		resp := client.CheckManifestByDigest(name, digest)
 
@@ -35,15 +35,15 @@ func TestStatManifests(t *testing.T) {
 	})
 
 	t.Run("Stat existing manifest by tag returns 200 with correct size in Content-Length header", func(t *testing.T) {
-		service := mock.NewRegistryService(t)
-		service.EXPECT().
+		repository := mock.NewRepositoryService(t)
+		repository.EXPECT().
 			GetTag(name, tag).
 			Return(digest.String(), nil)
-		service.EXPECT().
+		repository.EXPECT().
 			StatManifest(name, digest.String()).
 			Return(&cascade.FileInfo{Size: int64(length)}, nil)
 
-		client := NewTestClientWithServer(t, service)
+		client := NewTestClientWithRepository(t, name, repository)
 
 		resp := client.CheckManifestByTag(name, tag)
 
@@ -53,12 +53,12 @@ func TestStatManifests(t *testing.T) {
 	})
 
 	t.Run("Stat non-existent manifest returns 404 and ErrManifestUknown", func(t *testing.T) {
-		service := mock.NewRegistryService(t)
-		service.EXPECT().
+		repository := mock.NewRepositoryService(t)
+		repository.EXPECT().
 			StatManifest(name, digest.String()).
 			Return(nil, cascade.ErrManifestUnknown)
 
-		client := NewTestClientWithServer(t, service)
+		client := NewTestClientWithRepository(t, name, repository)
 
 		resp := client.CheckManifestByDigest(name, digest)
 
@@ -66,12 +66,12 @@ func TestStatManifests(t *testing.T) {
 	})
 
 	t.Run("Stat non-existent manifest by tag returns 404 and ErrManifestUknown", func(t *testing.T) {
-		service := mock.NewRegistryService(t)
-		service.EXPECT().
+		repository := mock.NewRepositoryService(t)
+		repository.EXPECT().
 			GetTag(name, tag).
 			Return("", cascade.ErrManifestUnknown)
 
-		client := NewTestClientWithServer(t, service)
+		client := NewTestClientWithRepository(t, name, repository)
 
 		resp := client.CheckManifestByTag(name, tag)
 
@@ -88,12 +88,12 @@ func TestGetManifests(t *testing.T) {
 	tag := RandomVersion()
 
 	t.Run("Retrieving an existing manifest returns 200", func(t *testing.T) {
-		service := mock.NewRegistryService(t)
-		service.EXPECT().
+		repository := mock.NewRepositoryService(t)
+		repository.EXPECT().
 			GetManifest(name, digest.String()).
 			Return(meta, content, nil)
 
-		client := NewTestClientWithServer(t, service)
+		client := NewTestClientWithRepository(t, name, repository)
 
 		resp := client.GetManifestByDigest(name, digest)
 
@@ -103,15 +103,15 @@ func TestGetManifests(t *testing.T) {
 	})
 
 	t.Run("Retrieving a manifest by tag returns 200", func(t *testing.T) {
-		service := mock.NewRegistryService(t)
-		service.EXPECT().
+		repository := mock.NewRepositoryService(t)
+		repository.EXPECT().
 			GetTag(name, tag).
 			Return(digest.String(), nil)
-		service.EXPECT().
+		repository.EXPECT().
 			GetManifest(name, digest.String()).
 			Return(meta, content, nil)
 
-		client := NewTestClientWithServer(t, service)
+		client := NewTestClientWithRepository(t, name, repository)
 
 		resp := client.GetManifestByTag(name, tag)
 
@@ -120,12 +120,12 @@ func TestGetManifests(t *testing.T) {
 	})
 
 	t.Run("Retrieving a non-existent manifest returns status 404 and ErrManifestUnknown", func(t *testing.T) {
-		service := mock.NewRegistryService(t)
-		service.EXPECT().
+		repository := mock.NewRepositoryService(t)
+		repository.EXPECT().
 			GetManifest(name, digest.String()).
 			Return(nil, nil, cascade.ErrManifestUnknown)
 
-		client := NewTestClientWithServer(t, service)
+		client := NewTestClientWithRepository(t, name, repository)
 
 		resp := client.GetManifestByDigest(name, digest)
 
@@ -140,12 +140,12 @@ func TestPutManifest(t *testing.T) {
 	tag := RandomVersion()
 
 	t.Run("Uploading a manifest by digest returns code 201", func(t *testing.T) {
-		service := mock.NewRegistryService(t)
-		service.EXPECT().
+		repository := mock.NewRepositoryService(t)
+		repository.EXPECT().
 			PutManifest(name, digest.String(), content).
 			Return("", nil)
 
-		client := NewTestClientWithServer(t, service)
+		client := NewTestClientWithRepository(t, name, repository)
 
 		resp := client.PutManifest(name, digest.String(), content)
 
@@ -155,15 +155,15 @@ func TestPutManifest(t *testing.T) {
 	})
 
 	t.Run("Uploading a manifest by tag returns code 201", func(t *testing.T) {
-		service := mock.NewRegistryService(t)
-		service.EXPECT().
+		repository := mock.NewRepositoryService(t)
+		repository.EXPECT().
 			PutTag(name, tag, digest.String()).
 			Return(nil)
-		service.EXPECT().
+		repository.EXPECT().
 			PutManifest(name, digest.String(), content).
 			Return("", nil)
 
-		client := NewTestClientWithServer(t, service)
+		client := NewTestClientWithRepository(t, name, repository)
 
 		resp := client.PutManifest(name, tag, content)
 
@@ -176,12 +176,12 @@ func TestPutManifest(t *testing.T) {
 		subjectDigest, subjectManifest := digest, manifest
 		digest, _, content := RandomManifestWithSubject(subjectDigest, subjectManifest)
 
-		service := mock.NewRegistryService(t)
-		service.EXPECT().
+		repository := mock.NewRepositoryService(t)
+		repository.EXPECT().
 			PutManifest(name, digest.String(), content).
 			Return(subjectDigest, nil)
 
-		client := NewTestClientWithServer(t, service)
+		client := NewTestClientWithRepository(t, name, repository)
 
 		resp := client.PutManifest(name, digest.String(), content)
 
@@ -192,12 +192,12 @@ func TestPutManifest(t *testing.T) {
 	})
 
 	t.Run("Uploading an invalid manifest returns 400 and ErrManifestInvalid", func(t *testing.T) {
-		service := mock.NewRegistryService(t)
-		service.EXPECT().
+		repository := mock.NewRepositoryService(t)
+		repository.EXPECT().
 			PutManifest(name, digest.String(), content).
 			Return("", cascade.ErrManifestInvalid)
 
-		client := NewTestClientWithServer(t, service)
+		client := NewTestClientWithRepository(t, name, repository)
 
 		resp := client.PutManifest(name, tag, content)
 
@@ -206,12 +206,12 @@ func TestPutManifest(t *testing.T) {
 	})
 
 	t.Run("Other service error returns 500", func(t *testing.T) {
-		service := mock.NewRegistryService(t)
-		service.EXPECT().
+		repository := mock.NewRepositoryService(t)
+		repository.EXPECT().
 			PutManifest(name, digest.String(), content).
 			Return("", errors.New("unknown"))
 
-		client := NewTestClientWithServer(t, service)
+		client := NewTestClientWithRepository(t, name, repository)
 
 		resp := client.PutManifest(name, digest.String(), content)
 
@@ -225,12 +225,12 @@ func TestDeleteManifest(t *testing.T) {
 	tag := RandomVersion()
 
 	t.Run("Deleting a manifest returns code 202", func(t *testing.T) {
-		service := mock.NewRegistryService(t)
-		service.EXPECT().
+		repository := mock.NewRepositoryService(t)
+		repository.EXPECT().
 			DeleteManifest(name, digest.String()).
 			Return(nil)
 
-		client := NewTestClientWithServer(t, service)
+		client := NewTestClientWithRepository(t, name, repository)
 
 		resp := client.DeleteManifest(name, digest)
 
@@ -238,12 +238,12 @@ func TestDeleteManifest(t *testing.T) {
 	})
 
 	t.Run("Deleting a manifest by tag returns 202", func(t *testing.T) {
-		service := mock.NewRegistryService(t)
-		service.EXPECT().
+		repository := mock.NewRepositoryService(t)
+		repository.EXPECT().
 			DeleteTag(name, tag).
 			Return(nil)
 
-		client := NewTestClientWithServer(t, service)
+		client := NewTestClientWithRepository(t, name, repository)
 
 		resp := client.DeleteTag(name, tag)
 
@@ -251,12 +251,12 @@ func TestDeleteManifest(t *testing.T) {
 	})
 
 	t.Run("Deleting an unknown manifest returns 404", func(t *testing.T) {
-		service := mock.NewRegistryService(t)
-		service.EXPECT().
+		repository := mock.NewRepositoryService(t)
+		repository.EXPECT().
 			DeleteManifest(name, digest.String()).
 			Return(cascade.ErrManifestUnknown)
 
-		client := NewTestClientWithServer(t, service)
+		client := NewTestClientWithRepository(t, name, repository)
 
 		resp := client.DeleteManifest(name, digest)
 

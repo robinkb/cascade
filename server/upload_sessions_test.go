@@ -17,12 +17,12 @@ func TestBlobUploadSession(t *testing.T) {
 	location := newLocation(name, sessionID.String())
 
 	t.Run("Initialize upload session returns 200 with session ID", func(t *testing.T) {
-		service := mock.NewRegistryService(t)
-		service.EXPECT().
+		repository := mock.NewRepositoryService(t)
+		repository.EXPECT().
 			InitUpload(name).
 			Return(&cascade.UploadSession{Location: "123"}, nil)
 
-		client := NewTestClientWithServer(t, service)
+		client := NewTestClientWithRepository(t, name, repository)
 
 		resp := client.InitUpload(name)
 
@@ -31,12 +31,12 @@ func TestBlobUploadSession(t *testing.T) {
 	})
 
 	t.Run("Checking active session returns 200", func(t *testing.T) {
-		service := mock.NewRegistryService(t)
-		service.EXPECT().
+		repository := mock.NewRepositoryService(t)
+		repository.EXPECT().
 			StatUpload(name, sessionID.String()).
 			Return(&cascade.FileInfo{}, nil)
 
-		client := NewTestClientWithServer(t, service)
+		client := NewTestClientWithRepository(t, name, repository)
 
 		resp := client.CheckUpload(location)
 
@@ -46,12 +46,12 @@ func TestBlobUploadSession(t *testing.T) {
 	})
 
 	t.Run("Checking status of an unknown upload session returns 404 and ErrBlobUploadUnknown", func(t *testing.T) {
-		service := mock.NewRegistryService(t)
-		service.EXPECT().
+		repository := mock.NewRepositoryService(t)
+		repository.EXPECT().
 			StatUpload(name, sessionID.String()).
 			Return(nil, cascade.ErrBlobUploadUnknown)
 
-		client := NewTestClientWithServer(t, service)
+		client := NewTestClientWithRepository(t, name, repository)
 
 		resp := client.CheckUpload(location)
 

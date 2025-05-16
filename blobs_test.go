@@ -5,14 +5,11 @@ import (
 	"testing"
 
 	"github.com/robinkb/cascade-registry"
-	"github.com/robinkb/cascade-registry/store/inmemory"
 	. "github.com/robinkb/cascade-registry/testing"
 )
 
 func TestStatBlob(t *testing.T) {
-	metadata := inmemory.NewMetadataStore()
-	blobs := inmemory.NewBlobStore()
-	service := cascade.NewRegistryService(metadata, blobs)
+	service, metadata, blobs := newTestRepository()
 
 	name := RandomName()
 	digest, content := RandomBlob(32 * 1024)
@@ -39,7 +36,7 @@ func TestStatBlob(t *testing.T) {
 }
 
 func TestGetBlob(t *testing.T) {
-	service, metadata, blobs := newTestRegistry()
+	service, metadata, blobs := newTestRepository()
 
 	name := RandomName()
 	digest, content := RandomBlob(32)
@@ -69,7 +66,7 @@ func TestGetBlob(t *testing.T) {
 }
 
 func TestDeleteBlob(t *testing.T) {
-	service, metadata, blobs := newTestRegistry()
+	service, metadata, blobs := newTestRepository()
 
 	name := RandomName()
 	digest, content := RandomBlob(32)

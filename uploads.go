@@ -14,7 +14,7 @@ import (
 
 // TODO: Should write a test to verify that uploads can only be accessed
 // from the repository where it was created. Spoiler alert: not the case.
-func (s *registryService) StatUpload(repository, sessionID string) (*FileInfo, error) {
+func (s *repositoryService) StatUpload(repository, sessionID string) (*FileInfo, error) {
 	session, err := s.metadata.GetUploadSession(repository, sessionID)
 	if err != nil {
 		return nil, err
@@ -30,7 +30,7 @@ func (s *registryService) StatUpload(repository, sessionID string) (*FileInfo, e
 
 // TODO: This should be able to return errors, and verify that upload sessions
 // cannot be overwritten _just in case_ the generated UUID is not unique... lol.
-func (s *registryService) InitUpload(repository string) (*UploadSession, error) {
+func (s *repositoryService) InitUpload(repository string) (*UploadSession, error) {
 	id, _ := uuid.NewV7()
 
 	hash := sha256.New()
@@ -44,8 +44,6 @@ func (s *registryService) InitUpload(repository string) (*UploadSession, error) 
 		panic(err)
 	}
 
-	path := fmt.Sprintf("uploads/%s", id.String())
-
 	session := UploadSession{
 		ID: id,
 		// TODO: The location URL really shouldn't be included here.
@@ -53,7 +51,6 @@ func (s *registryService) InitUpload(repository string) (*UploadSession, error) 
 		Location:  fmt.Sprintf("/v2/%s/blobs/uploads/%s", repository, id.String()),
 		StartDate: time.Now(),
 		HashState: hashState,
-		BlobPath:  path,
 	}
 
 	err = s.blobs.InitUpload(id)
@@ -69,7 +66,7 @@ func (s *registryService) InitUpload(repository string) (*UploadSession, error) 
 	return &session, nil
 }
 
-func (s *registryService) AppendUpload(repository, sessionID string, r io.Reader, offset int64) error {
+func (s *repositoryService) AppendUpload(repository, sessionID string, r io.Reader, offset int64) error {
 	session, err := s.metadata.GetUploadSession(repository, sessionID)
 	if err != nil {
 		return err
@@ -109,7 +106,7 @@ func (s *registryService) AppendUpload(repository, sessionID string, r io.Reader
 	return s.metadata.PutUploadSession(repository, session)
 }
 
-func (s *registryService) CloseUpload(repository, sessionID, digest string) error {
+func (s *repositoryService) CloseUpload(repository, sessionID, digest string) error {
 	session, err := s.metadata.GetUploadSession(repository, sessionID)
 	if err != nil {
 		return err

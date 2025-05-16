@@ -8,7 +8,7 @@ import (
 	v1 "github.com/opencontainers/image-spec/specs-go/v1"
 )
 
-func (s *registryService) StatManifest(repository, id string) (*FileInfo, error) {
+func (s *repositoryService) StatManifest(repository, id string) (*FileInfo, error) {
 	digest, err := digest.Parse(id)
 	if err != nil {
 		return nil, ErrManifestUnknown
@@ -27,7 +27,7 @@ func (s *registryService) StatManifest(repository, id string) (*FileInfo, error)
 	return info, err
 }
 
-func (s *registryService) GetManifest(repository, id string) (*ManifestMetadata, []byte, error) {
+func (s *repositoryService) GetManifest(repository, id string) (*ManifestMetadata, []byte, error) {
 	digest, err := digest.Parse(id)
 	if err != nil {
 		return nil, nil, ErrBlobUnknown
@@ -46,7 +46,7 @@ func (s *registryService) GetManifest(repository, id string) (*ManifestMetadata,
 	return meta, content, nil
 }
 
-func (s *registryService) PutManifest(repository, reference string, content []byte) (digest.Digest, error) {
+func (s *repositoryService) PutManifest(repository, reference string, content []byte) (digest.Digest, error) {
 	var subject digest.Digest
 
 	digest, err := digest.Parse(reference)
@@ -86,7 +86,7 @@ func (s *registryService) PutManifest(repository, reference string, content []by
 	return subject, err
 }
 
-func (s *registryService) DeleteManifest(repository, id string) error {
+func (s *repositoryService) DeleteManifest(repository, id string) error {
 	digest, err := digest.Parse(id)
 	if err != nil {
 		return ErrManifestUnknown
