@@ -32,31 +32,10 @@ type (
 		CloseUpload(repository, id, digest string) error
 	}
 
-	// TODO: Could refactor to this:
-	// RegistryService interface {
-	// 	Repository(ctx context.Context, name string) RepositoryService
-	// }
-
-	// RepositoryService interface {
-	// 	StatBlob(digest string) (*FileInfo, error)
-	// 	GetBlob(digest string) ([]byte, error)
-	// 	StatManifest(reference string) (*FileInfo, error)
-	// 	GetManifest(reference string) ([]byte, error)
-	// 	PutManifest(reference string, content []byte) error
-	// 	DeleteManifest(reference string) error
-	// 	InitUpload() *UploadSession
-	// 	StatUpload(sessionID string) (*FileInfo, error)
-	// 	WriteUpload(sessionID string, content []byte) error
-	// 	CloseUpload(id, digest string) error
-	// }
-
 	UploadSession struct {
 		ID uuid.UUID
 		// TODO: This should not be here, as it's an HTTP implementation detail.
-		Location string
-		// TODO: Will go away with the blob store refactor, as uploads
-		// are saved based on the session ID.
-		BlobPath  string
+		Location  string
 		StartDate time.Time
 		// TODO: Could we make this a hash.Hash and make it easier?
 		HashState []byte

@@ -44,8 +44,6 @@ func (s *registryService) InitUpload(repository string) (*UploadSession, error) 
 		panic(err)
 	}
 
-	path := fmt.Sprintf("uploads/%s", id.String())
-
 	session := UploadSession{
 		ID: id,
 		// TODO: The location URL really shouldn't be included here.
@@ -53,7 +51,6 @@ func (s *registryService) InitUpload(repository string) (*UploadSession, error) 
 		Location:  fmt.Sprintf("/v2/%s/blobs/uploads/%s", repository, id.String()),
 		StartDate: time.Now(),
 		HashState: hashState,
-		BlobPath:  path,
 	}
 
 	err = s.blobs.InitUpload(id)
