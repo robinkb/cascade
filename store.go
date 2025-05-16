@@ -51,7 +51,7 @@ type (
 		BlobReader(id digest.Digest) (io.Reader, error)
 		// PutBlob writes content to the given path. Intended for smaller blobs that
 		// must be fully read into memory server-side, like manifests.
-		// Unlike Writer, Put does not append and always writes the entire blob.
+		// Put does not append and always writes the entire blob.
 		PutBlob(id digest.Digest, content []byte) error
 		// DeleteBlob removes a blob from the blobstore.
 		DeleteBlob(id digest.Digest) error
@@ -62,7 +62,7 @@ type (
 		// it will create an empty file on the blob store that will later be appended.
 		InitUpload(id uuid.UUID) error
 		// UploadWriter returns an io.Writer to write to an initialized upload.
-		// Uploads are always appended to. If an upload fails or must be truncated
+		// Uploads are always uploaded in order andappended to. If an upload fails or must be truncated,
 		// a new session must be started instead.
 		UploadWriter(id uuid.UUID) (io.Writer, error)
 		// CloseUpload finishes an upload and makes its contents accessible in the blob store by its digest.
