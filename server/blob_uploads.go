@@ -34,17 +34,17 @@ func (s *Server) blobsUploadsHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) checkUploadHandler(w http.ResponseWriter, r *http.Request) {
-	repository := r.PathValue("repository")
+	name := r.PathValue("name")
 	reference := r.PathValue("reference")
 
-	info, err := s.service.StatUpload(repository, reference)
+	info, err := s.service.StatUpload(name, reference)
 	if err != nil {
 		errorHandler(w, r, err)
 		return
 	}
 
 	// TODO: This is not the only place where this is generated.
-	location := fmt.Sprintf("/v2/%s/blobs/uploads/%s", repository, reference)
+	location := fmt.Sprintf("/v2/%s/blobs/uploads/%s", name, reference)
 
 	w.Header().Set(HeaderLocation, location)
 	w.Header().Set(HeaderRange, fmt.Sprintf("0-%d", max(info.Size-1, 0)))
@@ -52,7 +52,7 @@ func (s *Server) checkUploadHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) chunkedUploadHandler(w http.ResponseWriter, r *http.Request) {
-	repository := r.PathValue("repository")
+	name := r.PathValue("name")
 	reference := r.PathValue("reference")
 
 	givenStart, givenEnd, err := parseContentRange(r.Header.Get(HeaderContentRange))
@@ -74,35 +74,33 @@ func (s *Server) chunkedUploadHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := s.service.AppendUpload(repository, reference, bytes.NewBuffer(content), givenStart); err != nil {
+	if err := s.service.AppendUpload(name, reference, bytes.NewBuffer(content), givenStart); err != nil {
 		errorHandler(w, r, err)
 		return
 	}
 
-	location := fmt.Sprintf("/v2/%s/blobs/uploads/%s", repository, reference)
+	location := fmt.Sprintf("/v2/%s/blobs/uploads/%s", name, reference)
 	w.Header().Set(HeaderLocation, location)
 	w.Header().Set(HeaderRange, fmt.Sprintf("0-%d", givenEnd))
 	w.WriteHeader(http.StatusAccepted)
 }
 
 func (s *Server) streamedUploadHandler(w http.ResponseWriter, r *http.Request) {
-	repository := r.PathValue("repository")
+	name := r.PathValue("name")
 	reference := r.PathValue("reference")
 
-	if err := s.service.AppendUpload(repository, reference, r.Body, 0); err != nil {
+	if err := s.service.AppendUpload(name, reference, r.Body, 0); err != nil {
 		errorHandler(w, r, err)
 		return
 	}
 
-	location := fmt.Sprintf("/v2/%s/blobs/uploads/%s", repository, reference)
+	location := fmt.Sprintf("/v2/%s/blobs/uploads/%s", name, reference)
 	w.Header().Set(HeaderLocation, location)
 	w.WriteHeader(http.StatusAccepted)
 }
 
-// TODO: This should be split up into multiple methods, with the correct method
-// being selected in blobsUploadHandler, just like choosing between chunked and streaming uploads.
 func (s *Server) closeUploadHandler(w http.ResponseWriter, r *http.Request) {
-	repository := r.PathValue("repository")
+	name := r.PathValue("name")
 	reference := r.PathValue("reference")
 
 	// This is either a monolithic upload, or closing a chunked upload
@@ -133,7 +131,7 @@ func (s *Server) closeUploadHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		err = s.service.AppendUpload(repository, reference, bytes.NewBuffer(content), offset)
+		err = s.service.AppendUpload(name, reference, bytes.NewBuffer(content), offset)
 		if err != nil {
 			errorHandler(w, r, err)
 			return
@@ -146,13 +144,13 @@ func (s *Server) closeUploadHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err := s.service.CloseUpload(repository, reference, digest)
+	err := s.service.CloseUpload(name, reference, digest)
 	if err != nil {
 		errorHandler(w, r, err)
 		return
 	}
 
-	location := fmt.Sprintf("/v2/%s/blobs/%s", repository, digest)
+	location := fmt.Sprintf("/v2/%s/blobs/%s", name, digest)
 	w.Header().Set(HeaderLocation, location)
 	w.WriteHeader(http.StatusCreated)
 }

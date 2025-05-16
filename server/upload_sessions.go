@@ -12,9 +12,9 @@ func (s *Server) blobsUploadsSessionHandler(w http.ResponseWriter, r *http.Reque
 }
 
 func (s *Server) initUploadHandler(w http.ResponseWriter, r *http.Request) {
-	repository := r.PathValue("repository")
+	name := r.PathValue("name")
 
-	session, err := s.service.InitUpload(repository)
+	session, err := s.service.InitUpload(name)
 	if err != nil {
 		errorHandler(w, r, err)
 		return

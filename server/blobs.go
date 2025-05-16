@@ -20,10 +20,10 @@ func (s *Server) blobsHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) statBlobsHandler(w http.ResponseWriter, r *http.Request) {
-	repository := r.PathValue("repository")
+	name := r.PathValue("name")
 	digest := r.PathValue("digest")
 
-	info, err := s.service.StatBlob(repository, digest)
+	info, err := s.service.StatBlob(name, digest)
 	if err != nil {
 		errorHandler(w, r, err)
 		return
@@ -34,10 +34,10 @@ func (s *Server) statBlobsHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) getBlobsHandler(w http.ResponseWriter, r *http.Request) {
-	repository := r.PathValue("repository")
+	name := r.PathValue("name")
 	digest := r.PathValue("digest")
 
-	blob, err := s.service.GetBlob(repository, digest)
+	blob, err := s.service.GetBlob(name, digest)
 	if err != nil {
 		errorHandler(w, r, err)
 		return
@@ -48,10 +48,10 @@ func (s *Server) getBlobsHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) deleteBlobsHandler(w http.ResponseWriter, r *http.Request) {
-	repository := r.PathValue("repository")
+	name := r.PathValue("name")
 	digest := r.PathValue("digest")
 
-	err := s.service.DeleteBlob(repository, digest)
+	err := s.service.DeleteBlob(name, digest)
 	if err != nil {
 		errorHandler(w, r, err)
 		return
