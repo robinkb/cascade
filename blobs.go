@@ -7,7 +7,7 @@ import (
 	"github.com/opencontainers/go-digest"
 )
 
-func (s *registryService) StatBlob(repository, id string) (*FileInfo, error) {
+func (s *repositoryService) StatBlob(repository, id string) (*FileInfo, error) {
 	digest, err := digest.Parse(id)
 	if err != nil {
 		return nil, ErrBlobUnknown
@@ -26,7 +26,7 @@ func (s *registryService) StatBlob(repository, id string) (*FileInfo, error) {
 	return info, err
 }
 
-func (s *registryService) GetBlob(repository, id string) (io.Reader, error) {
+func (s *repositoryService) GetBlob(repository, id string) (io.Reader, error) {
 	digest, err := digest.Parse(id)
 	if err != nil {
 		return nil, ErrBlobUnknown
@@ -40,7 +40,7 @@ func (s *registryService) GetBlob(repository, id string) (io.Reader, error) {
 	return s.blobs.BlobReader(digest)
 }
 
-func (s *registryService) DeleteBlob(repository, id string) error {
+func (s *repositoryService) DeleteBlob(repository, id string) error {
 	digest, err := digest.Parse(id)
 	if err != nil {
 		return ErrBlobUnknown

@@ -9,6 +9,10 @@ import (
 )
 
 type (
+	RegistryService interface {
+		GetRepository(name string) (RepositoryService, error)
+	}
+
 	RepositoryService interface {
 		StatBlob(repository, digest string) (*FileInfo, error)
 		GetBlob(repository, digest string) (io.Reader, error)
@@ -42,7 +46,7 @@ type (
 	}
 )
 
-func NewRegistryService(metadata MetadataStore, blobs BlobStore) *registryService {
+func NewRegistryService2(metadata MetadataStore, blobs BlobStore) RegistryService {
 	return &registryService{
 		metadata: metadata,
 		blobs:    blobs,
@@ -50,6 +54,22 @@ func NewRegistryService(metadata MetadataStore, blobs BlobStore) *registryServic
 }
 
 type registryService struct {
+	metadata MetadataStore
+	blobs    BlobStore
+}
+
+func (r *registryService) GetRepository(name string) (RepositoryService, error) {
+	return NewRegistryService(r.metadata, r.blobs), nil
+}
+
+func NewRegistryService(metadata MetadataStore, blobs BlobStore) *repositoryService {
+	return &repositoryService{
+		metadata: metadata,
+		blobs:    blobs,
+	}
+}
+
+type repositoryService struct {
 	blobs    BlobStore
 	metadata MetadataStore
 }
