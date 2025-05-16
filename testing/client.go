@@ -26,7 +26,7 @@ func NewTestClientForHandler(t *testing.T, handler http.Handler) *Client {
 	}
 }
 
-// NewTestClientForRepository wraps around NewTestClientForServer to provide a test client
+// NewTestClientForRepository wraps around NewTestClientForHandler to provide a test client
 // for a registry that only returns the given RepositoryService under the specified name.
 // Attempting to create, read, update, or delete objects in any other repository will panic.
 func NewTestClientForRepository(t *testing.T, name string, service cascade.RepositoryService) *Client {
