@@ -22,7 +22,7 @@ func TestBlobUploadSession(t *testing.T) {
 			InitUpload(name).
 			Return(&cascade.UploadSession{Location: "123"}, nil)
 
-		client := NewTestClientWithRepository(t, name, repository)
+		client := NewTestClientForRepository(t, name, repository)
 
 		resp := client.InitUpload(name)
 
@@ -36,7 +36,7 @@ func TestBlobUploadSession(t *testing.T) {
 			StatUpload(name, sessionID.String()).
 			Return(&cascade.FileInfo{}, nil)
 
-		client := NewTestClientWithRepository(t, name, repository)
+		client := NewTestClientForRepository(t, name, repository)
 
 		resp := client.CheckUpload(location)
 
@@ -51,7 +51,7 @@ func TestBlobUploadSession(t *testing.T) {
 			StatUpload(name, sessionID.String()).
 			Return(nil, cascade.ErrBlobUploadUnknown)
 
-		client := NewTestClientWithRepository(t, name, repository)
+		client := NewTestClientForRepository(t, name, repository)
 
 		resp := client.CheckUpload(location)
 
