@@ -23,12 +23,12 @@ func TestListReferrers(t *testing.T) {
 			Index: wantIndex,
 		}
 
-		service := mock.NewRegistryService(t)
-		service.EXPECT().
+		repository := mock.NewRepositoryService(t)
+		repository.EXPECT().
 			ListReferrers(wantName, wantDigest.String(), mock.Anything).
 			Return(&wantReferrers, nil)
 
-		client := NewTestClientWithServer(t, service)
+		client := NewTestClientWithRepository(t, wantName, repository)
 
 		resp := client.ListReferrers(wantName, wantDigest, nil)
 
@@ -50,12 +50,12 @@ func TestListReferrers(t *testing.T) {
 			AppliedFilters: []string{"artifactType"},
 		}
 
-		service := mock.NewRegistryService(t)
-		service.EXPECT().
+		repository := mock.NewRepositoryService(t)
+		repository.EXPECT().
 			ListReferrers(wantName, wantDigest.String(), &wantOpts).
 			Return(&wantReferrers, nil)
 
-		client := NewTestClientWithServer(t, service)
+		client := NewTestClientWithRepository(t, wantName, repository)
 
 		resp := client.ListReferrers(wantName, wantDigest, &ListReferrersOptions{
 			ArtifactType: wantArtifactType,
@@ -72,12 +72,12 @@ func TestListReferrers(t *testing.T) {
 		wantDigest := "invalid"
 		wantErr := cascade.ErrDigestInvalid
 
-		service := mock.NewRegistryService(t)
-		service.EXPECT().
+		repository := mock.NewRepositoryService(t)
+		repository.EXPECT().
 			ListReferrers(wantName, wantDigest, mock.Anything).
 			Return(nil, wantErr)
 
-		client := NewTestClientWithServer(t, service)
+		client := NewTestClientWithRepository(t, wantName, repository)
 
 		resp := client.ListReferrers(wantName, digest.Digest(wantDigest), nil)
 
@@ -85,12 +85,12 @@ func TestListReferrers(t *testing.T) {
 	})
 
 	t.Run("Unknown service errors return a 500 internal server error", func(t *testing.T) {
-		service := mock.NewRegistryService(t)
-		service.EXPECT().
+		repository := mock.NewRepositoryService(t)
+		repository.EXPECT().
 			ListReferrers(wantName, wantDigest.String(), mock.Anything).
 			Return(nil, errors.New("unknown"))
 
-		client := NewTestClientWithServer(t, service)
+		client := NewTestClientWithRepository(t, wantName, repository)
 
 		resp := client.ListReferrers(wantName, wantDigest, nil)
 

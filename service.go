@@ -46,7 +46,7 @@ type (
 	}
 )
 
-func NewRegistryService2(metadata MetadataStore, blobs BlobStore) RegistryService {
+func NewRegistryService(metadata MetadataStore, blobs BlobStore) RegistryService {
 	return &registryService{
 		metadata: metadata,
 		blobs:    blobs,
@@ -59,10 +59,10 @@ type registryService struct {
 }
 
 func (r *registryService) GetRepository(name string) (RepositoryService, error) {
-	return NewRegistryService(r.metadata, r.blobs), nil
+	return NewRepositoryService(r.metadata, r.blobs), nil
 }
 
-func NewRegistryService(metadata MetadataStore, blobs BlobStore) *repositoryService {
+func NewRepositoryService(metadata MetadataStore, blobs BlobStore) *repositoryService {
 	return &repositoryService{
 		metadata: metadata,
 		blobs:    blobs,

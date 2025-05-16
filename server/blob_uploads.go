@@ -37,7 +37,13 @@ func (s *Server) checkUploadHandler(w http.ResponseWriter, r *http.Request) {
 	name := r.PathValue("name")
 	reference := r.PathValue("reference")
 
-	info, err := s.service.StatUpload(name, reference)
+	repository, err := s.service.GetRepository(name)
+	if err != nil {
+		errorHandler(w, r, err)
+		return
+	}
+
+	info, err := repository.StatUpload(name, reference)
 	if err != nil {
 		errorHandler(w, r, err)
 		return
@@ -54,6 +60,12 @@ func (s *Server) checkUploadHandler(w http.ResponseWriter, r *http.Request) {
 func (s *Server) chunkedUploadHandler(w http.ResponseWriter, r *http.Request) {
 	name := r.PathValue("name")
 	reference := r.PathValue("reference")
+
+	repository, err := s.service.GetRepository(name)
+	if err != nil {
+		errorHandler(w, r, err)
+		return
+	}
 
 	givenStart, givenEnd, err := parseContentRange(r.Header.Get(HeaderContentRange))
 	if err != nil {
@@ -74,7 +86,7 @@ func (s *Server) chunkedUploadHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := s.service.AppendUpload(name, reference, bytes.NewBuffer(content), givenStart); err != nil {
+	if err := repository.AppendUpload(name, reference, bytes.NewBuffer(content), givenStart); err != nil {
 		errorHandler(w, r, err)
 		return
 	}
@@ -89,7 +101,13 @@ func (s *Server) streamedUploadHandler(w http.ResponseWriter, r *http.Request) {
 	name := r.PathValue("name")
 	reference := r.PathValue("reference")
 
-	if err := s.service.AppendUpload(name, reference, r.Body, 0); err != nil {
+	repository, err := s.service.GetRepository(name)
+	if err != nil {
+		errorHandler(w, r, err)
+		return
+	}
+
+	if err := repository.AppendUpload(name, reference, r.Body, 0); err != nil {
 		errorHandler(w, r, err)
 		return
 	}
@@ -102,6 +120,12 @@ func (s *Server) streamedUploadHandler(w http.ResponseWriter, r *http.Request) {
 func (s *Server) closeUploadHandler(w http.ResponseWriter, r *http.Request) {
 	name := r.PathValue("name")
 	reference := r.PathValue("reference")
+
+	repository, err := s.service.GetRepository(name)
+	if err != nil {
+		errorHandler(w, r, err)
+		return
+	}
 
 	// This is either a monolithic upload, or closing a chunked upload
 	// with a final chunk.
@@ -131,7 +155,7 @@ func (s *Server) closeUploadHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		err = s.service.AppendUpload(name, reference, bytes.NewBuffer(content), offset)
+		err = repository.AppendUpload(name, reference, bytes.NewBuffer(content), offset)
 		if err != nil {
 			errorHandler(w, r, err)
 			return
@@ -144,7 +168,7 @@ func (s *Server) closeUploadHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err := s.service.CloseUpload(name, reference, digest)
+	err = repository.CloseUpload(name, reference, digest)
 	if err != nil {
 		errorHandler(w, r, err)
 		return

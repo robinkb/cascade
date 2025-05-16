@@ -21,14 +21,19 @@ func (s *Server) referrersHandler(w http.ResponseWriter, r *http.Request) {
 func (s *Server) listReferrersHandler(w http.ResponseWriter, r *http.Request) {
 	name := r.PathValue("name")
 	digest := r.PathValue("digest")
-
 	artifactType := r.URL.Query().Get("artifactType")
+
+	repository, err := s.service.GetRepository(name)
+	if err != nil {
+		errorHandler(w, r, err)
+		return
+	}
 
 	opts := cascade.ListReferrersOptions{
 		ArtifactType: artifactType,
 	}
 
-	referrers, err := s.service.ListReferrers(name, digest, &opts)
+	referrers, err := repository.ListReferrers(name, digest, &opts)
 	if err != nil {
 		errorHandler(w, r, err)
 		return

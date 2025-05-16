@@ -9,7 +9,7 @@ import (
 )
 
 func TestGetRepository(t *testing.T) {
-	service := cascade.NewRegistryService2(inmemory.NewMetadataStore(), inmemory.NewBlobStore())
+	service := cascade.NewRegistryService(inmemory.NewMetadataStore(), inmemory.NewBlobStore())
 	name := RandomName()
 	t.Run("Retrieve a repository", func(t *testing.T) {
 		_, err := service.GetRepository(name)
@@ -20,7 +20,7 @@ func TestGetRepository(t *testing.T) {
 func newTestRepository() (cascade.RepositoryService, cascade.MetadataStore, cascade.BlobStore) {
 	metadata := inmemory.NewMetadataStore()
 	blobs := inmemory.NewBlobStore()
-	service := cascade.NewRegistryService(metadata, blobs)
+	service := cascade.NewRepositoryService(metadata, blobs)
 
 	return service, metadata, blobs
 }

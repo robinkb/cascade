@@ -20,6 +20,12 @@ func (s *Server) listTagsHandler(w http.ResponseWriter, r *http.Request) {
 	n := r.URL.Query().Get("n")
 	last := r.URL.Query().Get("last")
 
+	repository, err := s.service.GetRepository(name)
+	if err != nil {
+		errorHandler(w, r, err)
+		return
+	}
+
 	count := -1
 	if n != "" {
 		var err error
@@ -30,7 +36,7 @@ func (s *Server) listTagsHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	tags, err := s.service.ListTags(name, count, last)
+	tags, err := repository.ListTags(name, count, last)
 	if err != nil {
 		errorHandler(w, r, err)
 		return
