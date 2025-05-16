@@ -9,7 +9,7 @@ import (
 )
 
 type (
-	RegistryService interface {
+	RepositoryService interface {
 		StatBlob(repository, digest string) (*FileInfo, error)
 		GetBlob(repository, digest string) (io.Reader, error)
 		DeleteBlob(repository, digest string) error

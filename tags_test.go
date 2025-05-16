@@ -9,7 +9,7 @@ import (
 )
 
 func TestGetTag(t *testing.T) {
-	service, metadata, _ := newTestRegistry()
+	service, metadata, _ := newTestRepository()
 
 	t.Run("Manifest digest is retrievable by tag", func(t *testing.T) {
 		name := RandomName()
@@ -34,7 +34,7 @@ func TestGetTag(t *testing.T) {
 }
 
 func TestPutTag(t *testing.T) {
-	service, _, _ := newTestRegistry()
+	service, _, _ := newTestRepository()
 
 	t.Run("Tag creates a link to the manifest digest", func(t *testing.T) {
 		name := RandomName()
@@ -58,7 +58,7 @@ func TestPutTag(t *testing.T) {
 }
 
 func TestDeleteTag(t *testing.T) {
-	service, _, _ := newTestRegistry()
+	service, _, _ := newTestRepository()
 
 	t.Run("Deleted tag is not retrievable", func(t *testing.T) {
 		name := RandomName()
@@ -80,7 +80,7 @@ func TestDeleteTag(t *testing.T) {
 }
 
 func TestListTag(t *testing.T) {
-	service, _, _ := newTestRegistry()
+	service, _, _ := newTestRepository()
 
 	t.Run("Listing tags returns all in lexical order", func(t *testing.T) {
 		name := RandomName()

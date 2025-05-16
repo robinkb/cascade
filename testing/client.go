@@ -30,7 +30,7 @@ func NewTestClient(t *testing.T, url string) *Client {
 // NewTestClient initializes an HTTP test server with the given RegistryService
 // and returns an initialized client. The test server is automatically closed
 // at the end of the test. A client should be used in the (sub)test where it is created.
-func NewTestClientWithServer(t *testing.T, service cascade.RegistryService) *Client {
+func NewTestClientWithServer(t *testing.T, service cascade.RepositoryService) *Client {
 	server := server.New(service)
 	ts := httptest.NewServer(server)
 

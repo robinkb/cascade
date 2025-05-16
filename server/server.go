@@ -27,7 +27,7 @@ const (
 	ContentTypeOctetStream = "application/octet-stream"
 )
 
-func New(service cascade.RegistryService) *Server {
+func New(service cascade.RepositoryService) *Server {
 	s := new(Server)
 
 	s.service = service
@@ -70,7 +70,7 @@ func New(service cascade.RegistryService) *Server {
 
 type (
 	Server struct {
-		service cascade.RegistryService
+		service cascade.RepositoryService
 		http.Handler
 	}
 

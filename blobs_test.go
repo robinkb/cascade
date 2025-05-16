@@ -39,7 +39,7 @@ func TestStatBlob(t *testing.T) {
 }
 
 func TestGetBlob(t *testing.T) {
-	service, metadata, blobs := newTestRegistry()
+	service, metadata, blobs := newTestRepository()
 
 	name := RandomName()
 	digest, content := RandomBlob(32)
@@ -69,7 +69,7 @@ func TestGetBlob(t *testing.T) {
 }
 
 func TestDeleteBlob(t *testing.T) {
-	service, metadata, blobs := newTestRegistry()
+	service, metadata, blobs := newTestRepository()
 
 	name := RandomName()
 	digest, content := RandomBlob(32)

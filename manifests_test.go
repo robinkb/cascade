@@ -11,7 +11,7 @@ import (
 )
 
 func TestStatManifest(t *testing.T) {
-	service, _, _ := newTestRegistry()
+	service, _, _ := newTestRepository()
 
 	name := RandomName()
 	digest, _, content := RandomManifest()
@@ -49,7 +49,7 @@ func TestStatManifest(t *testing.T) {
 }
 
 func TestGetManifest(t *testing.T) {
-	service, metadata, blobs := newTestRegistry()
+	service, metadata, blobs := newTestRepository()
 
 	name := RandomName()
 	manifest, _ := json.Marshal(v1.Manifest{MediaType: v1.MediaTypeImageLayer})
@@ -93,7 +93,7 @@ func TestGetManifest(t *testing.T) {
 }
 
 func TestPutManifest(t *testing.T) {
-	service, _, _ := newTestRegistry()
+	service, _, _ := newTestRepository()
 
 	t.Run("Put and retrieve a manifest", func(t *testing.T) {
 		name := RandomName()
@@ -141,7 +141,7 @@ func TestPutManifest(t *testing.T) {
 }
 
 func TestDeleteManifest(t *testing.T) {
-	service, _, _ := newTestRegistry()
+	service, _, _ := newTestRepository()
 
 	t.Run("Delete manifest and make sure it cannot be retrieved", func(t *testing.T) {
 		name := RandomName()
