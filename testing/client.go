@@ -18,8 +18,8 @@ import (
 	"github.com/robinkb/cascade-registry/testing/mock"
 )
 
-// NewTestClientForServer returns a test client for the given handler, likely a registry server.
-func NewTestClientForServer(t *testing.T, handler http.Handler) *Client {
+// NewTestClientForHandler returns a test client for the given handler, likely a registry server.
+func NewTestClientForHandler(t *testing.T, handler http.Handler) *Client {
 	return &Client{
 		t:       t,
 		handler: handler,
@@ -35,7 +35,7 @@ func NewTestClientForRepository(t *testing.T, name string, service cascade.Repos
 		GetRepository(name).
 		Return(service, nil)
 
-	return NewTestClientForServer(t, server.New(registry))
+	return NewTestClientForHandler(t, server.New(registry))
 }
 
 // Client is a simple registry client meant for use in testing.

@@ -21,7 +21,7 @@ func TestContentManagement(t *testing.T) {
 		_, _, manifest := RandomManifest()
 		tag := RandomVersion()
 
-		client := NewTestClientForServer(t, srv)
+		client := NewTestClientForHandler(t, srv)
 
 		resp := client.PutManifest(repository, tag, manifest)
 		AssertResponseCode(t, resp, http.StatusCreated)
@@ -41,7 +41,7 @@ func TestContentManagement(t *testing.T) {
 		repository := RandomName()
 		digest, _, content := RandomManifest()
 
-		client := NewTestClientForServer(t, srv)
+		client := NewTestClientForHandler(t, srv)
 
 		resp := client.PutManifest(repository, digest.String(), content)
 		AssertResponseCode(t, resp, http.StatusCreated)
@@ -67,7 +67,7 @@ func TestContentManagement(t *testing.T) {
 		name := RandomName()
 		digest, content := RandomBlob(64)
 
-		client := NewTestClientForServer(t, srv)
+		client := NewTestClientForHandler(t, srv)
 
 		resp := client.InitUpload(name)
 		AssertResponseCode(t, resp, http.StatusAccepted)

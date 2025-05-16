@@ -99,7 +99,7 @@ func TestDeleteBlob(t *testing.T) {
 
 func TestBlobsOthers(t *testing.T) {
 	t.Run("other methods return 405", func(t *testing.T) {
-		client := NewTestClientForServer(t, server.New(nil))
+		client := NewTestClientForHandler(t, server.New(nil))
 
 		resp := client.Do(http.MethodConnect, "/v2/library/fedora/blobs/123", nil, nil)
 

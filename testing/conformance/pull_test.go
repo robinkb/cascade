@@ -19,7 +19,7 @@ func TestPull(t *testing.T) {
 
 	t.Run("Pulling manifests", func(t *testing.T) {
 		t.Run("GET request to a known manifest", func(t *testing.T) {
-			client := NewTestClientForServer(t, srv)
+			client := NewTestClientForHandler(t, srv)
 
 			name := RandomName()
 			digest, manifest, content := RandomManifest()
@@ -39,7 +39,7 @@ func TestPull(t *testing.T) {
 		})
 
 		t.Run("GET request to an unknown manifest", func(t *testing.T) {
-			client := NewTestClientForServer(t, srv)
+			client := NewTestClientForHandler(t, srv)
 
 			name, digest := RandomName(), RandomDigest()
 			resp := client.GetManifestByDigest(name, digest)
@@ -59,7 +59,7 @@ func TestPull(t *testing.T) {
 		RequireNoError(t, err)
 
 		t.Run("GET request to an existing blob", func(t *testing.T) {
-			client := NewTestClientForServer(t, srv)
+			client := NewTestClientForHandler(t, srv)
 
 			resp := client.GetBlob(name, digest)
 
@@ -69,7 +69,7 @@ func TestPull(t *testing.T) {
 		})
 
 		t.Run("GET request to an unknown blob", func(t *testing.T) {
-			client := NewTestClientForServer(t, srv)
+			client := NewTestClientForHandler(t, srv)
 
 			name, digest := RandomName(), RandomDigest()
 			resp := client.GetBlob(name, digest)
@@ -81,7 +81,7 @@ func TestPull(t *testing.T) {
 
 	t.Run("Checking if content exists in the registry", func(t *testing.T) {
 		t.Run("HEAD request to an existing blob", func(t *testing.T) {
-			client := NewTestClientForServer(t, srv)
+			client := NewTestClientForHandler(t, srv)
 
 			name := RandomName()
 			digest, blob := RandomBlob(32)
@@ -102,7 +102,7 @@ func TestPull(t *testing.T) {
 		})
 
 		t.Run("HEAD request to an unknown blob", func(t *testing.T) {
-			client := NewTestClientForServer(t, srv)
+			client := NewTestClientForHandler(t, srv)
 
 			name, digest := RandomName(), RandomDigest()
 			resp := client.CheckBlob(name, digest)
@@ -112,7 +112,7 @@ func TestPull(t *testing.T) {
 		})
 
 		t.Run("HEAD request to an existing manifest", func(t *testing.T) {
-			client := NewTestClientForServer(t, srv)
+			client := NewTestClientForHandler(t, srv)
 
 			name := RandomName()
 			digest, _, content := RandomManifest()
@@ -131,7 +131,7 @@ func TestPull(t *testing.T) {
 		})
 
 		t.Run("HEAD request to an unknown manifest", func(t *testing.T) {
-			client := NewTestClientForServer(t, srv)
+			client := NewTestClientForHandler(t, srv)
 
 			name, digest := RandomName(), RandomDigest()
 
