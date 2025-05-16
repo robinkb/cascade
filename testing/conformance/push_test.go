@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"net/http/httptest"
 	"testing"
 
 	"github.com/robinkb/cascade-registry"
@@ -18,15 +17,12 @@ func TestPush(t *testing.T) {
 	metadata := inmemory.NewMetadataStore()
 	blobs := inmemory.NewBlobStore()
 	service := cascade.NewRegistryService(metadata, blobs)
-	server := server.New(service)
-
-	ts := httptest.NewServer(server)
-	defer ts.Close()
+	srv := server.New(service)
 
 	t.Run("Pushing blobs", func(t *testing.T) {
 		t.Run("Pushing a blob monolithically", func(t *testing.T) {
 			t.Run("POST then PUT", func(t *testing.T) {
-				client := NewTestClient(t, ts.URL)
+				client := NewTestClientForServer(t, srv)
 
 				name := RandomName()
 				digest, blob := RandomBlob(32)
@@ -53,7 +49,7 @@ func TestPush(t *testing.T) {
 			})
 
 			t.Run("Single POST", func(t *testing.T) {
-				client := NewTestClient(t, ts.URL)
+				client := NewTestClientForServer(t, srv)
 
 				// Registries MAY support pushing blobs using a single POST request.
 				// Cascade does not.
@@ -70,7 +66,7 @@ func TestPush(t *testing.T) {
 		})
 
 		t.Run("Pushing a blob in chunks", func(t *testing.T) {
-			client := NewTestClient(t, ts.URL)
+			client := NewTestClientForServer(t, srv)
 
 			name := RandomName()
 			digest, blob := RandomBlob(64 * 1024)
@@ -145,7 +141,7 @@ func TestPush(t *testing.T) {
 
 		// This is not part of the spec (yet).
 		t.Run("Pushing a blob as a stream", func(t *testing.T) {
-			client := NewTestClient(t, ts.URL)
+			client := NewTestClientForServer(t, srv)
 
 			name := RandomName()
 			digest, blob := RandomBlob(64 * 1024)
@@ -171,7 +167,7 @@ func TestPush(t *testing.T) {
 
 	t.Run("Pushing manifests", func(t *testing.T) {
 		t.Run("Pushing manifest by digest", func(t *testing.T) {
-			client := NewTestClient(t, ts.URL)
+			client := NewTestClientForServer(t, srv)
 
 			name := RandomName()
 			digest, _, content := RandomManifest()
@@ -190,7 +186,7 @@ func TestPush(t *testing.T) {
 		})
 
 		t.Run("Pushing manifest by tag", func(t *testing.T) {
-			client := NewTestClient(t, ts.URL)
+			client := NewTestClientForServer(t, srv)
 
 			name := RandomName()
 			digest, _, content := RandomManifest()
@@ -216,7 +212,7 @@ func TestPush(t *testing.T) {
 		t.Run("Pushing manifest with layers", func(t *testing.T) {})
 
 		t.Run("Pushing manifests with Subject", func(t *testing.T) {
-			client := NewTestClient(t, ts.URL)
+			client := NewTestClientForServer(t, srv)
 
 			name := RandomName()
 			subjectDigest, subjectManifest, _ := RandomManifest()

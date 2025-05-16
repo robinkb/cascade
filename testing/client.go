@@ -18,48 +18,31 @@ import (
 	"github.com/robinkb/cascade-registry/testing/mock"
 )
 
-// NewTestClient returns an initialized Client for the given base URL.
-// A client should be used in the (sub)test where it is created.
-// The given url should be of the form 'http://ipaddr:port' as returned by httptest.Server.URL.
-func NewTestClient(t *testing.T, url string) *Client {
+// NewTestClientForServer returns a test client for the given handler, likely a registry server.
+func NewTestClientForServer(t *testing.T, handler http.Handler) *Client {
 	return &Client{
-		baseUrl: url,
 		t:       t,
+		handler: handler,
 	}
 }
 
-// NewTestClientWithServer initializes an HTTP test server with the given RegistryService
-// and returns an initialized client. The test server is automatically closed
-// at the end of the test. A client should be used in the (sub)test where it is created.
-func NewTestClientWithServer(t *testing.T, service cascade.RegistryService) *Client {
-	server := server.New(service)
-	ts := httptest.NewServer(server)
-
-	t.Cleanup(func() {
-		ts.Close()
-	})
-
-	return NewTestClient(t, ts.URL)
-}
-
-// NewTestClientWithRepository wraps around NewTestClientWithServer to provide an HTTP test server
-// that only returns the given RepositoryService under the specified name. Attempting to
-// create, read, update, or delete objects in any other repository will panic.
-func NewTestClientWithRepository(t *testing.T, name string, service cascade.RepositoryService) *Client {
+// NewTestClientForRepository wraps around NewTestClientForServer to provide a test client
+// for a registry that only returns the given RepositoryService under the specified name.
+// Attempting to create, read, update, or delete objects in any other repository will panic.
+func NewTestClientForRepository(t *testing.T, name string, service cascade.RepositoryService) *Client {
 	registry := mock.NewRegistryService(t)
 	registry.EXPECT().
 		GetRepository(name).
 		Return(service, nil)
 
-	return NewTestClientWithServer(t, registry)
+	return NewTestClientForServer(t, server.New(registry))
 }
 
 // Client is a simple registry client meant for use in testing.
 // It will automatically fail tests if it encounters an unexpected error.
 // Users should initialize it with NewClient().
 type Client struct {
-	http    http.Client
-	baseUrl string
+	handler http.Handler
 	t       *testing.T
 }
 
@@ -244,19 +227,13 @@ func (c *Client) UploadBlobStream(location *url.URL, content io.Reader) *http.Re
 func (c *Client) Do(method string, path string, headers http.Header, body io.Reader) *http.Response {
 	c.t.Helper()
 
-	url := c.baseUrl + path
-	req, err := http.NewRequest(method, url, body)
-	if err != nil {
-		c.t.Fatalf("failed to build request: %s", err)
-	}
-
+	req := httptest.NewRequest(method, path, body)
 	req.Header = headers
+	resp := httptest.NewRecorder()
 
-	resp, err := c.http.Do(req)
-	if err != nil {
-		c.t.Fatalf("unexpected HTTP error: %s", err)
-	}
-	return resp
+	c.handler.ServeHTTP(resp, req)
+
+	return resp.Result()
 }
 
 func Pointer[K any](val K) *K {
