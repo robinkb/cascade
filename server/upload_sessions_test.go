@@ -23,7 +23,7 @@ func TestBlobUploadSession(t *testing.T) {
 			InitUpload(name).
 			Return(&store.UploadSession{Location: "123"}, nil)
 
-		client := NewTestClientWithRepository(t, name, repo)
+		client := NewTestClientForRepository(t, name, repo)
 
 		resp := client.InitUpload(name)
 
@@ -37,7 +37,7 @@ func TestBlobUploadSession(t *testing.T) {
 			StatUpload(name, sessionID.String()).
 			Return(&store.FileInfo{}, nil)
 
-		client := NewTestClientWithRepository(t, name, repo)
+		client := NewTestClientForRepository(t, name, repo)
 
 		resp := client.CheckUpload(location)
 
@@ -52,7 +52,7 @@ func TestBlobUploadSession(t *testing.T) {
 			StatUpload(name, sessionID.String()).
 			Return(nil, repository.ErrBlobUploadUnknown)
 
-		client := NewTestClientWithRepository(t, name, repo)
+		client := NewTestClientForRepository(t, name, repo)
 
 		resp := client.CheckUpload(location)
 

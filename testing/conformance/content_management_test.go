@@ -2,7 +2,6 @@ package conformance
 
 import (
 	"net/http"
-	"net/http/httptest"
 	"testing"
 
 	"github.com/robinkb/cascade-registry"
@@ -17,15 +16,12 @@ func TestContentManagement(t *testing.T) {
 	service := cascade.NewRegistryService(metadata, blobs)
 	srv := server.New(service)
 
-	ts := httptest.NewServer(srv)
-	defer ts.Close()
-
 	t.Run("Deleting tags", func(t *testing.T) {
 		repository := RandomName()
 		_, _, manifest := RandomManifest()
 		tag := RandomVersion()
 
-		client := NewTestClient(t, ts.URL)
+		client := NewTestClientForHandler(t, srv)
 
 		resp := client.PutManifest(repository, tag, manifest)
 		AssertResponseCode(t, resp, http.StatusCreated)
@@ -45,7 +41,7 @@ func TestContentManagement(t *testing.T) {
 		repository := RandomName()
 		digest, _, content := RandomManifest()
 
-		client := NewTestClient(t, ts.URL)
+		client := NewTestClientForHandler(t, srv)
 
 		resp := client.PutManifest(repository, digest.String(), content)
 		AssertResponseCode(t, resp, http.StatusCreated)
@@ -71,7 +67,7 @@ func TestContentManagement(t *testing.T) {
 		name := RandomName()
 		digest, content := RandomBlob(64)
 
-		client := NewTestClient(t, ts.URL)
+		client := NewTestClientForHandler(t, srv)
 
 		resp := client.InitUpload(name)
 		AssertResponseCode(t, resp, http.StatusAccepted)

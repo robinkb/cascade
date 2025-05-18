@@ -24,7 +24,7 @@ func TestStatBlob(t *testing.T) {
 			StatBlob(name, digest.String()).
 			Return(&store.FileInfo{Size: size}, nil)
 
-		client := NewTestClientWithRepository(t, name, repo)
+		client := NewTestClientForRepository(t, name, repo)
 
 		resp := client.CheckBlob(name, digest)
 
@@ -39,7 +39,7 @@ func TestStatBlob(t *testing.T) {
 			StatBlob(name, digest.String()).
 			Return(nil, repository.ErrBlobUnknown)
 
-		client := NewTestClientWithRepository(t, name, repo)
+		client := NewTestClientForRepository(t, name, repo)
 
 		resp := client.CheckBlob(name, digest)
 
@@ -57,7 +57,7 @@ func TestGetBlob(t *testing.T) {
 			GetBlob(name, digest.String()).
 			Return(bytes.NewBuffer(content), nil)
 
-		client := NewTestClientWithRepository(t, name, repo)
+		client := NewTestClientForRepository(t, name, repo)
 
 		resp := client.GetBlob(name, digest)
 
@@ -71,7 +71,7 @@ func TestGetBlob(t *testing.T) {
 			GetBlob(name, digest.String()).
 			Return(nil, repository.ErrBlobUnknown)
 
-		client := NewTestClientWithRepository(t, name, repo)
+		client := NewTestClientForRepository(t, name, repo)
 
 		resp := client.GetBlob(name, digest)
 
@@ -90,7 +90,7 @@ func TestDeleteBlob(t *testing.T) {
 			DeleteBlob(name, digest.String()).
 			Return(nil)
 
-		client := NewTestClientWithRepository(t, name, repo)
+		client := NewTestClientForRepository(t, name, repo)
 
 		resp := client.DeleteBlob(name, digest)
 
@@ -100,7 +100,7 @@ func TestDeleteBlob(t *testing.T) {
 
 func TestBlobsOthers(t *testing.T) {
 	t.Run("other methods return 405", func(t *testing.T) {
-		client := NewTestClientWithServer(t, nil)
+		client := NewTestClientForHandler(t, server.New(nil))
 
 		resp := client.Do(http.MethodConnect, "/v2/library/fedora/blobs/123", nil, nil)
 
