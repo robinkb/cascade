@@ -1,13 +1,14 @@
-package cascade
+package repository
 
 import (
 	"errors"
 	"io"
 
 	"github.com/opencontainers/go-digest"
+	"github.com/robinkb/cascade-registry/store"
 )
 
-func (s *repositoryService) StatBlob(repository, id string) (*FileInfo, error) {
+func (s *repositoryService) StatBlob(repository, id string) (*store.FileInfo, error) {
 	digest, err := digest.Parse(id)
 	if err != nil {
 		return nil, ErrBlobUnknown
@@ -15,15 +16,13 @@ func (s *repositoryService) StatBlob(repository, id string) (*FileInfo, error) {
 
 	_, err = s.metadata.GetBlob(repository, digest)
 	if err != nil {
+		if errors.Is(err, store.ErrNotFound) {
+			err = ErrBlobUnknown
+		}
 		return nil, err
 	}
 
-	info, err := s.blobs.StatBlob(digest)
-	if errors.Is(err, ErrFileNotFound) {
-		return nil, ErrBlobUnknown
-	}
-
-	return info, err
+	return s.blobs.StatBlob(digest)
 }
 
 func (s *repositoryService) GetBlob(repository, id string) (io.Reader, error) {
@@ -34,6 +33,9 @@ func (s *repositoryService) GetBlob(repository, id string) (io.Reader, error) {
 
 	_, err = s.metadata.GetBlob(repository, digest)
 	if err != nil {
+		if errors.Is(err, store.ErrNotFound) {
+			err = ErrBlobUnknown
+		}
 		return nil, err
 	}
 

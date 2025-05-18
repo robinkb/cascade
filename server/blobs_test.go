@@ -6,8 +6,9 @@ import (
 	"strconv"
 	"testing"
 
-	"github.com/robinkb/cascade-registry"
+	"github.com/robinkb/cascade-registry/repository"
 	"github.com/robinkb/cascade-registry/server"
+	"github.com/robinkb/cascade-registry/store"
 	. "github.com/robinkb/cascade-registry/testing"
 	"github.com/robinkb/cascade-registry/testing/mock"
 )
@@ -18,12 +19,12 @@ func TestStatBlob(t *testing.T) {
 	t.Run("known blob returns 200", func(t *testing.T) {
 		var size int64 = 42
 
-		repository := mock.NewRepositoryService(t)
-		repository.EXPECT().
+		repo := mock.NewRepositoryService(t)
+		repo.EXPECT().
 			StatBlob(name, digest.String()).
-			Return(&cascade.FileInfo{Size: size}, nil)
+			Return(&store.FileInfo{Size: size}, nil)
 
-		client := NewTestClientWithRepository(t, name, repository)
+		client := NewTestClientWithRepository(t, name, repo)
 
 		resp := client.CheckBlob(name, digest)
 
@@ -33,12 +34,12 @@ func TestStatBlob(t *testing.T) {
 	})
 
 	t.Run("unknown blob returns 404", func(t *testing.T) {
-		repository := mock.NewRepositoryService(t)
-		repository.EXPECT().
+		repo := mock.NewRepositoryService(t)
+		repo.EXPECT().
 			StatBlob(name, digest.String()).
-			Return(nil, cascade.ErrBlobUnknown)
+			Return(nil, repository.ErrBlobUnknown)
 
-		client := NewTestClientWithRepository(t, name, repository)
+		client := NewTestClientWithRepository(t, name, repo)
 
 		resp := client.CheckBlob(name, digest)
 
@@ -51,12 +52,12 @@ func TestGetBlob(t *testing.T) {
 	digest, content := RandomBlob(32)
 
 	t.Run("Get blob returns 200", func(t *testing.T) {
-		repository := mock.NewRepositoryService(t)
-		repository.EXPECT().
+		repo := mock.NewRepositoryService(t)
+		repo.EXPECT().
 			GetBlob(name, digest.String()).
 			Return(bytes.NewBuffer(content), nil)
 
-		client := NewTestClientWithRepository(t, name, repository)
+		client := NewTestClientWithRepository(t, name, repo)
 
 		resp := client.GetBlob(name, digest)
 
@@ -65,17 +66,17 @@ func TestGetBlob(t *testing.T) {
 	})
 
 	t.Run("returns 404 on unknown blob", func(t *testing.T) {
-		repository := mock.NewRepositoryService(t)
-		repository.EXPECT().
+		repo := mock.NewRepositoryService(t)
+		repo.EXPECT().
 			GetBlob(name, digest.String()).
-			Return(nil, cascade.ErrBlobUnknown)
+			Return(nil, repository.ErrBlobUnknown)
 
-		client := NewTestClientWithRepository(t, name, repository)
+		client := NewTestClientWithRepository(t, name, repo)
 
 		resp := client.GetBlob(name, digest)
 
 		AssertResponseCode(t, resp, http.StatusNotFound)
-		AssertResponseBodyContainsError(t, resp, cascade.ErrBlobUnknown)
+		AssertResponseBodyContainsError(t, resp, repository.ErrBlobUnknown)
 	})
 
 }
@@ -84,12 +85,12 @@ func TestDeleteBlob(t *testing.T) {
 	name, digest := RandomName(), RandomDigest()
 
 	t.Run("Delete blob returns 202", func(t *testing.T) {
-		repository := mock.NewRepositoryService(t)
-		repository.EXPECT().
+		repo := mock.NewRepositoryService(t)
+		repo.EXPECT().
 			DeleteBlob(name, digest.String()).
 			Return(nil)
 
-		client := NewTestClientWithRepository(t, name, repository)
+		client := NewTestClientWithRepository(t, name, repo)
 
 		resp := client.DeleteBlob(name, digest)
 

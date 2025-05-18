@@ -1,15 +1,16 @@
-package cascade
+package store
 
 import (
 	"errors"
 	"io"
+	"time"
 
 	"github.com/gofrs/uuid/v5"
 	"github.com/opencontainers/go-digest"
 )
 
 var (
-	ErrFileNotFound = errors.New("file not found")
+	ErrNotFound = errors.New("not found")
 )
 
 type (
@@ -17,7 +18,7 @@ type (
 	// In real-world stores, where creating a repository is not so simple,
 	// this tends to be problematic. There must also be a way to delete repositories.
 	// I do like having the option of just creating repos on the fly, though...
-	MetadataStore interface {
+	Metadata interface {
 		GetBlob(repository string, digest digest.Digest) (string, error)
 		PutBlob(repository string, digest digest.Digest) error
 		DeleteBlob(repository string, digest digest.Digest) error
@@ -38,10 +39,10 @@ type (
 		DeleteUploadSession(repository string, id string) error
 	}
 
-	// BlobStore defines the interface for storing the actual data of the registry.
+	// Blobs defines the interface for storing the actual data of the registry.
 	// Implementations of this interface are responsible for deciding how data is persisted.
 	// Blobs must be retrievable by their digest, and uploads by their session ID.
-	BlobStore interface {
+	Blobs interface {
 		// StatBlob returns basic file info about the blob with the given digest.
 		StatBlob(id digest.Digest) (*FileInfo, error)
 		// GetBlob returns the blob at the given path. Intended for smaller blobs that
@@ -53,12 +54,12 @@ type (
 		// must be fully read into memory server-side, like manifests.
 		// Put does not append and always writes the entire blob.
 		PutBlob(id digest.Digest, content []byte) error
-		// DeleteBlob removes a blob from the blobstore.
+		// DeleteBlob removes a blob from the blob store.
 		DeleteBlob(id digest.Digest) error
 
 		// StatBlob returns basic file info about the upload with the given UUID.
 		StatUpload(id uuid.UUID) (*FileInfo, error)
-		// InitUpload prepares the BlobStore to start an upload. In most implementations,
+		// InitUpload prepares the blob store to start an upload. In most implementations,
 		// it will create an empty file on the blob store that will later be appended.
 		InitUpload(id uuid.UUID) error
 		// UploadWriter returns an io.Writer to write to an initialized upload.
@@ -86,5 +87,14 @@ type (
 		MediaType    string
 		Subject      digest.Digest
 		Size         int64
+	}
+
+	UploadSession struct {
+		ID uuid.UUID
+		// TODO: This should not be here, as it's an HTTP implementation detail.
+		Location  string
+		StartDate time.Time
+		// TODO: Could we make this a hash.Hash and make it easier?
+		HashState []byte
 	}
 )

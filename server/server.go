@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/robinkb/cascade-registry"
+	"github.com/robinkb/cascade-registry/repository"
 )
 
 const (
@@ -82,44 +83,44 @@ type (
 
 func errorHandler(w http.ResponseWriter, r *http.Request, err error) {
 	var response *ErrorResponse
-	var cerr cascade.Error
+	var cerr repository.Error
 	code := http.StatusInternalServerError
 
 	if errors.As(err, &cerr) {
 		switch {
 		// Standard Distribution errors
-		case errors.Is(cerr, cascade.ErrBlobUnknown):
+		case errors.Is(cerr, repository.ErrBlobUnknown):
 			code = http.StatusNotFound
-		case errors.Is(cerr, cascade.ErrBlobUploadInvalid):
+		case errors.Is(cerr, repository.ErrBlobUploadInvalid):
 			code = http.StatusBadRequest
-		case errors.Is(cerr, cascade.ErrBlobUploadUnknown):
+		case errors.Is(cerr, repository.ErrBlobUploadUnknown):
 			code = http.StatusNotFound
-		case errors.Is(cerr, cascade.ErrDigestInvalid):
+		case errors.Is(cerr, repository.ErrDigestInvalid):
 			code = http.StatusBadRequest
-		case errors.Is(cerr, cascade.ErrManifestBlobUnknown):
+		case errors.Is(cerr, repository.ErrManifestBlobUnknown):
 			code = http.StatusNotFound
-		case errors.Is(cerr, cascade.ErrManifestInvalid):
+		case errors.Is(cerr, repository.ErrManifestInvalid):
 			code = http.StatusBadRequest
-		case errors.Is(cerr, cascade.ErrManifestUnknown):
+		case errors.Is(cerr, repository.ErrManifestUnknown):
 			code = http.StatusNotFound
-		case errors.Is(cerr, cascade.ErrNameInvalid):
+		case errors.Is(cerr, repository.ErrNameInvalid):
 			code = http.StatusBadRequest
-		case errors.Is(cerr, cascade.ErrNameUnknown):
+		case errors.Is(cerr, repository.ErrNameUnknown):
 			code = http.StatusNotFound
-		case errors.Is(cerr, cascade.ErrSizeInvalid):
+		case errors.Is(cerr, repository.ErrSizeInvalid):
 			code = http.StatusBadRequest
-		case errors.Is(cerr, cascade.ErrUnauthorized):
+		case errors.Is(cerr, repository.ErrUnauthorized):
 			code = http.StatusUnauthorized
-		case errors.Is(cerr, cascade.ErrDenied):
+		case errors.Is(cerr, repository.ErrDenied):
 			code = http.StatusForbidden
-		case errors.Is(cerr, cascade.ErrUnsupported):
+		case errors.Is(cerr, repository.ErrUnsupported):
 			code = http.StatusNotFound
-		case errors.Is(cerr, cascade.ErrTooManyRequests):
+		case errors.Is(cerr, repository.ErrTooManyRequests):
 			code = http.StatusTooManyRequests
 		// Extra errors
-		case errors.Is(cerr, cascade.ErrTagInvalid):
+		case errors.Is(cerr, repository.ErrTagInvalid):
 			code = http.StatusBadRequest
-		case errors.Is(cerr, cascade.ErrUploadOffsetInvalid):
+		case errors.Is(cerr, repository.ErrUploadOffsetInvalid):
 			code = http.StatusRequestedRangeNotSatisfiable
 		}
 
@@ -132,14 +133,14 @@ func errorHandler(w http.ResponseWriter, r *http.Request, err error) {
 	}
 }
 
-func NewErrorResponse(err ...cascade.Error) *ErrorResponse {
+func NewErrorResponse(err ...repository.Error) *ErrorResponse {
 	return &ErrorResponse{
 		Errors: err,
 	}
 }
 
 type ErrorResponse struct {
-	Errors []cascade.Error `json:"errors"`
+	Errors []repository.Error `json:"errors"`
 }
 
 func (e ErrorResponse) Error() string {

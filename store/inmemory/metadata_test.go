@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	v1 "github.com/opencontainers/image-spec/specs-go/v1"
-	"github.com/robinkb/cascade-registry"
+	"github.com/robinkb/cascade-registry/store"
 	. "github.com/robinkb/cascade-registry/testing"
 )
 
@@ -16,7 +16,7 @@ func TestManifestMetadataPersistence(t *testing.T) {
 	name := RandomName()
 	digest := RandomDigest()
 
-	wantMetadata := &cascade.ManifestMetadata{
+	wantMetadata := &store.ManifestMetadata{
 		Annotations: map[string]string{
 			"random": RandomString(8),
 		},

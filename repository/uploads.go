@@ -1,4 +1,4 @@
-package cascade
+package repository
 
 import (
 	"crypto/sha256"
@@ -10,27 +10,26 @@ import (
 
 	"github.com/gofrs/uuid/v5"
 	godigest "github.com/opencontainers/go-digest"
+	"github.com/robinkb/cascade-registry/store"
 )
 
 // TODO: Should write a test to verify that uploads can only be accessed
 // from the repository where it was created. Spoiler alert: not the case.
-func (s *repositoryService) StatUpload(repository, sessionID string) (*FileInfo, error) {
+func (s *repositoryService) StatUpload(repository, sessionID string) (*store.FileInfo, error) {
 	session, err := s.metadata.GetUploadSession(repository, sessionID)
 	if err != nil {
+		if errors.Is(err, store.ErrNotFound) {
+			err = ErrBlobUploadUnknown
+		}
 		return nil, err
 	}
 
-	info, err := s.blobs.StatUpload(session.ID)
-	if errors.Is(err, ErrFileNotFound) {
-		return nil, ErrBlobUploadUnknown
-	}
-
-	return info, err
+	return s.blobs.StatUpload(session.ID)
 }
 
 // TODO: This should be able to return errors, and verify that upload sessions
 // cannot be overwritten _just in case_ the generated UUID is not unique... lol.
-func (s *repositoryService) InitUpload(repository string) (*UploadSession, error) {
+func (s *repositoryService) InitUpload(repository string) (*store.UploadSession, error) {
 	id, _ := uuid.NewV7()
 
 	hash := sha256.New()
@@ -44,7 +43,7 @@ func (s *repositoryService) InitUpload(repository string) (*UploadSession, error
 		panic(err)
 	}
 
-	session := UploadSession{
+	session := store.UploadSession{
 		ID: id,
 		// TODO: The location URL really shouldn't be included here.
 		// That's an HTTP implementation detail.
@@ -69,6 +68,9 @@ func (s *repositoryService) InitUpload(repository string) (*UploadSession, error
 func (s *repositoryService) AppendUpload(repository, sessionID string, r io.Reader, offset int64) error {
 	session, err := s.metadata.GetUploadSession(repository, sessionID)
 	if err != nil {
+		if errors.Is(err, store.ErrNotFound) {
+			err = ErrBlobUploadUnknown
+		}
 		return err
 	}
 

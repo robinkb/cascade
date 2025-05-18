@@ -7,7 +7,7 @@ import (
 
 	"github.com/gofrs/uuid/v5"
 	"github.com/opencontainers/go-digest"
-	"github.com/robinkb/cascade-registry"
+	"github.com/robinkb/cascade-registry/repository"
 	. "github.com/robinkb/cascade-registry/testing"
 	"github.com/robinkb/cascade-registry/testing/mock"
 )
@@ -17,15 +17,15 @@ func TestBlobUploadsMonolithic(t *testing.T) {
 		name, digest, content := RandomName(), RandomDigest(), RandomContents(32)
 		sessionID := RandomString(8)
 
-		repository := mock.NewRepositoryService(t)
-		repository.EXPECT().
+		repo := mock.NewRepositoryService(t)
+		repo.EXPECT().
 			AppendUpload(name, sessionID, bytes.NewBuffer(content), int64(0)).
 			Return(nil)
-		repository.EXPECT().
+		repo.EXPECT().
 			CloseUpload(name, sessionID, digest.String()).
 			Return(nil)
 
-		client := NewTestClientWithRepository(t, name, repository)
+		client := NewTestClientWithRepository(t, name, repo)
 
 		location := newLocation(name, sessionID)
 		resp := client.CloseUploadWithContent(location, digest, content, 0)
@@ -38,18 +38,18 @@ func TestBlobUploadsMonolithic(t *testing.T) {
 		name, digest := RandomName(), RandomDigest()
 		sessionID := "i-do-not-exist"
 
-		repository := mock.NewRepositoryService(t)
-		repository.EXPECT().
+		repo := mock.NewRepositoryService(t)
+		repo.EXPECT().
 			CloseUpload(name, sessionID, digest.String()).
-			Return(cascade.ErrBlobUploadUnknown)
+			Return(repository.ErrBlobUploadUnknown)
 
-		client := NewTestClientWithRepository(t, name, repository)
+		client := NewTestClientWithRepository(t, name, repo)
 
 		location := newLocation(name, sessionID)
 		resp := client.CloseUpload(location, digest)
 
 		AssertResponseCode(t, resp, http.StatusNotFound)
-		AssertResponseBodyContainsError(t, resp, cascade.ErrBlobUploadUnknown)
+		AssertResponseBodyContainsError(t, resp, repository.ErrBlobUploadUnknown)
 	})
 
 	t.Run("Closing upload with content but without required headers returns 400", func(t *testing.T) {
@@ -95,17 +95,17 @@ func TestBlobUploadsMonolithic(t *testing.T) {
 		sessionID, _ := uuid.NewV7()
 		location := newLocation(name, sessionID.String())
 
-		repository := mock.NewRepositoryService(t)
-		repository.EXPECT().
+		repo := mock.NewRepositoryService(t)
+		repo.EXPECT().
 			CloseUpload(name, sessionID.String(), id).
-			Return(cascade.ErrDigestInvalid)
+			Return(repository.ErrDigestInvalid)
 
-		client := NewTestClientWithRepository(t, name, repository)
+		client := NewTestClientWithRepository(t, name, repo)
 
 		resp := client.CloseUpload(location, digest.Digest(id))
 
 		AssertResponseCode(t, resp, http.StatusBadRequest)
-		AssertResponseBodyContainsError(t, resp, cascade.ErrDigestInvalid)
+		AssertResponseBodyContainsError(t, resp, repository.ErrDigestInvalid)
 	})
 
 	t.Run("Uploading with wrong digest returns 400", func(t *testing.T) {
@@ -113,17 +113,17 @@ func TestBlobUploadsMonolithic(t *testing.T) {
 		sessionID, _ := uuid.NewV7()
 		location := newLocation(name, sessionID.String())
 
-		repository := mock.NewRepositoryService(t)
-		repository.EXPECT().
+		repo := mock.NewRepositoryService(t)
+		repo.EXPECT().
 			CloseUpload(name, sessionID.String(), id.String()).
-			Return(cascade.ErrBlobUploadInvalid)
+			Return(repository.ErrBlobUploadInvalid)
 
-		client := NewTestClientWithRepository(t, name, repository)
+		client := NewTestClientWithRepository(t, name, repo)
 
 		resp := client.CloseUpload(location, id)
 
 		AssertResponseCode(t, resp, http.StatusBadRequest)
-		AssertResponseBodyContainsError(t, resp, cascade.ErrBlobUploadInvalid)
+		AssertResponseBodyContainsError(t, resp, repository.ErrBlobUploadInvalid)
 	})
 }
 
@@ -139,12 +139,12 @@ func TestBlobUploadsStreamed(t *testing.T) {
 		name, content := RandomName(), RandomContents(32)
 		sessionID := RandomString(6)
 
-		repository := mock.NewRepositoryService(t)
-		repository.EXPECT().
+		repo := mock.NewRepositoryService(t)
+		repo.EXPECT().
 			AppendUpload(name, sessionID, mock.AnythingOfType("*http.body"), int64(0)).
 			Return(nil)
 
-		client := NewTestClientWithRepository(t, name, repository)
+		client := NewTestClientWithRepository(t, name, repo)
 
 		location := newLocation(name, sessionID)
 		resp := client.UploadBlobStream(location, bytes.NewBuffer(content))

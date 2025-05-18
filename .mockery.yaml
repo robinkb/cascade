@@ -16,6 +16,9 @@ packages:
     github.com/robinkb/cascade-registry:
         interfaces:
             RegistryService:
+    github.com/robinkb/cascade-registry/repository:
+        interfaces:
+            RepositoryService:
 
 # These remaining directives are deprecated and will become the defaults
 # in the next major version update of Mockery.

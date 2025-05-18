@@ -1,13 +1,14 @@
 package inmemory
 
 import (
+	"io/fs"
 	"slices"
 
 	godigest "github.com/opencontainers/go-digest"
-	"github.com/robinkb/cascade-registry"
+	"github.com/robinkb/cascade-registry/store"
 )
 
-func NewMetadataStore() cascade.MetadataStore {
+func NewMetadataStore() store.Metadata {
 	return &metadataStore{
 		repositories: make(map[string]*repository),
 		blobs:        make(map[string]string),
@@ -24,7 +25,7 @@ type (
 		blobs          map[string]*blob
 		manifests      map[string]*manifest
 		tags           map[string]*ttag
-		uploadSessions map[string]*cascade.UploadSession
+		uploadSessions map[string]*store.UploadSession
 	}
 
 	manifest struct {
@@ -51,7 +52,7 @@ func (s *metadataStore) ensureRepositoryExists(name string) {
 			blobs:          make(map[string]*blob),
 			manifests:      make(map[string]*manifest),
 			tags:           make(map[string]*ttag),
-			uploadSessions: make(map[string]*cascade.UploadSession),
+			uploadSessions: make(map[string]*store.UploadSession),
 		}
 	}
 }
@@ -62,7 +63,7 @@ func (s *metadataStore) GetBlob(repository string, digest godigest.Digest) (stri
 			return "", nil
 		}
 	}
-	return "", cascade.ErrBlobUnknown
+	return "", store.ErrNotFound
 }
 
 func (s *metadataStore) PutBlob(repository string, digest godigest.Digest) error {
@@ -76,10 +77,10 @@ func (s *metadataStore) DeleteBlob(repository string, digest godigest.Digest) er
 	return nil
 }
 
-func (s *metadataStore) GetManifest(repository string, digest godigest.Digest) (*cascade.ManifestMetadata, error) {
+func (s *metadataStore) GetManifest(repository string, digest godigest.Digest) (*store.ManifestMetadata, error) {
 	if repo, ok := s.repositories[repository]; ok {
 		if manifest, ok := repo.manifests[digest.String()]; ok {
-			return &cascade.ManifestMetadata{
+			return &store.ManifestMetadata{
 				Annotations:  manifest.annotations,
 				ArtifactType: manifest.artifactType,
 				MediaType:    manifest.mediaType,
@@ -87,10 +88,10 @@ func (s *metadataStore) GetManifest(repository string, digest godigest.Digest) (
 			}, nil
 		}
 	}
-	return nil, cascade.ErrManifestUnknown
+	return nil, fs.ErrNotExist
 }
 
-func (s *metadataStore) PutManifest(repository string, digest godigest.Digest, meta *cascade.ManifestMetadata) error {
+func (s *metadataStore) PutManifest(repository string, digest godigest.Digest, meta *store.ManifestMetadata) error {
 	s.ensureRepositoryExists(repository)
 	manifests, ok := s.repositories[repository].manifests[digest.String()]
 	if !ok {
@@ -164,7 +165,7 @@ func (s *metadataStore) GetTag(repository, tag string) (godigest.Digest, error) 
 			return tag.digest, nil
 		}
 	}
-	return "", cascade.ErrManifestUnknown
+	return "", store.ErrNotFound
 }
 
 func (s *metadataStore) PutTag(repository, tag string, digest godigest.Digest) error {
@@ -184,7 +185,7 @@ func (s *metadataStore) DeleteTag(repository, tag string) error {
 func (s *metadataStore) ListReferrers(repository string, digest godigest.Digest) ([]godigest.Digest, error) {
 	repo, ok := s.repositories[repository]
 	if !ok {
-		return nil, cascade.ErrNameUnknown
+		return nil, store.ErrNotFound
 	}
 
 	manifest, ok := repo.manifests[digest.String()]
@@ -201,16 +202,16 @@ func (s *metadataStore) ListReferrers(repository string, digest godigest.Digest)
 	return referrers, nil
 }
 
-func (s *metadataStore) GetUploadSession(repository, id string) (*cascade.UploadSession, error) {
+func (s *metadataStore) GetUploadSession(repository, id string) (*store.UploadSession, error) {
 	if repo, ok := s.repositories[repository]; ok {
 		if session, ok := repo.uploadSessions[id]; ok {
 			return session, nil
 		}
 	}
-	return nil, cascade.ErrBlobUploadUnknown
+	return nil, store.ErrNotFound
 }
 
-func (s *metadataStore) PutUploadSession(repository string, session *cascade.UploadSession) error {
+func (s *metadataStore) PutUploadSession(repository string, session *store.UploadSession) error {
 	s.ensureRepositoryExists(repository)
 	s.repositories[repository].uploadSessions[session.ID.String()] = session
 	return nil

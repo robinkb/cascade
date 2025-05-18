@@ -14,6 +14,7 @@ import (
 	"github.com/opencontainers/go-digest"
 	v1 "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/robinkb/cascade-registry"
+	"github.com/robinkb/cascade-registry/repository"
 	"github.com/robinkb/cascade-registry/server"
 	"github.com/robinkb/cascade-registry/testing/mock"
 )
@@ -45,7 +46,7 @@ func NewTestClientWithServer(t *testing.T, service cascade.RegistryService) *Cli
 // NewTestClientWithRepository wraps around NewTestClientWithServer to provide an HTTP test server
 // that only returns the given RepositoryService under the specified name. Attempting to
 // create, read, update, or delete objects in any other repository will panic.
-func NewTestClientWithRepository(t *testing.T, name string, service cascade.RepositoryService) *Client {
+func NewTestClientWithRepository(t *testing.T, name string, service repository.RepositoryService) *Client {
 	registry := mock.NewRegistryService(t)
 	registry.EXPECT().
 		GetRepository(name).

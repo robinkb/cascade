@@ -3,7 +3,7 @@
 package mock
 
 import (
-	cascade "github.com/robinkb/cascade-registry"
+	repository "github.com/robinkb/cascade-registry/repository"
 	mock "github.com/stretchr/testify/mock"
 )
 
@@ -21,23 +21,23 @@ func (_m *RegistryService) EXPECT() *RegistryService_Expecter {
 }
 
 // GetRepository provides a mock function with given fields: name
-func (_m *RegistryService) GetRepository(name string) (cascade.RepositoryService, error) {
+func (_m *RegistryService) GetRepository(name string) (repository.RepositoryService, error) {
 	ret := _m.Called(name)
 
 	if len(ret) == 0 {
 		panic("no return value specified for GetRepository")
 	}
 
-	var r0 cascade.RepositoryService
+	var r0 repository.RepositoryService
 	var r1 error
-	if rf, ok := ret.Get(0).(func(string) (cascade.RepositoryService, error)); ok {
+	if rf, ok := ret.Get(0).(func(string) (repository.RepositoryService, error)); ok {
 		return rf(name)
 	}
-	if rf, ok := ret.Get(0).(func(string) cascade.RepositoryService); ok {
+	if rf, ok := ret.Get(0).(func(string) repository.RepositoryService); ok {
 		r0 = rf(name)
 	} else {
 		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(cascade.RepositoryService)
+			r0 = ret.Get(0).(repository.RepositoryService)
 		}
 	}
 
@@ -68,12 +68,12 @@ func (_c *RegistryService_GetRepository_Call) Run(run func(name string)) *Regist
 	return _c
 }
 
-func (_c *RegistryService_GetRepository_Call) Return(_a0 cascade.RepositoryService, _a1 error) *RegistryService_GetRepository_Call {
+func (_c *RegistryService_GetRepository_Call) Return(_a0 repository.RepositoryService, _a1 error) *RegistryService_GetRepository_Call {
 	_c.Call.Return(_a0, _a1)
 	return _c
 }
 
-func (_c *RegistryService_GetRepository_Call) RunAndReturn(run func(string) (cascade.RepositoryService, error)) *RegistryService_GetRepository_Call {
+func (_c *RegistryService_GetRepository_Call) RunAndReturn(run func(string) (repository.RepositoryService, error)) *RegistryService_GetRepository_Call {
 	_c.Call.Return(run)
 	return _c
 }
