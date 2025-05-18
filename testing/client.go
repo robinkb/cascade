@@ -170,7 +170,7 @@ func (c *client) UploadBlobSinglePOST(name string, digest digest.Digest, content
 
 	headers := make(http.Header)
 	headers.Set("Content-Type", "application/octet-stream")
-	headers.Set("Content-length", strconv.Itoa(len(content)))
+	headers.Set("Content-Length", strconv.Itoa(len(content)))
 
 	return c.Do(http.MethodPost, path, headers, bytes.NewBuffer(content))
 }
