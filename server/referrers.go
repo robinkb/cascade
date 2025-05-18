@@ -6,7 +6,7 @@ import (
 	"strings"
 
 	v1 "github.com/opencontainers/image-spec/specs-go/v1"
-	"github.com/robinkb/cascade-registry"
+	"github.com/robinkb/cascade-registry/repository"
 )
 
 func (s *Server) referrersHandler(w http.ResponseWriter, r *http.Request) {
@@ -23,17 +23,17 @@ func (s *Server) listReferrersHandler(w http.ResponseWriter, r *http.Request) {
 	digest := r.PathValue("digest")
 	artifactType := r.URL.Query().Get("artifactType")
 
-	repository, err := s.service.GetRepository(name)
+	repo, err := s.service.GetRepository(name)
 	if err != nil {
 		errorHandler(w, r, err)
 		return
 	}
 
-	opts := cascade.ListReferrersOptions{
+	opts := repository.ListReferrersOptions{
 		ArtifactType: artifactType,
 	}
 
-	referrers, err := repository.ListReferrers(name, digest, &opts)
+	referrers, err := repo.ListReferrers(name, digest, &opts)
 	if err != nil {
 		errorHandler(w, r, err)
 		return

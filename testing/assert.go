@@ -14,7 +14,7 @@ import (
 	"testing"
 
 	v1 "github.com/opencontainers/image-spec/specs-go/v1"
-	"github.com/robinkb/cascade-registry"
+	"github.com/robinkb/cascade-registry/repository"
 )
 
 func AssertErrorIs(t *testing.T, got, want error) bool {
@@ -129,7 +129,7 @@ func AssertResponseBodyUnmarshals[T any](t *testing.T, got *http.Response, obj T
 	return true
 }
 
-func AssertResponseBodyContainsError(t *testing.T, got *http.Response, want cascade.Error) bool {
+func AssertResponseBodyContainsError(t *testing.T, got *http.Response, want repository.Error) bool {
 	t.Helper()
 
 	if got.Body == nil || got.Body == http.NoBody {
@@ -137,7 +137,7 @@ func AssertResponseBodyContainsError(t *testing.T, got *http.Response, want casc
 		return false
 	}
 
-	var errs cascade.ErrorResponse
+	var errs repository.ErrorResponse
 	err := json.NewDecoder(got.Body).Decode(&errs)
 	RequireNoError(t, err)
 

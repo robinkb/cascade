@@ -1,8 +1,11 @@
-package cascade
+package repository
 
 import (
+	"errors"
+
 	"github.com/opencontainers/go-digest"
 	v1 "github.com/opencontainers/image-spec/specs-go/v1"
+	"github.com/robinkb/cascade-registry/store"
 )
 
 type ListReferrersOptions struct {
@@ -22,6 +25,9 @@ func (s *repositoryService) ListReferrers(name, reference string, opts *ListRefe
 
 	referrers, err := s.metadata.ListReferrers(name, digest)
 	if err != nil {
+		if errors.Is(err, store.ErrNotFound) {
+			err = ErrNameUnknown
+		}
 		return nil, err
 	}
 

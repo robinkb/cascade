@@ -8,7 +8,7 @@ import (
 
 	"github.com/gofrs/uuid/v5"
 	"github.com/opencontainers/go-digest"
-	"github.com/robinkb/cascade-registry"
+	"github.com/robinkb/cascade-registry/store"
 )
 
 const (
@@ -16,7 +16,7 @@ const (
 	uploadPathFormat = "uploads/%s"
 )
 
-func NewBlobStore() cascade.BlobStore {
+func NewBlobStore() store.Blobs {
 	return &blobStore{
 		store: make(map[string][]byte),
 	}
@@ -40,7 +40,7 @@ func (w *writer) Write(p []byte) (n int, err error) {
 	return len(p), nil
 }
 
-func (s *blobStore) StatBlob(id digest.Digest) (*cascade.FileInfo, error) {
+func (s *blobStore) StatBlob(id digest.Digest) (*store.FileInfo, error) {
 	path := s.digestToPath(id)
 	return s.stat(path)
 }
@@ -52,7 +52,7 @@ func (s *blobStore) GetBlob(id digest.Digest) ([]byte, error) {
 	path := s.digestToPath(id)
 	data, ok := s.store[path]
 	if !ok {
-		return nil, cascade.ErrFileNotFound
+		return nil, store.ErrNotFound
 	}
 	return data, nil
 }
@@ -80,7 +80,7 @@ func (s *blobStore) DeleteBlob(id digest.Digest) error {
 	return s.delete(path)
 }
 
-func (s *blobStore) StatUpload(id uuid.UUID) (*cascade.FileInfo, error) {
+func (s *blobStore) StatUpload(id uuid.UUID) (*store.FileInfo, error) {
 	path := s.uuidToPath(id)
 	return s.stat(path)
 }
@@ -125,16 +125,16 @@ func (s *blobStore) uuidToPath(id uuid.UUID) string {
 	return fmt.Sprintf(uploadPathFormat, id.String())
 }
 
-func (s *blobStore) stat(path string) (*cascade.FileInfo, error) {
+func (s *blobStore) stat(path string) (*store.FileInfo, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
 	data, ok := s.store[path]
 	if !ok {
-		return nil, cascade.ErrFileNotFound
+		return nil, store.ErrNotFound
 	}
 
-	return &cascade.FileInfo{
+	return &store.FileInfo{
 		Name: path,
 		Size: int64(len(data)),
 	}, nil

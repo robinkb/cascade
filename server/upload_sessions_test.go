@@ -5,8 +5,9 @@ import (
 	"testing"
 
 	"github.com/gofrs/uuid/v5"
-	"github.com/robinkb/cascade-registry"
+	"github.com/robinkb/cascade-registry/repository"
 	"github.com/robinkb/cascade-registry/server"
+	"github.com/robinkb/cascade-registry/store"
 	. "github.com/robinkb/cascade-registry/testing"
 	"github.com/robinkb/cascade-registry/testing/mock"
 )
@@ -17,12 +18,12 @@ func TestBlobUploadSession(t *testing.T) {
 	location := newLocation(name, sessionID.String())
 
 	t.Run("Initialize upload session returns 200 with session ID", func(t *testing.T) {
-		repository := mock.NewRepositoryService(t)
-		repository.EXPECT().
+		repo := mock.NewRepositoryService(t)
+		repo.EXPECT().
 			InitUpload(name).
-			Return(&cascade.UploadSession{Location: "123"}, nil)
+			Return(&store.UploadSession{Location: "123"}, nil)
 
-		client := NewTestClientForRepository(t, name, repository)
+		client := NewTestClientForRepository(t, name, repo)
 
 		resp := client.InitUpload(name)
 
@@ -31,12 +32,12 @@ func TestBlobUploadSession(t *testing.T) {
 	})
 
 	t.Run("Checking active session returns 200", func(t *testing.T) {
-		repository := mock.NewRepositoryService(t)
-		repository.EXPECT().
+		repo := mock.NewRepositoryService(t)
+		repo.EXPECT().
 			StatUpload(name, sessionID.String()).
-			Return(&cascade.FileInfo{}, nil)
+			Return(&store.FileInfo{}, nil)
 
-		client := NewTestClientForRepository(t, name, repository)
+		client := NewTestClientForRepository(t, name, repo)
 
 		resp := client.CheckUpload(location)
 
@@ -46,16 +47,16 @@ func TestBlobUploadSession(t *testing.T) {
 	})
 
 	t.Run("Checking status of an unknown upload session returns 404 and ErrBlobUploadUnknown", func(t *testing.T) {
-		repository := mock.NewRepositoryService(t)
-		repository.EXPECT().
+		repo := mock.NewRepositoryService(t)
+		repo.EXPECT().
 			StatUpload(name, sessionID.String()).
-			Return(nil, cascade.ErrBlobUploadUnknown)
+			Return(nil, repository.ErrBlobUploadUnknown)
 
-		client := NewTestClientForRepository(t, name, repository)
+		client := NewTestClientForRepository(t, name, repo)
 
 		resp := client.CheckUpload(location)
 
 		AssertResponseCode(t, resp, http.StatusNotFound)
-		AssertResponseBodyContainsError(t, resp, cascade.ErrBlobUploadUnknown)
+		AssertResponseBodyContainsError(t, resp, repository.ErrBlobUploadUnknown)
 	})
 }

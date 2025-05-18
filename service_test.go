@@ -16,11 +16,3 @@ func TestGetRepository(t *testing.T) {
 		AssertNoError(t, err)
 	})
 }
-
-func newTestRepository() (cascade.RepositoryService, cascade.MetadataStore, cascade.BlobStore) {
-	metadata := inmemory.NewMetadataStore()
-	blobs := inmemory.NewBlobStore()
-	service := cascade.NewRepositoryService(metadata, blobs)
-
-	return service, metadata, blobs
-}

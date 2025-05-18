@@ -1,9 +1,10 @@
-package cascade
+package repository
 
 import (
 	"errors"
 
 	"github.com/opencontainers/go-digest"
+	"github.com/robinkb/cascade-registry/store"
 )
 
 func (s *repositoryService) ListTags(repository string, count int, last string) ([]string, error) {
@@ -16,7 +17,7 @@ func (s *repositoryService) GetTag(repository, tag string) (string, error) {
 	}
 
 	digest, err := s.metadata.GetTag(repository, tag)
-	if errors.Is(err, ErrFileNotFound) {
+	if errors.Is(err, store.ErrNotFound) {
 		err = ErrManifestUnknown
 	}
 

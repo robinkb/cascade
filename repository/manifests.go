@@ -1,4 +1,4 @@
-package cascade
+package repository
 
 import (
 	"encoding/json"
@@ -6,9 +6,10 @@ import (
 
 	"github.com/opencontainers/go-digest"
 	v1 "github.com/opencontainers/image-spec/specs-go/v1"
+	"github.com/robinkb/cascade-registry/store"
 )
 
-func (s *repositoryService) StatManifest(repository, id string) (*FileInfo, error) {
+func (s *repositoryService) StatManifest(repository, id string) (*store.FileInfo, error) {
 	digest, err := digest.Parse(id)
 	if err != nil {
 		return nil, ErrManifestUnknown
@@ -20,14 +21,14 @@ func (s *repositoryService) StatManifest(repository, id string) (*FileInfo, erro
 	}
 
 	info, err := s.blobs.StatBlob(digest)
-	if errors.Is(err, ErrFileNotFound) {
+	if errors.Is(err, store.ErrNotFound) {
 		return nil, ErrManifestUnknown
 	}
 
 	return info, err
 }
 
-func (s *repositoryService) GetManifest(repository, id string) (*ManifestMetadata, []byte, error) {
+func (s *repositoryService) GetManifest(repository, id string) (*store.ManifestMetadata, []byte, error) {
 	digest, err := digest.Parse(id)
 	if err != nil {
 		return nil, nil, ErrBlobUnknown
@@ -69,7 +70,7 @@ func (s *repositoryService) PutManifest(repository, reference string, content []
 		return "", err
 	}
 
-	meta := &ManifestMetadata{
+	meta := &store.ManifestMetadata{
 		Annotations:  manifest.Annotations,
 		ArtifactType: manifest.ArtifactType,
 		MediaType:    manifest.MediaType,

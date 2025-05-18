@@ -1,11 +1,11 @@
-package cascade_test
+package repository_test
 
 import (
 	"bytes"
 	"io"
 	"testing"
 
-	"github.com/robinkb/cascade-registry"
+	"github.com/robinkb/cascade-registry/repository"
 	. "github.com/robinkb/cascade-registry/testing"
 )
 
@@ -34,7 +34,7 @@ func TestStatUpload(t *testing.T) {
 
 	t.Run("stat upload on unknown upload returns ErrBlobUploadUnknown", func(t *testing.T) {
 		_, err := service.StatUpload("unknown/repo", "i-dont-exist")
-		AssertErrorIs(t, err, cascade.ErrBlobUploadUnknown)
+		AssertErrorIs(t, err, repository.ErrBlobUploadUnknown)
 	})
 
 	// TODO: Write test to ensure that uploads are scoped to a repository.
@@ -65,7 +65,7 @@ func TestBlobUploadsMonolithic(t *testing.T) {
 
 	t.Run("Uploading without a session returns ErrBlobUploadUknown", func(t *testing.T) {
 		err := service.AppendUpload("fake", "abc", nil, 0)
-		AssertErrorIs(t, err, cascade.ErrBlobUploadUnknown)
+		AssertErrorIs(t, err, repository.ErrBlobUploadUnknown)
 	})
 
 	t.Run("Closing upload with invalid digest returns ErrDigestInvalid", func(t *testing.T) {
@@ -80,7 +80,7 @@ func TestBlobUploadsMonolithic(t *testing.T) {
 		RequireNoError(t, err)
 
 		err = service.CloseUpload(name, session.ID.String(), digest)
-		AssertErrorIs(t, err, cascade.ErrDigestInvalid)
+		AssertErrorIs(t, err, repository.ErrDigestInvalid)
 	})
 
 	t.Run("Closing upload with wrong digest returns ErrBlobUploadInvalid", func(t *testing.T) {
@@ -95,7 +95,7 @@ func TestBlobUploadsMonolithic(t *testing.T) {
 		RequireNoError(t, err)
 
 		err = service.CloseUpload(name, session.ID.String(), digest.String())
-		AssertErrorIs(t, err, cascade.ErrBlobUploadInvalid)
+		AssertErrorIs(t, err, repository.ErrBlobUploadInvalid)
 	})
 }
 
@@ -149,6 +149,6 @@ func TestServiceUpload(t *testing.T) {
 
 	t.Run("writing to unknown upload returns ErrBlobUploadUnknown", func(t *testing.T) {
 		err := service.AppendUpload("1/2/3", "i-dont-exist", nil, 0)
-		AssertErrorIs(t, err, cascade.ErrBlobUploadUnknown)
+		AssertErrorIs(t, err, repository.ErrBlobUploadUnknown)
 	})
 }

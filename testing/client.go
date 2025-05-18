@@ -13,7 +13,7 @@ import (
 
 	"github.com/opencontainers/go-digest"
 	v1 "github.com/opencontainers/image-spec/specs-go/v1"
-	"github.com/robinkb/cascade-registry"
+	"github.com/robinkb/cascade-registry/repository"
 	"github.com/robinkb/cascade-registry/server"
 	"github.com/robinkb/cascade-registry/testing/mock"
 )
@@ -29,7 +29,7 @@ func NewTestClientForHandler(t *testing.T, handler http.Handler) *client {
 // NewTestClientForRepository wraps around NewTestClientForHandler to provide a test client
 // for a registry that only returns the given RepositoryService under the specified name.
 // Attempting to create, read, update, or delete objects in any other repository will panic.
-func NewTestClientForRepository(t *testing.T, name string, service cascade.RepositoryService) *client {
+func NewTestClientForRepository(t *testing.T, name string, service repository.RepositoryService) *client {
 	registry := mock.NewRegistryService(t)
 	registry.EXPECT().
 		GetRepository(name).
@@ -170,7 +170,7 @@ func (c *client) UploadBlobSinglePOST(name string, digest digest.Digest, content
 
 	headers := make(http.Header)
 	headers.Set("Content-Type", "application/octet-stream")
-	headers.Set("Content-length", strconv.Itoa(len(content)))
+	headers.Set("Content-Length", strconv.Itoa(len(content)))
 
 	return c.Do(http.MethodPost, path, headers, bytes.NewBuffer(content))
 }

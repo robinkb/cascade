@@ -20,7 +20,7 @@ func (s *Server) listTagsHandler(w http.ResponseWriter, r *http.Request) {
 	n := r.URL.Query().Get("n")
 	last := r.URL.Query().Get("last")
 
-	repository, err := s.service.GetRepository(name)
+	repo, err := s.service.GetRepository(name)
 	if err != nil {
 		errorHandler(w, r, err)
 		return
@@ -36,7 +36,7 @@ func (s *Server) listTagsHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	tags, err := repository.ListTags(name, count, last)
+	tags, err := repo.ListTags(name, count, last)
 	if err != nil {
 		errorHandler(w, r, err)
 		return

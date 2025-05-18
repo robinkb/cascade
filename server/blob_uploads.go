@@ -8,7 +8,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/robinkb/cascade-registry"
+	"github.com/robinkb/cascade-registry/repository"
 )
 
 func (s *Server) blobsUploadsHandler(w http.ResponseWriter, r *http.Request) {
@@ -37,13 +37,13 @@ func (s *Server) checkUploadHandler(w http.ResponseWriter, r *http.Request) {
 	name := r.PathValue("name")
 	reference := r.PathValue("reference")
 
-	repository, err := s.service.GetRepository(name)
+	repo, err := s.service.GetRepository(name)
 	if err != nil {
 		errorHandler(w, r, err)
 		return
 	}
 
-	info, err := repository.StatUpload(name, reference)
+	info, err := repo.StatUpload(name, reference)
 	if err != nil {
 		errorHandler(w, r, err)
 		return
@@ -61,7 +61,7 @@ func (s *Server) chunkedUploadHandler(w http.ResponseWriter, r *http.Request) {
 	name := r.PathValue("name")
 	reference := r.PathValue("reference")
 
-	repository, err := s.service.GetRepository(name)
+	repo, err := s.service.GetRepository(name)
 	if err != nil {
 		errorHandler(w, r, err)
 		return
@@ -86,7 +86,7 @@ func (s *Server) chunkedUploadHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := repository.AppendUpload(name, reference, bytes.NewBuffer(content), givenStart); err != nil {
+	if err := repo.AppendUpload(name, reference, bytes.NewBuffer(content), givenStart); err != nil {
 		errorHandler(w, r, err)
 		return
 	}
@@ -101,13 +101,13 @@ func (s *Server) streamedUploadHandler(w http.ResponseWriter, r *http.Request) {
 	name := r.PathValue("name")
 	reference := r.PathValue("reference")
 
-	repository, err := s.service.GetRepository(name)
+	repo, err := s.service.GetRepository(name)
 	if err != nil {
 		errorHandler(w, r, err)
 		return
 	}
 
-	if err := repository.AppendUpload(name, reference, r.Body, 0); err != nil {
+	if err := repo.AppendUpload(name, reference, r.Body, 0); err != nil {
 		errorHandler(w, r, err)
 		return
 	}
@@ -121,7 +121,7 @@ func (s *Server) closeUploadHandler(w http.ResponseWriter, r *http.Request) {
 	name := r.PathValue("name")
 	reference := r.PathValue("reference")
 
-	repository, err := s.service.GetRepository(name)
+	repo, err := s.service.GetRepository(name)
 	if err != nil {
 		errorHandler(w, r, err)
 		return
@@ -155,7 +155,7 @@ func (s *Server) closeUploadHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		err = repository.AppendUpload(name, reference, bytes.NewBuffer(content), offset)
+		err = repo.AppendUpload(name, reference, bytes.NewBuffer(content), offset)
 		if err != nil {
 			errorHandler(w, r, err)
 			return
@@ -168,7 +168,7 @@ func (s *Server) closeUploadHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err = repository.CloseUpload(name, reference, digest)
+	err = repo.CloseUpload(name, reference, digest)
 	if err != nil {
 		errorHandler(w, r, err)
 		return
@@ -180,7 +180,7 @@ func (s *Server) closeUploadHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func parseContentRange(r string) (start, end int64, err error) {
-	err = cascade.ErrBlobUploadInvalid
+	err = repository.ErrBlobUploadInvalid
 
 	parts := strings.Split(r, "-")
 	if len(parts) != 2 {
