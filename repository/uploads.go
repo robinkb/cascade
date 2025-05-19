@@ -35,12 +35,12 @@ func (s *repositoryService) InitUpload(repository string) (*store.UploadSession,
 	hash := sha256.New()
 	_, err := hash.Write([]byte{})
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
 
 	hashState, err := hash.(encoding.BinaryMarshaler).MarshalBinary()
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
 
 	session := store.UploadSession{
@@ -102,7 +102,7 @@ func (s *repositoryService) AppendUpload(repository, sessionID string, r io.Read
 
 	session.HashState, err = hash.(encoding.BinaryMarshaler).MarshalBinary()
 	if err != nil {
-		panic(err)
+		return err
 	}
 
 	return s.metadata.PutUploadSession(repository, session)
