@@ -35,7 +35,7 @@ func TestBlobUploadSession(t *testing.T) {
 		repo := mock.NewRepositoryService(t)
 		repo.EXPECT().
 			StatUpload(name, sessionID.String()).
-			Return(&store.FileInfo{}, nil)
+			Return(&store.BlobInfo{}, nil)
 
 		client := NewTestClientForRepository(t, name, repo)
 

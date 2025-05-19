@@ -15,7 +15,7 @@ import (
 
 // TODO: Should write a test to verify that uploads can only be accessed
 // from the repository where it was created. Spoiler alert: not the case.
-func (s *repositoryService) StatUpload(repository, sessionID string) (*store.FileInfo, error) {
+func (s *repositoryService) StatUpload(repository, sessionID string) (*store.BlobInfo, error) {
 	session, err := s.metadata.GetUploadSession(repository, sessionID)
 	if err != nil {
 		if errors.Is(err, store.ErrNotFound) {

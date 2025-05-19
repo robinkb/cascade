@@ -24,7 +24,7 @@ func TestStatManifests(t *testing.T) {
 		repo := mock.NewRepositoryService(t)
 		repo.EXPECT().
 			StatManifest(name, digest.String()).
-			Return(&store.FileInfo{Size: int64(length)}, nil)
+			Return(&store.BlobInfo{Size: int64(length)}, nil)
 
 		client := NewTestClientForRepository(t, name, repo)
 
@@ -42,7 +42,7 @@ func TestStatManifests(t *testing.T) {
 			Return(digest.String(), nil)
 		repo.EXPECT().
 			StatManifest(name, digest.String()).
-			Return(&store.FileInfo{Size: int64(length)}, nil)
+			Return(&store.BlobInfo{Size: int64(length)}, nil)
 
 		client := NewTestClientForRepository(t, name, repo)
 

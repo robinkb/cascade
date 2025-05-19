@@ -22,7 +22,7 @@ func TestStatBlob(t *testing.T) {
 		repo := mock.NewRepositoryService(t)
 		repo.EXPECT().
 			StatBlob(name, digest.String()).
-			Return(&store.FileInfo{Size: size}, nil)
+			Return(&store.BlobInfo{Size: size}, nil)
 
 		client := NewTestClientForRepository(t, name, repo)
 

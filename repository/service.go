@@ -9,11 +9,11 @@ import (
 
 type (
 	RepositoryService interface {
-		StatBlob(repository, digest string) (*store.FileInfo, error)
+		StatBlob(repository, digest string) (*store.BlobInfo, error)
 		GetBlob(repository, digest string) (io.Reader, error)
 		DeleteBlob(repository, digest string) error
 
-		StatManifest(repository, reference string) (*store.FileInfo, error)
+		StatManifest(repository, reference string) (*store.BlobInfo, error)
 		GetManifest(repository, reference string) (*store.ManifestMetadata, []byte, error)
 		PutManifest(repository, reference string, content []byte) (digest.Digest, error)
 		DeleteManifest(repository, reference string) error
@@ -26,7 +26,7 @@ type (
 		ListReferrers(repository, digest string, opts *ListReferrersOptions) (*Referrers, error)
 
 		InitUpload(repository string) (*store.UploadSession, error)
-		StatUpload(repository, sessionID string) (*store.FileInfo, error)
+		StatUpload(repository, sessionID string) (*store.BlobInfo, error)
 		AppendUpload(repository, sessionID string, r io.Reader, offset int64) error
 		CloseUpload(repository, id, digest string) error
 	}
