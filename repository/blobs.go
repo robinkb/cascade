@@ -8,7 +8,7 @@ import (
 	"github.com/robinkb/cascade-registry/store"
 )
 
-func (s *repositoryService) StatBlob(repository, id string) (*store.FileInfo, error) {
+func (s *repositoryService) StatBlob(repository, id string) (*store.BlobInfo, error) {
 	digest, err := digest.Parse(id)
 	if err != nil {
 		return nil, ErrBlobUnknown

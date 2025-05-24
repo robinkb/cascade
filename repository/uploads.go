@@ -15,7 +15,7 @@ import (
 
 // TODO: Should write a test to verify that uploads can only be accessed
 // from the repository where it was created. Spoiler alert: not the case.
-func (s *repositoryService) StatUpload(repository, sessionID string) (*store.FileInfo, error) {
+func (s *repositoryService) StatUpload(repository, sessionID string) (*store.BlobInfo, error) {
 	session, err := s.metadata.GetUploadSession(repository, sessionID)
 	if err != nil {
 		if errors.Is(err, store.ErrNotFound) {
@@ -35,12 +35,12 @@ func (s *repositoryService) InitUpload(repository string) (*store.UploadSession,
 	hash := sha256.New()
 	_, err := hash.Write([]byte{})
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
 
 	hashState, err := hash.(encoding.BinaryMarshaler).MarshalBinary()
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
 
 	session := store.UploadSession{
@@ -102,7 +102,7 @@ func (s *repositoryService) AppendUpload(repository, sessionID string, r io.Read
 
 	session.HashState, err = hash.(encoding.BinaryMarshaler).MarshalBinary()
 	if err != nil {
-		panic(err)
+		return err
 	}
 
 	return s.metadata.PutUploadSession(repository, session)

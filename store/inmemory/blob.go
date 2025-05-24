@@ -40,7 +40,7 @@ func (w *writer) Write(p []byte) (n int, err error) {
 	return len(p), nil
 }
 
-func (s *blobStore) StatBlob(id digest.Digest) (*store.FileInfo, error) {
+func (s *blobStore) StatBlob(id digest.Digest) (*store.BlobInfo, error) {
 	path := s.digestToPath(id)
 	return s.stat(path)
 }
@@ -80,7 +80,7 @@ func (s *blobStore) DeleteBlob(id digest.Digest) error {
 	return s.delete(path)
 }
 
-func (s *blobStore) StatUpload(id uuid.UUID) (*store.FileInfo, error) {
+func (s *blobStore) StatUpload(id uuid.UUID) (*store.BlobInfo, error) {
 	path := s.uuidToPath(id)
 	return s.stat(path)
 }
@@ -125,7 +125,7 @@ func (s *blobStore) uuidToPath(id uuid.UUID) string {
 	return fmt.Sprintf(uploadPathFormat, id.String())
 }
 
-func (s *blobStore) stat(path string) (*store.FileInfo, error) {
+func (s *blobStore) stat(path string) (*store.BlobInfo, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
@@ -134,7 +134,7 @@ func (s *blobStore) stat(path string) (*store.FileInfo, error) {
 		return nil, store.ErrNotFound
 	}
 
-	return &store.FileInfo{
+	return &store.BlobInfo{
 		Name: path,
 		Size: int64(len(data)),
 	}, nil

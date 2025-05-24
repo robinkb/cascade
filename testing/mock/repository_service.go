@@ -734,23 +734,23 @@ func (_c *RepositoryService_PutTag_Call) RunAndReturn(run func(string, string, s
 }
 
 // StatBlob provides a mock function with given fields: _a0, _a1
-func (_m *RepositoryService) StatBlob(_a0 string, _a1 string) (*store.FileInfo, error) {
+func (_m *RepositoryService) StatBlob(_a0 string, _a1 string) (*store.BlobInfo, error) {
 	ret := _m.Called(_a0, _a1)
 
 	if len(ret) == 0 {
 		panic("no return value specified for StatBlob")
 	}
 
-	var r0 *store.FileInfo
+	var r0 *store.BlobInfo
 	var r1 error
-	if rf, ok := ret.Get(0).(func(string, string) (*store.FileInfo, error)); ok {
+	if rf, ok := ret.Get(0).(func(string, string) (*store.BlobInfo, error)); ok {
 		return rf(_a0, _a1)
 	}
-	if rf, ok := ret.Get(0).(func(string, string) *store.FileInfo); ok {
+	if rf, ok := ret.Get(0).(func(string, string) *store.BlobInfo); ok {
 		r0 = rf(_a0, _a1)
 	} else {
 		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(*store.FileInfo)
+			r0 = ret.Get(0).(*store.BlobInfo)
 		}
 	}
 
@@ -782,34 +782,34 @@ func (_c *RepositoryService_StatBlob_Call) Run(run func(_a0 string, _a1 string))
 	return _c
 }
 
-func (_c *RepositoryService_StatBlob_Call) Return(_a0 *store.FileInfo, _a1 error) *RepositoryService_StatBlob_Call {
+func (_c *RepositoryService_StatBlob_Call) Return(_a0 *store.BlobInfo, _a1 error) *RepositoryService_StatBlob_Call {
 	_c.Call.Return(_a0, _a1)
 	return _c
 }
 
-func (_c *RepositoryService_StatBlob_Call) RunAndReturn(run func(string, string) (*store.FileInfo, error)) *RepositoryService_StatBlob_Call {
+func (_c *RepositoryService_StatBlob_Call) RunAndReturn(run func(string, string) (*store.BlobInfo, error)) *RepositoryService_StatBlob_Call {
 	_c.Call.Return(run)
 	return _c
 }
 
 // StatManifest provides a mock function with given fields: _a0, reference
-func (_m *RepositoryService) StatManifest(_a0 string, reference string) (*store.FileInfo, error) {
+func (_m *RepositoryService) StatManifest(_a0 string, reference string) (*store.BlobInfo, error) {
 	ret := _m.Called(_a0, reference)
 
 	if len(ret) == 0 {
 		panic("no return value specified for StatManifest")
 	}
 
-	var r0 *store.FileInfo
+	var r0 *store.BlobInfo
 	var r1 error
-	if rf, ok := ret.Get(0).(func(string, string) (*store.FileInfo, error)); ok {
+	if rf, ok := ret.Get(0).(func(string, string) (*store.BlobInfo, error)); ok {
 		return rf(_a0, reference)
 	}
-	if rf, ok := ret.Get(0).(func(string, string) *store.FileInfo); ok {
+	if rf, ok := ret.Get(0).(func(string, string) *store.BlobInfo); ok {
 		r0 = rf(_a0, reference)
 	} else {
 		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(*store.FileInfo)
+			r0 = ret.Get(0).(*store.BlobInfo)
 		}
 	}
 
@@ -841,34 +841,34 @@ func (_c *RepositoryService_StatManifest_Call) Run(run func(_a0 string, referenc
 	return _c
 }
 
-func (_c *RepositoryService_StatManifest_Call) Return(_a0 *store.FileInfo, _a1 error) *RepositoryService_StatManifest_Call {
+func (_c *RepositoryService_StatManifest_Call) Return(_a0 *store.BlobInfo, _a1 error) *RepositoryService_StatManifest_Call {
 	_c.Call.Return(_a0, _a1)
 	return _c
 }
 
-func (_c *RepositoryService_StatManifest_Call) RunAndReturn(run func(string, string) (*store.FileInfo, error)) *RepositoryService_StatManifest_Call {
+func (_c *RepositoryService_StatManifest_Call) RunAndReturn(run func(string, string) (*store.BlobInfo, error)) *RepositoryService_StatManifest_Call {
 	_c.Call.Return(run)
 	return _c
 }
 
 // StatUpload provides a mock function with given fields: _a0, sessionID
-func (_m *RepositoryService) StatUpload(_a0 string, sessionID string) (*store.FileInfo, error) {
+func (_m *RepositoryService) StatUpload(_a0 string, sessionID string) (*store.BlobInfo, error) {
 	ret := _m.Called(_a0, sessionID)
 
 	if len(ret) == 0 {
 		panic("no return value specified for StatUpload")
 	}
 
-	var r0 *store.FileInfo
+	var r0 *store.BlobInfo
 	var r1 error
-	if rf, ok := ret.Get(0).(func(string, string) (*store.FileInfo, error)); ok {
+	if rf, ok := ret.Get(0).(func(string, string) (*store.BlobInfo, error)); ok {
 		return rf(_a0, sessionID)
 	}
-	if rf, ok := ret.Get(0).(func(string, string) *store.FileInfo); ok {
+	if rf, ok := ret.Get(0).(func(string, string) *store.BlobInfo); ok {
 		r0 = rf(_a0, sessionID)
 	} else {
 		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(*store.FileInfo)
+			r0 = ret.Get(0).(*store.BlobInfo)
 		}
 	}
 
@@ -900,12 +900,12 @@ func (_c *RepositoryService_StatUpload_Call) Run(run func(_a0 string, sessionID 
 	return _c
 }
 
-func (_c *RepositoryService_StatUpload_Call) Return(_a0 *store.FileInfo, _a1 error) *RepositoryService_StatUpload_Call {
+func (_c *RepositoryService_StatUpload_Call) Return(_a0 *store.BlobInfo, _a1 error) *RepositoryService_StatUpload_Call {
 	_c.Call.Return(_a0, _a1)
 	return _c
 }
 
-func (_c *RepositoryService_StatUpload_Call) RunAndReturn(run func(string, string) (*store.FileInfo, error)) *RepositoryService_StatUpload_Call {
+func (_c *RepositoryService_StatUpload_Call) RunAndReturn(run func(string, string) (*store.BlobInfo, error)) *RepositoryService_StatUpload_Call {
 	_c.Call.Return(run)
 	return _c
 }
