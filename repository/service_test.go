@@ -9,14 +9,6 @@ import (
 	"github.com/stretchr/testify/suite"
 )
 
-func newTestRepository() (repository.RepositoryService, store.Metadata, store.Blobs) {
-	metadata := inmemory.NewMetadataStore()
-	blobs := inmemory.NewBlobStore()
-	service := repository.NewRepositoryService(metadata, blobs)
-
-	return service, metadata, blobs
-}
-
 type Constructor func() (repository.RepositoryService, store.Metadata, store.Blobs)
 
 type Suite struct {
