@@ -33,55 +33,51 @@ func (s *Suite) TestStatBlob() {
 	})
 }
 
-func TestGetBlob(t *testing.T) {
-	service, metadata, blobs := newTestRepository()
-
+func (s *Suite) TestGetBlob() {
 	name := RandomName()
 	digest, content := RandomBlob(32)
 
-	err := blobs.PutBlob(digest, content)
-	RequireNoError(t, err)
-	err = metadata.PutBlob(name, digest)
-	RequireNoError(t, err)
+	err := s.blobs.PutBlob(digest, content)
+	RequireNoError(s.T(), err)
+	err = s.metadata.PutBlob(name, digest)
+	RequireNoError(s.T(), err)
 
-	t.Run("Known blob returns content and no error", func(t *testing.T) {
-		r, err := service.GetBlob(name, digest.String())
+	s.T().Run("Known blob returns content and no error", func(t *testing.T) {
+		r, err := s.repository.GetBlob(name, digest.String())
 		AssertNoError(t, err)
 		data, err := io.ReadAll(r)
 		AssertNoError(t, err)
 		AssertSlicesEqual(t, data, content)
 	})
 
-	t.Run("Unknown blob returns no content and ErrBlobUnknown", func(t *testing.T) {
-		_, err := service.GetBlob("fake/repository", "blabla")
+	s.T().Run("Unknown blob returns no content and ErrBlobUnknown", func(t *testing.T) {
+		_, err := s.repository.GetBlob("fake/repository", "blabla")
 		AssertErrorIs(t, err, repository.ErrBlobUnknown)
 	})
 
-	t.Run("Known blob on unknown repository still returns no content and ErrBlobUnknown", func(t *testing.T) {
-		_, err := service.GetBlob("fake/repository", digest.String())
+	s.T().Run("Known blob on unknown repository still returns no content and ErrBlobUnknown", func(t *testing.T) {
+		_, err := s.repository.GetBlob("fake/repository", digest.String())
 		AssertErrorIs(t, err, repository.ErrBlobUnknown)
 	})
 }
 
-func TestDeleteBlob(t *testing.T) {
-	service, metadata, blobs := newTestRepository()
-
+func (s *Suite) TestDeleteBlob() {
 	name := RandomName()
 	digest, content := RandomBlob(32)
 
-	t.Run("A deleted blob is not retrievable", func(t *testing.T) {
-		err := blobs.PutBlob(digest, content)
+	s.T().Run("A deleted blob is not retrievable", func(t *testing.T) {
+		err := s.blobs.PutBlob(digest, content)
 		RequireNoError(t, err)
-		err = metadata.PutBlob(name, digest)
-		RequireNoError(t, err)
-
-		_, err = service.GetBlob(name, digest.String())
+		err = s.metadata.PutBlob(name, digest)
 		RequireNoError(t, err)
 
-		err = service.DeleteBlob(name, digest.String())
+		_, err = s.repository.GetBlob(name, digest.String())
 		RequireNoError(t, err)
 
-		_, err = service.GetBlob(name, digest.String())
+		err = s.repository.DeleteBlob(name, digest.String())
+		RequireNoError(t, err)
+
+		_, err = s.repository.GetBlob(name, digest.String())
 		AssertErrorIs(t, err, repository.ErrBlobUnknown)
 	})
 }
