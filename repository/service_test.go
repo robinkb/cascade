@@ -5,16 +5,17 @@ import (
 
 	"github.com/robinkb/cascade-registry/repository"
 	"github.com/robinkb/cascade-registry/store"
+	"github.com/robinkb/cascade-registry/store/fs"
 	"github.com/robinkb/cascade-registry/store/inmemory"
 	"github.com/stretchr/testify/suite"
 )
 
-type Constructor func() (repository.RepositoryService, store.Metadata, store.Blobs)
+type StoreConstructor func() (store.Metadata, store.Blobs)
 
 type Suite struct {
 	suite.Suite
 
-	Constructor Constructor
+	StoreConstructor StoreConstructor
 
 	repository repository.RepositoryService
 	metadata   store.Metadata
@@ -22,17 +23,28 @@ type Suite struct {
 }
 
 func (s *Suite) SetupSuite() {
-	s.repository, s.metadata, s.blobs = s.Constructor()
+	s.metadata, s.blobs = s.StoreConstructor()
+	s.repository = repository.NewRepositoryService(s.metadata, s.blobs)
 }
 
-func TestWithInMemory(t *testing.T) {
+func TestWithInMemoryStore(t *testing.T) {
 	suite.Run(t, &Suite{
-		Constructor: func() (repository.RepositoryService, store.Metadata, store.Blobs) {
+		StoreConstructor: func() (store.Metadata, store.Blobs) {
 			metadata := inmemory.NewMetadataStore()
 			blobs := inmemory.NewBlobStore()
-			repository := repository.NewRepositoryService(metadata, blobs)
 
-			return repository, metadata, blobs
+			return metadata, blobs
+		},
+	})
+}
+
+func TestWithFilesystemStore(t *testing.T) {
+	suite.Run(t, &Suite{
+		StoreConstructor: func() (store.Metadata, store.Blobs) {
+			metadata := inmemory.NewMetadataStore()
+			blobs := fs.NewBlobStore(t.TempDir())
+
+			return metadata, blobs
 		},
 	})
 }
