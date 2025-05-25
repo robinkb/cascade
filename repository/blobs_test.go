@@ -8,29 +8,27 @@ import (
 	. "github.com/robinkb/cascade-registry/testing"
 )
 
-func TestStatBlob(t *testing.T) {
-	service, metadata, blobs := newTestRepository()
-
+func (s *Suite) TestStatBlob() {
 	name := RandomName()
 	digest, content := RandomBlob(32 * 1024)
 
-	err := blobs.PutBlob(digest, content)
-	RequireNoError(t, err)
-	err = metadata.PutBlob(name, digest)
-	RequireNoError(t, err)
+	err := s.blobs.PutBlob(digest, content)
+	RequireNoError(s.T(), err)
+	err = s.metadata.PutBlob(name, digest)
+	RequireNoError(s.T(), err)
 
-	t.Run("Known blob returns no error", func(t *testing.T) {
-		_, err := service.StatBlob(name, digest.String())
+	s.T().Run("Known blob returns no error", func(t *testing.T) {
+		_, err := s.repository.StatBlob(name, digest.String())
 		AssertNoError(t, err)
 	})
 
-	t.Run("Unknown blob returns ErrBlobUnknown", func(t *testing.T) {
-		_, err := service.StatBlob("a", "b")
+	s.T().Run("Unknown blob returns ErrBlobUnknown", func(t *testing.T) {
+		_, err := s.repository.StatBlob("a", "b")
 		AssertErrorIs(t, err, repository.ErrBlobUnknown)
 	})
 
-	t.Run("Known blob in unknown repository returns ErrBlobUnknown", func(t *testing.T) {
-		_, err := service.StatBlob("fake/repository", digest.String())
+	s.T().Run("Known blob in unknown repository returns ErrBlobUnknown", func(t *testing.T) {
+		_, err := s.repository.StatBlob("fake/repository", digest.String())
 		AssertErrorIs(t, err, repository.ErrBlobUnknown)
 	})
 }
