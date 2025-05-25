@@ -11,15 +11,15 @@ import (
 
 func (s *Suite) TestStatUpload() {
 	s.T().Run("stat upload returns correct FileInfo", func(t *testing.T) {
-		repository := "a/v/c"
+		name := RandomName()
 		content := RandomContents(32)
 
-		session, err := s.repository.InitUpload(repository)
+		session, err := s.repository.InitUpload(name)
 		RequireNoError(t, err)
-		err = s.repository.AppendUpload(repository, session.ID.String(), bytes.NewBuffer(content), 0)
+		err = s.repository.AppendUpload(name, session.ID.String(), bytes.NewBuffer(content), 0)
 		RequireNoError(t, err)
 
-		info, err := s.repository.StatUpload(repository, session.ID.String())
+		info, err := s.repository.StatUpload(name, session.ID.String())
 		AssertNoError(t, err)
 
 		got := info.Size
@@ -39,8 +39,9 @@ func (s *Suite) TestStatUpload() {
 }
 
 func (s *Suite) TestBlobUploadsMonolithic() {
+	name := RandomName()
+
 	s.T().Run("Monolithic blob upload - happy path", func(t *testing.T) {
-		name := RandomName()
 		digest, content := RandomBlob(32)
 
 		session, err := s.repository.InitUpload(name)
@@ -65,7 +66,6 @@ func (s *Suite) TestBlobUploadsMonolithic() {
 	})
 
 	s.T().Run("Closing upload with invalid digest returns ErrDigestInvalid", func(t *testing.T) {
-		name := RandomName()
 		content := RandomContents(32)
 		digest := "blablabla"
 
@@ -80,7 +80,6 @@ func (s *Suite) TestBlobUploadsMonolithic() {
 	})
 
 	s.T().Run("Closing upload with wrong digest returns ErrBlobUploadInvalid", func(t *testing.T) {
-		name := RandomName()
 		digest := RandomDigest()
 		otherContent := RandomContents(32)
 
@@ -96,8 +95,9 @@ func (s *Suite) TestBlobUploadsMonolithic() {
 }
 
 func (s *Suite) TestServiceUpload() {
+	name := RandomName()
+
 	s.T().Run("written upload is retrievable", func(t *testing.T) {
-		name := RandomName()
 		digest, _, content := RandomManifest()
 
 		session, err := s.repository.InitUpload(name)
@@ -118,19 +118,18 @@ func (s *Suite) TestServiceUpload() {
 	})
 
 	s.T().Run("writing multiple times to same upload appends", func(t *testing.T) {
-		repository := RandomName()
 		content := RandomContents(32)
 
-		session, err := s.repository.InitUpload(repository)
+		session, err := s.repository.InitUpload(name)
 		RequireNoError(t, err)
 
-		err = s.repository.AppendUpload(repository, session.ID.String(), bytes.NewBuffer(content[:16]), 0)
+		err = s.repository.AppendUpload(name, session.ID.String(), bytes.NewBuffer(content[:16]), 0)
 		AssertNoError(t, err)
 
-		err = s.repository.AppendUpload(repository, session.ID.String(), bytes.NewBuffer(content[16:]), 16)
+		err = s.repository.AppendUpload(name, session.ID.String(), bytes.NewBuffer(content[16:]), 16)
 		AssertNoError(t, err)
 
-		info, err := s.repository.StatUpload(repository, session.ID.String())
+		info, err := s.repository.StatUpload(name, session.ID.String())
 		AssertNoError(t, err)
 
 		got := info.Size

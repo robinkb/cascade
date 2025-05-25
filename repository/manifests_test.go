@@ -90,8 +90,9 @@ func (s *Suite) TestGetManifest() {
 }
 
 func (s *Suite) TestPutManifest() {
+	name := RandomName()
+
 	s.T().Run("Put and retrieve a manifest", func(t *testing.T) {
-		name := RandomName()
 		digest, _, content := RandomManifest()
 
 		_, err := s.repository.PutManifest(name, digest.String(), content)
@@ -103,7 +104,6 @@ func (s *Suite) TestPutManifest() {
 	})
 
 	s.T().Run("Putting a manifest with subject returns the subject hash", func(t *testing.T) {
-		name := RandomName()
 		subjDigest, subjManifest, subjContent := RandomManifest()
 		digest, _, content := RandomManifestWithSubject(subjDigest, subjManifest)
 
@@ -118,7 +118,6 @@ func (s *Suite) TestPutManifest() {
 	s.T().Run("Putting a manifest with subject that points to an unknown blob does not error", func(t *testing.T) {
 		// This is actually still up for debate in the specification.
 		// See: https://github.com/opencontainers/distribution-spec/issues/459
-		name := RandomName()
 		subjDigest, subjManifest, _ := RandomManifest()
 		digest, _, content := RandomManifestWithSubject(subjDigest, subjManifest)
 
@@ -127,7 +126,6 @@ func (s *Suite) TestPutManifest() {
 	})
 
 	s.T().Run("Putting a manifest with invalid content returns ErrManifestInvalid", func(t *testing.T) {
-		name := RandomName()
 		digest, content := RandomBlob(32)
 
 		_, err := s.repository.PutManifest(name, digest.String(), content)

@@ -9,8 +9,9 @@ import (
 )
 
 func (s *Suite) TestGetTag() {
+	name := RandomName()
+
 	s.T().Run("Manifest digest is retrievable by tag", func(t *testing.T) {
-		name := RandomName()
 		digest := RandomDigest()
 		tag := "v1.2.3"
 
@@ -32,8 +33,9 @@ func (s *Suite) TestGetTag() {
 }
 
 func (s *Suite) TestPutTag() {
+	name := RandomName()
+
 	s.T().Run("Tag creates a link to the manifest digest", func(t *testing.T) {
-		name := RandomName()
 		digest, _, content := RandomManifest()
 		tag := "v0.5.1"
 
@@ -54,8 +56,9 @@ func (s *Suite) TestPutTag() {
 }
 
 func (s *Suite) TestDeleteTag() {
+	name := RandomName()
+
 	s.T().Run("Deleted tag is not retrievable", func(t *testing.T) {
-		name := RandomName()
 		digest := RandomDigest()
 		tag := "v0.5.1"
 

@@ -44,7 +44,6 @@ func (s *Suite) TestListReferrers() {
 	})
 
 	s.T().Run("List referrers on existing manifest without referrers", func(t *testing.T) {
-		name := RandomName()
 		digest, _, content := RandomManifest()
 
 		_, err := s.repository.PutManifest(name, digest.String(), content)
@@ -56,8 +55,6 @@ func (s *Suite) TestListReferrers() {
 	})
 
 	s.T().Run("List referrers when subject manifest is pushed last", func(t *testing.T) {
-		name := RandomName()
-
 		digest, _, content := RandomManifest()
 		wantIndex, referrers := GenerateReferrersWithIndex(t, digest)
 
@@ -75,7 +72,6 @@ func (s *Suite) TestListReferrers() {
 	})
 
 	s.T().Run("List referrers on known repository but on unknown manifest", func(t *testing.T) {
-		name := RandomName()
 		digest, _, content := RandomManifest()
 
 		_, err := s.repository.PutManifest(name, digest.String(), content)
