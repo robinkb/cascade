@@ -8,36 +8,34 @@ import (
 	. "github.com/robinkb/cascade-registry/testing"
 )
 
-func TestListReferrers(t *testing.T) {
-	service, _, _ := newTestRepository()
-
+func (s *Suite) TestListReferrers() {
 	name := RandomName()
 
 	digest, _, content := RandomManifest()
-	wantIndex, referrers := GenerateReferrersWithIndex(t, digest)
+	wantIndex, referrers := GenerateReferrersWithIndex(s.T(), digest)
 	wantFilteredIndex := &v1.Index{
 		Manifests: []v1.Descriptor{
 			wantIndex.Manifests[0],
 		},
 	}
 
-	_, err := service.PutManifest(name, digest.String(), content)
-	RequireNoError(t, err)
+	_, err := s.repository.PutManifest(name, digest.String(), content)
+	RequireNoError(s.T(), err)
 
 	for _, referrer := range referrers {
-		_, err = service.PutManifest(name, referrer.Digest.String(), referrer.Content)
-		RequireNoError(t, err)
+		_, err = s.repository.PutManifest(name, referrer.Digest.String(), referrer.Content)
+		RequireNoError(s.T(), err)
 	}
 
-	t.Run("Fetch full list of referrers", func(t *testing.T) {
-		got, err := service.ListReferrers(name, digest.String(), nil)
+	s.T().Run("Fetch full list of referrers", func(t *testing.T) {
+		got, err := s.repository.ListReferrers(name, digest.String(), nil)
 		AssertNoError(t, err)
 		AssertIndex(t, got.Index, wantIndex)
 		AssertSlicesEqual(t, got.AppliedFilters, []string{})
 	})
 
-	t.Run("Fetch filtered list of referrers", func(t *testing.T) {
-		got, err := service.ListReferrers(name, digest.String(), &repository.ListReferrersOptions{
+	s.T().Run("Fetch filtered list of referrers", func(t *testing.T) {
+		got, err := s.repository.ListReferrers(name, digest.String(), &repository.ListReferrersOptions{
 			ArtifactType: "application/vnd.example+type",
 		})
 		AssertNoError(t, err)
@@ -45,53 +43,53 @@ func TestListReferrers(t *testing.T) {
 		AssertSlicesEqual(t, got.AppliedFilters, []string{"artifactType"})
 	})
 
-	t.Run("List referrers on existing manifest without referrers", func(t *testing.T) {
+	s.T().Run("List referrers on existing manifest without referrers", func(t *testing.T) {
 		name := RandomName()
 		digest, _, content := RandomManifest()
 
-		_, err := service.PutManifest(name, digest.String(), content)
+		_, err := s.repository.PutManifest(name, digest.String(), content)
 		RequireNoError(t, err)
 
-		got, err := service.ListReferrers(name, digest.String(), nil)
+		got, err := s.repository.ListReferrers(name, digest.String(), nil)
 		AssertNoError(t, err)
 		AssertEqual(t, len(got.Index.Manifests), 0)
 	})
 
-	t.Run("List referrers when subject manifest is pushed last", func(t *testing.T) {
+	s.T().Run("List referrers when subject manifest is pushed last", func(t *testing.T) {
 		name := RandomName()
 
 		digest, _, content := RandomManifest()
 		wantIndex, referrers := GenerateReferrersWithIndex(t, digest)
 
 		for _, referrer := range referrers {
-			_, err = service.PutManifest(name, referrer.Digest.String(), referrer.Content)
+			_, err = s.repository.PutManifest(name, referrer.Digest.String(), referrer.Content)
 			RequireNoError(t, err)
 		}
 
-		_, err := service.PutManifest(name, digest.String(), content)
+		_, err := s.repository.PutManifest(name, digest.String(), content)
 		RequireNoError(t, err)
 
-		got, err := service.ListReferrers(name, digest.String(), nil)
+		got, err := s.repository.ListReferrers(name, digest.String(), nil)
 		AssertNoError(t, err)
 		AssertIndex(t, got.Index, wantIndex)
 	})
 
-	t.Run("List referrers on known repository but on unknown manifest", func(t *testing.T) {
+	s.T().Run("List referrers on known repository but on unknown manifest", func(t *testing.T) {
 		name := RandomName()
 		digest, _, content := RandomManifest()
 
-		_, err := service.PutManifest(name, digest.String(), content)
+		_, err := s.repository.PutManifest(name, digest.String(), content)
 		RequireNoError(t, err)
 
 		digest = RandomDigest()
-		_, err = service.ListReferrers(name, digest.String(), nil)
+		_, err = s.repository.ListReferrers(name, digest.String(), nil)
 		AssertNoError(t, err)
 	})
 
-	t.Run("List referrers on non-existent repository", func(t *testing.T) {
+	s.T().Run("List referrers on non-existent repository", func(t *testing.T) {
 		name, digest := RandomName(), RandomDigest()
 
-		_, err := service.ListReferrers(name, digest.String(), nil)
+		_, err := s.repository.ListReferrers(name, digest.String(), nil)
 		AssertErrorIs(t, err, repository.ErrNameUnknown)
 	})
 }
