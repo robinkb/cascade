@@ -27,7 +27,7 @@ func (s *Suite) SetupSuite() {
 	s.repository = repository.NewRepositoryService(s.metadata, s.blobs)
 }
 
-func TestWithInMemory(t *testing.T) {
+func TestWithInMemoryStore(t *testing.T) {
 	suite.Run(t, &Suite{
 		StoreConstructor: func() (store.Metadata, store.Blobs) {
 			metadata := inmemory.NewMetadataStore()
@@ -38,11 +38,11 @@ func TestWithInMemory(t *testing.T) {
 	})
 }
 
-func TestWithFilesystem(t *testing.T) {
+func TestWithFilesystemStore(t *testing.T) {
 	suite.Run(t, &Suite{
 		StoreConstructor: func() (store.Metadata, store.Blobs) {
 			metadata := inmemory.NewMetadataStore()
-			blobs := fs.NewBlobStore()
+			blobs := fs.NewBlobStore(t.TempDir())
 
 			return metadata, blobs
 		},

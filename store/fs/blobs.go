@@ -17,11 +17,17 @@ const (
 	uploadPathFormat = "uploads/%s"
 )
 
-func NewBlobStore() store.Blobs {
-	return new(blobStore)
+// NewBlobStore returns a filesystem-based store.Blobs implementation.
+// It will store all blobs under the baseDir argument.
+func NewBlobStore(baseDir string) store.Blobs {
+	return &blobStore{
+		baseDir: baseDir,
+	}
 }
 
-type blobStore struct{}
+type blobStore struct {
+	baseDir string
+}
 
 // StatBlob returns basic file info about the blob with the given digest.
 func (s *blobStore) StatBlob(id digest.Digest) (*store.BlobInfo, error) {
@@ -127,11 +133,17 @@ func (s *blobStore) DeleteUpload(id uuid.UUID) error {
 }
 
 func (s *blobStore) digestToPath(id digest.Digest) string {
-	return fmt.Sprintf(blobPathFormat, id.Algorithm(), id.Encoded()[0:2], id.Encoded())
+	return filepath.Join(
+		s.baseDir,
+		fmt.Sprintf(blobPathFormat, id.Algorithm(), id.Encoded()[0:2], id.Encoded()),
+	)
 }
 
 func (s *blobStore) uuidToPath(id uuid.UUID) string {
-	return fmt.Sprintf(uploadPathFormat, id.String())
+	return filepath.Join(
+		s.baseDir,
+		fmt.Sprintf(uploadPathFormat, id.String()),
+	)
 }
 
 func (s *blobStore) stat(path string) (*store.BlobInfo, error) {
