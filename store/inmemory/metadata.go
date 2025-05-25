@@ -11,14 +11,12 @@ import (
 func NewMetadataStore() store.Metadata {
 	return &metadataStore{
 		repositories: make(map[string]*repository),
-		blobs:        make(map[string]string),
 	}
 }
 
 type (
 	metadataStore struct {
 		repositories map[string]*repository
-		blobs        map[string]string
 	}
 
 	repository struct {

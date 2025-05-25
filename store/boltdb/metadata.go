@@ -1,36 +1,156 @@
 package boltdb
 
 import (
+	"bytes"
+	"encoding/gob"
+
 	"github.com/opencontainers/go-digest"
 	"github.com/robinkb/cascade-registry/store"
+	bolt "go.etcd.io/bbolt"
 )
 
 func NewMetadataStore() *metadataStore {
-	return new(metadataStore)
+	db, err := bolt.Open("my.db", 0600, nil)
+	if err != nil {
+		panic(err)
+	}
+
+	return &metadataStore{
+		db: db,
+	}
 }
 
 type metadataStore struct {
 	store.Metadata
+	db *bolt.DB
 }
 
-func (s *metadataStore) GetBlob(repository string, digest digest.Digest) (string, error) {
-	panic("not implemented") // TODO: Implement
+type manifestMetadata struct {
+	Annotations  map[string]string
+	ArtifactType string
+	MediaType    string
+	Size         int64
 }
 
-func (s *metadataStore) PutBlob(repository string, digest digest.Digest) error {
-	panic("not implemented") // TODO: Implement
+func (s *metadataStore) GetBlob(name string, digest digest.Digest) (string, error) {
+	err := s.db.View(func(tx *bolt.Tx) error {
+		repo, err := tx.CreateBucketIfNotExists([]byte(name))
+		if err != nil {
+			return err
+		}
+
+		blobs, err := repo.CreateBucketIfNotExists([]byte("blobs"))
+		if err != nil {
+			return err
+		}
+
+		blob := blobs.Get([]byte(digest))
+		if blob == nil {
+			return store.ErrNotFound
+		}
+
+		return nil
+	})
+
+	return "", err
 }
 
-func (s *metadataStore) DeleteBlob(repository string, digest digest.Digest) error {
-	panic("not implemented") // TODO: Implement
+func (s *metadataStore) PutBlob(name string, digest digest.Digest) error {
+	return s.db.Update(func(tx *bolt.Tx) error {
+		repo, err := tx.CreateBucketIfNotExists([]byte(name))
+		if err != nil {
+			return err
+		}
+
+		blobs, err := repo.CreateBucketIfNotExists([]byte("blobs"))
+		if err != nil {
+			return err
+		}
+
+		return blobs.Put([]byte(digest.String()), nil)
+	})
 }
 
-func (s *metadataStore) GetManifest(repository string, digest digest.Digest) (*store.ManifestMetadata, error) {
-	panic("not implemented") // TODO: Implement
+func (s *metadataStore) DeleteBlob(name string, digest digest.Digest) error {
+	return s.db.Update(func(tx *bolt.Tx) error {
+		repo, err := tx.CreateBucketIfNotExists([]byte(name))
+		if err != nil {
+			return err
+		}
+
+		blobs, err := repo.CreateBucketIfNotExists([]byte("blobs"))
+		if err != nil {
+			return err
+		}
+
+		return blobs.Delete([]byte(digest.String()))
+	})
 }
 
-func (s *metadataStore) PutManifest(repository string, digest digest.Digest, meta *store.ManifestMetadata) error {
-	panic("not implemented") // TODO: Implement
+func (s *metadataStore) GetManifest(name string, digest digest.Digest) (*store.ManifestMetadata, error) {
+	var buf *bytes.Buffer
+	var meta manifestMetadata
+
+	err := s.db.View(func(tx *bolt.Tx) error {
+		repo, err := tx.CreateBucketIfNotExists([]byte(name))
+		if err != nil {
+			return err
+		}
+
+		manifests, err := repo.CreateBucketIfNotExists([]byte("manifests"))
+		if err != nil {
+			return err
+		}
+
+		content := manifests.Get([]byte(digest))
+		if content == nil {
+			return store.ErrNotFound
+		}
+		buf = bytes.NewBuffer(content)
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	err = gob.NewDecoder(buf).Decode(&meta)
+	if err != nil {
+		return nil, err
+	}
+
+	return &store.ManifestMetadata{
+		Annotations:  meta.Annotations,
+		ArtifactType: meta.ArtifactType,
+		MediaType:    meta.MediaType,
+		Size:         meta.Size,
+	}, nil
+}
+
+func (s *metadataStore) PutManifest(name string, digest digest.Digest, meta *store.ManifestMetadata) error {
+	buf := new(bytes.Buffer)
+	err := gob.NewEncoder(buf).Encode(&manifestMetadata{
+		Annotations:  meta.Annotations,
+		ArtifactType: meta.ArtifactType,
+		MediaType:    meta.MediaType,
+		Size:         meta.Size,
+	})
+	if err != nil {
+		return err
+	}
+
+	return s.db.Update(func(tx *bolt.Tx) error {
+		repo, err := tx.CreateBucketIfNotExists([]byte(name))
+		if err != nil {
+			return err
+		}
+
+		manifests, err := repo.CreateBucketIfNotExists([]byte("manifests"))
+		if err != nil {
+			return err
+		}
+
+		return manifests.Put([]byte(digest.String()), buf.Bytes())
+	})
 }
 
 func (s *metadataStore) DeleteManifest(repository string, digest digest.Digest) error {
