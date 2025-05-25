@@ -34,12 +34,7 @@ type manifestMetadata struct {
 
 func (s *metadataStore) GetBlob(name string, digest digest.Digest) (string, error) {
 	err := s.db.View(func(tx *bolt.Tx) error {
-		repo, err := tx.CreateBucketIfNotExists([]byte(name))
-		if err != nil {
-			return err
-		}
-
-		blobs, err := repo.CreateBucketIfNotExists([]byte("blobs"))
+		blobs, err := s.blobsForRepo(tx, name)
 		if err != nil {
 			return err
 		}
@@ -57,12 +52,7 @@ func (s *metadataStore) GetBlob(name string, digest digest.Digest) (string, erro
 
 func (s *metadataStore) PutBlob(name string, digest digest.Digest) error {
 	return s.db.Update(func(tx *bolt.Tx) error {
-		repo, err := tx.CreateBucketIfNotExists([]byte(name))
-		if err != nil {
-			return err
-		}
-
-		blobs, err := repo.CreateBucketIfNotExists([]byte("blobs"))
+		blobs, err := s.blobsForRepo(tx, name)
 		if err != nil {
 			return err
 		}
@@ -73,12 +63,7 @@ func (s *metadataStore) PutBlob(name string, digest digest.Digest) error {
 
 func (s *metadataStore) DeleteBlob(name string, digest digest.Digest) error {
 	return s.db.Update(func(tx *bolt.Tx) error {
-		repo, err := tx.CreateBucketIfNotExists([]byte(name))
-		if err != nil {
-			return err
-		}
-
-		blobs, err := repo.CreateBucketIfNotExists([]byte("blobs"))
+		blobs, err := s.blobsForRepo(tx, name)
 		if err != nil {
 			return err
 		}
@@ -92,12 +77,7 @@ func (s *metadataStore) GetManifest(name string, digest digest.Digest) (*store.M
 	var meta manifestMetadata
 
 	err := s.db.View(func(tx *bolt.Tx) error {
-		repo, err := tx.CreateBucketIfNotExists([]byte(name))
-		if err != nil {
-			return err
-		}
-
-		manifests, err := repo.CreateBucketIfNotExists([]byte("manifests"))
+		manifests, err := s.manifestsForRepo(tx, name)
 		if err != nil {
 			return err
 		}
@@ -139,12 +119,7 @@ func (s *metadataStore) PutManifest(name string, digest digest.Digest, meta *sto
 	}
 
 	return s.db.Update(func(tx *bolt.Tx) error {
-		repo, err := tx.CreateBucketIfNotExists([]byte(name))
-		if err != nil {
-			return err
-		}
-
-		manifests, err := repo.CreateBucketIfNotExists([]byte("manifests"))
+		manifests, err := s.manifestsForRepo(tx, name)
 		if err != nil {
 			return err
 		}
@@ -187,4 +162,22 @@ func (s *metadataStore) PutUploadSession(repository string, session *store.Uploa
 
 func (s *metadataStore) DeleteUploadSession(repository string, id string) error {
 	panic("not implemented") // TODO: Implement
+}
+
+func (s *metadataStore) blobsForRepo(tx *bolt.Tx, name string) (*bolt.Bucket, error) {
+	repo, err := tx.CreateBucketIfNotExists([]byte(name))
+	if err != nil {
+		return nil, err
+	}
+
+	return repo.CreateBucketIfNotExists([]byte("blobs"))
+}
+
+func (s *metadataStore) manifestsForRepo(tx *bolt.Tx, name string) (*bolt.Bucket, error) {
+	repo, err := tx.CreateBucketIfNotExists([]byte(name))
+	if err != nil {
+		return nil, err
+	}
+
+	return repo.CreateBucketIfNotExists([]byte("manifests"))
 }
