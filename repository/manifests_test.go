@@ -12,8 +12,10 @@ func (s *Suite) TestStatManifest() {
 	name := RandomName()
 	digest, _, content := RandomManifest()
 
-	s.metadata.PutManifest(name, digest, &store.ManifestMetadata{})
-	s.blobs.PutBlob(digest, content)
+	err := s.metadata.PutManifest(name, digest, &store.ManifestMetadata{})
+	RequireNoError(s.T(), err)
+	err = s.blobs.PutBlob(digest, content)
+	RequireNoError(s.T(), err)
 
 	s.T().Run("Returns FileInfo with expected size on known manifest", func(t *testing.T) {
 		info, err := s.repository.StatManifest(name, digest.String())
@@ -48,8 +50,10 @@ func (s *Suite) TestGetManifest() {
 	name := RandomName()
 	digest, _, content := RandomManifest()
 
-	s.metadata.PutManifest(name, digest, &store.ManifestMetadata{})
-	s.blobs.PutBlob(digest, content)
+	err := s.metadata.PutManifest(name, digest, &store.ManifestMetadata{})
+	RequireNoError(s.T(), err)
+	err = s.blobs.PutBlob(digest, content)
+	RequireNoError(s.T(), err)
 
 	s.T().Run("Retrieve an existing manifest", func(t *testing.T) {
 		_, got, err := s.repository.GetManifest(name, digest.String())
