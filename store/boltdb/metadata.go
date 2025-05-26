@@ -46,7 +46,7 @@ func (s *metadataStore) GetBlob(name string, digest digest.Digest) (string, erro
 			return store.ErrNotFound
 		}
 
-		blobs := repo.Bucket([]byte("blobs"))
+		blobs := repo.Bucket([]byte("BLOBS"))
 		if blobs == nil {
 			return store.ErrNotFound
 		}
@@ -69,7 +69,7 @@ func (s *metadataStore) PutBlob(name string, digest digest.Digest) error {
 			return store.ErrNotFound
 		}
 
-		blobs, err := repo.CreateBucketIfNotExists([]byte("blobs"))
+		blobs, err := repo.CreateBucketIfNotExists([]byte("BLOBS"))
 		if err != nil {
 			return store.ErrNotFound
 		}
@@ -85,7 +85,7 @@ func (s *metadataStore) DeleteBlob(name string, digest digest.Digest) error {
 			return store.ErrNotFound
 		}
 
-		blobs := repo.Bucket([]byte("blobs"))
+		blobs := repo.Bucket([]byte("BLOBS"))
 		if blobs == nil {
 			return store.ErrNotFound
 		}
@@ -104,16 +104,21 @@ func (s *metadataStore) GetManifest(name string, digest digest.Digest) (*store.M
 			return store.ErrNotFound
 		}
 
-		manifests := repo.Bucket([]byte("manifests"))
+		manifests := repo.Bucket([]byte("MANIFESTS"))
 		if manifests == nil {
 			return store.ErrNotFound
 		}
 
-		content := manifests.Get([]byte(digest.String()))
-		if content == nil {
+		manifest := manifests.Bucket([]byte(digest.String()))
+		if manifest == nil {
 			return store.ErrNotFound
 		}
-		buf = bytes.NewBuffer(content)
+
+		meta := manifest.Get([]byte("META"))
+		if meta == nil {
+			return store.ErrNotFound
+		}
+		buf = bytes.NewBuffer(meta)
 		return nil
 	})
 	if err != nil {
@@ -133,13 +138,13 @@ func (s *metadataStore) GetManifest(name string, digest digest.Digest) (*store.M
 	}, nil
 }
 
-func (s *metadataStore) PutManifest(name string, digest digest.Digest, meta *store.ManifestMetadata) error {
+func (s *metadataStore) PutManifest(name string, digest digest.Digest, metadata *store.ManifestMetadata) error {
 	buf := new(bytes.Buffer)
 	err := gob.NewEncoder(buf).Encode(&manifestMetadata{
-		Annotations:  meta.Annotations,
-		ArtifactType: meta.ArtifactType,
-		MediaType:    meta.MediaType,
-		Size:         meta.Size,
+		Annotations:  metadata.Annotations,
+		ArtifactType: metadata.ArtifactType,
+		MediaType:    metadata.MediaType,
+		Size:         metadata.Size,
 	})
 	if err != nil {
 		return err
@@ -148,15 +153,20 @@ func (s *metadataStore) PutManifest(name string, digest digest.Digest, meta *sto
 	return s.db.Update(func(tx *bolt.Tx) error {
 		repo, err := tx.CreateBucketIfNotExists([]byte(name))
 		if err != nil {
-			return store.ErrNotFound
+			return err
 		}
 
-		manifests, err := repo.CreateBucketIfNotExists([]byte("manifests"))
+		manifests, err := repo.CreateBucketIfNotExists([]byte("MANIFESTS"))
 		if err != nil {
-			return store.ErrNotFound
+			return err
 		}
 
-		return manifests.Put([]byte(digest.String()), buf.Bytes())
+		manifest, err := manifests.CreateBucketIfNotExists([]byte(digest.String()))
+		if err != nil {
+			return err
+		}
+
+		return manifest.Put([]byte("META"), buf.Bytes())
 	})
 }
 
@@ -167,12 +177,12 @@ func (s *metadataStore) DeleteManifest(name string, digest digest.Digest) error 
 			return store.ErrNotFound
 		}
 
-		manifests := repo.Bucket([]byte("manifests"))
+		manifests := repo.Bucket([]byte("MANIFESTS"))
 		if manifests == nil {
 			return store.ErrNotFound
 		}
 
-		return manifests.Delete([]byte(digest.String()))
+		return manifests.DeleteBucket([]byte(digest.String()))
 	})
 }
 
@@ -185,7 +195,7 @@ func (s *metadataStore) ListTags(name string, count int, last string) ([]string,
 			return store.ErrNotFound
 		}
 
-		tags := repo.Bucket([]byte("tags"))
+		tags := repo.Bucket([]byte("TAGS"))
 		if tags == nil {
 			return store.ErrNotFound
 		}
@@ -227,7 +237,7 @@ func (s *metadataStore) GetTag(name string, tag string) (digest.Digest, error) {
 			return store.ErrNotFound
 		}
 
-		tags := repo.Bucket([]byte("tags"))
+		tags := repo.Bucket([]byte("TAGS"))
 		if tags == nil {
 			return store.ErrNotFound
 		}
@@ -266,7 +276,7 @@ func (s *metadataStore) PutTag(name string, tag string, digest digest.Digest) er
 			return store.ErrNotFound
 		}
 
-		tags, err := repo.CreateBucketIfNotExists([]byte("tags"))
+		tags, err := repo.CreateBucketIfNotExists([]byte("TAGS"))
 		if err != nil {
 			return store.ErrNotFound
 		}
@@ -282,7 +292,7 @@ func (s *metadataStore) DeleteTag(name string, tag string) error {
 			return store.ErrNotFound
 		}
 
-		tags := repo.Bucket([]byte("tags"))
+		tags := repo.Bucket([]byte("TAGS"))
 		if tags == nil {
 			return store.ErrNotFound
 		}
@@ -305,7 +315,7 @@ func (s *metadataStore) GetUploadSession(name string, id string) (*store.UploadS
 			return store.ErrNotFound
 		}
 
-		uploads := repo.Bucket([]byte("uploads"))
+		uploads := repo.Bucket([]byte("UPLOADS"))
 		if uploads == nil {
 			return store.ErrNotFound
 		}
@@ -338,7 +348,7 @@ func (s *metadataStore) PutUploadSession(name string, session *store.UploadSessi
 			return store.ErrNotFound
 		}
 
-		uploads, err := repo.CreateBucketIfNotExists([]byte("uploads"))
+		uploads, err := repo.CreateBucketIfNotExists([]byte("UPLOADS"))
 		if err != nil {
 			return store.ErrNotFound
 		}
@@ -354,7 +364,7 @@ func (s *metadataStore) DeleteUploadSession(name string, id string) error {
 			return store.ErrNotFound
 		}
 
-		uploads := repo.Bucket([]byte("uploads"))
+		uploads := repo.Bucket([]byte("UPLOADS"))
 		if uploads == nil {
 			return store.ErrNotFound
 		}
