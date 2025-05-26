@@ -9,6 +9,10 @@ import (
 )
 
 func (s *Suite) TestGetTag() {
+	if s.Tests.TagsDisabled {
+		s.T().SkipNow()
+	}
+
 	name := RandomName()
 
 	s.T().Run("Manifest digest is retrievable by tag", func(t *testing.T) {
@@ -33,6 +37,10 @@ func (s *Suite) TestGetTag() {
 }
 
 func (s *Suite) TestPutTag() {
+	if s.Tests.TagsDisabled {
+		s.T().SkipNow()
+	}
+
 	name := RandomName()
 
 	s.T().Run("Tag creates a link to the manifest digest", func(t *testing.T) {
@@ -56,6 +64,10 @@ func (s *Suite) TestPutTag() {
 }
 
 func (s *Suite) TestDeleteTag() {
+	if s.Tests.TagsDisabled {
+		s.T().SkipNow()
+	}
+
 	name := RandomName()
 
 	s.T().Run("Deleted tag is not retrievable", func(t *testing.T) {
@@ -77,6 +89,10 @@ func (s *Suite) TestDeleteTag() {
 }
 
 func (s *Suite) TestListTag() {
+	if s.Tests.TagsDisabled {
+		s.T().SkipNow()
+	}
+
 	s.T().Run("Listing tags returns all in lexical order", func(t *testing.T) {
 		name := RandomName()
 		digest := RandomDigest()
