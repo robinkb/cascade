@@ -62,7 +62,7 @@ func TestWithBoltDBStore(t *testing.T) {
 		Tests: Tests{
 			BlobsDisabled:      false,
 			ManifestsDisbabled: false,
-			TagsDisabled:       true,
+			TagsDisabled:       false,
 			UploadsDisabled:    true,
 			ReferrersDisabled:  true,
 		},
