@@ -52,7 +52,7 @@ func (s *Suite) TestGetBlob() {
 
 	s.T().Run("Known blob returns content and no error", func(t *testing.T) {
 		r, err := s.repository.GetBlob(name, digest.String())
-		AssertNoError(t, err)
+		RequireNoError(t, err)
 		data, err := io.ReadAll(r)
 		AssertNoError(t, err)
 		AssertSlicesEqual(t, data, content)

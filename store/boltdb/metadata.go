@@ -41,12 +41,17 @@ type tagMetadata struct {
 
 func (s *metadataStore) GetBlob(name string, digest digest.Digest) (string, error) {
 	err := s.db.View(func(tx *bolt.Tx) error {
-		blobs, err := s.blobsForRepo(tx, name)
-		if err != nil {
-			return err
+		repo := tx.Bucket([]byte(name))
+		if repo == nil {
+			return store.ErrNotFound
 		}
 
-		blob := blobs.Get([]byte(digest))
+		blobs := repo.Bucket([]byte("blobs"))
+		if blobs == nil {
+			return store.ErrNotFound
+		}
+
+		blob := blobs.Get([]byte(digest.String()))
 		if blob == nil {
 			return store.ErrNotFound
 		}
@@ -59,20 +64,30 @@ func (s *metadataStore) GetBlob(name string, digest digest.Digest) (string, erro
 
 func (s *metadataStore) PutBlob(name string, digest digest.Digest) error {
 	return s.db.Update(func(tx *bolt.Tx) error {
-		blobs, err := s.blobsForRepo(tx, name)
+		repo, err := tx.CreateBucketIfNotExists([]byte(name))
 		if err != nil {
-			return err
+			return store.ErrNotFound
 		}
 
-		return blobs.Put([]byte(digest.String()), nil)
+		blobs, err := repo.CreateBucketIfNotExists([]byte("blobs"))
+		if err != nil {
+			return store.ErrNotFound
+		}
+
+		return blobs.Put([]byte(digest.String()), []byte{})
 	})
 }
 
 func (s *metadataStore) DeleteBlob(name string, digest digest.Digest) error {
 	return s.db.Update(func(tx *bolt.Tx) error {
-		blobs, err := s.blobsForRepo(tx, name)
-		if err != nil {
-			return err
+		repo := tx.Bucket([]byte(name))
+		if repo == nil {
+			return store.ErrNotFound
+		}
+
+		blobs := repo.Bucket([]byte("blobs"))
+		if blobs == nil {
+			return store.ErrNotFound
 		}
 
 		return blobs.Delete([]byte(digest.String()))
@@ -325,5 +340,5 @@ func (s *metadataStore) createOrGetRepo(tx *bolt.Tx, name string) (*bolt.Bucket,
 		}
 	}
 
-	return repo, err
+	return repo, nil
 }
