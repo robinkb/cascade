@@ -300,9 +300,14 @@ func (s *metadataStore) GetUploadSession(name string, id string) (*store.UploadS
 	var session store.UploadSession
 
 	err := s.db.View(func(tx *bolt.Tx) error {
-		uploads, err := s.uploadsForRepo(tx, name)
-		if err != nil {
-			return err
+		repo := tx.Bucket([]byte(name))
+		if repo == nil {
+			return store.ErrNotFound
+		}
+
+		uploads := repo.Bucket([]byte("uploads"))
+		if uploads == nil {
+			return store.ErrNotFound
 		}
 
 		content := uploads.Get([]byte(id))
@@ -328,9 +333,14 @@ func (s *metadataStore) PutUploadSession(name string, session *store.UploadSessi
 	}
 
 	return s.db.Update(func(tx *bolt.Tx) error {
-		uploads, err := s.uploadsForRepo(tx, name)
+		repo, err := tx.CreateBucketIfNotExists([]byte(name))
 		if err != nil {
-			return err
+			return store.ErrNotFound
+		}
+
+		uploads, err := repo.CreateBucketIfNotExists([]byte("uploads"))
+		if err != nil {
+			return store.ErrNotFound
 		}
 
 		return uploads.Put([]byte(session.ID.String()), buf.Bytes())
@@ -339,46 +349,16 @@ func (s *metadataStore) PutUploadSession(name string, session *store.UploadSessi
 
 func (s *metadataStore) DeleteUploadSession(name string, id string) error {
 	return s.db.Update(func(tx *bolt.Tx) error {
-		uploads, err := s.uploadsForRepo(tx, name)
-		if err != nil {
-			return err
+		repo := tx.Bucket([]byte(name))
+		if repo == nil {
+			return store.ErrNotFound
+		}
+
+		uploads := repo.Bucket([]byte("uploads"))
+		if uploads == nil {
+			return store.ErrNotFound
 		}
 
 		return uploads.Delete([]byte(id))
 	})
-}
-
-func (s *metadataStore) uploadsForRepo(tx *bolt.Tx, name string) (*bolt.Bucket, error) {
-	repo, err := s.createOrGetRepo(tx, name)
-	if err != nil {
-		return nil, err
-	}
-
-	return repo.Bucket([]byte("uploads")), nil
-}
-
-func (s *metadataStore) createOrGetRepo(tx *bolt.Tx, name string) (*bolt.Bucket, error) {
-	var repo *bolt.Bucket
-	var err error
-
-	repo = tx.Bucket([]byte(name))
-	if repo == nil {
-		if !tx.Writable() {
-			return nil, store.ErrNotFound
-		}
-	}
-
-	repo, err = tx.CreateBucket([]byte(name))
-	if err != nil {
-		return nil, err
-	}
-
-	for _, bucket := range []string{"blobs", "manifests", "tags", "uploads"} {
-		_, err := tx.CreateBucket([]byte(bucket))
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	return repo, nil
 }
