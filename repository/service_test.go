@@ -16,10 +16,19 @@ type Suite struct {
 	suite.Suite
 
 	StoreConstructor StoreConstructor
+	Tests            Tests
 
 	repository repository.RepositoryService
 	metadata   store.Metadata
 	blobs      store.Blobs
+}
+
+type Tests struct {
+	BlobsDisabled      bool
+	ManifestsDisbabled bool
+	ReferrersDisabled  bool
+	TagsDisabled       bool
+	UploadsDisabled    bool
 }
 
 func (s *Suite) SetupSuite() {
