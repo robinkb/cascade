@@ -54,7 +54,8 @@ func (s *Suite) TestBlobUploadsMonolithic() {
 		AssertNoError(t, err)
 
 		r, err := s.repository.GetBlob(name, digest.String())
-		AssertNoError(t, err)
+		RequireNoError(t, err)
+
 		data, err := io.ReadAll(r)
 		AssertNoError(t, err)
 		AssertSlicesEqual(t, data, content)
