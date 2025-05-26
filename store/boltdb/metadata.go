@@ -3,14 +3,17 @@ package boltdb
 import (
 	"bytes"
 	"encoding/gob"
+	"path/filepath"
 
 	"github.com/opencontainers/go-digest"
 	"github.com/robinkb/cascade-registry/store"
 	bolt "go.etcd.io/bbolt"
 )
 
-func NewMetadataStore() *metadataStore {
-	db, err := bolt.Open("my.db", 0600, nil)
+func NewMetadataStore(baseDir string) *metadataStore {
+	path := filepath.Join(baseDir, "bolt.db")
+
+	db, err := bolt.Open(path, 0600, nil)
 	if err != nil {
 		panic(err)
 	}

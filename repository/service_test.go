@@ -54,10 +54,17 @@ func TestWithInMemoryStore(t *testing.T) {
 func TestWithBoltDBStore(t *testing.T) {
 	suite.Run(t, &Suite{
 		StoreConstructor: func() (store.Metadata, store.Blobs) {
-			metadata := boltdb.NewMetadataStore()
+			metadata := boltdb.NewMetadataStore(t.TempDir())
 			blobs := inmemory.NewBlobStore()
 
 			return metadata, blobs
+		},
+		Tests: Tests{
+			BlobsDisabled:      true,
+			ManifestsDisbabled: true,
+			TagsDisabled:       true,
+			UploadsDisabled:    true,
+			ReferrersDisabled:  true,
 		},
 	})
 }

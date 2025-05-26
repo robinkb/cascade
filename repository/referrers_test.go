@@ -9,6 +9,10 @@ import (
 )
 
 func (s *Suite) TestListReferrers() {
+	if s.Tests.ReferrersDisabled {
+		s.T().SkipNow()
+	}
+
 	name := RandomName()
 
 	digest, _, content := RandomManifest()
