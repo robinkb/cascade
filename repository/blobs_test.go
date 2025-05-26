@@ -9,6 +9,10 @@ import (
 )
 
 func (s *Suite) TestStatBlob() {
+	if s.Tests.BlobsDisabled {
+		s.T().SkipNow()
+	}
+
 	name := RandomName()
 	digest, content := RandomBlob(32 * 1024)
 
@@ -34,6 +38,10 @@ func (s *Suite) TestStatBlob() {
 }
 
 func (s *Suite) TestGetBlob() {
+	if s.Tests.BlobsDisabled {
+		s.T().SkipNow()
+	}
+
 	name := RandomName()
 	digest, content := RandomBlob(32)
 
@@ -62,6 +70,10 @@ func (s *Suite) TestGetBlob() {
 }
 
 func (s *Suite) TestDeleteBlob() {
+	if s.Tests.BlobsDisabled {
+		s.T().SkipNow()
+	}
+
 	name := RandomName()
 	digest, content := RandomBlob(32)
 

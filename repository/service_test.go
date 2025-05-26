@@ -16,10 +16,22 @@ type Suite struct {
 	suite.Suite
 
 	StoreConstructor StoreConstructor
+	Tests            Tests
 
 	repository repository.RepositoryService
 	metadata   store.Metadata
 	blobs      store.Blobs
+}
+
+// Tests allows selectively disabling tests in the suite. Useful when developing new store backends.
+// The Tests struct roughly lists the tests in order of easiest to hardest, so it is recommend
+// to make the tests pass in that order.
+type Tests struct {
+	BlobsDisabled      bool
+	ManifestsDisbabled bool
+	TagsDisabled       bool
+	UploadsDisabled    bool
+	ReferrersDisabled  bool
 }
 
 func (s *Suite) SetupSuite() {

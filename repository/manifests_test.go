@@ -9,6 +9,10 @@ import (
 )
 
 func (s *Suite) TestStatManifest() {
+	if s.Tests.ManifestsDisbabled {
+		s.T().SkipNow()
+	}
+
 	name := RandomName()
 	digest, _, content := RandomManifest()
 
@@ -47,6 +51,10 @@ func (s *Suite) TestStatManifest() {
 }
 
 func (s *Suite) TestGetManifest() {
+	if s.Tests.ManifestsDisbabled {
+		s.T().SkipNow()
+	}
+
 	name := RandomName()
 	digest, _, content := RandomManifest()
 
@@ -90,6 +98,10 @@ func (s *Suite) TestGetManifest() {
 }
 
 func (s *Suite) TestPutManifest() {
+	if s.Tests.ManifestsDisbabled {
+		s.T().SkipNow()
+	}
+
 	name := RandomName()
 
 	s.T().Run("Put and retrieve a manifest", func(t *testing.T) {
@@ -134,6 +146,10 @@ func (s *Suite) TestPutManifest() {
 }
 
 func (s *Suite) TestDeleteManifest() {
+	if s.Tests.ManifestsDisbabled {
+		s.T().SkipNow()
+	}
+
 	s.T().Run("Delete manifest and make sure it cannot be retrieved", func(t *testing.T) {
 		name := RandomName()
 		digest, _, content := RandomManifest()

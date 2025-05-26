@@ -10,6 +10,10 @@ import (
 )
 
 func (s *Suite) TestStatUpload() {
+	if s.Tests.UploadsDisabled {
+		s.T().SkipNow()
+	}
+
 	s.T().Run("stat upload returns correct FileInfo", func(t *testing.T) {
 		name := RandomName()
 		content := RandomContents(32)
@@ -39,6 +43,10 @@ func (s *Suite) TestStatUpload() {
 }
 
 func (s *Suite) TestBlobUploadsMonolithic() {
+	if s.Tests.UploadsDisabled {
+		s.T().SkipNow()
+	}
+
 	name := RandomName()
 
 	s.T().Run("Monolithic blob upload - happy path", func(t *testing.T) {
@@ -95,6 +103,10 @@ func (s *Suite) TestBlobUploadsMonolithic() {
 }
 
 func (s *Suite) TestServiceUpload() {
+	if s.Tests.UploadsDisabled {
+		s.T().SkipNow()
+	}
+
 	name := RandomName()
 
 	s.T().Run("written upload is retrievable", func(t *testing.T) {
