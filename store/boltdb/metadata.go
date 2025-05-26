@@ -99,12 +99,17 @@ func (s *metadataStore) GetManifest(name string, digest digest.Digest) (*store.M
 	var meta manifestMetadata
 
 	err := s.db.View(func(tx *bolt.Tx) error {
-		manifests, err := s.manifestsForRepo(tx, name)
-		if err != nil {
-			return err
+		repo := tx.Bucket([]byte(name))
+		if repo == nil {
+			return store.ErrNotFound
 		}
 
-		content := manifests.Get([]byte(digest))
+		manifests := repo.Bucket([]byte("manifests"))
+		if manifests == nil {
+			return store.ErrNotFound
+		}
+
+		content := manifests.Get([]byte(digest.String()))
 		if content == nil {
 			return store.ErrNotFound
 		}
@@ -141,9 +146,14 @@ func (s *metadataStore) PutManifest(name string, digest digest.Digest, meta *sto
 	}
 
 	return s.db.Update(func(tx *bolt.Tx) error {
-		manifests, err := s.manifestsForRepo(tx, name)
+		repo, err := tx.CreateBucketIfNotExists([]byte(name))
 		if err != nil {
-			return err
+			return store.ErrNotFound
+		}
+
+		manifests, err := repo.CreateBucketIfNotExists([]byte("manifests"))
+		if err != nil {
+			return store.ErrNotFound
 		}
 
 		return manifests.Put([]byte(digest.String()), buf.Bytes())
@@ -152,9 +162,14 @@ func (s *metadataStore) PutManifest(name string, digest digest.Digest, meta *sto
 
 func (s *metadataStore) DeleteManifest(name string, digest digest.Digest) error {
 	return s.db.Update(func(tx *bolt.Tx) error {
-		manifests, err := s.manifestsForRepo(tx, name)
-		if err != nil {
-			return err
+		repo := tx.Bucket([]byte(name))
+		if repo == nil {
+			return store.ErrNotFound
+		}
+
+		manifests := repo.Bucket([]byte("manifests"))
+		if manifests == nil {
+			return store.ErrNotFound
 		}
 
 		return manifests.Delete([]byte(digest.String()))
