@@ -5,16 +5,33 @@ import (
 	"encoding/gob"
 	"path/filepath"
 
-	"github.com/opencontainers/go-digest"
 	"github.com/robinkb/cascade-registry/store"
+
+	"github.com/opencontainers/go-digest"
 	bolt "go.etcd.io/bbolt"
 )
 
-func NewMetadataStore(baseDir string) *metadataStore {
+var (
+	_REPOSITORIES = []byte("REPOSITORIES")
+	_BLOBS        = []byte("BLOBS")
+	_MANIFESTS    = []byte("MANIFESTS")
+	_TAGS         = []byte("TAGS")
+	_UPLOADS      = []byte("UPLOADS")
+	_METADATA     = []byte("METADATA")
+)
+
+func NewMetadataStore(baseDir string) store.Metadata {
 	path := filepath.Join(baseDir, "bolt.db")
 
 	db, err := bolt.Open(path, 0600, nil)
 	if err != nil {
+		panic(err)
+	}
+
+	if err := db.Update(func(tx *bolt.Tx) error {
+		_, err := tx.CreateBucketIfNotExists(_REPOSITORIES)
+		return err
+	}); err != nil {
 		panic(err)
 	}
 
@@ -41,12 +58,12 @@ type tagMetadata struct {
 
 func (s *metadataStore) GetBlob(name string, digest digest.Digest) (string, error) {
 	err := s.db.View(func(tx *bolt.Tx) error {
-		repo := tx.Bucket([]byte(name))
+		repo := tx.Bucket(_REPOSITORIES).Bucket([]byte(name))
 		if repo == nil {
 			return store.ErrNotFound
 		}
 
-		blobs := repo.Bucket([]byte("BLOBS"))
+		blobs := repo.Bucket(_BLOBS)
 		if blobs == nil {
 			return store.ErrNotFound
 		}
@@ -64,12 +81,12 @@ func (s *metadataStore) GetBlob(name string, digest digest.Digest) (string, erro
 
 func (s *metadataStore) PutBlob(name string, digest digest.Digest) error {
 	return s.db.Update(func(tx *bolt.Tx) error {
-		repo, err := tx.CreateBucketIfNotExists([]byte(name))
+		repo, err := tx.Bucket(_REPOSITORIES).CreateBucketIfNotExists([]byte(name))
 		if err != nil {
 			return store.ErrNotFound
 		}
 
-		blobs, err := repo.CreateBucketIfNotExists([]byte("BLOBS"))
+		blobs, err := repo.CreateBucketIfNotExists(_BLOBS)
 		if err != nil {
 			return store.ErrNotFound
 		}
@@ -80,12 +97,12 @@ func (s *metadataStore) PutBlob(name string, digest digest.Digest) error {
 
 func (s *metadataStore) DeleteBlob(name string, digest digest.Digest) error {
 	return s.db.Update(func(tx *bolt.Tx) error {
-		repo := tx.Bucket([]byte(name))
+		repo := tx.Bucket(_REPOSITORIES).Bucket([]byte(name))
 		if repo == nil {
 			return store.ErrNotFound
 		}
 
-		blobs := repo.Bucket([]byte("BLOBS"))
+		blobs := repo.Bucket(_BLOBS)
 		if blobs == nil {
 			return store.ErrNotFound
 		}
@@ -99,12 +116,12 @@ func (s *metadataStore) GetManifest(name string, digest digest.Digest) (*store.M
 	var meta manifestMetadata
 
 	err := s.db.View(func(tx *bolt.Tx) error {
-		repo := tx.Bucket([]byte(name))
+		repo := tx.Bucket(_REPOSITORIES).Bucket([]byte(name))
 		if repo == nil {
 			return store.ErrNotFound
 		}
 
-		manifests := repo.Bucket([]byte("MANIFESTS"))
+		manifests := repo.Bucket(_MANIFESTS)
 		if manifests == nil {
 			return store.ErrNotFound
 		}
@@ -114,7 +131,7 @@ func (s *metadataStore) GetManifest(name string, digest digest.Digest) (*store.M
 			return store.ErrNotFound
 		}
 
-		meta := manifest.Get([]byte("META"))
+		meta := manifest.Get(_METADATA)
 		if meta == nil {
 			return store.ErrNotFound
 		}
@@ -151,12 +168,12 @@ func (s *metadataStore) PutManifest(name string, digest digest.Digest, metadata 
 	}
 
 	return s.db.Update(func(tx *bolt.Tx) error {
-		repo, err := tx.CreateBucketIfNotExists([]byte(name))
+		repo, err := tx.Bucket(_REPOSITORIES).CreateBucketIfNotExists([]byte(name))
 		if err != nil {
 			return err
 		}
 
-		manifests, err := repo.CreateBucketIfNotExists([]byte("MANIFESTS"))
+		manifests, err := repo.CreateBucketIfNotExists(_MANIFESTS)
 		if err != nil {
 			return err
 		}
@@ -166,18 +183,18 @@ func (s *metadataStore) PutManifest(name string, digest digest.Digest, metadata 
 			return err
 		}
 
-		return manifest.Put([]byte("META"), buf.Bytes())
+		return manifest.Put(_METADATA, buf.Bytes())
 	})
 }
 
 func (s *metadataStore) DeleteManifest(name string, digest digest.Digest) error {
 	return s.db.Update(func(tx *bolt.Tx) error {
-		repo := tx.Bucket([]byte(name))
+		repo := tx.Bucket(_REPOSITORIES).Bucket([]byte(name))
 		if repo == nil {
 			return store.ErrNotFound
 		}
 
-		manifests := repo.Bucket([]byte("MANIFESTS"))
+		manifests := repo.Bucket(_MANIFESTS)
 		if manifests == nil {
 			return store.ErrNotFound
 		}
@@ -190,12 +207,12 @@ func (s *metadataStore) ListTags(name string, count int, last string) ([]string,
 	result := make([]string, 0)
 
 	err := s.db.View(func(tx *bolt.Tx) error {
-		repo := tx.Bucket([]byte(name))
+		repo := tx.Bucket(_REPOSITORIES).Bucket([]byte(name))
 		if repo == nil {
 			return store.ErrNotFound
 		}
 
-		tags := repo.Bucket([]byte("TAGS"))
+		tags := repo.Bucket(_TAGS)
 		if tags == nil {
 			return store.ErrNotFound
 		}
@@ -232,12 +249,12 @@ func (s *metadataStore) GetTag(name string, tag string) (digest.Digest, error) {
 	var meta tagMetadata
 
 	err := s.db.View(func(tx *bolt.Tx) error {
-		repo := tx.Bucket([]byte(name))
+		repo := tx.Bucket(_REPOSITORIES).Bucket([]byte(name))
 		if repo == nil {
 			return store.ErrNotFound
 		}
 
-		tags := repo.Bucket([]byte("TAGS"))
+		tags := repo.Bucket(_TAGS)
 		if tags == nil {
 			return store.ErrNotFound
 		}
@@ -271,12 +288,12 @@ func (s *metadataStore) PutTag(name string, tag string, digest digest.Digest) er
 	}
 
 	return s.db.Update(func(tx *bolt.Tx) error {
-		repo, err := tx.CreateBucketIfNotExists([]byte(name))
+		repo, err := tx.Bucket(_REPOSITORIES).CreateBucketIfNotExists([]byte(name))
 		if err != nil {
 			return store.ErrNotFound
 		}
 
-		tags, err := repo.CreateBucketIfNotExists([]byte("TAGS"))
+		tags, err := repo.CreateBucketIfNotExists(_TAGS)
 		if err != nil {
 			return store.ErrNotFound
 		}
@@ -287,12 +304,12 @@ func (s *metadataStore) PutTag(name string, tag string, digest digest.Digest) er
 
 func (s *metadataStore) DeleteTag(name string, tag string) error {
 	return s.db.Update(func(tx *bolt.Tx) error {
-		repo := tx.Bucket([]byte(name))
+		repo := tx.Bucket(_REPOSITORIES).Bucket([]byte(name))
 		if repo == nil {
 			return store.ErrNotFound
 		}
 
-		tags := repo.Bucket([]byte("TAGS"))
+		tags := repo.Bucket(_TAGS)
 		if tags == nil {
 			return store.ErrNotFound
 		}
@@ -310,12 +327,12 @@ func (s *metadataStore) GetUploadSession(name string, id string) (*store.UploadS
 	var session store.UploadSession
 
 	err := s.db.View(func(tx *bolt.Tx) error {
-		repo := tx.Bucket([]byte(name))
+		repo := tx.Bucket(_REPOSITORIES).Bucket([]byte(name))
 		if repo == nil {
 			return store.ErrNotFound
 		}
 
-		uploads := repo.Bucket([]byte("UPLOADS"))
+		uploads := repo.Bucket(_UPLOADS)
 		if uploads == nil {
 			return store.ErrNotFound
 		}
@@ -343,12 +360,12 @@ func (s *metadataStore) PutUploadSession(name string, session *store.UploadSessi
 	}
 
 	return s.db.Update(func(tx *bolt.Tx) error {
-		repo, err := tx.CreateBucketIfNotExists([]byte(name))
+		repo, err := tx.Bucket(_REPOSITORIES).CreateBucketIfNotExists([]byte(name))
 		if err != nil {
 			return store.ErrNotFound
 		}
 
-		uploads, err := repo.CreateBucketIfNotExists([]byte("UPLOADS"))
+		uploads, err := repo.CreateBucketIfNotExists(_UPLOADS)
 		if err != nil {
 			return store.ErrNotFound
 		}
@@ -359,12 +376,12 @@ func (s *metadataStore) PutUploadSession(name string, session *store.UploadSessi
 
 func (s *metadataStore) DeleteUploadSession(name string, id string) error {
 	return s.db.Update(func(tx *bolt.Tx) error {
-		repo := tx.Bucket([]byte(name))
+		repo := tx.Bucket(_REPOSITORIES).Bucket([]byte(name))
 		if repo == nil {
 			return store.ErrNotFound
 		}
 
-		uploads := repo.Bucket([]byte("UPLOADS"))
+		uploads := repo.Bucket(_UPLOADS)
 		if uploads == nil {
 			return store.ErrNotFound
 		}
