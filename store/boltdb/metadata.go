@@ -223,15 +223,7 @@ func (s *metadataStore) ListTags(name string, count int, last string) ([]string,
 			k, _ = cursor.Next()
 		}
 		i := 0
-		for {
-			if k == nil {
-				break
-			}
-
-			if count != -1 && i >= count {
-				break
-			}
-
+		for k != nil && (count == -1 || i < count) {
 			result = append(result, string(k))
 			i++
 
