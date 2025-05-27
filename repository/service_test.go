@@ -59,13 +59,6 @@ func TestWithBoltDBStore(t *testing.T) {
 
 			return metadata, blobs
 		},
-		Tests: Tests{
-			BlobsDisabled:      false,
-			ManifestsDisbabled: false,
-			TagsDisabled:       false,
-			UploadsDisabled:    false,
-			ReferrersDisabled:  false,
-		},
 	})
 }
 
