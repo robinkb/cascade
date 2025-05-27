@@ -12,12 +12,13 @@ import (
 )
 
 var (
-	_REPOSITORIES = []byte("REPOSITORIES")
 	_BLOBS        = []byte("BLOBS")
 	_MANIFESTS    = []byte("MANIFESTS")
+	_METADATA     = []byte("METADATA")
+	_REFERRERS    = []byte("REFERRERS")
+	_REPOSITORIES = []byte("REPOSITORIES")
 	_TAGS         = []byte("TAGS")
 	_UPLOADS      = []byte("UPLOADS")
-	_METADATA     = []byte("METADATA")
 )
 
 func NewMetadataStore(baseDir string) store.Metadata {
@@ -309,8 +310,43 @@ func (s *metadataStore) DeleteTag(name string, tag string) error {
 	})
 }
 
-func (s *metadataStore) ListReferrers(name string, digest digest.Digest) ([]digest.Digest, error) {
-	return nil, nil
+func (s *metadataStore) ListReferrers(name string, subject digest.Digest) ([]digest.Digest, error) {
+	refs := make([]digest.Digest, 0)
+
+	err := s.db.View(func(tx *bolt.Tx) error {
+		repo := tx.Bucket(_REPOSITORIES).Bucket([]byte(name))
+		if repo == nil {
+			return store.ErrNotFound
+		}
+
+		manifests := repo.Bucket(_MANIFESTS)
+		if manifests == nil {
+			return store.ErrNotFound
+		}
+
+		manifest := repo.Bucket([]byte(subject))
+		if manifest == nil {
+			return nil
+		}
+
+		referrers := manifest.Bucket(_REFERRERS)
+		if referrers == nil {
+			return store.ErrNotFound
+		}
+
+		c := referrers.Cursor()
+		for k, _ := c.First(); k != nil; k, _ = c.Next() {
+			d, err := digest.Parse(string(k))
+			if err != nil {
+				return err
+			}
+			refs = append(refs, d)
+		}
+
+		return nil
+	})
+
+	return refs, err
 }
 
 func (s *metadataStore) GetUploadSession(name string, id string) (*store.UploadSession, error) {
