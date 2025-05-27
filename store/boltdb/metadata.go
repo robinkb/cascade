@@ -218,8 +218,10 @@ func (s *metadataStore) ListTags(name string, count int, last string) ([]string,
 		}
 
 		cursor := tags.Cursor()
+		// If 'last' is empty, the cursor is placed at the first key.
 		k, _ := cursor.Seek([]byte(last))
 		if last != "" {
+			// If 'last' is not empty, we should start at the tag after the last one.
 			k, _ = cursor.Next()
 		}
 		for i := 0; k != nil && (count == -1 || i < count); i++ {
