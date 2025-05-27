@@ -1,27 +1,19 @@
-# Generate expecter utility around mock's On, Run and Return methods with explicit types.
-with-expecter: True
 # Collect all of the mocks under the `testing/mock` package.
 # Easy to find and import them all.
 dir: testing/mock
-# Name of the package, ie. the file will start with `package mock`.
-outpkg: "mock"
-# A mock will have the exact name of the interface that it's mocking.
-# Results in imported names like `mock.RegistryService`, which is 👌
-mockname: "{{ .InterfaceName }}"
 # Make sure that filenames are consistent with the rest of the repository.
 filename: "{{ snakecase .InterfaceName }}.go"
-
+# A mock will have the exact name of the interface that it's mocking.
+# Results in imported names like `mock.RegistryService`, which is 👌
+structname: '{{ .InterfaceName }}'
+# Name of the package, ie. the file will start with `package mock`.
+pkgname: mock
+template: testify
 # Explicitly select with interfaces to generate mocks for.
 packages:
-    github.com/robinkb/cascade-registry:
-        interfaces:
-            RegistryService:
-    github.com/robinkb/cascade-registry/repository:
-        interfaces:
-            RepositoryService:
-
-# These remaining directives are deprecated and will become the defaults
-# in the next major version update of Mockery.
-resolve-type-alias: False
-disable-version-string: True
-issue-845-fix: true
+  github.com/robinkb/cascade-registry:
+    interfaces:
+      RegistryService: {}
+  github.com/robinkb/cascade-registry/repository:
+    interfaces:
+      RepositoryService: {}

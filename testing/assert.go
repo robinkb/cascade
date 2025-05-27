@@ -185,16 +185,16 @@ func AssertEqual[T comparable](t *testing.T, got, want T) bool {
 	return true
 }
 
-func AssertSlicesEqual[S ~[]E, E comparable](t *testing.T, got S, wamt S) bool {
+func AssertSlicesEqual[S ~[]E, E comparable](t *testing.T, got S, want S) bool {
 	t.Helper()
 
-	if len(got) != len(wamt) {
-		t.Errorf("slices are of unequal length; got %d, want %d", len(wamt), len(got))
+	if len(got) != len(want) {
+		t.Errorf("slices are of unequal length; got %d, want %d", len(got), len(want))
 		return false
 	}
 
-	if !slices.Equal(got, wamt) {
-		t.Errorf("slices are not equal;\ngot\n%v\nwant\n%v", wamt, got)
+	if !slices.Equal(got, want) {
+		t.Errorf("slices are not equal;\ngot\n%v\nwant\n%v", got, want)
 		return false
 	}
 	return true

@@ -5,6 +5,7 @@ import (
 
 	"github.com/robinkb/cascade-registry/repository"
 	"github.com/robinkb/cascade-registry/store"
+	"github.com/robinkb/cascade-registry/store/boltdb"
 	"github.com/robinkb/cascade-registry/store/fs"
 	"github.com/robinkb/cascade-registry/store/inmemory"
 	"github.com/stretchr/testify/suite"
@@ -43,6 +44,17 @@ func TestWithInMemoryStore(t *testing.T) {
 	suite.Run(t, &Suite{
 		StoreConstructor: func() (store.Metadata, store.Blobs) {
 			metadata := inmemory.NewMetadataStore()
+			blobs := inmemory.NewBlobStore()
+
+			return metadata, blobs
+		},
+	})
+}
+
+func TestWithBoltDBStore(t *testing.T) {
+	suite.Run(t, &Suite{
+		StoreConstructor: func() (store.Metadata, store.Blobs) {
+			metadata := boltdb.NewMetadataStore(t.TempDir())
 			blobs := inmemory.NewBlobStore()
 
 			return metadata, blobs

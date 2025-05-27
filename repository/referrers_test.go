@@ -9,6 +9,10 @@ import (
 )
 
 func (s *Suite) TestListReferrers() {
+	if s.Tests.ReferrersDisabled {
+		s.T().SkipNow()
+	}
+
 	name := RandomName()
 
 	digest, _, content := RandomManifest()
@@ -29,7 +33,7 @@ func (s *Suite) TestListReferrers() {
 
 	s.T().Run("Fetch full list of referrers", func(t *testing.T) {
 		got, err := s.repository.ListReferrers(name, digest.String(), nil)
-		AssertNoError(t, err)
+		RequireNoError(t, err)
 		AssertIndex(t, got.Index, wantIndex)
 		AssertSlicesEqual(t, got.AppliedFilters, []string{})
 	})
@@ -38,7 +42,7 @@ func (s *Suite) TestListReferrers() {
 		got, err := s.repository.ListReferrers(name, digest.String(), &repository.ListReferrersOptions{
 			ArtifactType: "application/vnd.example+type",
 		})
-		AssertNoError(t, err)
+		RequireNoError(t, err)
 		AssertIndex(t, got.Index, wantFilteredIndex)
 		AssertSlicesEqual(t, got.AppliedFilters, []string{"artifactType"})
 	})
@@ -50,7 +54,7 @@ func (s *Suite) TestListReferrers() {
 		RequireNoError(t, err)
 
 		got, err := s.repository.ListReferrers(name, digest.String(), nil)
-		AssertNoError(t, err)
+		RequireNoError(t, err)
 		AssertEqual(t, len(got.Index.Manifests), 0)
 	})
 
@@ -67,7 +71,7 @@ func (s *Suite) TestListReferrers() {
 		RequireNoError(t, err)
 
 		got, err := s.repository.ListReferrers(name, digest.String(), nil)
-		AssertNoError(t, err)
+		RequireNoError(t, err)
 		AssertIndex(t, got.Index, wantIndex)
 	})
 
