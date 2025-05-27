@@ -183,7 +183,26 @@ func (s *metadataStore) PutManifest(name string, digest digest.Digest, metadata 
 			return err
 		}
 
-		return manifest.Put(_METADATA, buf.Bytes())
+		err = manifest.Put(_METADATA, buf.Bytes())
+		if err != nil {
+			return err
+		}
+
+		if metadata.Subject != "" {
+			subject, err := manifests.CreateBucketIfNotExists([]byte(metadata.Subject.String()))
+			if err != nil {
+				return err
+			}
+
+			referrers, err := subject.CreateBucketIfNotExists(_REFERRERS)
+			if err != nil {
+				return err
+			}
+
+			return referrers.Put([]byte(digest.String()), []byte{})
+		}
+
+		return nil
 	})
 }
 
@@ -323,14 +342,17 @@ func (s *metadataStore) ListReferrers(name string, subject digest.Digest) ([]dig
 			return store.ErrNotFound
 		}
 
-		manifest := repo.Bucket([]byte(subject))
+		manifest := manifests.Bucket([]byte(subject))
 		if manifest == nil {
 			return nil
 		}
 
 		referrers := manifest.Bucket(_REFERRERS)
 		if referrers == nil {
-			return store.ErrNotFound
+			// TODO: This probably shouldn't happen
+			// because a manifest's bucket should always
+			// contain a REFERRERS bucket.
+			return nil
 		}
 
 		c := referrers.Cursor()
