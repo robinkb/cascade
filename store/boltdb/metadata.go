@@ -42,7 +42,6 @@ func NewMetadataStore(baseDir string) store.Metadata {
 }
 
 type metadataStore struct {
-	store.Metadata
 	db *bolt.DB
 }
 
