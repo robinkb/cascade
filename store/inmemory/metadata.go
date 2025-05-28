@@ -171,7 +171,11 @@ func (s *metadataStore) GetTag(repository, tag string) (godigest.Digest, error) 
 }
 
 func (s *metadataStore) PutTag(repository, tag string, digest godigest.Digest) error {
-	s.repositories[repository].tags[tag] = &ttag{
+	repo, ok := s.repositories[repository]
+	if !ok {
+		return store.ErrRepositoryNotFound
+	}
+	repo.tags[tag] = &ttag{
 		digest: digest,
 	}
 	return nil
@@ -203,16 +207,22 @@ func (s *metadataStore) ListReferrers(repository string, digest godigest.Digest)
 }
 
 func (s *metadataStore) GetUploadSession(repository, id string) (*store.UploadSession, error) {
-	if repo, ok := s.repositories[repository]; ok {
-		if session, ok := repo.uploadSessions[id]; ok {
-			return session, nil
-		}
+	repo, ok := s.repositories[repository]
+	if !ok {
+		return nil, store.ErrRepositoryNotFound
+	}
+	if session, ok := repo.uploadSessions[id]; ok {
+		return session, nil
 	}
 	return nil, store.ErrNotFound
 }
 
 func (s *metadataStore) PutUploadSession(repository string, session *store.UploadSession) error {
-	s.repositories[repository].uploadSessions[session.ID.String()] = session
+	repo, ok := s.repositories[repository]
+	if !ok {
+		return store.ErrRepositoryNotFound
+	}
+	repo.uploadSessions[session.ID.String()] = session
 	return nil
 }
 
