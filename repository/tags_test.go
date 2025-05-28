@@ -13,7 +13,7 @@ func (s *Suite) TestGetTag() {
 		s.T().SkipNow()
 	}
 
-	name := RandomName()
+	name := s.RandomRepository()
 
 	s.T().Run("Manifest digest is retrievable by tag", func(t *testing.T) {
 		digest := RandomDigest()
@@ -41,7 +41,7 @@ func (s *Suite) TestPutTag() {
 		s.T().SkipNow()
 	}
 
-	name := RandomName()
+	name := s.RandomRepository()
 
 	s.T().Run("Tag creates a link to the manifest digest", func(t *testing.T) {
 		digest, _, content := RandomManifest()
@@ -61,6 +61,15 @@ func (s *Suite) TestPutTag() {
 
 		AssertSlicesEqual(t, gotManifest, content)
 	})
+
+	s.T().Run("Creating tag on unknown repository returns ErrNameUnknown", func(t *testing.T) {
+		name := RandomName()
+		digest := RandomDigest()
+		tag := RandomVersion()
+
+		err := s.repository.PutTag(name, tag, digest.String())
+		AssertErrorIs(t, err, repository.ErrNameUnknown)
+	})
 }
 
 func (s *Suite) TestDeleteTag() {
@@ -68,7 +77,7 @@ func (s *Suite) TestDeleteTag() {
 		s.T().SkipNow()
 	}
 
-	name := RandomName()
+	name := s.RandomRepository()
 
 	s.T().Run("Deleted tag is not retrievable", func(t *testing.T) {
 		digest := RandomDigest()
@@ -94,7 +103,7 @@ func (s *Suite) TestListTag() {
 	}
 
 	s.T().Run("Listing tags returns all in lexical order", func(t *testing.T) {
-		name := RandomName()
+		name := s.RandomRepository()
 		digest := RandomDigest()
 		tags := []string{
 			"v1.0.0",
@@ -117,7 +126,7 @@ func (s *Suite) TestListTag() {
 	})
 
 	s.T().Run("Listing tags with a count limit returns fewer tags", func(t *testing.T) {
-		name := RandomName()
+		name := s.RandomRepository()
 		digest := RandomDigest()
 		tags := RandomTags(20)
 		count := 5
@@ -138,7 +147,7 @@ func (s *Suite) TestListTag() {
 	})
 
 	s.T().Run("Listing tags with a count of 0 must return an empty list", func(t *testing.T) {
-		name := RandomName()
+		name := s.RandomRepository()
 		digest := RandomDigest()
 		tags := RandomTags(5)
 		count := 0
@@ -155,7 +164,7 @@ func (s *Suite) TestListTag() {
 	})
 
 	s.T().Run("Listing tags with a count greater than the number of tags returns all tags", func(t *testing.T) {
-		name := RandomName()
+		name := s.RandomRepository()
 		digest := RandomDigest()
 		tags := RandomTags(5)
 		count := 10
@@ -173,7 +182,7 @@ func (s *Suite) TestListTag() {
 	})
 
 	s.T().Run("Listing tags from a certain tag only returns tags after that tag", func(t *testing.T) {
-		name := RandomName()
+		name := s.RandomRepository()
 		digest := RandomDigest()
 		tags := RandomTags(10)
 		count := 3
@@ -195,7 +204,7 @@ func (s *Suite) TestListTag() {
 	})
 
 	s.T().Run("When listing tags from a certain tag, the count parameter may be -1 to return all tags", func(t *testing.T) {
-		name := RandomName()
+		name := s.RandomRepository()
 		digest := RandomDigest()
 		tags := RandomTags(10)
 		count := -1

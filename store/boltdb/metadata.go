@@ -56,6 +56,42 @@ type tagMetadata struct {
 	Digest digest.Digest
 }
 
+func (s *metadataStore) CreateRepository(name string) error {
+	return s.db.Update(func(tx *bolt.Tx) error {
+		repos := tx.Bucket(_REPOSITORIES)
+
+		repo, err := repos.CreateBucket([]byte(name))
+		if err != nil {
+			return err
+		}
+
+		for _, bucket := range [][]byte{_BLOBS, _MANIFESTS, _TAGS, _UPLOADS} {
+			_, err = repo.CreateBucket(bucket)
+			if err != nil {
+				return err
+			}
+		}
+
+		return nil
+	})
+}
+
+func (s *metadataStore) GetRepository(name string) error {
+	return s.db.View(func(tx *bolt.Tx) error {
+		repo := tx.Bucket(_REPOSITORIES).Bucket([]byte(name))
+		if repo == nil {
+			return store.ErrRepositoryNotFound
+		}
+		return nil
+	})
+}
+
+func (s *metadataStore) DeleteRepository(name string) error {
+	return s.db.Update(func(tx *bolt.Tx) error {
+		return tx.Bucket(_REPOSITORIES).DeleteBucket([]byte(name))
+	})
+}
+
 func (s *metadataStore) GetBlob(name string, digest digest.Digest) (string, error) {
 	err := s.db.View(func(tx *bolt.Tx) error {
 		repo := tx.Bucket(_REPOSITORIES).Bucket([]byte(name))
@@ -63,12 +99,7 @@ func (s *metadataStore) GetBlob(name string, digest digest.Digest) (string, erro
 			return store.ErrNotFound
 		}
 
-		blobs := repo.Bucket(_BLOBS)
-		if blobs == nil {
-			return store.ErrNotFound
-		}
-
-		blob := blobs.Get([]byte(digest.String()))
+		blob := repo.Bucket(_BLOBS).Get([]byte(digest.String()))
 		if blob == nil {
 			return store.ErrNotFound
 		}
@@ -81,17 +112,12 @@ func (s *metadataStore) GetBlob(name string, digest digest.Digest) (string, erro
 
 func (s *metadataStore) PutBlob(name string, digest digest.Digest) error {
 	return s.db.Update(func(tx *bolt.Tx) error {
-		repo, err := tx.Bucket(_REPOSITORIES).CreateBucketIfNotExists([]byte(name))
-		if err != nil {
+		repo := tx.Bucket(_REPOSITORIES).Bucket([]byte(name))
+		if repo == nil {
 			return store.ErrNotFound
 		}
 
-		blobs, err := repo.CreateBucketIfNotExists(_BLOBS)
-		if err != nil {
-			return store.ErrNotFound
-		}
-
-		return blobs.Put([]byte(digest.String()), []byte{})
+		return repo.Bucket(_BLOBS).Put([]byte(digest.String()), []byte{})
 	})
 }
 
@@ -102,12 +128,7 @@ func (s *metadataStore) DeleteBlob(name string, digest digest.Digest) error {
 			return store.ErrNotFound
 		}
 
-		blobs := repo.Bucket(_BLOBS)
-		if blobs == nil {
-			return store.ErrNotFound
-		}
-
-		return blobs.Delete([]byte(digest.String()))
+		return repo.Bucket(_BLOBS).Delete([]byte(digest.String()))
 	})
 }
 
@@ -118,22 +139,17 @@ func (s *metadataStore) GetManifest(name string, digest digest.Digest) (*store.M
 	err := s.db.View(func(tx *bolt.Tx) error {
 		repo := tx.Bucket(_REPOSITORIES).Bucket([]byte(name))
 		if repo == nil {
-			return store.ErrNotFound
+			return store.ErrRepositoryNotFound
 		}
 
-		manifests := repo.Bucket(_MANIFESTS)
-		if manifests == nil {
-			return store.ErrNotFound
-		}
-
-		manifest := manifests.Bucket([]byte(digest.String()))
+		manifest := repo.Bucket(_MANIFESTS).Bucket([]byte(digest.String()))
 		if manifest == nil {
-			return store.ErrNotFound
+			return store.ErrMetadataNotFound
 		}
 
 		meta := manifest.Get(_METADATA)
 		if meta == nil {
-			return store.ErrNotFound
+			return store.ErrMetadataNotFound
 		}
 		buf = bytes.NewBuffer(meta)
 		return nil
@@ -168,17 +184,12 @@ func (s *metadataStore) PutManifest(name string, digest digest.Digest, metadata 
 	}
 
 	return s.db.Update(func(tx *bolt.Tx) error {
-		repo, err := tx.Bucket(_REPOSITORIES).CreateBucketIfNotExists([]byte(name))
-		if err != nil {
-			return err
+		repo := tx.Bucket(_REPOSITORIES).Bucket([]byte(name))
+		if repo == nil {
+			return store.ErrRepositoryNotFound
 		}
 
-		manifests, err := repo.CreateBucketIfNotExists(_MANIFESTS)
-		if err != nil {
-			return err
-		}
-
-		manifest, err := manifests.CreateBucketIfNotExists([]byte(digest.String()))
+		manifest, err := s.createManifestBucketIfNotExists(repo.Bucket(_MANIFESTS), digest)
 		if err != nil {
 			return err
 		}
@@ -189,17 +200,12 @@ func (s *metadataStore) PutManifest(name string, digest digest.Digest, metadata 
 		}
 
 		if metadata.Subject != "" {
-			subject, err := manifests.CreateBucketIfNotExists([]byte(metadata.Subject.String()))
+			subject, err := s.createManifestBucketIfNotExists(repo.Bucket(_MANIFESTS), metadata.Subject)
 			if err != nil {
 				return err
 			}
 
-			referrers, err := subject.CreateBucketIfNotExists(_REFERRERS)
-			if err != nil {
-				return err
-			}
-
-			return referrers.Put([]byte(digest.String()), []byte{})
+			return subject.Bucket(_REFERRERS).Put([]byte(digest.String()), []byte{})
 		}
 
 		return nil
@@ -213,17 +219,12 @@ func (s *metadataStore) DeleteManifest(name string, digest digest.Digest) error 
 			return store.ErrNotFound
 		}
 
-		manifests := repo.Bucket(_MANIFESTS)
-		if manifests == nil {
-			return store.ErrNotFound
-		}
-
-		return manifests.DeleteBucket([]byte(digest.String()))
+		return repo.Bucket(_MANIFESTS).DeleteBucket([]byte(digest.String()))
 	})
 }
 
 func (s *metadataStore) ListTags(name string, count int, last string) ([]string, error) {
-	result := make([]string, 0)
+	tags := make([]string, 0)
 
 	err := s.db.View(func(tx *bolt.Tx) error {
 		repo := tx.Bucket(_REPOSITORIES).Bucket([]byte(name))
@@ -231,12 +232,7 @@ func (s *metadataStore) ListTags(name string, count int, last string) ([]string,
 			return store.ErrNotFound
 		}
 
-		tags := repo.Bucket(_TAGS)
-		if tags == nil {
-			return store.ErrNotFound
-		}
-
-		cursor := tags.Cursor()
+		cursor := repo.Bucket(_TAGS).Cursor()
 		// If 'last' is empty, the cursor is placed at the first key.
 		k, _ := cursor.Seek([]byte(last))
 		if last != "" {
@@ -244,14 +240,14 @@ func (s *metadataStore) ListTags(name string, count int, last string) ([]string,
 			k, _ = cursor.Next()
 		}
 		for i := 0; k != nil && (count == -1 || i < count); i++ {
-			result = append(result, string(k))
+			tags = append(tags, string(k))
 			k, _ = cursor.Next()
 		}
 
 		return nil
 	})
 
-	return result, err
+	return tags, err
 }
 
 func (s *metadataStore) GetTag(name string, tag string) (digest.Digest, error) {
@@ -264,12 +260,7 @@ func (s *metadataStore) GetTag(name string, tag string) (digest.Digest, error) {
 			return store.ErrNotFound
 		}
 
-		tags := repo.Bucket(_TAGS)
-		if tags == nil {
-			return store.ErrNotFound
-		}
-
-		content := tags.Get([]byte(tag))
+		content := repo.Bucket(_TAGS).Get([]byte(tag))
 		if content == nil {
 			return store.ErrNotFound
 		}
@@ -298,17 +289,12 @@ func (s *metadataStore) PutTag(name string, tag string, digest digest.Digest) er
 	}
 
 	return s.db.Update(func(tx *bolt.Tx) error {
-		repo, err := tx.Bucket(_REPOSITORIES).CreateBucketIfNotExists([]byte(name))
-		if err != nil {
-			return store.ErrNotFound
+		repo := tx.Bucket(_REPOSITORIES).Bucket([]byte(name))
+		if repo == nil {
+			return store.ErrRepositoryNotFound
 		}
 
-		tags, err := repo.CreateBucketIfNotExists(_TAGS)
-		if err != nil {
-			return store.ErrNotFound
-		}
-
-		return tags.Put([]byte(tag), buf.Bytes())
+		return repo.Bucket(_TAGS).Put([]byte(tag), buf.Bytes())
 	})
 }
 
@@ -319,12 +305,7 @@ func (s *metadataStore) DeleteTag(name string, tag string) error {
 			return store.ErrNotFound
 		}
 
-		tags := repo.Bucket(_TAGS)
-		if tags == nil {
-			return store.ErrNotFound
-		}
-
-		return tags.Delete([]byte(tag))
+		return repo.Bucket(_TAGS).Delete([]byte(tag))
 	})
 }
 
@@ -337,25 +318,12 @@ func (s *metadataStore) ListReferrers(name string, subject digest.Digest) ([]dig
 			return store.ErrNotFound
 		}
 
-		manifests := repo.Bucket(_MANIFESTS)
-		if manifests == nil {
-			return store.ErrNotFound
-		}
-
-		manifest := manifests.Bucket([]byte(subject))
+		manifest := repo.Bucket(_MANIFESTS).Bucket([]byte(subject))
 		if manifest == nil {
 			return nil
 		}
 
-		referrers := manifest.Bucket(_REFERRERS)
-		if referrers == nil {
-			// TODO: This probably shouldn't happen
-			// because a manifest's bucket should always
-			// contain a REFERRERS bucket.
-			return nil
-		}
-
-		c := referrers.Cursor()
+		c := manifest.Bucket(_REFERRERS).Cursor()
 		for k, _ := c.First(); k != nil; k, _ = c.Next() {
 			d, err := digest.Parse(string(k))
 			if err != nil {
@@ -377,15 +345,10 @@ func (s *metadataStore) GetUploadSession(name string, id string) (*store.UploadS
 	err := s.db.View(func(tx *bolt.Tx) error {
 		repo := tx.Bucket(_REPOSITORIES).Bucket([]byte(name))
 		if repo == nil {
-			return store.ErrNotFound
+			return store.ErrRepositoryNotFound
 		}
 
-		uploads := repo.Bucket(_UPLOADS)
-		if uploads == nil {
-			return store.ErrNotFound
-		}
-
-		content := uploads.Get([]byte(id))
+		content := repo.Bucket(_UPLOADS).Get([]byte(id))
 		if content == nil {
 			return store.ErrNotFound
 		}
@@ -408,17 +371,12 @@ func (s *metadataStore) PutUploadSession(name string, session *store.UploadSessi
 	}
 
 	return s.db.Update(func(tx *bolt.Tx) error {
-		repo, err := tx.Bucket(_REPOSITORIES).CreateBucketIfNotExists([]byte(name))
-		if err != nil {
-			return store.ErrNotFound
+		repo := tx.Bucket(_REPOSITORIES).Bucket([]byte(name))
+		if repo == nil {
+			return store.ErrRepositoryNotFound
 		}
 
-		uploads, err := repo.CreateBucketIfNotExists(_UPLOADS)
-		if err != nil {
-			return store.ErrNotFound
-		}
-
-		return uploads.Put([]byte(session.ID.String()), buf.Bytes())
+		return repo.Bucket(_UPLOADS).Put([]byte(session.ID.String()), buf.Bytes())
 	})
 }
 
@@ -429,11 +387,20 @@ func (s *metadataStore) DeleteUploadSession(name string, id string) error {
 			return store.ErrNotFound
 		}
 
-		uploads := repo.Bucket(_UPLOADS)
-		if uploads == nil {
-			return store.ErrNotFound
-		}
-
-		return uploads.Delete([]byte(id))
+		return repo.Bucket(_UPLOADS).Delete([]byte(id))
 	})
+}
+
+func (s *metadataStore) createManifestBucketIfNotExists(bucket *bolt.Bucket, digest digest.Digest) (*bolt.Bucket, error) {
+	manifest, err := bucket.CreateBucketIfNotExists([]byte(digest.String()))
+	if err != nil {
+		return nil, err
+	}
+
+	_, err = manifest.CreateBucketIfNotExists(_REFERRERS)
+	if err != nil {
+		return nil, err
+	}
+
+	return manifest, err
 }

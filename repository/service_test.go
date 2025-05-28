@@ -8,6 +8,7 @@ import (
 	"github.com/robinkb/cascade-registry/store/boltdb"
 	"github.com/robinkb/cascade-registry/store/fs"
 	"github.com/robinkb/cascade-registry/store/inmemory"
+	. "github.com/robinkb/cascade-registry/testing"
 	"github.com/stretchr/testify/suite"
 )
 
@@ -38,6 +39,13 @@ type Tests struct {
 func (s *Suite) SetupSuite() {
 	s.metadata, s.blobs = s.StoreConstructor()
 	s.repository = repository.NewRepositoryService(s.metadata, s.blobs)
+}
+
+func (s *Suite) RandomRepository() string {
+	name := RandomName()
+	err := s.metadata.CreateRepository(name)
+	RequireNoError(s.T(), err)
+	return name
 }
 
 func TestWithInMemoryStore(t *testing.T) {

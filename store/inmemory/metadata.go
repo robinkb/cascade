@@ -1,7 +1,6 @@
 package inmemory
 
 import (
-	"io/fs"
 	"slices"
 
 	godigest "github.com/opencontainers/go-digest"
@@ -43,8 +42,7 @@ type (
 	}
 )
 
-// TODO: Should probably be part of the MetadataStore interface?
-func (s *metadataStore) ensureRepositoryExists(name string) {
+func (s *metadataStore) CreateRepository(name string) error {
 	if _, ok := s.repositories[name]; !ok {
 		s.repositories[name] = &repository{
 			blobs:          make(map[string]*blob),
@@ -53,6 +51,19 @@ func (s *metadataStore) ensureRepositoryExists(name string) {
 			uploadSessions: make(map[string]*store.UploadSession),
 		}
 	}
+	return nil
+}
+
+func (s *metadataStore) GetRepository(name string) error {
+	if _, ok := s.repositories[name]; !ok {
+		return store.ErrRepositoryNotFound
+	}
+	return nil
+}
+
+func (s *metadataStore) DeleteRepository(name string) error {
+	delete(s.repositories, name)
+	return nil
 }
 
 func (s *metadataStore) GetBlob(repository string, digest godigest.Digest) (string, error) {
@@ -65,7 +76,6 @@ func (s *metadataStore) GetBlob(repository string, digest godigest.Digest) (stri
 }
 
 func (s *metadataStore) PutBlob(repository string, digest godigest.Digest) error {
-	s.ensureRepositoryExists(repository)
 	s.repositories[repository].blobs[digest.String()] = &blob{}
 	return nil
 }
@@ -76,21 +86,23 @@ func (s *metadataStore) DeleteBlob(repository string, digest godigest.Digest) er
 }
 
 func (s *metadataStore) GetManifest(repository string, digest godigest.Digest) (*store.ManifestMetadata, error) {
-	if repo, ok := s.repositories[repository]; ok {
-		if manifest, ok := repo.manifests[digest.String()]; ok {
-			return &store.ManifestMetadata{
-				Annotations:  manifest.annotations,
-				ArtifactType: manifest.artifactType,
-				MediaType:    manifest.mediaType,
-				Size:         manifest.size,
-			}, nil
-		}
+	repo, ok := s.repositories[repository]
+	if !ok {
+		return nil, store.ErrRepositoryNotFound
 	}
-	return nil, fs.ErrNotExist
+
+	if manifest, ok := repo.manifests[digest.String()]; ok {
+		return &store.ManifestMetadata{
+			Annotations:  manifest.annotations,
+			ArtifactType: manifest.artifactType,
+			MediaType:    manifest.mediaType,
+			Size:         manifest.size,
+		}, nil
+	}
+	return nil, store.ErrMetadataNotFound
 }
 
 func (s *metadataStore) PutManifest(repository string, digest godigest.Digest, meta *store.ManifestMetadata) error {
-	s.ensureRepositoryExists(repository)
 	manifests, ok := s.repositories[repository].manifests[digest.String()]
 	if !ok {
 		manifests = &manifest{
@@ -129,7 +141,6 @@ func (s *metadataStore) DeleteManifest(repository string, digest godigest.Digest
 func (s *metadataStore) ListTags(repository string, count int, last string) ([]string, error) {
 	tags := []string{}
 
-	s.ensureRepositoryExists(repository)
 	for key := range s.repositories[repository].tags {
 		tags = append(tags, key)
 	}
@@ -167,9 +178,11 @@ func (s *metadataStore) GetTag(repository, tag string) (godigest.Digest, error) 
 }
 
 func (s *metadataStore) PutTag(repository, tag string, digest godigest.Digest) error {
-	s.ensureRepositoryExists(repository)
-
-	s.repositories[repository].tags[tag] = &ttag{
+	repo, ok := s.repositories[repository]
+	if !ok {
+		return store.ErrRepositoryNotFound
+	}
+	repo.tags[tag] = &ttag{
 		digest: digest,
 	}
 	return nil
@@ -201,17 +214,22 @@ func (s *metadataStore) ListReferrers(repository string, digest godigest.Digest)
 }
 
 func (s *metadataStore) GetUploadSession(repository, id string) (*store.UploadSession, error) {
-	if repo, ok := s.repositories[repository]; ok {
-		if session, ok := repo.uploadSessions[id]; ok {
-			return session, nil
-		}
+	repo, ok := s.repositories[repository]
+	if !ok {
+		return nil, store.ErrRepositoryNotFound
+	}
+	if session, ok := repo.uploadSessions[id]; ok {
+		return session, nil
 	}
 	return nil, store.ErrNotFound
 }
 
 func (s *metadataStore) PutUploadSession(repository string, session *store.UploadSession) error {
-	s.ensureRepositoryExists(repository)
-	s.repositories[repository].uploadSessions[session.ID.String()] = session
+	repo, ok := s.repositories[repository]
+	if !ok {
+		return store.ErrRepositoryNotFound
+	}
+	repo.uploadSessions[session.ID.String()] = session
 	return nil
 }
 

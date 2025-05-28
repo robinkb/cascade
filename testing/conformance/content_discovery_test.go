@@ -20,12 +20,13 @@ func TestContentDiscovery(t *testing.T) {
 
 	t.Run("Listing Tags", func(t *testing.T) {
 		repository := RandomName()
-		digest := RandomDigest()
+		_, _, content := RandomManifest()
 		tags := RandomTags(50)
 
+		client := NewTestClientForHandler(t, srv)
 		for _, tag := range tags {
-			err := metadata.PutTag(repository, tag, digest)
-			RequireNoError(t, err)
+			resp := client.PutManifest(repository, tag, content)
+			AssertResponseCode(t, resp, http.StatusCreated)
 		}
 
 		// Sort the tags _after_ putting them into the registry,

@@ -13,7 +13,7 @@ func (s *Suite) TestStatBlob() {
 		s.T().SkipNow()
 	}
 
-	name := RandomName()
+	name := s.RandomRepository()
 	digest, content := RandomBlob(32 * 1024)
 
 	err := s.blobs.PutBlob(digest, content)
@@ -42,7 +42,7 @@ func (s *Suite) TestGetBlob() {
 		s.T().SkipNow()
 	}
 
-	name := RandomName()
+	name := s.RandomRepository()
 	digest, content := RandomBlob(32)
 
 	err := s.blobs.PutBlob(digest, content)
@@ -74,7 +74,7 @@ func (s *Suite) TestDeleteBlob() {
 		s.T().SkipNow()
 	}
 
-	name := RandomName()
+	name := s.RandomRepository()
 	digest, content := RandomBlob(32)
 
 	s.T().Run("A deleted blob is not retrievable", func(t *testing.T) {

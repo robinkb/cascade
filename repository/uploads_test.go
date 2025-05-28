@@ -14,8 +14,9 @@ func (s *Suite) TestStatUpload() {
 		s.T().SkipNow()
 	}
 
+	name := s.RandomRepository()
+
 	s.T().Run("stat upload returns correct FileInfo", func(t *testing.T) {
-		name := RandomName()
 		content := RandomContents(32)
 
 		session, err := s.repository.InitUpload(name)
@@ -35,7 +36,7 @@ func (s *Suite) TestStatUpload() {
 	})
 
 	s.T().Run("stat upload on unknown upload returns ErrBlobUploadUnknown", func(t *testing.T) {
-		_, err := s.repository.StatUpload("unknown/repo", "i-dont-exist")
+		_, err := s.repository.StatUpload(name, "i-dont-exist")
 		AssertErrorIs(t, err, repository.ErrBlobUploadUnknown)
 	})
 
@@ -47,7 +48,7 @@ func (s *Suite) TestBlobUploadsMonolithic() {
 		s.T().SkipNow()
 	}
 
-	name := RandomName()
+	name := s.RandomRepository()
 
 	s.T().Run("Monolithic blob upload - happy path", func(t *testing.T) {
 		digest, content := RandomBlob(32)
@@ -73,7 +74,7 @@ func (s *Suite) TestBlobUploadsMonolithic() {
 	})
 
 	s.T().Run("Uploading without a session returns ErrBlobUploadUknown", func(t *testing.T) {
-		err := s.repository.AppendUpload("fake", "abc", nil, 0)
+		err := s.repository.AppendUpload(name, "abc", nil, 0)
 		AssertErrorIs(t, err, repository.ErrBlobUploadUnknown)
 	})
 
@@ -106,12 +107,31 @@ func (s *Suite) TestBlobUploadsMonolithic() {
 	})
 }
 
+func (s *Suite) TestUploadOthers() {
+	if s.Tests.UploadsDisabled {
+		s.T().SkipNow()
+	}
+
+	s.T().Run("Initializing upload on unknown repository returns ErrNameUnknown", func(t *testing.T) {
+		name := RandomName()
+
+		_, err := s.repository.InitUpload(name)
+		AssertErrorIs(t, err, repository.ErrNameUnknown)
+	})
+
+	s.T().Run("Checking an upload on unknown repository returns ErrNameUnknown", func(t *testing.T) {
+		name := RandomName()
+		_, err := s.repository.StatUpload(name, "")
+		AssertErrorIs(t, err, repository.ErrNameUnknown)
+	})
+}
+
 func (s *Suite) TestServiceUpload() {
 	if s.Tests.UploadsDisabled {
 		s.T().SkipNow()
 	}
 
-	name := RandomName()
+	name := s.RandomRepository()
 
 	s.T().Run("written upload is retrievable", func(t *testing.T) {
 		digest, _, content := RandomManifest()
@@ -157,7 +177,7 @@ func (s *Suite) TestServiceUpload() {
 	})
 
 	s.T().Run("writing to unknown upload returns ErrBlobUploadUnknown", func(t *testing.T) {
-		err := s.repository.AppendUpload("1/2/3", "i-dont-exist", nil, 0)
+		err := s.repository.AppendUpload(name, "i-dont-exist", nil, 0)
 		AssertErrorIs(t, err, repository.ErrBlobUploadUnknown)
 	})
 }

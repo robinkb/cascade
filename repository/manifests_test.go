@@ -13,7 +13,7 @@ func (s *Suite) TestStatManifest() {
 		s.T().SkipNow()
 	}
 
-	name := RandomName()
+	name := s.RandomRepository()
 	digest, _, content := RandomManifest()
 
 	err := s.metadata.PutManifest(name, digest, &store.ManifestMetadata{})
@@ -55,7 +55,7 @@ func (s *Suite) TestGetManifest() {
 		s.T().SkipNow()
 	}
 
-	name := RandomName()
+	name := s.RandomRepository()
 	digest, _, content := RandomManifest()
 
 	err := s.metadata.PutManifest(name, digest, &store.ManifestMetadata{})
@@ -70,7 +70,7 @@ func (s *Suite) TestGetManifest() {
 	})
 
 	s.T().Run("Metadata is correctly retrieved", func(t *testing.T) {
-		name := RandomName()
+		name := s.RandomRepository()
 		want := store.ManifestMetadata{
 			Annotations: map[string]string{
 				RandomString(6): RandomString(32),
@@ -91,9 +91,14 @@ func (s *Suite) TestGetManifest() {
 		AssertStructsEqual(t, got, &want)
 	})
 
-	s.T().Run("returns ErrManifestUnknown on unknown manifest", func(t *testing.T) {
-		_, _, err := s.repository.GetManifest("i/do/not/exist", "sha256:ce5449ab65895b60068d164e81b646753d268583a70895acee51e1d711ddf3a2")
+	s.T().Run("Returns ErrManifestUnknown on unknown manifest", func(t *testing.T) {
+		_, _, err := s.repository.GetManifest(name, "sha256:ce5449ab65895b60068d164e81b646753d268583a70895acee51e1d711ddf3a2")
 		AssertErrorIs(t, err, repository.ErrManifestUnknown)
+	})
+
+	s.T().Run("Returns ErrNameUnknown on unknown repository", func(t *testing.T) {
+		_, _, err := s.repository.GetManifest(RandomName(), RandomDigest().String())
+		AssertErrorIs(t, err, repository.ErrNameUnknown)
 	})
 }
 
@@ -102,7 +107,7 @@ func (s *Suite) TestPutManifest() {
 		s.T().SkipNow()
 	}
 
-	name := RandomName()
+	name := s.RandomRepository()
 
 	s.T().Run("Put and retrieve a manifest", func(t *testing.T) {
 		digest, _, content := RandomManifest()
@@ -143,6 +148,14 @@ func (s *Suite) TestPutManifest() {
 		_, err := s.repository.PutManifest(name, digest.String(), content)
 		AssertErrorIs(t, err, repository.ErrManifestInvalid)
 	})
+
+	s.T().Run("Putting a manifest into an unknown repository returns ErrNameUnknown", func(t *testing.T) {
+		name := RandomName()
+		digest, _, content := RandomManifest()
+
+		_, err := s.repository.PutManifest(name, digest.String(), content)
+		AssertErrorIs(t, err, repository.ErrNameUnknown)
+	})
 }
 
 func (s *Suite) TestDeleteManifest() {
@@ -151,7 +164,7 @@ func (s *Suite) TestDeleteManifest() {
 	}
 
 	s.T().Run("Delete manifest and make sure it cannot be retrieved", func(t *testing.T) {
-		name := RandomName()
+		name := s.RandomRepository()
 		digest, _, content := RandomManifest()
 
 		_, err := s.repository.PutManifest(name, digest.String(), content)

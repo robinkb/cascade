@@ -36,7 +36,13 @@ func (s *repositoryService) GetManifest(repository, id string) (*store.ManifestM
 
 	meta, err := s.metadata.GetManifest(repository, digest)
 	if err != nil {
-		return nil, nil, ErrManifestUnknown
+		if errors.Is(err, store.ErrRepositoryNotFound) {
+			err = ErrNameUnknown
+		}
+		if errors.Is(err, store.ErrMetadataNotFound) {
+			err = ErrManifestUnknown
+		}
+		return nil, nil, err
 	}
 
 	content, err := s.blobs.GetBlob(digest)
@@ -53,6 +59,14 @@ func (s *repositoryService) PutManifest(repository, reference string, content []
 	digest, err := digest.Parse(reference)
 	if err != nil {
 		return "", ErrDigestInvalid
+	}
+
+	err = s.metadata.GetRepository(repository)
+	if err != nil {
+		if errors.Is(err, store.ErrRepositoryNotFound) {
+			err = ErrNameUnknown
+		}
+		return "", err
 	}
 
 	var manifest v1.Manifest
