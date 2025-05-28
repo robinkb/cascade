@@ -1,6 +1,7 @@
 package cascade_test
 
 import (
+	"sync"
 	"testing"
 
 	"github.com/robinkb/cascade-registry"
@@ -72,6 +73,24 @@ func TestRepository(t *testing.T) {
 				name := RandomName()
 				_, err := service.GetRepository(name)
 				AssertErrorIs(t, err, repository.ErrNameUnknown)
+			})
+
+			t.Run("Attempting to create the same repository concurrently doesn't fail", func(t *testing.T) {
+				// This can occur when repositories are created ad-hoc during an image push,
+				// where multiple layers are pushed concurrently.
+				name := RandomName()
+				routines := 3
+
+				var wg sync.WaitGroup
+				wg.Add(routines)
+				for range routines {
+					go func() {
+						err := service.CreateRepository(name)
+						AssertNoError(t, err)
+						wg.Done()
+					}()
+				}
+				wg.Wait()
 			})
 		})
 	}

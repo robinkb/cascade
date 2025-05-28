@@ -3,12 +3,14 @@ package boltdb
 import (
 	"bytes"
 	"encoding/gob"
+	"errors"
 	"path/filepath"
 
 	"github.com/robinkb/cascade-registry/store"
 
 	"github.com/opencontainers/go-digest"
 	bolt "go.etcd.io/bbolt"
+	bolterrors "go.etcd.io/bbolt/errors"
 )
 
 var (
@@ -61,7 +63,13 @@ func (s *metadataStore) CreateRepository(name string) error {
 		repos := tx.Bucket(_REPOSITORIES)
 
 		repo, err := repos.CreateBucket([]byte(name))
+		// CreateRepository may be called concurrently, in which case
+		// the bucket may already be in the process of creation
+		// by another thread.
 		if err != nil {
+			if errors.Is(err, bolterrors.ErrBucketExists) {
+				err = nil
+			}
 			return err
 		}
 
