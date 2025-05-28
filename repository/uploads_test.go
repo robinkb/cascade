@@ -61,6 +61,9 @@ func (s *Suite) TestBlobUploadsMonolithic() {
 		err = s.repository.CloseUpload(name, session.ID.String(), digest.String())
 		AssertNoError(t, err)
 
+		_, err = s.repository.StatUpload(name, session.ID.String())
+		AssertErrorIs(t, err, repository.ErrBlobUploadUnknown)
+
 		r, err := s.repository.GetBlob(name, digest.String())
 		RequireNoError(t, err)
 

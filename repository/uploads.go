@@ -13,8 +13,6 @@ import (
 	"github.com/robinkb/cascade-registry/store"
 )
 
-// TODO: Should write a test to verify that uploads can only be accessed
-// from the repository where it was created. Spoiler alert: not the case.
 func (s *repositoryService) StatUpload(repository, sessionID string) (*store.BlobInfo, error) {
 	session, err := s.metadata.GetUploadSession(repository, sessionID)
 	if err != nil {
@@ -135,5 +133,10 @@ func (s *repositoryService) CloseUpload(repository, sessionID, digest string) er
 		return err
 	}
 
-	return s.metadata.PutBlob(repository, calculatedId)
+	err = s.metadata.PutBlob(repository, calculatedId)
+	if err != nil {
+		return err
+	}
+
+	return s.metadata.DeleteUploadSession(repository, sessionID)
 }
