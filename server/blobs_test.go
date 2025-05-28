@@ -45,6 +45,17 @@ func TestStatBlob(t *testing.T) {
 
 		AssertResponseCode(t, resp, http.StatusNotFound)
 	})
+
+	t.Run("unknown repository returns 404", func(t *testing.T) {
+		registry := mock.NewRegistryService(t)
+		registry.EXPECT().
+			GetRepository(name).
+			Return(nil, repository.ErrNameUnknown)
+
+		client := NewTestClientForHandler(t, server.New(registry))
+		resp := client.CheckBlob(name, digest)
+		AssertResponseCode(t, resp, http.StatusNotFound)
+	})
 }
 
 func TestGetBlob(t *testing.T) {
@@ -79,6 +90,16 @@ func TestGetBlob(t *testing.T) {
 		AssertResponseBodyContainsError(t, resp, repository.ErrBlobUnknown)
 	})
 
+	t.Run("unknown repository returns 404", func(t *testing.T) {
+		registry := mock.NewRegistryService(t)
+		registry.EXPECT().
+			GetRepository(name).
+			Return(nil, repository.ErrNameUnknown)
+
+		client := NewTestClientForHandler(t, server.New(registry))
+		resp := client.GetBlob(name, digest)
+		AssertResponseCode(t, resp, http.StatusNotFound)
+	})
 }
 
 func TestDeleteBlob(t *testing.T) {
@@ -95,6 +116,17 @@ func TestDeleteBlob(t *testing.T) {
 		resp := client.DeleteBlob(name, digest)
 
 		AssertResponseCode(t, resp, http.StatusAccepted)
+	})
+
+	t.Run("unknown repository returns 404", func(t *testing.T) {
+		registry := mock.NewRegistryService(t)
+		registry.EXPECT().
+			GetRepository(name).
+			Return(nil, repository.ErrNameUnknown)
+
+		client := NewTestClientForHandler(t, server.New(registry))
+		resp := client.DeleteBlob(name, digest)
+		AssertResponseCode(t, resp, http.StatusNotFound)
 	})
 }
 
