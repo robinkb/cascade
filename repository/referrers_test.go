@@ -13,7 +13,7 @@ func (s *Suite) TestListReferrers() {
 		s.T().SkipNow()
 	}
 
-	name := RandomName()
+	name := s.RandomRepository()
 
 	digest, _, content := RandomManifest()
 	wantIndex, referrers := GenerateReferrersWithIndex(s.T(), digest)

@@ -9,6 +9,7 @@ import (
 
 type (
 	Metadata interface {
+		GetRepository(name string) error
 		CreateRepository(name string) error
 
 		GetBlob(name string, digest digest.Digest) (string, error)

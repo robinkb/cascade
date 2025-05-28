@@ -15,7 +15,7 @@ func (s *Suite) TestStatUpload() {
 	}
 
 	s.T().Run("stat upload returns correct FileInfo", func(t *testing.T) {
-		name := RandomName()
+		name := s.RandomRepository()
 		content := RandomContents(32)
 
 		session, err := s.repository.InitUpload(name)
@@ -47,7 +47,7 @@ func (s *Suite) TestBlobUploadsMonolithic() {
 		s.T().SkipNow()
 	}
 
-	name := RandomName()
+	name := s.RandomRepository()
 
 	s.T().Run("Monolithic blob upload - happy path", func(t *testing.T) {
 		digest, content := RandomBlob(32)
@@ -111,7 +111,7 @@ func (s *Suite) TestServiceUpload() {
 		s.T().SkipNow()
 	}
 
-	name := RandomName()
+	name := s.RandomRepository()
 
 	s.T().Run("written upload is retrievable", func(t *testing.T) {
 		digest, _, content := RandomManifest()

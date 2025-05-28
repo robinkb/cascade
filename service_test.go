@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/robinkb/cascade-registry"
+	"github.com/robinkb/cascade-registry/repository"
 	"github.com/robinkb/cascade-registry/store"
 	"github.com/robinkb/cascade-registry/store/boltdb"
 	"github.com/robinkb/cascade-registry/store/inmemory"
@@ -50,10 +51,19 @@ func TestRepository(t *testing.T) {
 				RequireNoError(t, err)
 			})
 
-			t.Run("Retrieve a repository", func(t *testing.T) {
+			t.Run("An unknown repository is automatically created", func(t *testing.T) {
 				name := RandomName()
 				_, err := service.GetRepository(name)
 				AssertNoError(t, err)
+			})
+
+			t.Run("Retrieving an unknown repository fails", func(t *testing.T) {
+				// Maybe at some point we'll enforce creating repositories explicitly.
+				// Or provide the option to enforce it.
+				t.SkipNow()
+				name := RandomName()
+				_, err := service.GetRepository(name)
+				AssertErrorIs(t, err, repository.ErrNameUnknown)
 			})
 		})
 	}

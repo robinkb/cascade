@@ -43,6 +43,13 @@ type (
 	}
 )
 
+func (s *metadataStore) GetRepository(name string) error {
+	if _, ok := s.repositories[name]; !ok {
+		return store.ErrRepositoryNotFound
+	}
+	return nil
+}
+
 func (s *metadataStore) CreateRepository(name string) error {
 	if _, ok := s.repositories[name]; !ok {
 		s.repositories[name] = &repository{

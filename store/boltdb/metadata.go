@@ -56,6 +56,16 @@ type tagMetadata struct {
 	Digest digest.Digest
 }
 
+func (s *metadataStore) GetRepository(name string) error {
+	return s.db.View(func(tx *bolt.Tx) error {
+		repo := tx.Bucket(_REPOSITORIES).Bucket([]byte(name))
+		if repo == nil {
+			return store.ErrRepositoryNotFound
+		}
+		return nil
+	})
+}
+
 func (s *metadataStore) CreateRepository(name string) error {
 	return s.db.Update(func(tx *bolt.Tx) error {
 		repos := tx.Bucket(_REPOSITORIES)

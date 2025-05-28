@@ -13,7 +13,7 @@ func (s *Suite) TestStatManifest() {
 		s.T().SkipNow()
 	}
 
-	name := RandomName()
+	name := s.RandomRepository()
 	digest, _, content := RandomManifest()
 
 	err := s.metadata.PutManifest(name, digest, &store.ManifestMetadata{})
@@ -55,7 +55,7 @@ func (s *Suite) TestGetManifest() {
 		s.T().SkipNow()
 	}
 
-	name := RandomName()
+	name := s.RandomRepository()
 	digest, _, content := RandomManifest()
 
 	err := s.metadata.PutManifest(name, digest, &store.ManifestMetadata{})
@@ -70,7 +70,7 @@ func (s *Suite) TestGetManifest() {
 	})
 
 	s.T().Run("Metadata is correctly retrieved", func(t *testing.T) {
-		name := RandomName()
+		name := s.RandomRepository()
 		want := store.ManifestMetadata{
 			Annotations: map[string]string{
 				RandomString(6): RandomString(32),
@@ -102,7 +102,7 @@ func (s *Suite) TestPutManifest() {
 		s.T().SkipNow()
 	}
 
-	name := RandomName()
+	name := s.RandomRepository()
 
 	s.T().Run("Put and retrieve a manifest", func(t *testing.T) {
 		digest, _, content := RandomManifest()
@@ -151,7 +151,7 @@ func (s *Suite) TestDeleteManifest() {
 	}
 
 	s.T().Run("Delete manifest and make sure it cannot be retrieved", func(t *testing.T) {
-		name := RandomName()
+		name := s.RandomRepository()
 		digest, _, content := RandomManifest()
 
 		_, err := s.repository.PutManifest(name, digest.String(), content)
