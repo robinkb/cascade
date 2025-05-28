@@ -55,6 +55,14 @@ func (s *repositoryService) PutManifest(repository, reference string, content []
 		return "", ErrDigestInvalid
 	}
 
+	err = s.metadata.GetRepository(repository)
+	if err != nil {
+		if errors.Is(err, store.ErrRepositoryNotFound) {
+			err = ErrNameUnknown
+		}
+		return "", err
+	}
+
 	var manifest v1.Manifest
 	err = json.Unmarshal(content, &manifest)
 	if err != nil {

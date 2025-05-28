@@ -16,6 +16,9 @@ import (
 func (s *repositoryService) StatUpload(repository, sessionID string) (*store.BlobInfo, error) {
 	session, err := s.metadata.GetUploadSession(repository, sessionID)
 	if err != nil {
+		if errors.Is(err, store.ErrRepositoryNotFound) {
+			err = ErrNameUnknown
+		}
 		if errors.Is(err, store.ErrNotFound) {
 			err = ErrBlobUploadUnknown
 		}
@@ -25,8 +28,7 @@ func (s *repositoryService) StatUpload(repository, sessionID string) (*store.Blo
 	return s.blobs.StatUpload(session.ID)
 }
 
-// TODO: This should be able to return errors, and verify that upload sessions
-// cannot be overwritten _just in case_ the generated UUID is not unique... lol.
+// TODO: This should verify that upload sessions cannot be overwritten _just in case_ the generated UUID is not unique... lol.
 func (s *repositoryService) InitUpload(repository string) (*store.UploadSession, error) {
 	id, _ := uuid.NewV7()
 
@@ -57,6 +59,9 @@ func (s *repositoryService) InitUpload(repository string) (*store.UploadSession,
 
 	err = s.metadata.PutUploadSession(repository, &session)
 	if err != nil {
+		if errors.Is(err, store.ErrRepositoryNotFound) {
+			err = ErrNameUnknown
+		}
 		return nil, err
 	}
 

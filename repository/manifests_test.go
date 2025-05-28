@@ -143,6 +143,14 @@ func (s *Suite) TestPutManifest() {
 		_, err := s.repository.PutManifest(name, digest.String(), content)
 		AssertErrorIs(t, err, repository.ErrManifestInvalid)
 	})
+
+	s.T().Run("Putting a manifest into an unknown repository returns ErrNameUnknown", func(t *testing.T) {
+		name := RandomName()
+		digest, _, content := RandomManifest()
+
+		_, err := s.repository.PutManifest(name, digest.String(), content)
+		AssertErrorIs(t, err, repository.ErrNameUnknown)
+	})
 }
 
 func (s *Suite) TestDeleteManifest() {

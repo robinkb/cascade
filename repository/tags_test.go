@@ -61,6 +61,15 @@ func (s *Suite) TestPutTag() {
 
 		AssertSlicesEqual(t, gotManifest, content)
 	})
+
+	s.T().Run("Creating tag on unknown repository returns ErrNameUnknown", func(t *testing.T) {
+		name := RandomName()
+		digest := RandomDigest()
+		tag := RandomVersion()
+
+		err := s.repository.PutTag(name, tag, digest.String())
+		AssertErrorIs(t, err, repository.ErrNameUnknown)
+	})
 }
 
 func (s *Suite) TestDeleteTag() {

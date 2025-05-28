@@ -34,7 +34,11 @@ func (s *repositoryService) PutTag(repository, tag, id string) error {
 		return err
 	}
 
-	return s.metadata.PutTag(repository, tag, digest)
+	err = s.metadata.PutTag(repository, tag, digest)
+	if errors.Is(err, store.ErrRepositoryNotFound) {
+		err = ErrNameUnknown
+	}
+	return err
 }
 
 func (s *repositoryService) DeleteTag(repository, tag string) error {
