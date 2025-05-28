@@ -56,16 +56,6 @@ type tagMetadata struct {
 	Digest digest.Digest
 }
 
-func (s *metadataStore) GetRepository(name string) error {
-	return s.db.View(func(tx *bolt.Tx) error {
-		repo := tx.Bucket(_REPOSITORIES).Bucket([]byte(name))
-		if repo == nil {
-			return store.ErrRepositoryNotFound
-		}
-		return nil
-	})
-}
-
 func (s *metadataStore) CreateRepository(name string) error {
 	return s.db.Update(func(tx *bolt.Tx) error {
 		repos := tx.Bucket(_REPOSITORIES)
@@ -83,6 +73,22 @@ func (s *metadataStore) CreateRepository(name string) error {
 		}
 
 		return nil
+	})
+}
+
+func (s *metadataStore) GetRepository(name string) error {
+	return s.db.View(func(tx *bolt.Tx) error {
+		repo := tx.Bucket(_REPOSITORIES).Bucket([]byte(name))
+		if repo == nil {
+			return store.ErrRepositoryNotFound
+		}
+		return nil
+	})
+}
+
+func (s *metadataStore) DeleteRepository(name string) error {
+	return s.db.Update(func(tx *bolt.Tx) error {
+		return tx.Bucket(_REPOSITORIES).DeleteBucket([]byte(name))
 	})
 }
 
@@ -133,17 +139,17 @@ func (s *metadataStore) GetManifest(name string, digest digest.Digest) (*store.M
 	err := s.db.View(func(tx *bolt.Tx) error {
 		repo := tx.Bucket(_REPOSITORIES).Bucket([]byte(name))
 		if repo == nil {
-			return store.ErrNotFound
+			return store.ErrRepositoryNotFound
 		}
 
 		manifest := repo.Bucket(_MANIFESTS).Bucket([]byte(digest.String()))
 		if manifest == nil {
-			return store.ErrNotFound
+			return store.ErrMetadataNotFound
 		}
 
 		meta := manifest.Get(_METADATA)
 		if meta == nil {
-			return store.ErrNotFound
+			return store.ErrMetadataNotFound
 		}
 		buf = bytes.NewBuffer(meta)
 		return nil

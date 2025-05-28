@@ -11,6 +11,7 @@ type (
 	Metadata interface {
 		GetRepository(name string) error
 		CreateRepository(name string) error
+		DeleteRepository(name string) error
 
 		GetBlob(name string, digest digest.Digest) (string, error)
 		PutBlob(name string, digest digest.Digest) error

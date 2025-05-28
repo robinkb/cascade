@@ -38,7 +38,7 @@ func TestRepository(t *testing.T) {
 		service := cascade.NewRegistryService(tt.constructor())
 
 		t.Run(tt.description, func(t *testing.T) {
-			t.Run("Create a repository, do something with it, and remove it", func(t *testing.T) {
+			t.Run("Create a repository, do something with it, and delete it", func(t *testing.T) {
 				name := RandomName()
 				err := service.CreateRepository(name)
 				AssertNoError(t, err)
@@ -49,6 +49,14 @@ func TestRepository(t *testing.T) {
 				id, _, content := RandomManifest()
 				_, err = repo.PutManifest(name, id.String(), content)
 				RequireNoError(t, err)
+				_, _, err = repo.GetManifest(name, id.String())
+				AssertNoError(t, err)
+
+				err = service.DeleteRepository(name)
+				AssertNoError(t, err)
+
+				_, _, err = repo.GetManifest(name, id.String())
+				AssertErrorIs(t, err, repository.ErrNameUnknown)
 			})
 
 			t.Run("An unknown repository is automatically created", func(t *testing.T) {

@@ -91,9 +91,14 @@ func (s *Suite) TestGetManifest() {
 		AssertStructsEqual(t, got, &want)
 	})
 
-	s.T().Run("returns ErrManifestUnknown on unknown manifest", func(t *testing.T) {
-		_, _, err := s.repository.GetManifest("i/do/not/exist", "sha256:ce5449ab65895b60068d164e81b646753d268583a70895acee51e1d711ddf3a2")
+	s.T().Run("Returns ErrManifestUnknown on unknown manifest", func(t *testing.T) {
+		_, _, err := s.repository.GetManifest(name, "sha256:ce5449ab65895b60068d164e81b646753d268583a70895acee51e1d711ddf3a2")
 		AssertErrorIs(t, err, repository.ErrManifestUnknown)
+	})
+
+	s.T().Run("Returns ErrNameUnknown on unknown repository", func(t *testing.T) {
+		_, _, err := s.repository.GetManifest(RandomName(), RandomDigest().String())
+		AssertErrorIs(t, err, repository.ErrNameUnknown)
 	})
 }
 

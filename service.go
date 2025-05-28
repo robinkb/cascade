@@ -11,6 +11,7 @@ type (
 	RegistryService interface {
 		CreateRepository(name string) error
 		GetRepository(name string) (repository.RepositoryService, error)
+		DeleteRepository(name string) error
 	}
 )
 
@@ -41,4 +42,8 @@ func (r *registryService) GetRepository(name string) (repository.RepositoryServi
 		}
 	}
 	return repository.NewRepositoryService(r.metadata, r.blobs), nil
+}
+
+func (r *registryService) DeleteRepository(name string) error {
+	return r.metadata.DeleteRepository(name)
 }

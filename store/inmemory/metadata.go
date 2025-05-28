@@ -1,7 +1,6 @@
 package inmemory
 
 import (
-	"io/fs"
 	"slices"
 
 	godigest "github.com/opencontainers/go-digest"
@@ -43,13 +42,6 @@ type (
 	}
 )
 
-func (s *metadataStore) GetRepository(name string) error {
-	if _, ok := s.repositories[name]; !ok {
-		return store.ErrRepositoryNotFound
-	}
-	return nil
-}
-
 func (s *metadataStore) CreateRepository(name string) error {
 	if _, ok := s.repositories[name]; !ok {
 		s.repositories[name] = &repository{
@@ -59,6 +51,18 @@ func (s *metadataStore) CreateRepository(name string) error {
 			uploadSessions: make(map[string]*store.UploadSession),
 		}
 	}
+	return nil
+}
+
+func (s *metadataStore) GetRepository(name string) error {
+	if _, ok := s.repositories[name]; !ok {
+		return store.ErrRepositoryNotFound
+	}
+	return nil
+}
+
+func (s *metadataStore) DeleteRepository(name string) error {
+	delete(s.repositories, name)
 	return nil
 }
 
@@ -82,17 +86,20 @@ func (s *metadataStore) DeleteBlob(repository string, digest godigest.Digest) er
 }
 
 func (s *metadataStore) GetManifest(repository string, digest godigest.Digest) (*store.ManifestMetadata, error) {
-	if repo, ok := s.repositories[repository]; ok {
-		if manifest, ok := repo.manifests[digest.String()]; ok {
-			return &store.ManifestMetadata{
-				Annotations:  manifest.annotations,
-				ArtifactType: manifest.artifactType,
-				MediaType:    manifest.mediaType,
-				Size:         manifest.size,
-			}, nil
-		}
+	repo, ok := s.repositories[repository]
+	if !ok {
+		return nil, store.ErrRepositoryNotFound
 	}
-	return nil, fs.ErrNotExist
+
+	if manifest, ok := repo.manifests[digest.String()]; ok {
+		return &store.ManifestMetadata{
+			Annotations:  manifest.annotations,
+			ArtifactType: manifest.artifactType,
+			MediaType:    manifest.mediaType,
+			Size:         manifest.size,
+		}, nil
+	}
+	return nil, store.ErrMetadataNotFound
 }
 
 func (s *metadataStore) PutManifest(repository string, digest godigest.Digest, meta *store.ManifestMetadata) error {
