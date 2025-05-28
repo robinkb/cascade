@@ -128,8 +128,21 @@ func TestBlobUploadsMonolithic(t *testing.T) {
 }
 
 func TestBlobUploadsChunked(t *testing.T) {
-	// TODO: This used to have integration-style tests that have been moved
-	// to the conformance test. There should be more basic handler unit tests here.
+	t.Run("Performing a chunked upload", func(t *testing.T) {
+		name, _, content := RandomName(), RandomDigest(), RandomContents(32)
+		sessionID := RandomString(8)
+
+		repo := mock.NewRepositoryService(t)
+		repo.EXPECT().
+			AppendUpload(name, sessionID, bytes.NewBuffer(content), int64(0)).
+			Return(nil)
+
+		location := newLocation(name, sessionID)
+		client := NewTestClientForRepository(t, name, repo)
+
+		resp := client.UploadBlobChunk(location, content, 0)
+		AssertResponseCode(t, resp, http.StatusAccepted)
+	})
 }
 
 func TestBlobUploadsStreamed(t *testing.T) {

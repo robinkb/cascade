@@ -59,4 +59,10 @@ func TestBlobUploadSession(t *testing.T) {
 		AssertResponseCode(t, resp, http.StatusNotFound)
 		AssertResponseBodyContainsError(t, resp, repository.ErrBlobUploadUnknown)
 	})
+
+	t.Run("Other methods are not allowed", func(t *testing.T) {
+		client := NewTestClientForHandler(t, server.New(nil))
+		resp := client.Do(http.MethodConnect, "/v2/my/repo/blobs/uploads/", nil, nil)
+		AssertResponseCode(t, resp, http.StatusMethodNotAllowed)
+	})
 }
