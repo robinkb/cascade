@@ -53,10 +53,13 @@ func TestPull(t *testing.T) {
 		name := RandomName()
 		digest, blob := RandomBlob(32)
 
-		err := metadata.PutBlob(name, digest)
-		RequireNoError(t, err)
-		err = blobs.PutBlob(digest, blob)
-		RequireNoError(t, err)
+		client := NewTestClientForHandler(t, srv)
+		resp := client.InitUpload(name)
+		AssertResponseCode(t, resp, http.StatusAccepted)
+		location, err := resp.Location()
+		AssertNoError(t, err)
+		resp = client.CloseUploadWithContent(location, digest, blob, 0)
+		AssertResponseCode(t, resp, http.StatusCreated)
 
 		t.Run("GET request to an existing blob", func(t *testing.T) {
 			client := NewTestClientForHandler(t, srv)
