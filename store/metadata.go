@@ -8,11 +8,9 @@ import (
 )
 
 type (
-	// TODO: This interface currently does not cover managing repositories.
-	// In real-world stores, where creating a repository is not so simple,
-	// this tends to be problematic. There must also be a way to delete repositories.
-	// I do like having the option of just creating repos on the fly, though...
 	Metadata interface {
+		CreateRepository(name string) error
+
 		GetBlob(name string, digest digest.Digest) (string, error)
 		PutBlob(name string, digest digest.Digest) error
 		DeleteBlob(name string, digest digest.Digest) error

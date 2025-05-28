@@ -7,6 +7,7 @@ import (
 
 type (
 	RegistryService interface {
+		CreateRepository(name string) error
 		GetRepository(name string) (repository.RepositoryService, error)
 	}
 )
@@ -21,6 +22,10 @@ func NewRegistryService(metadata store.Metadata, blobs store.Blobs) RegistryServ
 type registryService struct {
 	metadata store.Metadata
 	blobs    store.Blobs
+}
+
+func (r *registryService) CreateRepository(name string) error {
+	return r.metadata.CreateRepository(name)
 }
 
 func (r *registryService) GetRepository(name string) (repository.RepositoryService, error) {
