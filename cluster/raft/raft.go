@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/gob"
-	"io"
 	"log"
 	"math"
 	"math/rand/v2"
@@ -73,15 +72,15 @@ func (n *node) ClusterStatus() cluster.Status {
 }
 
 func (n *node) PutTag(name, tag string, digest digest.Digest) error {
-	putTag := &PutTag{
-		Operation{ID: rand.Uint64()},
+	putTag := &putTag{
+		rand.Uint64(),
 		name, tag, digest,
 	}
 
 	return n.propose(putTag)
 }
 
-func (n *node) propose(m Message) error {
+func (n *node) propose(m operation) error {
 	var buf bytes.Buffer
 	gob.NewEncoder(&buf).Encode(&m)
 
@@ -94,7 +93,7 @@ func (n *node) propose(m Message) error {
 	}
 
 	select {
-	case <-time.Tick(1 * time.Second):
+	case <-time.Tick(5 * time.Second):
 		panic("timed out")
 	case <-n.errors[m.ID()]:
 		return err
@@ -163,35 +162,33 @@ func (n *node) receive(ctx context.Context, message raftpb.Message) {
 
 func (n *node) process(entry raftpb.Entry) {
 	if entry.Data != nil {
-		n.decode(bytes.NewBuffer(entry.Data))
+		buf := bytes.NewBuffer(entry.Data)
+
+		var c operation
+		err := gob.NewDecoder(buf).Decode(&c)
+		if err != nil {
+			log.Fatal(err)
+		}
+
+		switch v := c.(type) {
+		case *putTag:
+			err = n.Metadata.PutTag(v.Name, v.Tag, v.Digest)
+		default:
+			log.Fatalf("unexpected type received: %v", v)
+		}
+
+		errC, ok := n.errors[c.ID()]
+		if ok {
+			if err != nil {
+				errC <- err
+			} else {
+				close(errC)
+				delete(n.errors, c.ID())
+			}
+		}
 	}
 }
 
 func (n *node) processSnapshot(snapshot raftpb.Snapshot) {
 	log.Printf("Applying snapshot is not implemented yet")
-}
-
-func (n *node) decode(r io.Reader) {
-	var c Message
-	err := gob.NewDecoder(r).Decode(&c)
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	switch v := c.(type) {
-	case *PutTag:
-		err = n.Metadata.PutTag(v.Name, v.Tag, v.Digest)
-	default:
-		log.Fatalf("unexpected type received: %v", v)
-	}
-
-	errC, ok := n.errors[c.ID()]
-	if ok {
-		if err != nil {
-			errC <- err
-		} else {
-			close(errC)
-			delete(n.errors, c.ID())
-		}
-	}
 }

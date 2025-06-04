@@ -7,27 +7,24 @@ import (
 )
 
 func init() {
-	// Implementers of the Message interface must be registered
-	// with gob so that it can encode and decode them.
-	gob.Register(&PutTag{})
+	// Implementers of the operation interface must be registered
+	// with gob so that it can encode then as an operation type,
+	// and decode them back to the concrete type.
+	gob.Register(&putTag{})
 }
 
-type (
-	Message interface {
-		ID() uint64
-	}
+// operation represents an operation that gets commited to the Raft log.
+type operation interface {
+	ID() uint64
+}
 
-	Operation struct {
-		ID uint64
-	}
+type putTag struct {
+	Id     uint64
+	Name   string
+	Tag    string
+	Digest digest.Digest
+}
 
-	PutTag struct {
-		Operation
-		Name, Tag string
-		Digest    digest.Digest
-	}
-)
-
-func (t *PutTag) ID() uint64 {
-	return t.Operation.ID
+func (t *putTag) ID() uint64 {
+	return t.Id
 }
