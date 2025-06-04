@@ -60,6 +60,7 @@ func TestRaftClusterFormation(t *testing.T) {
 }
 
 func TestRaftClusterReplication(t *testing.T) {
+	t.Parallel()
 	nodes := newTestCluster(3)
 	for _, n := range nodes {
 		n.Start()
@@ -68,19 +69,48 @@ func TestRaftClusterReplication(t *testing.T) {
 	// Allow some time for cluster formation.
 	time.Sleep(150 * time.Millisecond)
 
-	name, tag, digest := RandomName(), RandomVersion(), RandomDigest()
-	for _, n := range nodes {
-		n.(*node).Metadata.CreateRepository(name)
-	}
-
-	err := nodes[0].PutTag(name, tag, digest)
-	AssertNoError(t, err)
-
-	time.Sleep(1 * time.Millisecond)
-
-	for _, n := range nodes {
-		got, err := n.GetTag(name, tag)
+	t.Run("Ensure CreateRepository is replicated", func(t *testing.T) {
+		name := RandomVersion()
+		err := nodes[0].CreateRepository(name)
 		AssertNoError(t, err)
-		AssertEqual(t, got, digest)
-	}
+
+		time.Sleep(1 * time.Millisecond)
+
+		for _, n := range nodes {
+			err := n.GetRepository(name)
+			AssertNoError(t, err)
+		}
+	})
+
+	t.Run("Ensure PutBlob is replicated", func(t *testing.T) {
+		name, digest := RandomVersion(), RandomDigest()
+		err := nodes[0].CreateRepository(name)
+		RequireNoError(t, err)
+		err = nodes[0].PutBlob(name, digest)
+		AssertNoError(t, err)
+
+		time.Sleep(1 * time.Millisecond)
+
+		for _, n := range nodes {
+			_, err := n.GetBlob(name, digest)
+			AssertNoError(t, err)
+		}
+	})
+
+	t.Run("Ensure PutTag is replicated", func(t *testing.T) {
+		name, tag, digest := RandomName(), RandomVersion(), RandomDigest()
+		err := nodes[0].CreateRepository(name)
+		RequireNoError(t, err)
+
+		err = nodes[0].PutTag(name, tag, digest)
+		AssertNoError(t, err)
+
+		time.Sleep(1 * time.Millisecond)
+
+		for _, n := range nodes {
+			got, err := n.GetTag(name, tag)
+			AssertNoError(t, err)
+			AssertEqual(t, got, digest)
+		}
+	})
 }

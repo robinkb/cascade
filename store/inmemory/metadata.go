@@ -76,7 +76,12 @@ func (s *metadataStore) GetBlob(repository string, digest godigest.Digest) (stri
 }
 
 func (s *metadataStore) PutBlob(repository string, digest godigest.Digest) error {
-	s.repositories[repository].blobs[digest.String()] = &blob{}
+	repo, ok := s.repositories[repository]
+	if !ok {
+		return store.ErrRepositoryNotFound
+	}
+
+	repo.blobs[digest.String()] = &blob{}
 	return nil
 }
 

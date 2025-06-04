@@ -93,20 +93,36 @@ func (n *node) ClusterStatus() cluster.Status {
 	return status
 }
 
+func (n *node) CreateRepository(name string) error {
+	op := &createRepository{
+		rand.Uint64(),
+		name,
+	}
+	return n.propose(op)
+}
+
+func (n *node) PutBlob(name string, digest digest.Digest) error {
+	op := &putBlob{
+		rand.Uint64(),
+		name, digest,
+	}
+	return n.propose(op)
+}
+
 func (n *node) PutTag(name, tag string, digest digest.Digest) error {
-	putTag := &putTag{
+	op := &putTag{
 		rand.Uint64(),
 		name, tag, digest,
 	}
 
-	return n.propose(putTag)
+	return n.propose(op)
 }
 
-func (n *node) propose(m operation) error {
+func (n *node) propose(o operation) error {
 	var buf bytes.Buffer
-	gob.NewEncoder(&buf).Encode(&m)
+	gob.NewEncoder(&buf).Encode(&o)
 
-	n.errors[m.ID()] = make(chan error)
+	n.errors[o.ID()] = make(chan error)
 	// Propose blocks until accepted by the cluster.
 	// TODO: Find out how to retry proposals.
 	err := n.raft.Propose(context.TODO(), buf.Bytes())
@@ -117,7 +133,7 @@ func (n *node) propose(m operation) error {
 	select {
 	case <-time.Tick(5 * time.Second):
 		panic("timed out")
-	case <-n.errors[m.ID()]:
+	case <-n.errors[o.ID()]:
 		return err
 	}
 }
@@ -181,7 +197,6 @@ func (n *node) send(messages []raftpb.Message) {
 		if err != nil {
 			log.Fatal(err)
 		}
-		log.Printf("sending: %s\n", data)
 
 		io.Copy(conn, bytes.NewBuffer(data))
 
@@ -207,7 +222,6 @@ func (n *node) receive() {
 		if err != nil {
 			log.Fatal(err)
 		}
-		log.Println("conn received")
 		// Handle the connection in a new goroutine.
 		// The loop then returns to accepting, so that
 		// multiple connections may be served concurrently.
@@ -236,10 +250,14 @@ func (n *node) process(entry raftpb.Entry) {
 		}
 
 		switch v := c.(type) {
+		case *createRepository:
+			err = n.Metadata.CreateRepository(v.Name)
+		case *putBlob:
+			err = n.Metadata.PutBlob(v.Name, v.Digest)
 		case *putTag:
 			err = n.Metadata.PutTag(v.Name, v.Tag, v.Digest)
 		default:
-			log.Fatalf("unexpected type received: %v", v)
+			log.Fatalf("unexpected type received: %T", v)
 		}
 
 		errC, ok := n.errors[c.ID()]
