@@ -4,11 +4,14 @@ import (
 	"bytes"
 	"context"
 	"encoding/gob"
+	"io"
 	"log"
 	"math"
 	"math/rand/v2"
+	"net"
 	"time"
 
+	"github.com/golang/protobuf/proto"
 	"github.com/opencontainers/go-digest"
 	"github.com/robinkb/cascade-registry/cluster"
 	"github.com/robinkb/cascade-registry/store"
@@ -20,7 +23,12 @@ var (
 	nodes = make(map[uint64]*node)
 )
 
-func NewRaftNode(id uint64, peers []raft.Peer, metadata store.Metadata) cluster.Node {
+type Peer struct {
+	ID   uint64
+	Addr net.TCPAddr
+}
+
+func NewRaftNode(id uint64, addr *net.TCPAddr, peers []Peer, metadata store.Metadata) cluster.Node {
 	storage := raft.NewMemoryStorage()
 	conf := raft.Config{
 		ID:              id,
@@ -31,12 +39,22 @@ func NewRaftNode(id uint64, peers []raft.Peer, metadata store.Metadata) cluster.
 		MaxInflightMsgs: 256,
 	}
 
+	npeers := make(map[uint64]Peer)
+	raftPeers := make([]raft.Peer, len(peers))
+	for i := range peers {
+		raftPeers[i] = raft.Peer{ID: peers[i].ID}
+		npeers[peers[i].ID] = peers[i]
+	}
+
 	node := &node{
 		ctx:     context.Background(),
-		raft:    raft.StartNode(&conf, peers),
+		raft:    raft.StartNode(&conf, raftPeers),
 		storage: storage,
 		ticker:  time.Tick(10 * time.Millisecond),
 		errors:  make(map[uint64]chan error),
+
+		addr:  addr,
+		peers: npeers,
 
 		Metadata: metadata,
 	}
@@ -54,11 +72,15 @@ type node struct {
 	done    <-chan struct{}
 	errors  map[uint64]chan error
 
+	peers map[uint64]Peer
+	addr  *net.TCPAddr
+
 	store.Metadata
 }
 
 func (n *node) Start() {
 	go n.run()
+	go n.receive()
 }
 
 func (n *node) ClusterStatus() cluster.Status {
@@ -142,12 +164,26 @@ func (n *node) saveToStorage(hardState raftpb.HardState, entries []raftpb.Entry,
 
 func (n *node) send(messages []raftpb.Message) {
 	for _, message := range messages {
-		peer, ok := nodes[message.To]
+
+		peer, ok := n.peers[message.To]
 		if !ok {
 			log.Printf("peer %d not found\n", message.To)
 			continue
 		}
-		peer.receive(n.ctx, message)
+
+		conn, err := net.DialTCP("tcp", nil, &peer.Addr)
+		if err != nil {
+			log.Fatal(err)
+		}
+		defer conn.Close()
+
+		data, err := proto.Marshal(&message)
+		if err != nil {
+			log.Fatal(err)
+		}
+		log.Printf("sending: %s\n", data)
+
+		io.Copy(conn, bytes.NewBuffer(data))
 
 		if message.Type == raftpb.MsgSnap {
 			// TODO: Snapshotting may fail, and that has to be reported through this method.
@@ -156,8 +192,37 @@ func (n *node) send(messages []raftpb.Message) {
 	}
 }
 
-func (n *node) receive(ctx context.Context, message raftpb.Message) {
-	n.raft.Step(ctx, message)
+func (n *node) receive() {
+	// Listen on TCP port 2000 on all available unicast and
+	// anycast IP addresses of the local system.
+	l, err := net.ListenTCP("tcp", n.addr)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer l.Close()
+
+	for {
+		// Wait for a connection.
+		conn, err := l.Accept()
+		if err != nil {
+			log.Fatal(err)
+		}
+		log.Println("conn received")
+		// Handle the connection in a new goroutine.
+		// The loop then returns to accepting, so that
+		// multiple connections may be served concurrently.
+		go func(c net.Conn) {
+			defer c.Close()
+
+			buf := &bytes.Buffer{}
+			io.Copy(buf, c)
+
+			var message raftpb.Message
+			if err := message.Unmarshal(buf.Bytes()); err == nil {
+				n.raft.Step(context.TODO(), message)
+			}
+		}(conn)
+	}
 }
 
 func (n *node) process(entry raftpb.Entry) {
