@@ -73,22 +73,19 @@ func (n *node) ClusterStatus() cluster.Status {
 }
 
 func (n *node) PutTag(name, tag string, digest digest.Digest) error {
-	putTag := putTag{name, tag, digest}
-	var argBuf bytes.Buffer
-	gob.NewEncoder(&argBuf).Encode(&putTag)
+	putTag := Message(
+		&PutTag{
+			Operation{ID: rand.Uint64()},
+			name, tag, digest,
+		},
+	)
+	var buf bytes.Buffer
+	gob.NewEncoder(&buf).Encode(&putTag)
 
-	var opBuf bytes.Buffer
-	operation := &operation{
-		ID:     rand.Uint64(),
-		Method: "PutTag",
-		Args:   argBuf.Bytes(),
-	}
-	gob.NewEncoder(&opBuf).Encode(&operation)
-
-	n.errors[operation.ID] = make(chan error)
+	n.errors[putTag.ID()] = make(chan error)
 	// Propose blocks until accepted by the cluster.
 	// TODO: Find out how to retry proposals.
-	err := n.raft.Propose(context.TODO(), opBuf.Bytes())
+	err := n.raft.Propose(context.TODO(), buf.Bytes())
 	if err != nil {
 		return err
 	}
@@ -96,7 +93,7 @@ func (n *node) PutTag(name, tag string, digest digest.Digest) error {
 	select {
 	case <-time.Tick(1 * time.Second):
 		panic("timed out")
-	case <-n.errors[operation.ID]:
+	case <-n.errors[putTag.ID()]:
 		return err
 	}
 }
@@ -174,41 +171,27 @@ func (n *node) processSnapshot(snapshot raftpb.Snapshot) {
 	log.Printf("Applying snapshot is not implemented yet")
 }
 
-type (
-	operation struct {
-		ID     uint64
-		Method string
-		Args   []byte
-	}
-
-	putTag struct {
-		Name, Tag string
-		Digest    digest.Digest
-	}
-)
-
 func (n *node) decode(r io.Reader) {
-	var operation operation
-	err := gob.NewDecoder(r).Decode(&operation)
+	var c Message
+	err := gob.NewDecoder(r).Decode(&c)
 	if err != nil {
-		panic(err)
+		log.Fatal(err)
 	}
 
-	switch operation.Method {
-	case "PutTag":
-		var putTag putTag
-		err := gob.NewDecoder(bytes.NewBuffer(operation.Args)).Decode(&putTag)
+	switch v := c.(type) {
+	case *PutTag:
+		err = n.Metadata.PutTag(v.Name, v.Tag, v.Digest)
+	default:
+		log.Fatalf("unexpected type received: %v", v)
+	}
+
+	errC, ok := n.errors[c.ID()]
+	if ok {
 		if err != nil {
-			panic(err)
-		}
-		err = n.Metadata.PutTag(putTag.Name, putTag.Tag, putTag.Digest)
-		if n.errors[operation.ID] != nil {
-			if err != nil {
-				n.errors[operation.ID] <- err
-			} else {
-				close(n.errors[operation.ID])
-				delete(n.errors, operation.ID)
-			}
+			errC <- err
+		} else {
+			close(errC)
+			delete(n.errors, c.ID())
 		}
 	}
 }

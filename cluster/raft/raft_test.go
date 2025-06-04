@@ -53,7 +53,7 @@ func TestRaftClusterReplication(t *testing.T) {
 
 	n1.PutTag(name, tag, digest)
 
-	time.Sleep(20 * time.Microsecond)
+	time.Sleep(1 * time.Millisecond)
 
 	got, err := n1.GetTag(name, tag)
 	AssertNoError(t, err)
