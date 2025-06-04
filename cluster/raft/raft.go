@@ -73,16 +73,19 @@ func (n *node) ClusterStatus() cluster.Status {
 }
 
 func (n *node) PutTag(name, tag string, digest digest.Digest) error {
-	putTag := Message(
-		&PutTag{
-			Operation{ID: rand.Uint64()},
-			name, tag, digest,
-		},
-	)
-	var buf bytes.Buffer
-	gob.NewEncoder(&buf).Encode(&putTag)
+	putTag := &PutTag{
+		Operation{ID: rand.Uint64()},
+		name, tag, digest,
+	}
 
-	n.errors[putTag.ID()] = make(chan error)
+	return n.propose(putTag)
+}
+
+func (n *node) propose(m Message) error {
+	var buf bytes.Buffer
+	gob.NewEncoder(&buf).Encode(&m)
+
+	n.errors[m.ID()] = make(chan error)
 	// Propose blocks until accepted by the cluster.
 	// TODO: Find out how to retry proposals.
 	err := n.raft.Propose(context.TODO(), buf.Bytes())
@@ -93,7 +96,7 @@ func (n *node) PutTag(name, tag string, digest digest.Digest) error {
 	select {
 	case <-time.Tick(1 * time.Second):
 		panic("timed out")
-	case <-n.errors[putTag.ID()]:
+	case <-n.errors[m.ID()]:
 		return err
 	}
 }
@@ -140,8 +143,6 @@ func (n *node) saveToStorage(hardState raftpb.HardState, entries []raftpb.Entry,
 
 func (n *node) send(messages []raftpb.Message) {
 	for _, message := range messages {
-		log.Println("sending message:", raft.DescribeMessage(message, nil))
-
 		peer, ok := nodes[message.To]
 		if !ok {
 			log.Printf("peer %d not found\n", message.To)
@@ -162,7 +163,6 @@ func (n *node) receive(ctx context.Context, message raftpb.Message) {
 
 func (n *node) process(entry raftpb.Entry) {
 	if entry.Data != nil {
-		log.Println("normal message:", string(entry.Data))
 		n.decode(bytes.NewBuffer(entry.Data))
 	}
 }
