@@ -2,6 +2,7 @@ package inmemory
 
 import (
 	"slices"
+	"sync"
 
 	godigest "github.com/opencontainers/go-digest"
 	"github.com/robinkb/cascade-registry/store"
@@ -16,6 +17,7 @@ func NewMetadataStore() store.Metadata {
 type (
 	metadataStore struct {
 		repositories map[string]*repository
+		mu           sync.RWMutex
 	}
 
 	repository struct {
@@ -43,6 +45,9 @@ type (
 )
 
 func (s *metadataStore) CreateRepository(name string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
 	if _, ok := s.repositories[name]; !ok {
 		s.repositories[name] = &repository{
 			blobs:          make(map[string]*blob),
@@ -55,6 +60,9 @@ func (s *metadataStore) CreateRepository(name string) error {
 }
 
 func (s *metadataStore) GetRepository(name string) error {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
 	if _, ok := s.repositories[name]; !ok {
 		return store.ErrRepositoryNotFound
 	}
@@ -62,11 +70,17 @@ func (s *metadataStore) GetRepository(name string) error {
 }
 
 func (s *metadataStore) DeleteRepository(name string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
 	delete(s.repositories, name)
 	return nil
 }
 
 func (s *metadataStore) GetBlob(repository string, digest godigest.Digest) (string, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
 	if repo, ok := s.repositories[repository]; ok {
 		if _, ok := repo.blobs[digest.String()]; ok {
 			return "", nil
@@ -76,6 +90,9 @@ func (s *metadataStore) GetBlob(repository string, digest godigest.Digest) (stri
 }
 
 func (s *metadataStore) PutBlob(repository string, digest godigest.Digest) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
 	repo, ok := s.repositories[repository]
 	if !ok {
 		return store.ErrRepositoryNotFound
@@ -86,11 +103,17 @@ func (s *metadataStore) PutBlob(repository string, digest godigest.Digest) error
 }
 
 func (s *metadataStore) DeleteBlob(repository string, digest godigest.Digest) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
 	delete(s.repositories[repository].blobs, digest.String())
 	return nil
 }
 
 func (s *metadataStore) GetManifest(repository string, digest godigest.Digest) (*store.ManifestMetadata, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
 	repo, ok := s.repositories[repository]
 	if !ok {
 		return nil, store.ErrRepositoryNotFound
@@ -108,6 +131,9 @@ func (s *metadataStore) GetManifest(repository string, digest godigest.Digest) (
 }
 
 func (s *metadataStore) PutManifest(repository string, digest godigest.Digest, meta *store.ManifestMetadata) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
 	manifests, ok := s.repositories[repository].manifests[digest.String()]
 	if !ok {
 		manifests = &manifest{
@@ -137,6 +163,9 @@ func (s *metadataStore) PutManifest(repository string, digest godigest.Digest, m
 }
 
 func (s *metadataStore) DeleteManifest(repository string, digest godigest.Digest) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
 	if repo, ok := s.repositories[repository]; ok {
 		delete(repo.manifests, digest.String())
 	}
@@ -144,6 +173,9 @@ func (s *metadataStore) DeleteManifest(repository string, digest godigest.Digest
 }
 
 func (s *metadataStore) ListTags(repository string, count int, last string) ([]string, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
 	tags := []string{}
 
 	for key := range s.repositories[repository].tags {
@@ -174,6 +206,9 @@ func (s *metadataStore) ListTags(repository string, count int, last string) ([]s
 }
 
 func (s *metadataStore) GetTag(repository, tag string) (godigest.Digest, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
 	if repo, ok := s.repositories[repository]; ok {
 		if tag, ok := repo.tags[tag]; ok {
 			return tag.digest, nil
@@ -183,6 +218,9 @@ func (s *metadataStore) GetTag(repository, tag string) (godigest.Digest, error) 
 }
 
 func (s *metadataStore) PutTag(repository, tag string, digest godigest.Digest) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
 	repo, ok := s.repositories[repository]
 	if !ok {
 		return store.ErrRepositoryNotFound
@@ -194,11 +232,17 @@ func (s *metadataStore) PutTag(repository, tag string, digest godigest.Digest) e
 }
 
 func (s *metadataStore) DeleteTag(repository, tag string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
 	delete(s.repositories[repository].tags, tag)
 	return nil
 }
 
 func (s *metadataStore) ListReferrers(repository string, digest godigest.Digest) ([]godigest.Digest, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
 	repo, ok := s.repositories[repository]
 	if !ok {
 		return nil, store.ErrNotFound
@@ -219,6 +263,9 @@ func (s *metadataStore) ListReferrers(repository string, digest godigest.Digest)
 }
 
 func (s *metadataStore) GetUploadSession(repository, id string) (*store.UploadSession, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
 	repo, ok := s.repositories[repository]
 	if !ok {
 		return nil, store.ErrRepositoryNotFound
@@ -230,6 +277,9 @@ func (s *metadataStore) GetUploadSession(repository, id string) (*store.UploadSe
 }
 
 func (s *metadataStore) PutUploadSession(repository string, session *store.UploadSession) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
 	repo, ok := s.repositories[repository]
 	if !ok {
 		return store.ErrRepositoryNotFound
@@ -239,6 +289,9 @@ func (s *metadataStore) PutUploadSession(repository string, session *store.Uploa
 }
 
 func (s *metadataStore) DeleteUploadSession(repository string, sessionID string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
 	delete(s.repositories[repository].uploadSessions, sessionID)
 	return nil
 }
