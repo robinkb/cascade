@@ -47,7 +47,6 @@ func NewRaftNode(id uint64, addr *net.TCPAddr, peers []Peer, metadata store.Meta
 	}
 
 	node := &node{
-		ctx:     context.Background(),
 		raft:    raft.StartNode(&conf, raftPeers),
 		storage: storage,
 		ticker:  time.Tick(10 * time.Millisecond),
@@ -65,7 +64,6 @@ func NewRaftNode(id uint64, addr *net.TCPAddr, peers []Peer, metadata store.Meta
 }
 
 type node struct {
-	ctx     context.Context
 	raft    raft.Node
 	ticker  <-chan time.Time
 	storage *raft.MemoryStorage
@@ -93,51 +91,6 @@ func (n *node) ClusterStatus() cluster.Status {
 	return status
 }
 
-func (n *node) CreateRepository(name string) error {
-	op := &createRepository{
-		rand.Uint64(),
-		name,
-	}
-	return n.propose(op)
-}
-
-func (n *node) PutBlob(name string, digest digest.Digest) error {
-	op := &putBlob{
-		rand.Uint64(),
-		name, digest,
-	}
-	return n.propose(op)
-}
-
-func (n *node) PutTag(name, tag string, digest digest.Digest) error {
-	op := &putTag{
-		rand.Uint64(),
-		name, tag, digest,
-	}
-
-	return n.propose(op)
-}
-
-func (n *node) propose(o operation) error {
-	var buf bytes.Buffer
-	gob.NewEncoder(&buf).Encode(&o)
-
-	n.errors[o.ID()] = make(chan error)
-	// Propose blocks until accepted by the cluster.
-	// TODO: Find out how to retry proposals.
-	err := n.raft.Propose(context.TODO(), buf.Bytes())
-	if err != nil {
-		return err
-	}
-
-	select {
-	case <-time.Tick(5 * time.Second):
-		panic("timed out")
-	case <-n.errors[o.ID()]:
-		return err
-	}
-}
-
 func (n *node) run() {
 	for {
 		select {
@@ -163,18 +116,6 @@ func (n *node) run() {
 		case <-n.done:
 			return
 		}
-	}
-}
-
-func (n *node) saveToStorage(hardState raftpb.HardState, entries []raftpb.Entry, snapshot raftpb.Snapshot) {
-	n.storage.Append(entries)
-
-	if !raft.IsEmptyHardState(hardState) {
-		n.storage.SetHardState(hardState)
-	}
-
-	if !raft.IsEmptySnap(snapshot) {
-		n.storage.ApplySnapshot(snapshot)
 	}
 }
 
@@ -208,8 +149,6 @@ func (n *node) send(messages []raftpb.Message) {
 }
 
 func (n *node) receive() {
-	// Listen on TCP port 2000 on all available unicast and
-	// anycast IP addresses of the local system.
 	l, err := net.ListenTCP("tcp", n.addr)
 	if err != nil {
 		log.Fatal(err)
@@ -239,6 +178,104 @@ func (n *node) receive() {
 	}
 }
 
+func (n *node) saveToStorage(hardState raftpb.HardState, entries []raftpb.Entry, snapshot raftpb.Snapshot) {
+	n.storage.Append(entries)
+
+	if !raft.IsEmptyHardState(hardState) {
+		n.storage.SetHardState(hardState)
+	}
+
+	if !raft.IsEmptySnap(snapshot) {
+		n.storage.ApplySnapshot(snapshot)
+	}
+}
+
+func (n *node) CreateRepository(name string) error {
+	op := &createRepository{
+		rand.Uint64(),
+		name,
+	}
+	return n.propose(op)
+}
+
+func (n *node) DeleteRepository(name string) error {
+	op := &deleteRepository{
+		rand.Uint64(),
+		name,
+	}
+	return n.propose(op)
+}
+
+func (n *node) PutBlob(name string, digest digest.Digest) error {
+	op := &putBlob{
+		rand.Uint64(),
+		name, digest,
+	}
+	return n.propose(op)
+}
+
+func (n *node) DeleteBlob(name string, digest digest.Digest) error {
+	op := &deleteBlob{
+		rand.Uint64(),
+		name, digest,
+	}
+	return n.propose(op)
+}
+
+func (n *node) PutManifest(name string, digest digest.Digest, meta *store.ManifestMetadata) error {
+	op := &putManifest{
+		rand.Uint64(),
+		name, digest, meta,
+	}
+	return n.propose(op)
+}
+
+func (n *node) DeleteManifest(name string, digest digest.Digest) error {
+	op := &deleteManifest{
+		rand.Uint64(),
+		name, digest,
+	}
+	return n.propose(op)
+}
+
+func (n *node) PutTag(name, tag string, digest digest.Digest) error {
+	op := &putTag{
+		rand.Uint64(),
+		name, tag, digest,
+	}
+
+	return n.propose(op)
+}
+
+func (n *node) DeleteTag(name, tag string) error {
+	op := &deleteTag{
+		rand.Uint64(),
+		name, tag,
+	}
+
+	return n.propose(op)
+}
+
+func (n *node) propose(o operation) error {
+	var buf bytes.Buffer
+	gob.NewEncoder(&buf).Encode(&o)
+
+	n.errors[o.ID()] = make(chan error)
+	// Propose blocks until accepted by the cluster.
+	// TODO: Find out how to retry proposals.
+	err := n.raft.Propose(context.TODO(), buf.Bytes())
+	if err != nil {
+		return err
+	}
+
+	select {
+	case <-time.Tick(5 * time.Second):
+		panic("timed out")
+	case <-n.errors[o.ID()]:
+		return err
+	}
+}
+
 func (n *node) process(entry raftpb.Entry) {
 	if entry.Data != nil {
 		buf := bytes.NewBuffer(entry.Data)
@@ -246,18 +283,28 @@ func (n *node) process(entry raftpb.Entry) {
 		var c operation
 		err := gob.NewDecoder(buf).Decode(&c)
 		if err != nil {
-			log.Fatal(err)
+			log.Fatalf("unable to decode as operation: %s", err)
 		}
 
 		switch v := c.(type) {
 		case *createRepository:
 			err = n.Metadata.CreateRepository(v.Name)
+		case *deleteRepository:
+			err = n.Metadata.DeleteRepository(v.Name)
 		case *putBlob:
 			err = n.Metadata.PutBlob(v.Name, v.Digest)
+		case *deleteBlob:
+			err = n.Metadata.DeleteBlob(v.Name, v.Digest)
+		case *putManifest:
+			err = n.Metadata.PutManifest(v.Name, v.Digest, v.Meta)
+		case *deleteManifest:
+			err = n.Metadata.DeleteManifest(v.Name, v.Digest)
 		case *putTag:
 			err = n.Metadata.PutTag(v.Name, v.Tag, v.Digest)
+		case *deleteTag:
+			err = n.Metadata.DeleteTag(v.Name, v.Tag)
 		default:
-			log.Fatalf("unexpected type received: %T", v)
+			log.Fatalf("unknown operation received: %T", v)
 		}
 
 		errC, ok := n.errors[c.ID()]

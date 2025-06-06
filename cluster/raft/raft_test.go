@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/robinkb/cascade-registry/cluster"
+	"github.com/robinkb/cascade-registry/store"
 	"github.com/robinkb/cascade-registry/store/inmemory"
 	. "github.com/robinkb/cascade-registry/testing"
 )
@@ -52,7 +53,7 @@ func TestRaftClusterFormation(t *testing.T) {
 		n.Start()
 	}
 
-	time.Sleep(150 * time.Millisecond)
+	time.Sleep(200 * time.Millisecond)
 
 	for _, n := range nodes {
 		AssertEqual(t, n.ClusterStatus().Clustered, true)
@@ -67,10 +68,10 @@ func TestRaftClusterReplication(t *testing.T) {
 	}
 
 	// Allow some time for cluster formation.
-	time.Sleep(150 * time.Millisecond)
+	time.Sleep(200 * time.Millisecond)
 
-	t.Run("Ensure CreateRepository is replicated", func(t *testing.T) {
-		name := RandomVersion()
+	t.Run("Ensure repository metadata is replicated", func(t *testing.T) {
+		name := RandomName()
 		err := nodes[0].CreateRepository(name)
 		AssertNoError(t, err)
 
@@ -80,10 +81,20 @@ func TestRaftClusterReplication(t *testing.T) {
 			err := n.GetRepository(name)
 			AssertNoError(t, err)
 		}
+
+		err = nodes[0].DeleteRepository(name)
+		AssertNoError(t, err)
+
+		time.Sleep(1 * time.Millisecond)
+
+		for _, n := range nodes {
+			err := n.GetRepository(name)
+			AssertErrorIs(t, err, store.ErrRepositoryNotFound)
+		}
 	})
 
-	t.Run("Ensure PutBlob is replicated", func(t *testing.T) {
-		name, digest := RandomVersion(), RandomDigest()
+	t.Run("Ensure blob metadata is replicated", func(t *testing.T) {
+		name, digest := RandomName(), RandomDigest()
 		err := nodes[0].CreateRepository(name)
 		RequireNoError(t, err)
 		err = nodes[0].PutBlob(name, digest)
@@ -95,9 +106,53 @@ func TestRaftClusterReplication(t *testing.T) {
 			_, err := n.GetBlob(name, digest)
 			AssertNoError(t, err)
 		}
+
+		err = nodes[0].DeleteBlob(name, digest)
+		AssertNoError(t, err)
+
+		time.Sleep(1 * time.Millisecond)
+
+		for _, n := range nodes {
+			_, err := n.GetBlob(name, digest)
+			AssertErrorIs(t, err, store.ErrNotFound)
+		}
 	})
 
-	t.Run("Ensure PutTag is replicated", func(t *testing.T) {
+	t.Run("Ensure manifest metadata is replicated", func(t *testing.T) {
+		name := RandomName()
+		err := nodes[0].CreateRepository(name)
+		RequireNoError(t, err)
+
+		digest, manifest, content := RandomManifest()
+		meta := &store.ManifestMetadata{
+			Annotations:  manifest.Annotations,
+			ArtifactType: manifest.ArtifactType,
+			MediaType:    manifest.MediaType,
+			Size:         int64(len(content)),
+		}
+		err = nodes[0].PutManifest(name, digest, meta)
+		AssertNoError(t, err)
+
+		time.Sleep(1 * time.Millisecond)
+
+		for _, n := range nodes {
+			got, err := n.GetManifest(name, digest)
+			AssertNoError(t, err)
+			AssertStructsEqual(t, got, meta)
+		}
+
+		err = nodes[0].DeleteManifest(name, digest)
+		AssertNoError(t, err)
+
+		time.Sleep(1 * time.Millisecond)
+
+		for _, n := range nodes {
+			_, err := n.GetManifest(name, digest)
+			AssertErrorIs(t, err, store.ErrMetadataNotFound)
+		}
+	})
+
+	t.Run("Ensure tag metadata is replicated", func(t *testing.T) {
 		name, tag, digest := RandomName(), RandomVersion(), RandomDigest()
 		err := nodes[0].CreateRepository(name)
 		RequireNoError(t, err)
@@ -111,6 +166,16 @@ func TestRaftClusterReplication(t *testing.T) {
 			got, err := n.GetTag(name, tag)
 			AssertNoError(t, err)
 			AssertEqual(t, got, digest)
+		}
+
+		err = nodes[0].DeleteTag(name, tag)
+		AssertNoError(t, err)
+
+		time.Sleep(1 * time.Millisecond)
+
+		for _, n := range nodes {
+			_, err := n.GetTag(name, tag)
+			AssertErrorIs(t, err, store.ErrNotFound)
 		}
 	})
 }
