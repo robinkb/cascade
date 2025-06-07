@@ -1,31 +1,24 @@
-package raft
+package cluster
 
 import (
-	"encoding/gob"
-
 	"github.com/opencontainers/go-digest"
 	"github.com/robinkb/cascade-registry/store"
 )
 
 func init() {
-	// Implementers of the operation interface must be registered
-	// with gob so that it can encode then as an operation interface type,
+	// Implementers of the cluster.Operation interface must be registered
+	// with gob so that it can encode then as an Operation interface type,
 	// and decode them back to the concrete type.
-	gob.Register(&createRepository{})
-	gob.Register(&deleteRepository{})
-	gob.Register(&putBlob{})
-	gob.Register(&deleteBlob{})
-	gob.Register(&putManifest{})
-	gob.Register(&deleteManifest{})
-	gob.Register(&putTag{})
-	gob.Register(&deleteTag{})
-	gob.Register(&putUploadSession{})
-	gob.Register(&deleteUploadSession{})
-}
-
-// operation represents an operation that gets commited to the Raft log.
-type operation interface {
-	ID() uint64
+	// gob.Register(&createRepository{})
+	// gob.Register(&deleteRepository{})
+	// gob.Register(&putBlob{})
+	// gob.Register(&deleteBlob{})
+	// gob.Register(&putManifest{})
+	// gob.Register(&deleteManifest{})
+	// gob.Register(&putTag{})
+	// gob.Register(&deleteTag{})
+	// gob.Register(&putUploadSession{})
+	// gob.Register(&deleteUploadSession{})
 }
 
 type createRepository struct {

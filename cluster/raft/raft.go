@@ -7,14 +7,12 @@ import (
 	"io"
 	"log"
 	"math"
-	"math/rand/v2"
 	"net"
+	"reflect"
 	"time"
 
 	"github.com/golang/protobuf/proto"
-	"github.com/opencontainers/go-digest"
 	"github.com/robinkb/cascade-registry/cluster"
-	"github.com/robinkb/cascade-registry/store"
 	"go.etcd.io/raft/v3"
 	"go.etcd.io/raft/v3/raftpb"
 )
@@ -28,7 +26,7 @@ type Peer struct {
 	Addr net.TCPAddr
 }
 
-func NewRaftNode(id uint64, addr *net.TCPAddr, peers []Peer, metadata store.Metadata) cluster.Node {
+func NewNode(id uint64, addr *net.TCPAddr, peers []Peer) cluster.Node {
 	storage := raft.NewMemoryStorage()
 	conf := raft.Config{
 		ID:              id,
@@ -55,7 +53,7 @@ func NewRaftNode(id uint64, addr *net.TCPAddr, peers []Peer, metadata store.Meta
 		addr:  addr,
 		peers: npeers,
 
-		Metadata: metadata,
+		processFuncs: make(map[reflect.Type]cluster.ProcessFunc),
 	}
 
 	nodes[id] = node
@@ -73,7 +71,7 @@ type node struct {
 	peers map[uint64]Peer
 	addr  *net.TCPAddr
 
-	store.Metadata
+	processFuncs map[reflect.Type]cluster.ProcessFunc
 }
 
 func (n *node) Start() {
@@ -219,93 +217,26 @@ func (n *node) saveToStorage(hardState raftpb.HardState, entries []raftpb.Entry,
 	}
 }
 
-func (n *node) CreateRepository(name string) error {
-	op := &createRepository{
-		rand.Uint64(),
-		name,
-	}
+func (n *node) Propose(op cluster.Operation) error {
 	return n.propose(op)
 }
 
-func (n *node) DeleteRepository(name string) error {
-	op := &deleteRepository{
-		rand.Uint64(),
-		name,
+func (n *node) Process(op cluster.Operation, f cluster.ProcessFunc) {
+	t := reflect.TypeOf(op)
+	if _, ok := n.processFuncs[t]; ok {
+		log.Fatalf("operation already registered: %T", op)
 	}
-	return n.propose(op)
+	n.processFuncs[reflect.TypeOf(op)] = f
+	gob.Register(op)
 }
 
-func (n *node) PutBlob(name string, digest digest.Digest) error {
-	op := &putBlob{
-		rand.Uint64(),
-		name, digest,
-	}
-	return n.propose(op)
-}
-
-func (n *node) DeleteBlob(name string, digest digest.Digest) error {
-	op := &deleteBlob{
-		rand.Uint64(),
-		name, digest,
-	}
-	return n.propose(op)
-}
-
-func (n *node) PutManifest(name string, digest digest.Digest, meta *store.ManifestMetadata) error {
-	op := &putManifest{
-		rand.Uint64(),
-		name, digest, meta,
-	}
-	return n.propose(op)
-}
-
-func (n *node) DeleteManifest(name string, digest digest.Digest) error {
-	op := &deleteManifest{
-		rand.Uint64(),
-		name, digest,
-	}
-	return n.propose(op)
-}
-
-func (n *node) PutTag(name, tag string, digest digest.Digest) error {
-	op := &putTag{
-		rand.Uint64(),
-		name, tag, digest,
-	}
-	return n.propose(op)
-}
-
-func (n *node) DeleteTag(name, tag string) error {
-	op := &deleteTag{
-		rand.Uint64(),
-		name, tag,
-	}
-	return n.propose(op)
-}
-
-func (n *node) PutUploadSession(name string, session *store.UploadSession) error {
-	op := &putUploadSession{
-		rand.Uint64(),
-		name, session,
-	}
-	return n.propose(op)
-}
-
-func (n *node) DeleteUploadSession(name string, id string) error {
-	op := &deleteUploadSession{
-		rand.Uint64(),
-		name, id,
-	}
-	return n.propose(op)
-}
-
-func (n *node) propose(o operation) error {
+func (n *node) propose(op cluster.Operation) error {
 	var buf bytes.Buffer
-	if err := gob.NewEncoder(&buf).Encode(&o); err != nil {
+	if err := gob.NewEncoder(&buf).Encode(&op); err != nil {
 		log.Panicf("failed to encode operation: %s\n", err)
 	}
 
-	n.errors[o.ID()] = make(chan error)
+	n.errors[op.ID()] = make(chan error)
 	// Propose blocks until accepted by the cluster.
 	// TODO: Find out how to retry proposals.
 	err := n.raft.Propose(context.TODO(), buf.Bytes())
@@ -316,7 +247,7 @@ func (n *node) propose(o operation) error {
 	select {
 	case <-time.Tick(5 * time.Second):
 		panic("timed out")
-	case <-n.errors[o.ID()]:
+	case <-n.errors[op.ID()]:
 		return err
 	}
 }
@@ -325,44 +256,25 @@ func (n *node) process(entry raftpb.Entry) {
 	if entry.Data != nil {
 		buf := bytes.NewBuffer(entry.Data)
 
-		var c operation
-		err := gob.NewDecoder(buf).Decode(&c)
+		var op cluster.Operation
+		err := gob.NewDecoder(buf).Decode(&op)
 		if err != nil {
 			log.Panicf("unable to decode as operation: %s", err)
 		}
 
-		switch v := c.(type) {
-		case *createRepository:
-			err = n.Metadata.CreateRepository(v.Name)
-		case *deleteRepository:
-			err = n.Metadata.DeleteRepository(v.Name)
-		case *putBlob:
-			err = n.Metadata.PutBlob(v.Name, v.Digest)
-		case *deleteBlob:
-			err = n.Metadata.DeleteBlob(v.Name, v.Digest)
-		case *putManifest:
-			err = n.Metadata.PutManifest(v.Name, v.Digest, v.Meta)
-		case *deleteManifest:
-			err = n.Metadata.DeleteManifest(v.Name, v.Digest)
-		case *putTag:
-			err = n.Metadata.PutTag(v.Name, v.Tag, v.Digest)
-		case *deleteTag:
-			err = n.Metadata.DeleteTag(v.Name, v.Tag)
-		case *putUploadSession:
-			err = n.Metadata.PutUploadSession(v.Name, v.Session)
-		case *deleteUploadSession:
-			err = n.Metadata.DeleteUploadSession(v.Name, v.SessionID)
-		default:
-			log.Panicf("unknown operation received: %T", v)
+		f, ok := n.processFuncs[reflect.TypeOf(op)]
+		if !ok {
+			log.Panicf("unknown operation received: %T", op)
 		}
+		err = f(op)
 
-		errC, ok := n.errors[c.ID()]
+		errC, ok := n.errors[op.ID()]
 		if ok {
 			if err != nil {
 				errC <- err
 			} else {
 				close(errC)
-				delete(n.errors, c.ID())
+				delete(n.errors, op.ID())
 			}
 		}
 	}
