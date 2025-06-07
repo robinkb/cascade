@@ -17,10 +17,6 @@ import (
 	"go.etcd.io/raft/v3/raftpb"
 )
 
-var (
-	nodes = make(map[uint64]*node)
-)
-
 type Peer struct {
 	ID   uint64
 	Addr net.TCPAddr
@@ -55,8 +51,6 @@ func NewNode(id uint64, addr *net.TCPAddr, peers []Peer) cluster.Node {
 
 		processFuncs: make(map[reflect.Type]cluster.ProcessFunc),
 	}
-
-	nodes[id] = node
 
 	return node
 }
