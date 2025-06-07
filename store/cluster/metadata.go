@@ -16,8 +16,8 @@ func NewMetadataStore(node cluster.Node, metadata store.Metadata) store.Metadata
 
 	node.Process(&createRepository{}, s.createRepository)
 	node.Process(&deleteRepository{}, s.deleteRepository)
-	node.Process(&putBlob{}, s.putBlob)
-	node.Process(&deleteBlob{}, s.deleteBlob)
+	node.Process(&putBlobMeta{}, s.putBlob)
+	node.Process(&deleteBlobMeta{}, s.deleteBlob)
 	node.Process(&putManifest{}, s.putManifest)
 	node.Process(&deleteManifest{}, s.deleteManifest)
 	node.Process(&putTag{}, s.putTag)
@@ -60,7 +60,7 @@ func (s *metadataStore) deleteRepository(op cluster.Operation) error {
 }
 
 func (s *metadataStore) PutBlob(name string, digest digest.Digest) error {
-	op := &putBlob{
+	op := &putBlobMeta{
 		rand.Uint64(),
 		name, digest,
 	}
@@ -68,12 +68,12 @@ func (s *metadataStore) PutBlob(name string, digest digest.Digest) error {
 }
 
 func (s *metadataStore) putBlob(op cluster.Operation) error {
-	v := op.(*putBlob)
+	v := op.(*putBlobMeta)
 	return s.Metadata.PutBlob(v.Name, v.Digest)
 }
 
 func (s *metadataStore) DeleteBlob(name string, digest digest.Digest) error {
-	op := &deleteBlob{
+	op := &deleteBlobMeta{
 		rand.Uint64(),
 		name, digest,
 	}
@@ -81,7 +81,7 @@ func (s *metadataStore) DeleteBlob(name string, digest digest.Digest) error {
 }
 
 func (s *metadataStore) deleteBlob(op cluster.Operation) error {
-	v := op.(*deleteBlob)
+	v := op.(*deleteBlobMeta)
 	return s.Metadata.DeleteBlob(v.Name, v.Digest)
 }
 

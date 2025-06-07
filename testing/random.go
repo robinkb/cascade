@@ -9,6 +9,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/gofrs/uuid/v5"
 	"github.com/moby/moby/pkg/namesgenerator"
 	"github.com/opencontainers/go-digest"
 	v1 "github.com/opencontainers/image-spec/specs-go/v1"
@@ -37,6 +38,18 @@ func RandomString(length int) string {
 		data[i] = charset[rand.IntN(len(charset))]
 	}
 	return string(data)
+}
+
+func RandomUUID() uuid.UUID {
+	id, err := uuid.NewV7()
+	if err != nil {
+		panic(err)
+	}
+	return id
+}
+
+func RandomPort() int {
+	return rand.IntN(30000) + 1024
 }
 
 func RandomDigest() digest.Digest {

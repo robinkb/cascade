@@ -1,6 +1,8 @@
 package raft
 
 import (
+	"bytes"
+	"io"
 	"math/rand/v2"
 	"net"
 	"testing"
@@ -18,9 +20,10 @@ var (
 	localhost = net.ParseIP("127.0.0.1")
 )
 
-func newTestCluster(n int) ([]cluster.Node, []store.Metadata) {
+func newTestCluster(n int) ([]cluster.Node, []store.Blobs, []store.Metadata) {
 	peers := make([]Peer, n)
 	nodes := make([]cluster.Node, n)
+	blobs := make([]store.Blobs, n)
 	metadata := make([]store.Metadata, n)
 
 	for i := range n {
@@ -39,10 +42,11 @@ func newTestCluster(n int) ([]cluster.Node, []store.Metadata) {
 			&peers[i].Addr,
 			peers,
 		)
+		blobs[i] = storecluster.NewBlobStore(nodes[i], inmemory.NewBlobStore())
 		metadata[i] = storecluster.NewMetadataStore(nodes[i], inmemory.NewMetadataStore())
 	}
 
-	return nodes, metadata
+	return nodes, blobs, metadata
 }
 
 func randomPort() int {
@@ -50,7 +54,7 @@ func randomPort() int {
 }
 
 func TestRaftClusterFormation(t *testing.T) {
-	nodes, _ := newTestCluster(3)
+	nodes, _, _ := newTestCluster(3)
 
 	for _, n := range nodes {
 		AssertEqual(t, n.ClusterStatus().Clustered, false)
@@ -64,9 +68,97 @@ func TestRaftClusterFormation(t *testing.T) {
 	}
 }
 
-func TestRaftClusterReplication(t *testing.T) {
+func TestBlobReplication(t *testing.T) {
 	t.Parallel()
-	nodes, metadata := newTestCluster(3)
+	nodes, blobs, _ := newTestCluster(3)
+	for _, n := range nodes {
+		n.Start()
+	}
+
+	// Allow some time for cluster formation.
+	time.Sleep(200 * time.Millisecond)
+
+	t.Run("Ensure blobs are replicated", func(t *testing.T) {
+		id, content := RandomDigest(), RandomContents(32)
+		err := blobs[0].PutBlob(id, content)
+		RequireNoError(t, err)
+
+		time.Sleep(1 * time.Millisecond)
+
+		for _, b := range blobs {
+			info, err := b.StatBlob(id)
+			AssertNoError(t, err)
+			AssertEqual(t, info.Size, int64(len(content)))
+		}
+
+		err = blobs[0].DeleteBlob(id)
+		RequireNoError(t, err)
+
+		time.Sleep(1 * time.Millisecond)
+
+		for _, b := range blobs {
+			_, err := b.StatBlob(id)
+			AssertErrorIs(t, err, store.ErrNotFound)
+		}
+	})
+
+	t.Run("Ensure uploads are replicated", func(t *testing.T) {
+		id, digest, content := RandomUUID(), RandomDigest(), RandomContents(32)
+		err := blobs[0].InitUpload(id)
+		RequireNoError(t, err)
+
+		time.Sleep(1 * time.Millisecond)
+
+		for _, b := range blobs {
+			_, err := b.StatUpload(id)
+			AssertNoError(t, err)
+		}
+
+		w, err := blobs[0].UploadWriter(id)
+		RequireNoError(t, err)
+
+		_, err = io.Copy(w, bytes.NewBuffer(content))
+		RequireNoError(t, err)
+
+		err = blobs[0].CloseUpload(id, digest)
+		RequireNoError(t, err)
+
+		time.Sleep(1 * time.Millisecond)
+
+		for _, b := range blobs {
+			got, err := b.GetBlob(digest)
+			AssertNoError(t, err)
+			AssertSlicesEqual(t, got, content)
+		}
+	})
+
+	t.Run("Ensure upload deletions are replicated", func(t *testing.T) {
+		id := RandomUUID()
+		err := blobs[0].InitUpload(id)
+		RequireNoError(t, err)
+
+		time.Sleep(1 * time.Millisecond)
+
+		for _, b := range blobs {
+			_, err := b.StatUpload(id)
+			AssertNoError(t, err)
+		}
+
+		err = blobs[0].DeleteUpload(id)
+		RequireNoError(t, err)
+
+		time.Sleep(1 * time.Millisecond)
+
+		for _, b := range blobs {
+			_, err := b.StatUpload(id)
+			AssertErrorIs(t, err, store.ErrNotFound)
+		}
+	})
+}
+
+func TestMetadataReplication(t *testing.T) {
+	t.Parallel()
+	nodes, _, metadata := newTestCluster(3)
 	for _, n := range nodes {
 		n.Start()
 	}
@@ -77,7 +169,7 @@ func TestRaftClusterReplication(t *testing.T) {
 	t.Run("Ensure repository metadata is replicated", func(t *testing.T) {
 		name := RandomName()
 		err := metadata[0].CreateRepository(name)
-		AssertNoError(t, err)
+		RequireNoError(t, err)
 
 		time.Sleep(1 * time.Millisecond)
 
@@ -87,7 +179,7 @@ func TestRaftClusterReplication(t *testing.T) {
 		}
 
 		err = metadata[0].DeleteRepository(name)
-		AssertNoError(t, err)
+		RequireNoError(t, err)
 
 		time.Sleep(1 * time.Millisecond)
 
@@ -102,7 +194,7 @@ func TestRaftClusterReplication(t *testing.T) {
 		err := metadata[0].CreateRepository(name)
 		RequireNoError(t, err)
 		err = metadata[0].PutBlob(name, digest)
-		AssertNoError(t, err)
+		RequireNoError(t, err)
 
 		time.Sleep(1 * time.Millisecond)
 
@@ -112,7 +204,7 @@ func TestRaftClusterReplication(t *testing.T) {
 		}
 
 		err = metadata[0].DeleteBlob(name, digest)
-		AssertNoError(t, err)
+		RequireNoError(t, err)
 
 		time.Sleep(1 * time.Millisecond)
 
@@ -135,7 +227,7 @@ func TestRaftClusterReplication(t *testing.T) {
 			Size:         int64(len(content)),
 		}
 		err = metadata[0].PutManifest(name, digest, meta)
-		AssertNoError(t, err)
+		RequireNoError(t, err)
 
 		time.Sleep(1 * time.Millisecond)
 
@@ -146,7 +238,7 @@ func TestRaftClusterReplication(t *testing.T) {
 		}
 
 		err = metadata[0].DeleteManifest(name, digest)
-		AssertNoError(t, err)
+		RequireNoError(t, err)
 
 		time.Sleep(1 * time.Millisecond)
 
@@ -162,7 +254,7 @@ func TestRaftClusterReplication(t *testing.T) {
 		RequireNoError(t, err)
 
 		err = metadata[0].PutTag(name, tag, digest)
-		AssertNoError(t, err)
+		RequireNoError(t, err)
 
 		time.Sleep(1 * time.Millisecond)
 
@@ -173,7 +265,7 @@ func TestRaftClusterReplication(t *testing.T) {
 		}
 
 		err = metadata[0].DeleteTag(name, tag)
-		AssertNoError(t, err)
+		RequireNoError(t, err)
 
 		time.Sleep(1 * time.Millisecond)
 
@@ -192,7 +284,7 @@ func TestRaftClusterReplication(t *testing.T) {
 		session := &store.UploadSession{ID: id}
 
 		err = metadata[0].PutUploadSession(name, session)
-		AssertNoError(t, err)
+		RequireNoError(t, err)
 
 		time.Sleep(1 * time.Millisecond)
 
@@ -203,7 +295,7 @@ func TestRaftClusterReplication(t *testing.T) {
 		}
 
 		err = metadata[0].DeleteUploadSession(name, id.String())
-		AssertNoError(t, err)
+		RequireNoError(t, err)
 
 		time.Sleep(1 * time.Millisecond)
 
