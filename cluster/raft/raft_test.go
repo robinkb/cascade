@@ -18,9 +18,10 @@ var (
 	localhost = net.ParseIP("127.0.0.1")
 )
 
-func newTestCluster(n int) ([]cluster.Node, []store.Metadata) {
+func newTestCluster(n int) ([]cluster.Node, []store.Blobs, []store.Metadata) {
 	peers := make([]Peer, n)
 	nodes := make([]cluster.Node, n)
+	blobs := make([]store.Blobs, n)
 	metadata := make([]store.Metadata, n)
 
 	for i := range n {
@@ -39,10 +40,11 @@ func newTestCluster(n int) ([]cluster.Node, []store.Metadata) {
 			&peers[i].Addr,
 			peers,
 		)
+		blobs[i] = storecluster.NewBlobStore(nodes[i], inmemory.NewBlobStore())
 		metadata[i] = storecluster.NewMetadataStore(nodes[i], inmemory.NewMetadataStore())
 	}
 
-	return nodes, metadata
+	return nodes, blobs, metadata
 }
 
 func randomPort() int {
@@ -50,7 +52,7 @@ func randomPort() int {
 }
 
 func TestRaftClusterFormation(t *testing.T) {
-	nodes, _ := newTestCluster(3)
+	nodes, _, _ := newTestCluster(3)
 
 	for _, n := range nodes {
 		AssertEqual(t, n.ClusterStatus().Clustered, false)
@@ -64,9 +66,33 @@ func TestRaftClusterFormation(t *testing.T) {
 	}
 }
 
-func TestRaftClusterReplication(t *testing.T) {
+func TestBlobReplication(t *testing.T) {
 	t.Parallel()
-	nodes, metadata := newTestCluster(3)
+	nodes, blobs, _ := newTestCluster(3)
+	for _, n := range nodes {
+		n.Start()
+	}
+
+	// Allow some time for cluster formation.
+	time.Sleep(200 * time.Millisecond)
+
+	t.Run("Ensure uploads are replicated", func(t *testing.T) {
+		id := RandomUUID()
+		err := blobs[0].InitUpload(id)
+		AssertNoError(t, err)
+
+		time.Sleep(1 * time.Millisecond)
+
+		for _, b := range blobs {
+			_, err := b.StatUpload(id)
+			AssertNoError(t, err)
+		}
+	})
+}
+
+func TestMetadataReplication(t *testing.T) {
+	t.Parallel()
+	nodes, _, metadata := newTestCluster(3)
 	for _, n := range nodes {
 		n.Start()
 	}

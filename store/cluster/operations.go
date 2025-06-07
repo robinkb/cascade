@@ -1,26 +1,20 @@
 package cluster
 
 import (
+	"github.com/gofrs/uuid/v5"
 	"github.com/opencontainers/go-digest"
 	"github.com/robinkb/cascade-registry/store"
 )
 
-func init() {
-	// Implementers of the cluster.Operation interface must be registered
-	// with gob so that it can encode then as an Operation interface type,
-	// and decode them back to the concrete type.
-	// gob.Register(&createRepository{})
-	// gob.Register(&deleteRepository{})
-	// gob.Register(&putBlob{})
-	// gob.Register(&deleteBlob{})
-	// gob.Register(&putManifest{})
-	// gob.Register(&deleteManifest{})
-	// gob.Register(&putTag{})
-	// gob.Register(&deleteTag{})
-	// gob.Register(&putUploadSession{})
-	// gob.Register(&deleteUploadSession{})
+// Blob operations
+type initUpload struct {
+	Id        uint64
+	SessionID uuid.UUID
 }
 
+func (o *initUpload) ID() uint64 { return o.Id }
+
+// Metadata operations
 type createRepository struct {
 	Id   uint64
 	Name string
