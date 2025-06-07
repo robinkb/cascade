@@ -124,7 +124,9 @@ func (n *node) send(messages []raftpb.Message) {
 
 		conn, err := net.DialTCP("tcp", nil, &peer.Addr)
 		if err != nil {
-			log.Fatal(err)
+			time.Sleep(1 * time.Second)
+			log.Printf("failed to connect to %s: %s", peer.Addr.String(), err)
+			continue
 		}
 		defer func() {
 			if err := conn.Close(); err != nil {
