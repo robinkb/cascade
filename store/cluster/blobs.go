@@ -119,7 +119,6 @@ func (s *blobStore) deleteUpload(op cluster.Operation) error {
 type writer struct {
 	node      cluster.Node
 	sessionId uuid.UUID
-	buf       bytes.Buffer
 }
 
 func (w *writer) Write(p []byte) (n int, err error) {
