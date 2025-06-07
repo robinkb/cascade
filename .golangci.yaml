@@ -1,0 +1,8 @@
+version: "2"
+linters:
+  exclusions:
+    rules:
+      - linters:
+          - staticcheck
+        # The raft library depends on this, so we can't change it.
+        text: 'SA1019: "github.com/golang/protobuf/proto" is deprecated'
