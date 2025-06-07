@@ -106,7 +106,9 @@ func (n *node) run() {
 					n.process(entry)
 				case raftpb.EntryConfChange:
 					var cc raftpb.ConfChange
-					cc.Unmarshal(entry.Data)
+					if err := cc.Unmarshal(entry.Data); err != nil {
+						log.Panicf("could not read ConfChange entry: %s", err)
+					}
 					n.raft.ApplyConfChange(cc)
 				}
 			}
@@ -132,14 +134,20 @@ func (n *node) send(messages []raftpb.Message) {
 		if err != nil {
 			log.Fatal(err)
 		}
-		defer conn.Close()
+		defer func() {
+			if err := conn.Close(); err != nil {
+				log.Printf("failed to close connection: %s\n", err)
+			}
+		}()
 
 		data, err := proto.Marshal(&message)
 		if err != nil {
 			log.Fatal(err)
 		}
 
-		io.Copy(conn, bytes.NewBuffer(data))
+		if _, err := io.Copy(conn, bytes.NewBuffer(data)); err != nil {
+			log.Panicf("failed to copy message data into buffer: %s\n", err)
+		}
 
 		if message.Type == raftpb.MsgSnap {
 			// TODO: Snapshotting may fail, and that has to be reported through this method.
@@ -151,42 +159,63 @@ func (n *node) send(messages []raftpb.Message) {
 func (n *node) receive() {
 	l, err := net.ListenTCP("tcp", n.addr)
 	if err != nil {
-		log.Fatal(err)
+		log.Panicf("failed to open receiving TCP connection: %s\n", err)
 	}
-	defer l.Close()
+	defer func() {
+		if err := l.Close(); err != nil {
+			log.Printf("failed to close receiving connection: %s\n", err)
+		}
+	}()
 
 	for {
 		// Wait for a connection.
 		conn, err := l.Accept()
 		if err != nil {
-			log.Fatal(err)
+			log.Printf("failed to accept receive connection: %s\n", err)
+			return
 		}
+
 		// Handle the connection in a new goroutine.
 		// The loop then returns to accepting, so that
 		// multiple connections may be served concurrently.
 		go func(c net.Conn) {
-			defer c.Close()
+			defer func() {
+				if err := c.Close(); err != nil {
+					log.Printf("failed to close connection: %s\n", err)
+				}
+			}()
 
 			buf := &bytes.Buffer{}
-			io.Copy(buf, c)
+			if _, err := io.Copy(buf, c); err != nil {
+				log.Panicf("failed to copy message data into buffer: %s\n", err)
+			}
 
 			var message raftpb.Message
-			if err := message.Unmarshal(buf.Bytes()); err == nil {
-				n.raft.Step(context.TODO(), message)
+			if err := message.Unmarshal(buf.Bytes()); err != nil {
+				log.Panicf("failed to decode raft message: %s\n", err)
+			}
+			if err := n.raft.Step(context.TODO(), message); err != nil {
+				log.Panicf("failed to advance raft state machine: %s\n", err)
 			}
 		}(conn)
 	}
 }
 
 func (n *node) saveToStorage(hardState raftpb.HardState, entries []raftpb.Entry, snapshot raftpb.Snapshot) {
-	n.storage.Append(entries)
+	if err := n.storage.Append(entries); err != nil {
+		log.Panicf("failed to append entries to storage: %s\n", err)
+	}
 
 	if !raft.IsEmptyHardState(hardState) {
-		n.storage.SetHardState(hardState)
+		if err := n.storage.SetHardState(hardState); err != nil {
+			log.Panicf("failed to save hardstate: %s\n", err)
+		}
 	}
 
 	if !raft.IsEmptySnap(snapshot) {
-		n.storage.ApplySnapshot(snapshot)
+		if err := n.storage.ApplySnapshot(snapshot); err != nil {
+			log.Panicf("failed to apply snapshot: %s\n", err)
+		}
 	}
 }
 
@@ -272,7 +301,9 @@ func (n *node) DeleteUploadSession(name string, id string) error {
 
 func (n *node) propose(o operation) error {
 	var buf bytes.Buffer
-	gob.NewEncoder(&buf).Encode(&o)
+	if err := gob.NewEncoder(&buf).Encode(&o); err != nil {
+		log.Panicf("failed to encode operation: %s\n", err)
+	}
 
 	n.errors[o.ID()] = make(chan error)
 	// Propose blocks until accepted by the cluster.
@@ -297,7 +328,7 @@ func (n *node) process(entry raftpb.Entry) {
 		var c operation
 		err := gob.NewDecoder(buf).Decode(&c)
 		if err != nil {
-			log.Fatalf("unable to decode as operation: %s", err)
+			log.Panicf("unable to decode as operation: %s", err)
 		}
 
 		switch v := c.(type) {
@@ -322,7 +353,7 @@ func (n *node) process(entry raftpb.Entry) {
 		case *deleteUploadSession:
 			err = n.Metadata.DeleteUploadSession(v.Name, v.SessionID)
 		default:
-			log.Fatalf("unknown operation received: %T", v)
+			log.Panicf("unknown operation received: %T", v)
 		}
 
 		errC, ok := n.errors[c.ID()]
