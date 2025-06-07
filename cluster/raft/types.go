@@ -19,6 +19,8 @@ func init() {
 	gob.Register(&deleteManifest{})
 	gob.Register(&putTag{})
 	gob.Register(&deleteTag{})
+	gob.Register(&putUploadSession{})
+	gob.Register(&deleteUploadSession{})
 }
 
 // operation represents an operation that gets commited to the Raft log.
@@ -89,3 +91,19 @@ type deleteTag struct {
 }
 
 func (o *deleteTag) ID() uint64 { return o.Id }
+
+type putUploadSession struct {
+	Id      uint64
+	Name    string
+	Session *store.UploadSession
+}
+
+func (o *putUploadSession) ID() uint64 { return o.Id }
+
+type deleteUploadSession struct {
+	Id        uint64
+	Name      string
+	SessionID string
+}
+
+func (o *deleteUploadSession) ID() uint64 { return o.Id }

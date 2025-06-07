@@ -243,7 +243,6 @@ func (n *node) PutTag(name, tag string, digest digest.Digest) error {
 		rand.Uint64(),
 		name, tag, digest,
 	}
-
 	return n.propose(op)
 }
 
@@ -252,7 +251,22 @@ func (n *node) DeleteTag(name, tag string) error {
 		rand.Uint64(),
 		name, tag,
 	}
+	return n.propose(op)
+}
 
+func (n *node) PutUploadSession(name string, session *store.UploadSession) error {
+	op := &putUploadSession{
+		rand.Uint64(),
+		name, session,
+	}
+	return n.propose(op)
+}
+
+func (n *node) DeleteUploadSession(name string, id string) error {
+	op := &deleteUploadSession{
+		rand.Uint64(),
+		name, id,
+	}
 	return n.propose(op)
 }
 
@@ -303,6 +317,10 @@ func (n *node) process(entry raftpb.Entry) {
 			err = n.Metadata.PutTag(v.Name, v.Tag, v.Digest)
 		case *deleteTag:
 			err = n.Metadata.DeleteTag(v.Name, v.Tag)
+		case *putUploadSession:
+			err = n.Metadata.PutUploadSession(v.Name, v.Session)
+		case *deleteUploadSession:
+			err = n.Metadata.DeleteUploadSession(v.Name, v.SessionID)
 		default:
 			log.Fatalf("unknown operation received: %T", v)
 		}

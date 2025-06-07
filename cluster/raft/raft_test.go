@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gofrs/uuid/v5"
 	"github.com/robinkb/cascade-registry/cluster"
 	"github.com/robinkb/cascade-registry/store"
 	"github.com/robinkb/cascade-registry/store/inmemory"
@@ -175,6 +176,36 @@ func TestRaftClusterReplication(t *testing.T) {
 
 		for _, n := range nodes {
 			_, err := n.GetTag(name, tag)
+			AssertErrorIs(t, err, store.ErrNotFound)
+		}
+	})
+
+	t.Run("Ensure upload session metadata is replicated", func(t *testing.T) {
+		name := RandomName()
+		err := nodes[0].CreateRepository(name)
+		RequireNoError(t, err)
+
+		id, _ := uuid.NewV7()
+		session := &store.UploadSession{ID: id}
+
+		err = nodes[0].PutUploadSession(name, session)
+		AssertNoError(t, err)
+
+		time.Sleep(1 * time.Millisecond)
+
+		for _, n := range nodes {
+			got, err := n.GetUploadSession(name, id.String())
+			AssertNoError(t, err)
+			AssertStructsEqual(t, got, session)
+		}
+
+		err = nodes[0].DeleteUploadSession(name, id.String())
+		AssertNoError(t, err)
+
+		time.Sleep(1 * time.Millisecond)
+
+		for _, n := range nodes {
+			_, err := n.GetUploadSession(name, id.String())
 			AssertErrorIs(t, err, store.ErrNotFound)
 		}
 	})
