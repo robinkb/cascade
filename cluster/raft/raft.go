@@ -49,7 +49,7 @@ func NewNode(id uint64, addr *net.TCPAddr, peers []Peer) cluster.Node {
 		addr:  addr,
 		peers: npeers,
 
-		processFuncs: make(map[reflect.Type]cluster.ProcessFunc),
+		handlerFuncs: make(map[reflect.Type]cluster.HandlerFunc),
 	}
 
 	return node
@@ -65,7 +65,7 @@ type node struct {
 	peers map[uint64]Peer
 	addr  *net.TCPAddr
 
-	processFuncs map[reflect.Type]cluster.ProcessFunc
+	handlerFuncs map[reflect.Type]cluster.HandlerFunc
 }
 
 func (n *node) Start() {
@@ -115,7 +115,6 @@ func (n *node) run() {
 
 func (n *node) send(messages []raftpb.Message) {
 	for _, message := range messages {
-
 		peer, ok := n.peers[message.To]
 		if !ok {
 			log.Printf("peer %d not found\n", message.To)
@@ -217,15 +216,6 @@ func (n *node) Propose(op cluster.Operation) error {
 	return n.propose(op)
 }
 
-func (n *node) Process(op cluster.Operation, f cluster.ProcessFunc) {
-	t := reflect.TypeOf(op)
-	if _, ok := n.processFuncs[t]; ok {
-		log.Fatalf("operation already registered: %T", op)
-	}
-	n.processFuncs[reflect.TypeOf(op)] = f
-	gob.Register(op)
-}
-
 func (n *node) propose(op cluster.Operation) error {
 	var buf bytes.Buffer
 	if err := gob.NewEncoder(&buf).Encode(&op); err != nil {
@@ -248,6 +238,15 @@ func (n *node) propose(op cluster.Operation) error {
 	}
 }
 
+func (n *node) Handle(op cluster.Operation, f cluster.HandlerFunc) {
+	t := reflect.TypeOf(op)
+	if _, ok := n.handlerFuncs[t]; ok {
+		log.Fatalf("operation already registered: %T", op)
+	}
+	n.handlerFuncs[reflect.TypeOf(op)] = f
+	gob.Register(op)
+}
+
 func (n *node) process(entry raftpb.Entry) {
 	if entry.Data != nil {
 		buf := bytes.NewBuffer(entry.Data)
@@ -258,7 +257,7 @@ func (n *node) process(entry raftpb.Entry) {
 			log.Panicf("unable to decode as operation: %s", err)
 		}
 
-		f, ok := n.processFuncs[reflect.TypeOf(op)]
+		f, ok := n.handlerFuncs[reflect.TypeOf(op)]
 		if !ok {
 			log.Panicf("unknown operation received: %T", op)
 		}
