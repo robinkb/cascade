@@ -17,12 +17,12 @@ func NewBlobStore(node cluster.Node, blobs store.Blobs) store.Blobs {
 		node:  node,
 	}
 
-	node.Process(&putBlob{}, s.putBlob)
-	node.Process(&deleteBlob{}, s.deleteBlob)
-	node.Process(&initUpload{}, s.initUpload)
-	node.Process(&appendUpload{}, s.appendUpload)
-	node.Process(&closeUpload{}, s.closeUpload)
-	node.Process(&deleteUpload{}, s.deleteUpload)
+	node.Handle(&putBlob{}, s.putBlob)
+	node.Handle(&deleteBlob{}, s.deleteBlob)
+	node.Handle(&initUpload{}, s.initUpload)
+	node.Handle(&appendUpload{}, s.appendUpload)
+	node.Handle(&closeUpload{}, s.closeUpload)
+	node.Handle(&deleteUpload{}, s.deleteUpload)
 
 	return s
 }

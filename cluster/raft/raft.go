@@ -9,6 +9,7 @@ import (
 	"math"
 	"net"
 	"reflect"
+	"sync"
 	"time"
 
 	"github.com/golang/protobuf/proto"
@@ -44,12 +45,14 @@ func NewNode(id uint64, addr *net.TCPAddr, peers []Peer) cluster.Node {
 		raft:    raft.StartNode(&conf, raftPeers),
 		storage: storage,
 		ticker:  time.Tick(10 * time.Millisecond),
-		errors:  make(map[uint64]chan error),
+		errors: errors{
+			errs: make(map[uint64]chan error),
+		},
 
 		addr:  addr,
 		peers: npeers,
 
-		processFuncs: make(map[reflect.Type]cluster.ProcessFunc),
+		handlerFuncs: make(map[reflect.Type]cluster.HandlerFunc),
 	}
 
 	return node
@@ -60,12 +63,12 @@ type node struct {
 	ticker  <-chan time.Time
 	storage *raft.MemoryStorage
 	done    <-chan struct{}
-	errors  map[uint64]chan error
+	errors  errors
 
 	peers map[uint64]Peer
 	addr  *net.TCPAddr
 
-	processFuncs map[reflect.Type]cluster.ProcessFunc
+	handlerFuncs map[reflect.Type]cluster.HandlerFunc
 }
 
 func (n *node) Start() {
@@ -115,7 +118,6 @@ func (n *node) run() {
 
 func (n *node) send(messages []raftpb.Message) {
 	for _, message := range messages {
-
 		peer, ok := n.peers[message.To]
 		if !ok {
 			log.Printf("peer %d not found\n", message.To)
@@ -217,22 +219,13 @@ func (n *node) Propose(op cluster.Operation) error {
 	return n.propose(op)
 }
 
-func (n *node) Process(op cluster.Operation, f cluster.ProcessFunc) {
-	t := reflect.TypeOf(op)
-	if _, ok := n.processFuncs[t]; ok {
-		log.Fatalf("operation already registered: %T", op)
-	}
-	n.processFuncs[reflect.TypeOf(op)] = f
-	gob.Register(op)
-}
-
 func (n *node) propose(op cluster.Operation) error {
 	var buf bytes.Buffer
 	if err := gob.NewEncoder(&buf).Encode(&op); err != nil {
 		log.Panicf("failed to encode operation: %s\n", err)
 	}
 
-	n.errors[op.ID()] = make(chan error)
+	errC := n.errors.create(op.ID())
 	// Propose blocks until accepted by the cluster.
 	// TODO: Find out how to retry proposals.
 	err := n.raft.Propose(context.TODO(), buf.Bytes())
@@ -243,9 +236,18 @@ func (n *node) propose(op cluster.Operation) error {
 	select {
 	case <-time.Tick(5 * time.Second):
 		panic("timed out")
-	case <-n.errors[op.ID()]:
+	case <-errC:
 		return err
 	}
+}
+
+func (n *node) Handle(op cluster.Operation, f cluster.HandlerFunc) {
+	t := reflect.TypeOf(op)
+	if _, ok := n.handlerFuncs[t]; ok {
+		log.Fatalf("operation already registered: %T", op)
+	}
+	n.handlerFuncs[reflect.TypeOf(op)] = f
+	gob.Register(op)
 }
 
 func (n *node) process(entry raftpb.Entry) {
@@ -258,24 +260,48 @@ func (n *node) process(entry raftpb.Entry) {
 			log.Panicf("unable to decode as operation: %s", err)
 		}
 
-		f, ok := n.processFuncs[reflect.TypeOf(op)]
+		f, ok := n.handlerFuncs[reflect.TypeOf(op)]
 		if !ok {
 			log.Panicf("unknown operation received: %T", op)
 		}
 		err = f(op)
 
-		errC, ok := n.errors[op.ID()]
+		errC, ok := n.errors.get(op.ID())
 		if ok {
 			if err != nil {
 				errC <- err
-			} else {
-				close(errC)
-				delete(n.errors, op.ID())
 			}
+			n.errors.delete(op.ID())
 		}
 	}
 }
 
 func (n *node) processSnapshot(snapshot raftpb.Snapshot) {
 	log.Printf("Applying snapshot is not implemented yet")
+}
+
+type errors struct {
+	mu   sync.RWMutex
+	errs map[uint64]chan error
+}
+
+func (e *errors) create(id uint64) chan error {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	e.errs[id] = make(chan error)
+	return e.errs[id]
+}
+
+func (e *errors) get(id uint64) (chan error, bool) {
+	e.mu.RLock()
+	defer e.mu.RUnlock()
+	err, ok := e.errs[id]
+	return err, ok
+}
+
+func (e *errors) delete(id uint64) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	close(e.errs[id])
+	delete(e.errs, id)
 }

@@ -9,11 +9,11 @@ type (
 		Start()
 		ClusterStatus() Status
 		Propose(op Operation) error
-		// Consumers must call Process() to register a function that processes operations.
-		Process(op Operation, f ProcessFunc)
+		// Consumers must call Handle() to register a function that processes operations.
+		Handle(op Operation, f HandlerFunc)
 	}
 
-	ProcessFunc func(op Operation) error
+	HandlerFunc func(op Operation) error
 
 	Status struct {
 		Clustered bool

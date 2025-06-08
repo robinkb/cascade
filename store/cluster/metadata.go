@@ -14,16 +14,16 @@ func NewMetadataStore(node cluster.Node, metadata store.Metadata) store.Metadata
 		node:     node,
 	}
 
-	node.Process(&createRepository{}, s.createRepository)
-	node.Process(&deleteRepository{}, s.deleteRepository)
-	node.Process(&putBlobMeta{}, s.putBlob)
-	node.Process(&deleteBlobMeta{}, s.deleteBlob)
-	node.Process(&putManifest{}, s.putManifest)
-	node.Process(&deleteManifest{}, s.deleteManifest)
-	node.Process(&putTag{}, s.putTag)
-	node.Process(&deleteTag{}, s.deleteTag)
-	node.Process(&putUploadSession{}, s.putUploadSession)
-	node.Process(&deleteUploadSession{}, s.deleteUploadSession)
+	node.Handle(&createRepository{}, s.createRepository)
+	node.Handle(&deleteRepository{}, s.deleteRepository)
+	node.Handle(&putBlobMeta{}, s.putBlob)
+	node.Handle(&deleteBlobMeta{}, s.deleteBlob)
+	node.Handle(&putManifest{}, s.putManifest)
+	node.Handle(&deleteManifest{}, s.deleteManifest)
+	node.Handle(&putTag{}, s.putTag)
+	node.Handle(&deleteTag{}, s.deleteTag)
+	node.Handle(&putUploadSession{}, s.putUploadSession)
+	node.Handle(&deleteUploadSession{}, s.deleteUploadSession)
 
 	return s
 }
