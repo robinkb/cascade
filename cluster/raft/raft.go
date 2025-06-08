@@ -9,6 +9,7 @@ import (
 	"math"
 	"net"
 	"reflect"
+	"sync"
 	"time"
 
 	"github.com/golang/protobuf/proto"
@@ -44,7 +45,9 @@ func NewNode(id uint64, addr *net.TCPAddr, peers []Peer) cluster.Node {
 		raft:    raft.StartNode(&conf, raftPeers),
 		storage: storage,
 		ticker:  time.Tick(10 * time.Millisecond),
-		errors:  make(map[uint64]chan error),
+		errors: errors{
+			errs: make(map[uint64]chan error),
+		},
 
 		addr:  addr,
 		peers: npeers,
@@ -60,7 +63,7 @@ type node struct {
 	ticker  <-chan time.Time
 	storage *raft.MemoryStorage
 	done    <-chan struct{}
-	errors  map[uint64]chan error
+	errors  errors
 
 	peers map[uint64]Peer
 	addr  *net.TCPAddr
@@ -222,7 +225,7 @@ func (n *node) propose(op cluster.Operation) error {
 		log.Panicf("failed to encode operation: %s\n", err)
 	}
 
-	n.errors[op.ID()] = make(chan error)
+	errC := n.errors.create(op.ID())
 	// Propose blocks until accepted by the cluster.
 	// TODO: Find out how to retry proposals.
 	err := n.raft.Propose(context.TODO(), buf.Bytes())
@@ -233,7 +236,7 @@ func (n *node) propose(op cluster.Operation) error {
 	select {
 	case <-time.Tick(5 * time.Second):
 		panic("timed out")
-	case <-n.errors[op.ID()]:
+	case <-errC:
 		return err
 	}
 }
@@ -263,18 +266,42 @@ func (n *node) process(entry raftpb.Entry) {
 		}
 		err = f(op)
 
-		errC, ok := n.errors[op.ID()]
+		errC, ok := n.errors.get(op.ID())
 		if ok {
 			if err != nil {
 				errC <- err
-			} else {
-				close(errC)
-				delete(n.errors, op.ID())
 			}
+			n.errors.delete(op.ID())
 		}
 	}
 }
 
 func (n *node) processSnapshot(snapshot raftpb.Snapshot) {
 	log.Printf("Applying snapshot is not implemented yet")
+}
+
+type errors struct {
+	mu   sync.RWMutex
+	errs map[uint64]chan error
+}
+
+func (e *errors) create(id uint64) chan error {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	e.errs[id] = make(chan error)
+	return e.errs[id]
+}
+
+func (e *errors) get(id uint64) (chan error, bool) {
+	e.mu.RLock()
+	defer e.mu.RUnlock()
+	err, ok := e.errs[id]
+	return err, ok
+}
+
+func (e *errors) delete(id uint64) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	close(e.errs[id])
+	delete(e.errs, id)
 }
