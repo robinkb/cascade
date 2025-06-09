@@ -109,11 +109,9 @@ func receiverReuse(addr *net.TCPAddr) {
 				}
 			}()
 
-			var i int
+			varint := make([]byte, 4)
 			r := bufio.NewReader(c)
 			for {
-				i++
-				varint := make([]byte, 4)
 				_, err := io.ReadFull(r, varint)
 				if err != nil {
 					log.Panic(err)
@@ -140,13 +138,13 @@ func senderReuse(addr *net.TCPAddr, messages <-chan raftpb.Message) {
 		log.Panic(err)
 	}
 
+	varint := make([]byte, 4)
 	for message := range messages {
 		data, err := proto.Marshal(&message)
 		if err != nil {
 			log.Panic(err)
 		}
 
-		varint := make([]byte, 4)
 		binary.LittleEndian.PutUint32(varint, uint32(len(data)))
 		data = append(varint, data...)
 
