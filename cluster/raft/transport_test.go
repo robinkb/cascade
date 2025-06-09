@@ -13,7 +13,6 @@ import (
 
 	"github.com/golang/protobuf/proto"
 	. "github.com/robinkb/cascade-registry/testing"
-	"go.etcd.io/raft/v3"
 	"go.etcd.io/raft/v3/raftpb"
 )
 
@@ -28,6 +27,23 @@ func BenchmarkTransportPerMessage(b *testing.B) {
 	go receiverConnPerMessage(addr)
 	time.Sleep(time.Millisecond)
 	go senderConnPerMessage(addr, messages)
+
+	for b.Loop() {
+		RandomMessage(messages)
+	}
+}
+
+func BenchmarkTransportReuseSimple(b *testing.B) {
+	port := RandomPort()
+	addr := &net.TCPAddr{
+		Port: port,
+	}
+
+	messages := make(chan raftpb.Message)
+
+	go receiverConnPerMessage(addr)
+	time.Sleep(time.Millisecond)
+	go senderConnReuseSimple(addr, messages)
 
 	for b.Loop() {
 		RandomMessage(messages)
@@ -63,7 +79,24 @@ func TestTransportReuse(t *testing.T) {
 	time.Sleep(time.Millisecond)
 	go senderReuse(addr, messages)
 
-	RandomMessages(messages, 100000)
+	RandomMessages(messages, 10)
+	time.Sleep(time.Second)
+}
+
+func TestTransportPerMessage(t *testing.T) {
+	port := RandomPort()
+	addr := &net.TCPAddr{
+		Port: port,
+	}
+
+	messages := make(chan raftpb.Message)
+
+	go receiverConnPerMessage(addr)
+	time.Sleep(time.Millisecond)
+	go senderConnPerMessage(addr, messages)
+
+	RandomMessages(messages, 10)
+	time.Sleep(time.Second)
 }
 
 func RandomMessages(messages chan<- raftpb.Message, n int) {
@@ -93,15 +126,11 @@ func receiverReuse(addr *net.TCPAddr) {
 	}()
 
 	for {
-		// Wait for a connection.
 		conn, err := l.Accept()
 		if err != nil {
 			log.Panic(err)
 		}
 
-		// Handle the connection in a new goroutine.
-		// The loop then returns to accepting, so that
-		// multiple connections may be served concurrently.
 		go func(c net.Conn) {
 			defer func() {
 				if err := c.Close(); err != nil {
@@ -129,28 +158,6 @@ func receiverReuse(addr *net.TCPAddr) {
 				}
 			}
 		}(conn)
-	}
-}
-
-func senderReuse(addr *net.TCPAddr, messages <-chan raftpb.Message) {
-	conn, err := net.DialTCP("tcp", nil, addr)
-	if err != nil {
-		log.Panic(err)
-	}
-
-	varint := make([]byte, 4)
-	for message := range messages {
-		data, err := proto.Marshal(&message)
-		if err != nil {
-			log.Panic(err)
-		}
-
-		binary.LittleEndian.PutUint32(varint, uint32(len(data)))
-		data = append(varint, data...)
-
-		if _, err := io.Copy(conn, bytes.NewBuffer(data)); err != nil {
-			log.Panic(err)
-		}
 	}
 }
 
@@ -191,19 +198,59 @@ func receiverConnPerMessage(addr *net.TCPAddr) {
 			if err := msg.Unmarshal(buf.Bytes()); err != nil {
 				log.Panic(err)
 			}
-
-			log.Println(raft.DescribeMessage(msg, nil))
 		}(conn)
 	}
 }
 
-func senderConnPerMessage(addr *net.TCPAddr, messages <-chan raftpb.Message) {
+func senderReuse(addr *net.TCPAddr, messages <-chan raftpb.Message) {
 	conn, err := net.DialTCP("tcp", nil, addr)
 	if err != nil {
 		log.Panic(err)
 	}
 
+	varint := make([]byte, 4)
 	for message := range messages {
+		data, err := proto.Marshal(&message)
+		if err != nil {
+			log.Panic(err)
+		}
+
+		binary.LittleEndian.PutUint32(varint, uint32(len(data)))
+		data = append(varint, data...)
+
+		if _, err := io.Copy(conn, bytes.NewBuffer(data)); err != nil {
+			log.Panic(err)
+		}
+	}
+}
+
+func senderConnReuseSimple(addr *net.TCPAddr, messages <-chan raftpb.Message) {
+	conn, err := net.DialTCP("tcp", nil, addr)
+	if err != nil {
+		log.Panic(err)
+	}
+	defer conn.Close()
+
+	for message := range messages {
+		data, err := proto.Marshal(&message)
+		if err != nil {
+			log.Panic(err)
+		}
+
+		if _, err := io.Copy(conn, bytes.NewBuffer(data)); err != nil {
+			log.Panic(err)
+		}
+	}
+}
+
+func senderConnPerMessage(addr *net.TCPAddr, messages <-chan raftpb.Message) {
+	for message := range messages {
+		conn, err := net.DialTCP("tcp", nil, addr)
+		if err != nil {
+			log.Panic(err)
+		}
+		defer conn.Close()
+
 		data, err := proto.Marshal(&message)
 		if err != nil {
 			log.Panic(err)
