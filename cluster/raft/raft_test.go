@@ -5,6 +5,7 @@ import (
 	"io"
 	"math/rand/v2"
 	"net"
+	"sync"
 	"testing"
 	"time"
 
@@ -31,7 +32,7 @@ func newTestCluster(n int) ([]cluster.Node, []store.Blobs, []store.Metadata) {
 			ID: rand.Uint64(),
 			Addr: net.TCPAddr{
 				IP:   localhost,
-				Port: randomPort(),
+				Port: RandomPort(),
 			},
 		}
 	}
@@ -49,8 +50,19 @@ func newTestCluster(n int) ([]cluster.Node, []store.Blobs, []store.Metadata) {
 	return nodes, blobs, metadata
 }
 
-func randomPort() int {
-	return rand.IntN(30000) + 1024
+func snapElections(nodes []cluster.Node) {
+	var wg sync.WaitGroup
+	wg.Add(len(nodes))
+	for _, n := range nodes {
+		go func() {
+			for !n.ClusterStatus().Clustered {
+				n.Tick()
+				time.Sleep(200 * time.Microsecond)
+			}
+			wg.Done()
+		}()
+	}
+	wg.Wait()
 }
 
 func TestRaftClusterFormation(t *testing.T) {
@@ -61,7 +73,7 @@ func TestRaftClusterFormation(t *testing.T) {
 		n.Start()
 	}
 
-	time.Sleep(200 * time.Millisecond)
+	snapElections(nodes)
 
 	for _, n := range nodes {
 		AssertEqual(t, n.ClusterStatus().Clustered, true)
@@ -74,9 +86,7 @@ func TestBlobReplication(t *testing.T) {
 	for _, n := range nodes {
 		n.Start()
 	}
-
-	// Allow some time for cluster formation.
-	time.Sleep(200 * time.Millisecond)
+	snapElections(nodes)
 
 	t.Run("Ensure blobs are replicated", func(t *testing.T) {
 		id, content := RandomDigest(), RandomContents(32)
@@ -162,9 +172,7 @@ func TestMetadataReplication(t *testing.T) {
 	for _, n := range nodes {
 		n.Start()
 	}
-
-	// Allow some time for cluster formation.
-	time.Sleep(200 * time.Millisecond)
+	snapElections(nodes)
 
 	t.Run("Ensure repository metadata is replicated", func(t *testing.T) {
 		name := RandomName()

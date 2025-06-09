@@ -42,9 +42,10 @@ func NewNode(id uint64, addr *net.TCPAddr, peers []Peer) cluster.Node {
 	}
 
 	node := &node{
-		raft:    raft.StartNode(&conf, raftPeers),
-		storage: storage,
-		ticker:  time.Tick(10 * time.Millisecond),
+		raft:       raft.StartNode(&conf, raftPeers),
+		storage:    storage,
+		ticker:     time.Tick(1 * time.Second),
+		manualTick: make(chan time.Time),
 		errors: errors{
 			errs: make(map[uint64]chan error),
 		},
@@ -59,11 +60,12 @@ func NewNode(id uint64, addr *net.TCPAddr, peers []Peer) cluster.Node {
 }
 
 type node struct {
-	raft    raft.Node
-	ticker  <-chan time.Time
-	storage *raft.MemoryStorage
-	done    <-chan struct{}
-	errors  errors
+	raft       raft.Node
+	ticker     <-chan time.Time
+	manualTick chan time.Time
+	storage    *raft.MemoryStorage
+	done       <-chan struct{}
+	errors     errors
 
 	peers map[uint64]Peer
 	addr  *net.TCPAddr
@@ -74,6 +76,10 @@ type node struct {
 func (n *node) Start() {
 	go n.run()
 	go n.receive()
+}
+
+func (n *node) Tick() {
+	n.manualTick <- time.Now()
 }
 
 func (n *node) ClusterStatus() cluster.Status {
@@ -109,6 +115,8 @@ func (n *node) run() {
 			}
 			n.raft.Advance()
 		case <-n.ticker:
+			n.raft.Tick()
+		case <-n.manualTick:
 			n.raft.Tick()
 		case <-n.done:
 			return

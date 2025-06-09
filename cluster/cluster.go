@@ -11,6 +11,7 @@ type (
 		Propose(op Operation) error
 		// Consumers must call Handle() to register a function that processes operations.
 		Handle(op Operation, f HandlerFunc)
+		Tick()
 	}
 
 	HandlerFunc func(op Operation) error
