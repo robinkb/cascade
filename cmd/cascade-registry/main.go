@@ -59,7 +59,7 @@ func main() {
 			}
 			peers[i] = raft.Peer{
 				ID: id,
-				Addr: net.TCPAddr{
+				Addr: &net.TCPAddr{
 					IP:   net.ParseIP(parts[1]),
 					Port: int(port),
 				},

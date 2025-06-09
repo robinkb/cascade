@@ -43,7 +43,7 @@ func BenchmarkTransportReuseSimple(b *testing.B) {
 
 	go receiverConnPerMessage(addr)
 	time.Sleep(time.Millisecond)
-	go senderConnReuseSimple(addr, messages)
+	go senderReuse(addr, messages)
 
 	for b.Loop() {
 		RandomMessage(messages)
@@ -217,25 +217,6 @@ func senderReuse(addr *net.TCPAddr, messages <-chan raftpb.Message) {
 
 		binary.LittleEndian.PutUint32(varint, uint32(len(data)))
 		data = append(varint, data...)
-
-		if _, err := io.Copy(conn, bytes.NewBuffer(data)); err != nil {
-			log.Panic(err)
-		}
-	}
-}
-
-func senderConnReuseSimple(addr *net.TCPAddr, messages <-chan raftpb.Message) {
-	conn, err := net.DialTCP("tcp", nil, addr)
-	if err != nil {
-		log.Panic(err)
-	}
-	defer conn.Close()
-
-	for message := range messages {
-		data, err := proto.Marshal(&message)
-		if err != nil {
-			log.Panic(err)
-		}
 
 		if _, err := io.Copy(conn, bytes.NewBuffer(data)); err != nil {
 			log.Panic(err)

@@ -30,7 +30,7 @@ func newTestCluster(n int) ([]cluster.Node, []store.Blobs, []store.Metadata) {
 	for i := range n {
 		peers[i] = Peer{
 			ID: rand.Uint64(),
-			Addr: net.TCPAddr{
+			Addr: &net.TCPAddr{
 				IP:   localhost,
 				Port: RandomPort(),
 			},
@@ -40,7 +40,7 @@ func newTestCluster(n int) ([]cluster.Node, []store.Blobs, []store.Metadata) {
 	for i := range n {
 		nodes[i] = NewNode(
 			peers[i].ID,
-			&peers[i].Addr,
+			peers[i].Addr,
 			peers,
 		)
 		blobs[i] = storecluster.NewBlobStore(nodes[i], inmemory.NewBlobStore())
@@ -57,7 +57,7 @@ func snapElections(nodes []cluster.Node) {
 		go func() {
 			for !n.ClusterStatus().Clustered {
 				n.Tick()
-				time.Sleep(200 * time.Microsecond)
+				time.Sleep(1 * time.Millisecond)
 			}
 			wg.Done()
 		}()

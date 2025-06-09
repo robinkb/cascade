@@ -1,8 +1,10 @@
 package raft
 
 import (
+	"bufio"
 	"bytes"
 	"context"
+	"encoding/binary"
 	"encoding/gob"
 	"io"
 	"log"
@@ -20,7 +22,7 @@ import (
 
 type Peer struct {
 	ID   uint64
-	Addr net.TCPAddr
+	Addr *net.TCPAddr
 }
 
 func NewNode(id uint64, addr *net.TCPAddr, peers []Peer) cluster.Node {
@@ -50,8 +52,9 @@ func NewNode(id uint64, addr *net.TCPAddr, peers []Peer) cluster.Node {
 			errs: make(map[uint64]chan error),
 		},
 
-		addr:  addr,
-		peers: npeers,
+		addr:     addr,
+		peers:    npeers,
+		messages: make(map[uint64]chan raftpb.Message),
 
 		handlerFuncs: make(map[reflect.Type]cluster.HandlerFunc),
 	}
@@ -67,8 +70,9 @@ type node struct {
 	done       <-chan struct{}
 	errors     errors
 
-	peers map[uint64]Peer
-	addr  *net.TCPAddr
+	peers    map[uint64]Peer
+	addr     *net.TCPAddr
+	messages map[uint64]chan raftpb.Message
 
 	handlerFuncs map[reflect.Type]cluster.HandlerFunc
 }
@@ -76,6 +80,12 @@ type node struct {
 func (n *node) Start() {
 	go n.run()
 	go n.receive()
+	for _, peer := range n.peers {
+		if peer.ID != n.raft.Status().ID {
+			go n.send(peer)
+			n.messages[peer.ID] = make(chan raftpb.Message)
+		}
+	}
 }
 
 func (n *node) Tick() {
@@ -97,7 +107,9 @@ func (n *node) run() {
 		select {
 		case rd := <-n.raft.Ready():
 			n.saveToStorage(rd.HardState, rd.Entries, rd.Snapshot)
-			n.send(rd.Messages)
+			for _, message := range rd.Messages {
+				n.messages[message.To] <- message
+			}
 			if !raft.IsEmptySnap(rd.Snapshot) {
 				n.processSnapshot(rd.Snapshot)
 			}
@@ -124,38 +136,39 @@ func (n *node) run() {
 	}
 }
 
-func (n *node) send(messages []raftpb.Message) {
-	for _, message := range messages {
-		peer, ok := n.peers[message.To]
-		if !ok {
-			log.Printf("peer %d not found\n", message.To)
-			continue
-		}
-
-		conn, err := net.DialTCP("tcp", nil, &peer.Addr)
+func (n *node) send(peer Peer) {
+	for {
+		conn, err := net.DialTCP("tcp", nil, peer.Addr)
 		if err != nil {
-			time.Sleep(1 * time.Second)
-			log.Printf("failed to connect to %s: %s", peer.Addr.String(), err)
+			log.Println("failed to connect to peer:", err)
+			time.Sleep(1 * time.Millisecond)
 			continue
 		}
-		defer func() {
-			if err := conn.Close(); err != nil {
-				log.Printf("failed to close connection: %s\n", err)
+		defer conn.Close()
+
+		varint := make([]byte, 4)
+		for message := range n.messages[peer.ID] {
+			if message.To != peer.ID {
+				log.Panicln("received message for the wrong peer")
 			}
-		}()
 
-		data, err := proto.Marshal(&message)
-		if err != nil {
-			log.Fatal(err)
-		}
+			log.Println(n.raft.Status().ID, "sending message to", message.To)
+			data, err := proto.Marshal(&message)
+			if err != nil {
+				log.Panicln("failed to marshal message:", err)
+			}
 
-		if _, err := io.Copy(conn, bytes.NewBuffer(data)); err != nil {
-			log.Panicf("failed to copy message data into buffer: %s\n", err)
-		}
+			binary.LittleEndian.PutUint32(varint, uint32(len(data)))
+			data = append(varint, data...)
 
-		if message.Type == raftpb.MsgSnap {
-			// TODO: Snapshotting may fail, and that has to be reported through this method.
-			n.raft.ReportSnapshot(message.To, raft.SnapshotFinish)
+			if _, err := io.Copy(conn, bytes.NewBuffer(data)); err != nil {
+				log.Panicln("failed to transmit message:", err)
+			}
+
+			if message.Type == raftpb.MsgSnap {
+				// TODO: Snapshotting may fail, and that has to be reported through this method.
+				n.raft.ReportSnapshot(message.To, raft.SnapshotFinish)
+			}
 		}
 	}
 }
@@ -178,6 +191,7 @@ func (n *node) receive() {
 			log.Printf("failed to accept receive connection: %s\n", err)
 			return
 		}
+		log.Println("accepted connection for", conn.RemoteAddr().String())
 
 		// Handle the connection in a new goroutine.
 		// The loop then returns to accepting, so that
@@ -189,17 +203,27 @@ func (n *node) receive() {
 				}
 			}()
 
-			buf := &bytes.Buffer{}
-			if _, err := io.Copy(buf, c); err != nil {
-				log.Panicf("failed to copy message data into buffer: %s\n", err)
-			}
+			varint := make([]byte, 4)
+			r := bufio.NewReader(c)
+			for {
+				log.Println("receiving message from", c.RemoteAddr().String())
+				if _, err := io.ReadFull(r, varint); err != nil {
+					log.Panicln("failed to read message varint header into buffer:", err)
+				}
 
-			var message raftpb.Message
-			if err := message.Unmarshal(buf.Bytes()); err != nil {
-				log.Panicf("failed to decode raft message: %s\n", err)
-			}
-			if err := n.raft.Step(context.TODO(), message); err != nil {
-				log.Panicf("failed to advance raft state machine: %s\n", err)
+				buf := make([]byte, binary.LittleEndian.Uint32(varint))
+				if _, err = io.ReadFull(r, buf); err != nil {
+					log.Panicln("failed to read message data into buffer:", err)
+				}
+
+				var message raftpb.Message
+				if err := message.Unmarshal(buf); err != nil {
+					log.Panicln("failed to decode raft message:", err)
+				}
+
+				if err := n.raft.Step(context.TODO(), message); err != nil {
+					log.Panicln("failed to advance raft state machine:", err)
+				}
 			}
 		}(conn)
 	}
