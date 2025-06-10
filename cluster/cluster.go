@@ -14,13 +14,13 @@ type (
 		Tick()
 	}
 
+	Operation interface {
+		ID() uint64
+	}
+
 	HandlerFunc func(op Operation) error
 
 	Status struct {
 		Clustered bool
-	}
-
-	Operation interface {
-		ID() uint64
 	}
 )
