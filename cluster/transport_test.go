@@ -5,6 +5,7 @@ import (
 	"io"
 	"math/rand/v2"
 	"net/netip"
+	"sync"
 	"testing"
 
 	. "github.com/robinkb/cascade-registry/testing"
@@ -106,9 +107,27 @@ func TestTransportTransmission(t *testing.T) {
 }
 
 func TestVarInt(t *testing.T) {
-	want := RandomContents(128)
+	n := 10000
 	r, w := io.Pipe()
-	go EncodeWithVarInt(w, want)
-	got := DecodeWithVarInt(r)
-	AssertSlicesEqual(t, got, want)
+
+	want := make([][]byte, n)
+	for i := range n {
+		want[i] = RandomContents(rand.Int64N(4096))
+	}
+
+	var wg sync.WaitGroup
+	wg.Add(n)
+	go func() {
+		for i := range n {
+			got := DecodeWithVarInt(r)
+			AssertSlicesEqual(t, got, want[i])
+			wg.Done()
+		}
+	}()
+
+	for i := range n {
+		EncodeWithVarInt(w, want[i])
+	}
+
+	wg.Wait()
 }
