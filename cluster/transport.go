@@ -135,18 +135,3 @@ func (t *transport) Send(id uint64, data []byte) error {
 func (t *transport) Receive() <-chan []byte {
 	return t.receive
 }
-
-func EncodeWithVarInt(w io.Writer, data []byte) {
-	varint := make([]byte, 4)
-	binary.LittleEndian.PutUint32(varint, uint32(len(data)))
-	data = append(varint, data...)
-	io.Copy(w, bytes.NewReader(data))
-}
-
-func DecodeWithVarInt(r io.Reader) []byte {
-	varint := make([]byte, 4)
-	io.ReadFull(r, varint)
-	buf := make([]byte, binary.LittleEndian.Uint32(varint))
-	io.ReadFull(r, buf)
-	return buf
-}

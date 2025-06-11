@@ -2,10 +2,8 @@ package cluster
 
 import (
 	"fmt"
-	"io"
 	"math/rand/v2"
 	"net/netip"
-	"sync"
 	"testing"
 
 	. "github.com/robinkb/cascade-registry/testing"
@@ -104,30 +102,4 @@ func TestTransportTransmission(t *testing.T) {
 
 	got = <-transport1.Receive()
 	AssertSlicesEqual(t, got, want)
-}
-
-func TestVarInt(t *testing.T) {
-	n := 10000
-	r, w := io.Pipe()
-
-	want := make([][]byte, n)
-	for i := range n {
-		want[i] = RandomContents(rand.Int64N(4096))
-	}
-
-	var wg sync.WaitGroup
-	wg.Add(n)
-	go func() {
-		for i := range n {
-			got := DecodeWithVarInt(r)
-			AssertSlicesEqual(t, got, want[i])
-			wg.Done()
-		}
-	}()
-
-	for i := range n {
-		EncodeWithVarInt(w, want[i])
-	}
-
-	wg.Wait()
 }
