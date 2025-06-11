@@ -12,6 +12,7 @@ import (
 
 type (
 	Transport interface {
+		ID() uint64
 		Peers() []Peer
 		Peer(id uint64) (Peer, error)
 		Add(p Peer) error
@@ -34,8 +35,9 @@ var (
 	ErrPeerNotFound  = errors.New("peer not found")
 )
 
-func NewTransport(addr netip.AddrPort) Transport {
+func NewTransport(id uint64, addr netip.AddrPort) Transport {
 	return &transport{
+		id:    id,
 		addr:  addr,
 		peers: make(map[uint64]Peer),
 
@@ -50,6 +52,7 @@ func NewTransport(addr netip.AddrPort) Transport {
 type transport struct {
 	mu sync.RWMutex
 
+	id    uint64
 	addr  netip.AddrPort
 	peers map[uint64]Peer
 
@@ -59,6 +62,10 @@ type transport struct {
 	send  map[uint64]chan []byte
 	errs  map[uint64]chan error
 	ready map[uint64]chan struct{}
+}
+
+func (t *transport) ID() uint64 {
+	return t.id
 }
 
 func (t *transport) Peers() []Peer {

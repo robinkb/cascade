@@ -26,58 +26,62 @@ func newTestPeers(n int) []Peer {
 func newTestTransports(peers []Peer) []Transport {
 	transports := make([]Transport, len(peers))
 	for i := range transports {
-		transports[i] = NewTransport(peers[i].AddrPort)
-		for j := range peers {
-			if i != j {
-				transports[i].Add(peers[j])
-			}
-		}
+		transports[i] = NewTransport(peers[i].ID, peers[i].AddrPort)
 	}
 
 	return transports
 }
 
 func TestTransportPeerManagement(t *testing.T) {
-	t.Run("Listing peers returns all peers", func(t *testing.T) {
-		peers := newTestPeers(4)
-		transport := NewTransport(peers[0].AddrPort)
+	peers := newTestPeers(3)
+	transports := newTestTransports(peers)
 
+	for _, transport := range transports {
+		err := transport.Listen()
+		RequireNoError(t, err)
+	}
+
+	for _, transport := range transports {
 		for _, peer := range peers {
-			err := transport.Add(peer)
-			RequireNoError(t, err)
+			if peer.ID != transport.ID() {
+				err := transport.Add(peer)
+				RequireNoError(t, err)
+			}
 		}
+	}
 
-		gotPeers := transport.Peers()
-		AssertEqual(t, len(gotPeers), len(peers))
+	t.Run("Listing peers returns all peers", func(t *testing.T) {
+		gotPeers := transports[0].Peers()
+		AssertEqual(t, len(gotPeers), len(peers)-1)
 	})
 
 	t.Run("Adding a peer that already exists errors out", func(t *testing.T) {
-		peer := newTestPeers(1)[0]
-		transport := NewTransport(peer.AddrPort)
-
-		err := transport.Add(peer)
-		RequireNoError(t, err)
-		_, err = transport.Peer(peer.ID)
-		RequireNoError(t, err)
-
-		err = transport.Add(peer)
+		err := transports[0].Add(peers[1])
 		AssertErrorIs(t, err, ErrDuplicatePeer)
 	})
 
 	t.Run("A removed peer is not retrievable", func(t *testing.T) {
-		peer := newTestPeers(1)[0]
-		transport := NewTransport(peer.AddrPort)
+		peers := newTestPeers(2)
+		transports := newTestTransports(peers)
 
-		err := transport.Add(peer)
-		RequireNoError(t, err)
-		gotPeer, err := transport.Peer(peer.ID)
+		for _, transport := range transports {
+			err := transport.Listen()
+			RequireNoError(t, err)
+		}
+
+		for _, transport := range transports {
+			for _, peer := range peers {
+				if peer.ID != transport.ID() {
+					err := transport.Add(peer)
+					RequireNoError(t, err)
+				}
+			}
+		}
+
+		err := transports[0].Remove(peers[1].ID)
 		AssertNoError(t, err)
-		AssertStructsEqual(t, gotPeer, peer)
 
-		err = transport.Remove(peer.ID)
-		AssertNoError(t, err)
-
-		_, err = transport.Peer(peer.ID)
+		_, err = transports[0].Peer(peers[1].ID)
 		AssertErrorIs(t, err, ErrPeerNotFound)
 	})
 }
@@ -86,14 +90,14 @@ func TestTransportSingleTransmission(t *testing.T) {
 	receiverP := Peer{ID: 1, AddrPort: netip.MustParseAddrPort(
 		fmt.Sprintf("127.0.0.1:%d", RandomPort()),
 	)}
-	receiver := NewTransport(receiverP.AddrPort)
+	receiver := NewTransport(receiverP.ID, receiverP.AddrPort)
 	err := receiver.Listen()
 	RequireNoError(t, err)
 
 	senderP := Peer{ID: 2, AddrPort: netip.MustParseAddrPort(
 		fmt.Sprintf("127.0.0.1:%d", RandomPort()),
 	)}
-	sender := NewTransport(senderP.AddrPort)
+	sender := NewTransport(senderP.ID, senderP.AddrPort)
 	sender.Add(receiverP)
 
 	var got []byte
@@ -110,14 +114,14 @@ func TestTransportMultipleTransmissions(t *testing.T) {
 	receiverP := Peer{ID: 1, AddrPort: netip.MustParseAddrPort(
 		fmt.Sprintf("127.0.0.1:%d", RandomPort()),
 	)}
-	receiver := NewTransport(receiverP.AddrPort)
+	receiver := NewTransport(receiverP.ID, receiverP.AddrPort)
 	err := receiver.Listen()
 	RequireNoError(t, err)
 
 	senderP := Peer{ID: 2, AddrPort: netip.MustParseAddrPort(
 		fmt.Sprintf("127.0.0.1:%d", RandomPort()),
 	)}
-	sender := NewTransport(senderP.AddrPort)
+	sender := NewTransport(senderP.ID, senderP.AddrPort)
 	sender.Add(receiverP)
 
 	want := make([][]byte, n)
