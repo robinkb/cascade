@@ -33,7 +33,7 @@ func NewNode(id uint64, addr netip.AddrPort, peers []cluster.Peer) cluster.Node 
 		raftPeers[i] = raft.Peer{ID: peers[i].ID}
 	}
 
-	transport := cluster.NewTransport(addr)
+	transport := cluster.NewTransport(id, addr)
 
 	node := &node{
 		id:         id,
@@ -79,7 +79,12 @@ func (n *node) Start() {
 		if n.id == peer.ID {
 			continue
 		}
-		go n.transport.Add(peer)
+		go func() {
+			err := n.transport.Add(peer)
+			if err != nil {
+				log.Panicln("unable to add peer:", err)
+			}
+		}()
 	}
 	go n.run()
 }

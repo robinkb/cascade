@@ -98,7 +98,8 @@ func TestTransportSingleTransmission(t *testing.T) {
 		fmt.Sprintf("127.0.0.1:%d", RandomPort()),
 	)}
 	sender := NewTransport(senderP.ID, senderP.AddrPort)
-	sender.Add(receiverP)
+	err = sender.Add(receiverP)
+	RequireNoError(t, err)
 
 	var got []byte
 	var want = RandomContents(128)
@@ -122,7 +123,8 @@ func TestTransportMultipleTransmissions(t *testing.T) {
 		fmt.Sprintf("127.0.0.1:%d", RandomPort()),
 	)}
 	sender := NewTransport(senderP.ID, senderP.AddrPort)
-	sender.Add(receiverP)
+	err = sender.Add(receiverP)
+	RequireNoError(t, err)
 
 	want := make([][]byte, n)
 	for i := range n {

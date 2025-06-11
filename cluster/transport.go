@@ -134,7 +134,11 @@ func (t *transport) listen() {
 		// The loop then returns to accepting, so that
 		// multiple connections may be served concurrently.
 		go func(c net.Conn) {
-			defer c.Close()
+			defer func() {
+				if err := c.Close(); err != nil {
+					log.Println("error while closing connection:", err)
+				}
+			}()
 
 			d := NewVarIntDecoder()
 			for {
@@ -165,7 +169,9 @@ func (t *transport) dial(id uint64) {
 			time.Sleep(100 * time.Millisecond)
 			continue
 		}
-		defer conn.Close()
+		// TODO: Manage closing this connection when shutting down
+		// the transport.
+		// defer conn.Close()
 		close(t.ready[id])
 
 		e := NewVarIntEncoder()
