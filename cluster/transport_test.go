@@ -2,6 +2,7 @@ package cluster
 
 import (
 	"fmt"
+	"io"
 	"math/rand/v2"
 	"net/netip"
 	"testing"
@@ -101,5 +102,13 @@ func TestTransportTransmission(t *testing.T) {
 	AssertNoError(t, err)
 
 	got = <-transport1.Receive()
+	AssertSlicesEqual(t, got, want)
+}
+
+func TestVarInt(t *testing.T) {
+	want := RandomContents(128)
+	r, w := io.Pipe()
+	go EncodeWithVarInt(w, want)
+	got := DecodeWithVarInt(r)
 	AssertSlicesEqual(t, got, want)
 }
