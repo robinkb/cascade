@@ -1,11 +1,8 @@
 package cluster
 
 import (
-	"bufio"
-	"bytes"
-	"encoding/binary"
 	"errors"
-	"io"
+	"log"
 	"maps"
 	"net"
 	"net/netip"
@@ -102,13 +99,13 @@ func (t *transport) listen() {
 		go func(c net.Conn) {
 			defer c.Close()
 
-			varint := make([]byte, 4)
-			r := bufio.NewReader(conn)
+			decoder := NewDecoder()
 			for {
-				io.ReadFull(r, varint)
-				buf := make([]byte, binary.LittleEndian.Uint32(varint))
-				io.ReadFull(r, buf)
-				t.receive <- buf
+				data, err := decoder.Decode(conn)
+				if err != nil {
+					log.Panicln("failed to decode message:", err)
+				}
+				t.receive <- data
 			}
 		}(conn)
 	}
@@ -125,11 +122,8 @@ func (t *transport) Send(id uint64, data []byte) error {
 	}
 	defer conn.Close()
 
-	varint := make([]byte, 4)
-	binary.LittleEndian.PutUint32(varint, uint32(len(data)))
-	data = append(varint, data...)
-	_, err = io.Copy(conn, bytes.NewBuffer(data))
-	return err
+	encoder := NewEncoder()
+	return encoder.Encode(conn, data)
 }
 
 func (t *transport) Receive() <-chan []byte {
