@@ -18,17 +18,18 @@ func TestBlobUploadSession(t *testing.T) {
 	location := newLocation(name, sessionID.String())
 
 	t.Run("Initialize upload session returns 200 with session ID", func(t *testing.T) {
+		uuid := RandomUUID()
 		repo := mock.NewRepositoryService(t)
 		repo.EXPECT().
 			InitUpload(name).
-			Return(&store.UploadSession{Location: "123"}, nil)
+			Return(&store.UploadSession{ID: uuid}, nil)
 
 		client := NewTestClientForRepository(t, name, repo)
 
 		resp := client.InitUpload(name)
 
 		AssertResponseCode(t, resp, http.StatusAccepted)
-		AssertResponseHeader(t, resp, server.HeaderLocation, "123")
+		AssertResponseHeader(t, resp, server.HeaderLocation, server.Location(name, uuid.String()))
 	})
 
 	t.Run("Checking active session returns 200", func(t *testing.T) {

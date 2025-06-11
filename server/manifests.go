@@ -47,7 +47,6 @@ func (s *Server) statManifestsHandler(w http.ResponseWriter, r *http.Request) {
 
 	info, err := repo.StatManifest(name, reference)
 	if err != nil {
-		// TODO: Writes a body on a HEAD request while it shouldn't.
 		errorHandler(w, r, err)
 		return
 	}

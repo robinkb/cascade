@@ -26,6 +26,8 @@ func (s *Server) initUploadHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	w.Header().Set(HeaderLocation, session.Location)
+	location := Location(name, session.ID.String())
+
+	w.Header().Set(HeaderLocation, location)
 	w.WriteHeader(http.StatusAccepted)
 }
