@@ -9,11 +9,11 @@ import (
 	. "github.com/robinkb/cascade-registry/testing"
 )
 
-func TestEncoderDecoder(t *testing.T) {
+func TestVarIntEncodeDecode(t *testing.T) {
 	n := 1000
 	r, w := io.Pipe()
-	encoder := NewEncoder()
-	decoder := NewDecoder()
+	encoder := NewVarIntEncoder()
+	decoder := NewVarIntDecoder()
 
 	want := make([][]byte, n)
 	for i := range n {
@@ -24,7 +24,7 @@ func TestEncoderDecoder(t *testing.T) {
 	wg.Add(n)
 	go func() {
 		for i := range n {
-			got, err := decoder.Decode(r)
+			got, err := decoder.VarIntDecode(r)
 			RequireNoError(t, err)
 			AssertSlicesEqual(t, got, want[i])
 			wg.Done()
@@ -32,7 +32,7 @@ func TestEncoderDecoder(t *testing.T) {
 	}()
 
 	for i := range n {
-		err := encoder.Encode(w, want[i])
+		err := encoder.VarIntEncode(w, want[i])
 		RequireNoError(t, err)
 	}
 

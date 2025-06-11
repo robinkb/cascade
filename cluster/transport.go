@@ -6,6 +6,7 @@ import (
 	"maps"
 	"net"
 	"net/netip"
+	"time"
 )
 
 type (
@@ -34,19 +35,27 @@ var (
 
 func NewTransport(addr netip.AddrPort) Transport {
 	return &transport{
-		addr:    addr,
-		peers:   make(map[uint64]Peer),
-		conns:   make(map[uint64]net.Conn),
+		addr:  addr,
+		peers: make(map[uint64]Peer),
+
 		receive: make(chan []byte),
+
+		send:  make(map[uint64]chan []byte),
+		errs:  make(map[uint64]chan error),
+		ready: make(map[uint64]chan struct{}),
 	}
 }
 
 type transport struct {
-	addr     netip.AddrPort
-	peers    map[uint64]Peer
+	addr  netip.AddrPort
+	peers map[uint64]Peer
+
 	listener net.Listener
-	conns    map[uint64]net.Conn
 	receive  chan []byte
+
+	send  map[uint64]chan []byte
+	errs  map[uint64]chan error
+	ready map[uint64]chan struct{}
 }
 
 func (t *transport) Peers() []Peer {
@@ -69,7 +78,15 @@ func (t *transport) Add(p Peer) error {
 	if _, ok := t.peers[p.ID]; ok {
 		return ErrDuplicatePeer
 	}
+
 	t.peers[p.ID] = p
+	t.send[p.ID] = make(chan []byte)
+	t.errs[p.ID] = make(chan error)
+
+	t.ready[p.ID] = make(chan struct{})
+	go t.dial(p.ID)
+	<-t.ready[p.ID]
+
 	return nil
 }
 
@@ -99,9 +116,9 @@ func (t *transport) listen() {
 		go func(c net.Conn) {
 			defer c.Close()
 
-			decoder := NewDecoder()
+			d := NewVarIntDecoder()
 			for {
-				data, err := decoder.Decode(conn)
+				data, err := d.VarIntDecode(conn)
 				if err != nil {
 					log.Panicln("failed to decode message:", err)
 				}
@@ -116,14 +133,26 @@ func (t *transport) Close() error {
 }
 
 func (t *transport) Send(id uint64, data []byte) error {
-	conn, err := net.Dial("tcp", t.peers[id].Addr.String())
-	if err != nil {
-		return err
-	}
-	defer conn.Close()
+	t.send[id] <- data
+	return <-t.errs[id]
+}
 
-	encoder := NewEncoder()
-	return encoder.Encode(conn, data)
+func (t *transport) dial(id uint64) {
+	for {
+		conn, err := net.Dial("tcp", t.peers[id].Addr.String())
+		if err != nil {
+			log.Println("failed to dial peer:", err)
+			time.Sleep(10 * time.Millisecond)
+			continue
+		}
+		defer conn.Close()
+		close(t.ready[id])
+
+		e := NewVarIntEncoder()
+		for data := range t.send[id] {
+			t.errs[id] <- e.VarIntEncode(conn, data)
+		}
+	}
 }
 
 func (t *transport) Receive() <-chan []byte {

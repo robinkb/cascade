@@ -7,16 +7,16 @@ import (
 )
 
 type (
-	Encoder interface {
-		Encode(w io.Writer, data []byte) error
+	VarIntEncoder interface {
+		VarIntEncode(w io.Writer, data []byte) error
 	}
 
-	Decoder interface {
-		Decode(r io.Reader) ([]byte, error)
+	VarIntDecoder interface {
+		VarIntDecode(r io.Reader) ([]byte, error)
 	}
 )
 
-func NewEncoder() Encoder {
+func NewVarIntEncoder() VarIntEncoder {
 	return &encoder{
 		varint: make([]byte, 4),
 	}
@@ -26,14 +26,14 @@ type encoder struct {
 	varint []byte
 }
 
-func (e *encoder) Encode(w io.Writer, data []byte) error {
+func (e *encoder) VarIntEncode(w io.Writer, data []byte) error {
 	binary.LittleEndian.PutUint32(e.varint, uint32(len(data)))
 	data = append(e.varint, data...)
 	_, err := io.Copy(w, bytes.NewReader(data))
 	return err
 }
 
-func NewDecoder() Decoder {
+func NewVarIntDecoder() VarIntDecoder {
 	return &decoder{
 		varint: make([]byte, 4),
 	}
@@ -43,7 +43,7 @@ type decoder struct {
 	varint []byte
 }
 
-func (d decoder) Decode(r io.Reader) ([]byte, error) {
+func (d decoder) VarIntDecode(r io.Reader) ([]byte, error) {
 	_, err := io.ReadFull(r, d.varint)
 	if err != nil {
 		return nil, err

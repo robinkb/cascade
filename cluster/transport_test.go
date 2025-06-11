@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math/rand/v2"
 	"net/netip"
+	"sync"
 	"testing"
 
 	. "github.com/robinkb/cascade-registry/testing"
@@ -80,26 +81,63 @@ func TestTransportPeerManagement(t *testing.T) {
 	})
 }
 
-func TestTransportTransmission(t *testing.T) {
-	peer1 := Peer{ID: 1, Addr: netip.MustParseAddrPort(
+func TestTransportSingleTransmission(t *testing.T) {
+	receiverP := Peer{ID: 1, Addr: netip.MustParseAddrPort(
 		fmt.Sprintf("127.0.0.1:%d", RandomPort()),
 	)}
-	transport1 := NewTransport(peer1.Addr)
-	peer2 := Peer{ID: 2, Addr: netip.MustParseAddrPort(
-		fmt.Sprintf("127.0.0.1:%d", RandomPort()),
-	)}
-	transport2 := NewTransport(peer2.Addr)
-	transport1.Add(peer2)
-	transport2.Add(peer1)
+	receiver := NewTransport(receiverP.Addr)
+	err := receiver.Listen()
+	RequireNoError(t, err)
 
-	err := transport1.Listen()
-	AssertNoError(t, err)
+	senderP := Peer{ID: 2, Addr: netip.MustParseAddrPort(
+		fmt.Sprintf("127.0.0.1:%d", RandomPort()),
+	)}
+	sender := NewTransport(senderP.Addr)
+	sender.Add(receiverP)
 
 	var got []byte
 	var want []byte = RandomContents(128)
-	err = transport2.Send(peer1.ID, want)
+	err = sender.Send(receiverP.ID, want)
 	AssertNoError(t, err)
 
-	got = <-transport1.Receive()
+	got = <-receiver.Receive()
 	AssertSlicesEqual(t, got, want)
+}
+
+func TestTransportMultipleTransmissions(t *testing.T) {
+	n := 1000
+	receiverP := Peer{ID: 1, Addr: netip.MustParseAddrPort(
+		fmt.Sprintf("127.0.0.1:%d", RandomPort()),
+	)}
+	receiver := NewTransport(receiverP.Addr)
+	err := receiver.Listen()
+	RequireNoError(t, err)
+
+	senderP := Peer{ID: 2, Addr: netip.MustParseAddrPort(
+		fmt.Sprintf("127.0.0.1:%d", RandomPort()),
+	)}
+	sender := NewTransport(senderP.Addr)
+	sender.Add(receiverP)
+
+	want := make([][]byte, n)
+	for i := range n {
+		want[i] = RandomContents(rand.Int64N(128 << 10))
+	}
+
+	var wg sync.WaitGroup
+	wg.Add(n)
+	go func() {
+		for i := range n {
+			got := <-receiver.Receive()
+			AssertSlicesEqual(t, got, want[i])
+			wg.Done()
+		}
+	}()
+
+	for i := range n {
+		err := sender.Send(receiverP.ID, want[i])
+		RequireNoError(t, err)
+	}
+
+	wg.Wait()
 }
