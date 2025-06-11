@@ -52,7 +52,7 @@ func main() {
 			if err != nil {
 				log.Fatal(err)
 			}
-			host := strings.Join(parts[1:2], ":")
+			host := strings.Join(parts[1:3], ":")
 			peers[i] = cluster.Peer{
 				ID:       id,
 				AddrPort: netip.MustParseAddrPort(host),
