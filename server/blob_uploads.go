@@ -11,6 +11,10 @@ import (
 	"github.com/robinkb/cascade-registry/repository"
 )
 
+func Location(name, reference string) string {
+	return fmt.Sprintf("/v2/%s/blobs/uploads/%s", name, reference)
+}
+
 func (s *Server) blobsUploadsHandler(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case http.MethodGet:
@@ -49,8 +53,7 @@ func (s *Server) checkUploadHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// TODO: This is not the only place where this is generated.
-	location := fmt.Sprintf("/v2/%s/blobs/uploads/%s", name, reference)
+	location := Location(name, reference)
 
 	w.Header().Set(HeaderLocation, location)
 	w.Header().Set(HeaderRange, fmt.Sprintf("0-%d", max(info.Size-1, 0)))
@@ -91,7 +94,7 @@ func (s *Server) chunkedUploadHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	location := fmt.Sprintf("/v2/%s/blobs/uploads/%s", name, reference)
+	location := Location(name, reference)
 	w.Header().Set(HeaderLocation, location)
 	w.Header().Set(HeaderRange, fmt.Sprintf("0-%d", givenEnd))
 	w.WriteHeader(http.StatusAccepted)
@@ -112,7 +115,7 @@ func (s *Server) streamedUploadHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	location := fmt.Sprintf("/v2/%s/blobs/uploads/%s", name, reference)
+	location := Location(name, reference)
 	w.Header().Set(HeaderLocation, location)
 	w.WriteHeader(http.StatusAccepted)
 }

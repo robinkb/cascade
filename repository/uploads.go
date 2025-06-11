@@ -4,7 +4,6 @@ import (
 	"crypto/sha256"
 	"encoding"
 	"errors"
-	"fmt"
 	"io"
 	"time"
 
@@ -44,10 +43,7 @@ func (s *repositoryService) InitUpload(repository string) (*store.UploadSession,
 	}
 
 	session := store.UploadSession{
-		ID: id,
-		// TODO: The location URL really shouldn't be included here.
-		// That's an HTTP implementation detail.
-		Location:  fmt.Sprintf("/v2/%s/blobs/uploads/%s", repository, id.String()),
+		ID:        id,
 		StartDate: time.Now(),
 		HashState: hashState,
 	}

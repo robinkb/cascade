@@ -1,7 +1,6 @@
 package server_test
 
 import (
-	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -32,5 +31,5 @@ func TestRoot(t *testing.T) {
 }
 
 func newLocation(name, sessionID string) *url.URL {
-	return &url.URL{Path: fmt.Sprintf("/v2/%s/blobs/uploads/%s", name, sessionID)}
+	return &url.URL{Path: server.Location(name, sessionID)}
 }

@@ -43,9 +43,7 @@ type (
 	}
 
 	UploadSession struct {
-		ID uuid.UUID
-		// TODO: This should not be here, as it's an HTTP implementation detail.
-		Location  string
+		ID        uuid.UUID
 		StartDate time.Time
 		HashState []byte
 	}
