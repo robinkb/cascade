@@ -5,15 +5,17 @@ import (
 	"log"
 	"net"
 	"net/http"
+	"net/netip"
 	"os"
 	"strconv"
 	"strings"
 
 	"github.com/robinkb/cascade-registry"
+	"github.com/robinkb/cascade-registry/cluster"
 	"github.com/robinkb/cascade-registry/cluster/raft"
 	"github.com/robinkb/cascade-registry/server"
 	"github.com/robinkb/cascade-registry/store/boltdb"
-	"github.com/robinkb/cascade-registry/store/cluster"
+	clusterstore "github.com/robinkb/cascade-registry/store/cluster"
 	"github.com/robinkb/cascade-registry/store/fs"
 )
 
@@ -40,35 +42,26 @@ func main() {
 	blobs := fs.NewBlobStore(path)
 
 	if raftId != 0 {
-		addr, err := net.ResolveTCPAddr("tcp", raftHostPort)
-		if err != nil {
-			log.Fatal(err)
-		}
+		addr := netip.MustParseAddrPort(raftHostPort)
 
 		hosts := strings.Split(raftPeers, ",")
-		peers := make([]raft.Peer, len(hosts))
+		peers := make([]cluster.Peer, len(hosts))
 		for i := range hosts {
 			parts := strings.Split(hosts[i], ":")
 			id, err := strconv.ParseUint(parts[0], 10, 64)
 			if err != nil {
 				log.Fatal(err)
 			}
-			port, err := strconv.ParseInt(parts[2], 10, 32)
-			if err != nil {
-				log.Fatal(err)
-			}
-			peers[i] = raft.Peer{
-				ID: id,
-				Addr: &net.TCPAddr{
-					IP:   net.ParseIP(parts[1]),
-					Port: int(port),
-				},
+			host := strings.Join(parts[1:2], ":")
+			peers[i] = cluster.Peer{
+				ID:       id,
+				AddrPort: netip.MustParseAddrPort(host),
 			}
 		}
 
 		node := raft.NewNode(uint64(raftId), addr, peers)
-		metadata = cluster.NewMetadataStore(node, metadata)
-		blobs = cluster.NewBlobStore(node, blobs)
+		metadata = clusterstore.NewMetadataStore(node, metadata)
+		blobs = clusterstore.NewBlobStore(node, blobs)
 		node.Start()
 	}
 

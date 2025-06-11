@@ -6,6 +6,7 @@ import (
 	"maps"
 	"net"
 	"net/netip"
+	"sync"
 	"time"
 )
 
@@ -23,8 +24,8 @@ type (
 	}
 
 	Peer struct {
-		ID   uint64
-		Addr netip.AddrPort
+		ID       uint64
+		AddrPort netip.AddrPort
 	}
 )
 
@@ -47,6 +48,8 @@ func NewTransport(addr netip.AddrPort) Transport {
 }
 
 type transport struct {
+	mu sync.RWMutex
+
 	addr  netip.AddrPort
 	peers map[uint64]Peer
 
@@ -67,6 +70,9 @@ func (t *transport) Peers() []Peer {
 }
 
 func (t *transport) Peer(id uint64) (Peer, error) {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+
 	peer, ok := t.peers[id]
 	if !ok {
 		return Peer{}, ErrPeerNotFound
@@ -75,6 +81,9 @@ func (t *transport) Peer(id uint64) (Peer, error) {
 }
 
 func (t *transport) Add(p Peer) error {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+
 	if _, ok := t.peers[p.ID]; ok {
 		return ErrDuplicatePeer
 	}
@@ -91,12 +100,16 @@ func (t *transport) Add(p Peer) error {
 }
 
 func (t *transport) Remove(id uint64) error {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+
 	delete(t.peers, id)
 	return nil
 }
 
 func (t *transport) Listen() error {
 	l, err := net.Listen("tcp", t.addr.String())
+	log.Println("listening on port", t.addr.Port())
 	t.listener = l
 	go t.listen()
 	return err
@@ -139,10 +152,10 @@ func (t *transport) Send(id uint64, data []byte) error {
 
 func (t *transport) dial(id uint64) {
 	for {
-		conn, err := net.Dial("tcp", t.peers[id].Addr.String())
+		conn, err := net.Dial("tcp", t.peers[id].AddrPort.String())
 		if err != nil {
-			log.Println("failed to dial peer:", err)
-			time.Sleep(10 * time.Millisecond)
+			log.Printf("failed to dial peer %d: %s", id, err)
+			time.Sleep(100 * time.Millisecond)
 			continue
 		}
 		defer conn.Close()
