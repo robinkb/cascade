@@ -101,13 +101,14 @@ func TestTransportSingleTransmission(t *testing.T) {
 	err = sender.Add(receiverP)
 	RequireNoError(t, err)
 
-	var got []byte
+	var got *Message
 	var want = RandomContents(128)
 	err = sender.Send(receiverP.ID, want)
 	AssertNoError(t, err)
 
 	got = <-receiver.Receive()
-	AssertSlicesEqual(t, got, want)
+	AssertNoError(t, got.Error)
+	AssertSlicesEqual(t, got.Data, want)
 }
 
 func TestTransportMultipleTransmissions(t *testing.T) {
@@ -136,7 +137,8 @@ func TestTransportMultipleTransmissions(t *testing.T) {
 	go func() {
 		for i := range n {
 			got := <-receiver.Receive()
-			AssertSlicesEqual(t, got, want[i])
+			AssertNoError(t, got.Error)
+			AssertSlicesEqual(t, got.Data, want[i])
 			wg.Done()
 		}
 	}()

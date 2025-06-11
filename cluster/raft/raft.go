@@ -41,6 +41,7 @@ func NewNode(id uint64, addr netip.AddrPort, peers []cluster.Peer) cluster.Node 
 		storage:    storage,
 		ticker:     time.Tick(1 * time.Second),
 		manualTick: make(chan time.Time),
+		done:       make(chan struct{}),
 		errors: errors{
 			errs: make(map[uint64]chan error),
 		},
@@ -60,7 +61,7 @@ type node struct {
 	ticker     <-chan time.Time
 	manualTick chan time.Time
 	storage    *raft.MemoryStorage
-	done       <-chan struct{}
+	done       chan struct{}
 	errors     errors
 
 	transport cluster.Transport
@@ -109,9 +110,6 @@ func (n *node) run() {
 		case rd := <-n.raft.Ready():
 			n.saveToStorage(rd.HardState, rd.Entries, rd.Snapshot)
 			n.send(rd.Messages)
-			if !raft.IsEmptySnap(rd.Snapshot) {
-				n.processSnapshot(rd.Snapshot)
-			}
 			for _, entry := range rd.CommittedEntries {
 				switch entry.Type {
 				case raftpb.EntryNormal:
@@ -155,9 +153,14 @@ func (n *node) send(messages []raftpb.Message) {
 }
 
 func (n *node) receive() {
-	for data := range n.transport.Receive() {
+	for m := range n.transport.Receive() {
+		if m.Error != nil {
+			log.Println("error received from transport; dropping message:", m.Error)
+			continue
+		}
+
 		var message raftpb.Message
-		if err := message.Unmarshal(data); err != nil {
+		if err := message.Unmarshal(m.Data); err != nil {
 			log.Panicln("failed to decode raft message:", err)
 		}
 
@@ -244,10 +247,6 @@ func (n *node) process(entry raftpb.Entry) {
 			n.errors.delete(op.ID())
 		}
 	}
-}
-
-func (n *node) processSnapshot(snapshot raftpb.Snapshot) {
-	log.Printf("Applying snapshot is not implemented yet")
 }
 
 type errors struct {

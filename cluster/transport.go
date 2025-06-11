@@ -21,12 +21,17 @@ type (
 		Listen() error
 		Close() error
 		Send(id uint64, data []byte) error
-		Receive() <-chan []byte
+		Receive() <-chan *Message
 	}
 
 	Peer struct {
 		ID       uint64
 		AddrPort netip.AddrPort
+	}
+
+	Message struct {
+		Data  []byte
+		Error error
 	}
 )
 
@@ -41,7 +46,7 @@ func NewTransport(id uint64, addr netip.AddrPort) Transport {
 		addr:  addr,
 		peers: make(map[uint64]Peer),
 
-		receive: make(chan []byte),
+		receive: make(chan *Message),
 
 		send:  make(map[uint64]chan []byte),
 		errs:  make(map[uint64]chan error),
@@ -57,7 +62,7 @@ type transport struct {
 	peers map[uint64]Peer
 
 	listener net.Listener
-	receive  chan []byte
+	receive  chan *Message
 
 	send  map[uint64]chan []byte
 	errs  map[uint64]chan error
@@ -116,7 +121,6 @@ func (t *transport) Remove(id uint64) error {
 
 func (t *transport) Listen() error {
 	l, err := net.Listen("tcp", t.addr.String())
-	log.Println("listening on port", t.addr.Port())
 	t.listener = l
 	go t.listen()
 	return err
@@ -146,7 +150,10 @@ func (t *transport) listen() {
 				if err != nil {
 					log.Panicln("failed to decode message:", err)
 				}
-				t.receive <- data
+				t.receive <- &Message{
+					Data:  data,
+					Error: err,
+				}
 			}
 		}(conn)
 	}
@@ -181,6 +188,6 @@ func (t *transport) dial(id uint64) {
 	}
 }
 
-func (t *transport) Receive() <-chan []byte {
+func (t *transport) Receive() <-chan *Message {
 	return t.receive
 }
