@@ -4,10 +4,9 @@ import (
 	"bytes"
 	"context"
 	"encoding/gob"
-	"io"
 	"log"
 	"math"
-	"net"
+	"net/netip"
 	"reflect"
 	"sync"
 	"time"
@@ -18,12 +17,7 @@ import (
 	"go.etcd.io/raft/v3/raftpb"
 )
 
-type Peer struct {
-	ID   uint64
-	Addr net.TCPAddr
-}
-
-func NewNode(id uint64, addr *net.TCPAddr, peers []Peer) cluster.Node {
+func NewNode(id uint64, addr netip.AddrPort, peers []cluster.Peer) cluster.Node {
 	storage := raft.NewMemoryStorage()
 	conf := raft.Config{
 		ID:              id,
@@ -34,23 +28,25 @@ func NewNode(id uint64, addr *net.TCPAddr, peers []Peer) cluster.Node {
 		MaxInflightMsgs: 256,
 	}
 
-	npeers := make(map[uint64]Peer)
 	raftPeers := make([]raft.Peer, len(peers))
 	for i := range peers {
 		raftPeers[i] = raft.Peer{ID: peers[i].ID}
-		npeers[peers[i].ID] = peers[i]
 	}
 
+	transport := cluster.NewTransport(id, addr)
+
 	node := &node{
-		raft:    raft.StartNode(&conf, raftPeers),
-		storage: storage,
-		ticker:  time.Tick(10 * time.Millisecond),
+		id:         id,
+		raft:       raft.StartNode(&conf, raftPeers),
+		storage:    storage,
+		ticker:     time.Tick(1 * time.Second),
+		manualTick: make(chan time.Time),
 		errors: errors{
 			errs: make(map[uint64]chan error),
 		},
 
-		addr:  addr,
-		peers: npeers,
+		transport: transport,
+		peers:     peers,
 
 		handlerFuncs: make(map[reflect.Type]cluster.HandlerFunc),
 	}
@@ -59,21 +55,42 @@ func NewNode(id uint64, addr *net.TCPAddr, peers []Peer) cluster.Node {
 }
 
 type node struct {
-	raft    raft.Node
-	ticker  <-chan time.Time
-	storage *raft.MemoryStorage
-	done    <-chan struct{}
-	errors  errors
+	id         uint64
+	raft       raft.Node
+	ticker     <-chan time.Time
+	manualTick chan time.Time
+	storage    *raft.MemoryStorage
+	done       <-chan struct{}
+	errors     errors
 
-	peers map[uint64]Peer
-	addr  *net.TCPAddr
+	transport cluster.Transport
+	peers     []cluster.Peer
 
 	handlerFuncs map[reflect.Type]cluster.HandlerFunc
 }
 
 func (n *node) Start() {
-	go n.run()
+	if err := n.transport.Listen(); err != nil {
+		log.Panicln("failed to start transport listener:", err)
+	}
 	go n.receive()
+
+	for _, peer := range n.peers {
+		if n.id == peer.ID {
+			continue
+		}
+		go func() {
+			err := n.transport.Add(peer)
+			if err != nil {
+				log.Panicln("unable to add peer:", err)
+			}
+		}()
+	}
+	go n.run()
+}
+
+func (n *node) Tick() {
+	n.manualTick <- time.Now()
 }
 
 func (n *node) ClusterStatus() cluster.Status {
@@ -110,6 +127,8 @@ func (n *node) run() {
 			n.raft.Advance()
 		case <-n.ticker:
 			n.raft.Tick()
+		case <-n.manualTick:
+			n.raft.Tick()
 		case <-n.done:
 			return
 		}
@@ -118,31 +137,14 @@ func (n *node) run() {
 
 func (n *node) send(messages []raftpb.Message) {
 	for _, message := range messages {
-		peer, ok := n.peers[message.To]
-		if !ok {
-			log.Printf("peer %d not found\n", message.To)
-			continue
-		}
-
-		conn, err := net.DialTCP("tcp", nil, &peer.Addr)
-		if err != nil {
-			time.Sleep(1 * time.Second)
-			log.Printf("failed to connect to %s: %s", peer.Addr.String(), err)
-			continue
-		}
-		defer func() {
-			if err := conn.Close(); err != nil {
-				log.Printf("failed to close connection: %s\n", err)
-			}
-		}()
-
 		data, err := proto.Marshal(&message)
 		if err != nil {
-			log.Fatal(err)
+			log.Panicln("failed to marshal message:", err)
 		}
 
-		if _, err := io.Copy(conn, bytes.NewBuffer(data)); err != nil {
-			log.Panicf("failed to copy message data into buffer: %s\n", err)
+		err = n.transport.Send(message.To, data)
+		if err != nil {
+			log.Panicln("failed to send message:", err)
 		}
 
 		if message.Type == raftpb.MsgSnap {
@@ -153,47 +155,15 @@ func (n *node) send(messages []raftpb.Message) {
 }
 
 func (n *node) receive() {
-	l, err := net.ListenTCP("tcp", n.addr)
-	if err != nil {
-		log.Panicf("failed to open receiving TCP connection: %s\n", err)
-	}
-	defer func() {
-		if err := l.Close(); err != nil {
-			log.Printf("failed to close receiving connection: %s\n", err)
-		}
-	}()
-
-	for {
-		// Wait for a connection.
-		conn, err := l.Accept()
-		if err != nil {
-			log.Printf("failed to accept receive connection: %s\n", err)
-			return
+	for data := range n.transport.Receive() {
+		var message raftpb.Message
+		if err := message.Unmarshal(data); err != nil {
+			log.Panicln("failed to decode raft message:", err)
 		}
 
-		// Handle the connection in a new goroutine.
-		// The loop then returns to accepting, so that
-		// multiple connections may be served concurrently.
-		go func(c net.Conn) {
-			defer func() {
-				if err := c.Close(); err != nil {
-					log.Printf("failed to close connection: %s\n", err)
-				}
-			}()
-
-			buf := &bytes.Buffer{}
-			if _, err := io.Copy(buf, c); err != nil {
-				log.Panicf("failed to copy message data into buffer: %s\n", err)
-			}
-
-			var message raftpb.Message
-			if err := message.Unmarshal(buf.Bytes()); err != nil {
-				log.Panicf("failed to decode raft message: %s\n", err)
-			}
-			if err := n.raft.Step(context.TODO(), message); err != nil {
-				log.Panicf("failed to advance raft state machine: %s\n", err)
-			}
-		}(conn)
+		if err := n.raft.Step(context.TODO(), message); err != nil {
+			log.Panicln("failed to advance raft state machine:", err)
+		}
 	}
 }
 

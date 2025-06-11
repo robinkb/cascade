@@ -2,9 +2,11 @@ package raft
 
 import (
 	"bytes"
+	"fmt"
 	"io"
 	"math/rand/v2"
-	"net"
+	"net/netip"
+	"sync"
 	"testing"
 	"time"
 
@@ -16,30 +18,25 @@ import (
 	. "github.com/robinkb/cascade-registry/testing"
 )
 
-var (
-	localhost = net.ParseIP("127.0.0.1")
-)
-
 func newTestCluster(n int) ([]cluster.Node, []store.Blobs, []store.Metadata) {
-	peers := make([]Peer, n)
+	peers := make([]cluster.Peer, n)
 	nodes := make([]cluster.Node, n)
 	blobs := make([]store.Blobs, n)
 	metadata := make([]store.Metadata, n)
 
 	for i := range n {
-		peers[i] = Peer{
+		peers[i] = cluster.Peer{
 			ID: rand.Uint64(),
-			Addr: net.TCPAddr{
-				IP:   localhost,
-				Port: randomPort(),
-			},
+			AddrPort: netip.MustParseAddrPort(
+				fmt.Sprintf("127.0.0.1:%d", RandomPort()),
+			),
 		}
 	}
 
 	for i := range n {
 		nodes[i] = NewNode(
 			peers[i].ID,
-			&peers[i].Addr,
+			peers[i].AddrPort,
 			peers,
 		)
 		blobs[i] = storecluster.NewBlobStore(nodes[i], inmemory.NewBlobStore())
@@ -49,8 +46,19 @@ func newTestCluster(n int) ([]cluster.Node, []store.Blobs, []store.Metadata) {
 	return nodes, blobs, metadata
 }
 
-func randomPort() int {
-	return rand.IntN(30000) + 1024
+func snapElections(nodes []cluster.Node) {
+	var wg sync.WaitGroup
+	wg.Add(len(nodes))
+	for _, n := range nodes {
+		go func() {
+			for !n.ClusterStatus().Clustered {
+				n.Tick()
+				time.Sleep(1 * time.Millisecond)
+			}
+			wg.Done()
+		}()
+	}
+	wg.Wait()
 }
 
 func TestRaftClusterFormation(t *testing.T) {
@@ -61,7 +69,7 @@ func TestRaftClusterFormation(t *testing.T) {
 		n.Start()
 	}
 
-	time.Sleep(200 * time.Millisecond)
+	snapElections(nodes)
 
 	for _, n := range nodes {
 		AssertEqual(t, n.ClusterStatus().Clustered, true)
@@ -74,9 +82,7 @@ func TestBlobReplication(t *testing.T) {
 	for _, n := range nodes {
 		n.Start()
 	}
-
-	// Allow some time for cluster formation.
-	time.Sleep(200 * time.Millisecond)
+	snapElections(nodes)
 
 	t.Run("Ensure blobs are replicated", func(t *testing.T) {
 		id, content := RandomDigest(), RandomContents(32)
@@ -162,9 +168,7 @@ func TestMetadataReplication(t *testing.T) {
 	for _, n := range nodes {
 		n.Start()
 	}
-
-	// Allow some time for cluster formation.
-	time.Sleep(200 * time.Millisecond)
+	snapElections(nodes)
 
 	t.Run("Ensure repository metadata is replicated", func(t *testing.T) {
 		name := RandomName()

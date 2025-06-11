@@ -11,15 +11,16 @@ type (
 		Propose(op Operation) error
 		// Consumers must call Handle() to register a function that processes operations.
 		Handle(op Operation, f HandlerFunc)
+		Tick()
+	}
+
+	Operation interface {
+		ID() uint64
 	}
 
 	HandlerFunc func(op Operation) error
 
 	Status struct {
 		Clustered bool
-	}
-
-	Operation interface {
-		ID() uint64
 	}
 )
