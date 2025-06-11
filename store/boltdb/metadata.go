@@ -5,6 +5,7 @@ import (
 	"encoding/gob"
 	"errors"
 	"path/filepath"
+	"time"
 
 	"github.com/robinkb/cascade-registry/store"
 
@@ -24,9 +25,11 @@ var (
 )
 
 func NewMetadataStore(baseDir string) store.Metadata {
-	path := filepath.Join(baseDir, "bolt.db")
+	path := filepath.Join(baseDir, "metadata.db")
 
-	db, err := bolt.Open(path, 0600, nil)
+	db, err := bolt.Open(path, 0600, &bolt.Options{
+		Timeout: 1 * time.Second,
+	})
 	if err != nil {
 		panic(err)
 	}
