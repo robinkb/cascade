@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"math/rand/v2"
+	"net/netip"
 	"slices"
 	"strings"
 	"testing"
@@ -50,6 +51,12 @@ func RandomUUID() uuid.UUID {
 
 func RandomPort() int {
 	return rand.IntN(30000) + 1024
+}
+
+func RandomAddrPort() netip.AddrPort {
+	return netip.MustParseAddrPort(
+		fmt.Sprintf("127.0.0.1:%d", RandomPort()),
+	)
 }
 
 func RandomDigest() digest.Digest {

@@ -33,10 +33,16 @@ func NewNode(id uint64, addr netip.AddrPort, peers []cluster.Peer) cluster.Node 
 		raftPeers[i] = raft.Peer{ID: peers[i].ID}
 	}
 
-	transport := cluster.NewTransport(id, addr)
+	listener := cluster.NewReceiver(addr)
+	senders := make(map[uint64]cluster.Sender)
+	for _, peer := range peers {
+		if id == peer.ID {
+			continue
+		}
+		senders[peer.ID] = cluster.NewSender(peer.AddrPort)
+	}
 
 	node := &node{
-		id:         id,
 		raft:       raft.StartNode(&conf, raftPeers),
 		storage:    storage,
 		ticker:     time.Tick(1 * time.Second),
@@ -46,8 +52,8 @@ func NewNode(id uint64, addr netip.AddrPort, peers []cluster.Peer) cluster.Node 
 			errs: make(map[uint64]chan error),
 		},
 
-		transport: transport,
-		peers:     peers,
+		listener: listener,
+		senders:  senders,
 
 		handlerFuncs: make(map[reflect.Type]cluster.HandlerFunc),
 	}
@@ -56,7 +62,6 @@ func NewNode(id uint64, addr netip.AddrPort, peers []cluster.Peer) cluster.Node 
 }
 
 type node struct {
-	id         uint64
 	raft       raft.Node
 	ticker     <-chan time.Time
 	manualTick chan time.Time
@@ -64,29 +69,20 @@ type node struct {
 	done       chan struct{}
 	errors     errors
 
-	transport cluster.Transport
-	peers     []cluster.Peer
+	listener cluster.Receiver
+	senders  map[uint64]cluster.Sender
 
 	handlerFuncs map[reflect.Type]cluster.HandlerFunc
 }
 
 func (n *node) Start() {
-	if err := n.transport.Listen(); err != nil {
-		log.Panicln("failed to start transport listener:", err)
+	if err := n.listener.Listen(); err != nil {
+		log.Panicln("failed to start listener:", err)
+	}
+	for _, sender := range n.senders {
+		sender.Dial()
 	}
 	go n.receive()
-
-	for _, peer := range n.peers {
-		if n.id == peer.ID {
-			continue
-		}
-		go func() {
-			err := n.transport.Add(peer)
-			if err != nil {
-				log.Panicln("unable to add peer:", err)
-			}
-		}()
-	}
 	go n.run()
 }
 
@@ -140,9 +136,10 @@ func (n *node) send(messages []raftpb.Message) {
 			log.Panicln("failed to marshal message:", err)
 		}
 
-		err = n.transport.Send(message.To, data)
+		err = n.senders[message.To].Send(data)
 		if err != nil {
-			log.Panicln("failed to send message:", err)
+			log.Println("failed to send message:", err)
+			continue
 		}
 
 		if message.Type == raftpb.MsgSnap {
@@ -153,14 +150,9 @@ func (n *node) send(messages []raftpb.Message) {
 }
 
 func (n *node) receive() {
-	for m := range n.transport.Receive() {
-		if m.Error != nil {
-			log.Println("error received from transport; dropping message:", m.Error)
-			continue
-		}
-
+	for data := range n.listener.Receive() {
 		var message raftpb.Message
-		if err := message.Unmarshal(m.Data); err != nil {
+		if err := message.Unmarshal(data); err != nil {
 			log.Panicln("failed to decode raft message:", err)
 		}
 

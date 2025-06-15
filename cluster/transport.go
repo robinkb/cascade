@@ -2,26 +2,28 @@ package cluster
 
 import (
 	"errors"
+	"io"
 	"log"
-	"maps"
+	"math"
+	"math/rand/v2"
 	"net"
 	"net/netip"
-	"sync"
 	"time"
 )
 
 type (
-	Transport interface {
-		ID() uint64
-		Peers() []Peer
-		Peer(id uint64) (Peer, error)
-		Add(p Peer) error
-		Remove(id uint64) error
-
+	Receiver interface {
+		AddrPort() netip.AddrPort
 		Listen() error
-		Close() error
-		Send(id uint64, data []byte) error
-		Receive() <-chan *Message
+		Receive() <-chan []byte
+		Close()
+	}
+
+	Sender interface {
+		AddrPort() netip.AddrPort
+		Dial()
+		Send(data []byte) error
+		Close()
 	}
 
 	Peer struct {
@@ -29,165 +31,154 @@ type (
 		AddrPort netip.AddrPort
 	}
 
+	// Message was returned by the Receiver.Receive channel.
+	// I might go back to that behavior.
 	Message struct {
 		Data  []byte
 		Error error
 	}
 )
 
-var (
-	ErrDuplicatePeer = errors.New("duplicate peer")
-	ErrPeerNotFound  = errors.New("peer not found")
-)
-
-func NewTransport(id uint64, addr netip.AddrPort) Transport {
-	return &transport{
-		id:    id,
-		addr:  addr,
-		peers: make(map[uint64]Peer),
-
-		receive: make(chan *Message),
-
-		send:  make(map[uint64]chan []byte),
-		errs:  make(map[uint64]chan error),
-		ready: make(map[uint64]chan struct{}),
+func NewReceiver(addr netip.AddrPort) Receiver {
+	return &receiver{
+		addrPort: addr,
+		receive:  make(chan []byte),
+		done:     make(chan struct{}),
 	}
 }
 
-type transport struct {
-	mu sync.RWMutex
-
-	id    uint64
-	addr  netip.AddrPort
-	peers map[uint64]Peer
-
-	listener net.Listener
-	receive  chan *Message
-
-	send  map[uint64]chan []byte
-	errs  map[uint64]chan error
-	ready map[uint64]chan struct{}
+type receiver struct {
+	addrPort netip.AddrPort
+	l        net.Listener
+	receive  chan []byte
+	done     chan struct{}
 }
 
-func (t *transport) ID() uint64 {
-	return t.id
+func (r *receiver) AddrPort() netip.AddrPort {
+	return r.addrPort
 }
 
-func (t *transport) Peers() []Peer {
-	peers := make([]Peer, 0)
-	for peer := range maps.Values(t.peers) {
-		peers = append(peers, peer)
+func (r *receiver) Listen() error {
+	listener, err := net.Listen("tcp", r.addrPort.String())
+	if err != nil {
+		return err
 	}
-	return peers
-}
-
-func (t *transport) Peer(id uint64) (Peer, error) {
-	t.mu.RLock()
-	defer t.mu.RUnlock()
-
-	peer, ok := t.peers[id]
-	if !ok {
-		return Peer{}, ErrPeerNotFound
-	}
-	return peer, nil
-}
-
-func (t *transport) Add(p Peer) error {
-	t.mu.Lock()
-	defer t.mu.Unlock()
-
-	if _, ok := t.peers[p.ID]; ok {
-		return ErrDuplicatePeer
-	}
-
-	t.peers[p.ID] = p
-	t.send[p.ID] = make(chan []byte)
-	t.errs[p.ID] = make(chan error)
-
-	t.ready[p.ID] = make(chan struct{})
-	go t.dial(p.ID)
-	<-t.ready[p.ID]
-
+	r.l = listener
+	go r.listen()
 	return nil
 }
 
-func (t *transport) Remove(id uint64) error {
-	t.mu.Lock()
-	defer t.mu.Unlock()
-
-	delete(t.peers, id)
-	return nil
+func (r *receiver) Receive() <-chan []byte {
+	return r.receive
 }
 
-func (t *transport) Listen() error {
-	l, err := net.Listen("tcp", t.addr.String())
-	t.listener = l
-	go t.listen()
-	return err
+func (r *receiver) Close() {
+	close(r.done)
 }
 
-func (t *transport) listen() {
+func (r *receiver) listen() {
 	for {
-		// Wait for a connection.
-		conn, err := t.listener.Accept()
+		conn, err := r.l.Accept()
 		if err != nil {
-			panic(err)
+			log.Printf("unable to accept connections on %s: %s", r.addrPort, err)
+			break
 		}
 
-		// Handle the connection in a new goroutine.
-		// The loop then returns to accepting, so that
-		// multiple connections may be served concurrently.
 		go func(c net.Conn) {
-			defer func() {
-				if err := c.Close(); err != nil {
-					log.Println("error while closing connection:", err)
-				}
-			}()
+			defer c.Close()
 
-			d := NewVarIntDecoder()
+			dec := NewVarIntDecoder()
 			for {
-				data, err := d.VarIntDecode(conn)
+				data, err := dec.VarIntDecode(c)
 				if err != nil {
-					log.Panicln("failed to decode message:", err)
+					if errors.Is(err, io.EOF) {
+						break
+					}
+					panic(err)
 				}
-				t.receive <- &Message{
-					Data:  data,
-					Error: err,
-				}
+
+				r.receive <- data
 			}
 		}(conn)
+
+		select {
+		case <-r.done:
+			r.l.Close()
+			break
+		default:
+		}
 	}
 }
 
-func (t *transport) Close() error {
-	return t.listener.Close()
+func NewSender(addr netip.AddrPort) Sender {
+	return &sender{
+		addrPort: addr,
+		send:     make(chan []byte),
+		err:      make(chan error),
+		done:     make(chan struct{}),
+	}
 }
 
-func (t *transport) Send(id uint64, data []byte) error {
-	t.send[id] <- data
-	return <-t.errs[id]
+type sender struct {
+	addrPort netip.AddrPort
+	send     chan []byte
+	err      chan error
+	done     chan struct{}
 }
 
-func (t *transport) dial(id uint64) {
+func (s *sender) AddrPort() netip.AddrPort {
+	return s.addrPort
+}
+
+func (s *sender) Dial() {
+	go s.dial()
+}
+
+func (s *sender) Send(data []byte) error {
+	s.send <- data
+	return <-s.err
+}
+
+func (s *sender) Close() {
+	close(s.done)
+}
+
+func (s *sender) dial() {
+	tries := 0.0
 	for {
-		conn, err := net.Dial("tcp", t.peers[id].AddrPort.String())
+		conn, err := net.Dial("tcp", s.addrPort.String())
 		if err != nil {
-			log.Printf("failed to dial peer %d: %s", id, err)
-			time.Sleep(100 * time.Millisecond)
+			log.Println(err)
+			time.Sleep(exponentialBackoff(tries))
+			tries++
 			continue
 		}
-		// TODO: Manage closing this connection when shutting down
-		// the transport.
-		// defer conn.Close()
-		close(t.ready[id])
+		tries = 0
+		defer conn.Close()
 
-		e := NewVarIntEncoder()
-		for data := range t.send[id] {
-			t.errs[id] <- e.VarIntEncode(conn, data)
+		enc := NewVarIntEncoder()
+	send:
+		for {
+			select {
+			case data := <-s.send:
+				err := enc.VarIntEncode(conn, data)
+				s.err <- err
+				if err != nil {
+					log.Println("detected closed connection; reconnecting:", err)
+					break send
+				}
+			case <-s.done:
+				return
+			}
 		}
 	}
 }
 
-func (t *transport) Receive() <-chan *Message {
-	return t.receive
+func exponentialBackoff(tries float64) time.Duration {
+	if tries >= 5 {
+		return 5 * time.Second
+	}
+	base := rand.Float64() * 50
+	backoff := math.Pow(base, tries)
+	return time.Duration(backoff) * time.Microsecond
 }
