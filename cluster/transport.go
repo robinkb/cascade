@@ -85,7 +85,7 @@ func (r *receiver) listen() {
 		}
 
 		go func(c net.Conn) {
-			defer c.Close()
+			defer logError(c.Close(), "error while closing listening connection:")
 
 			dec := NewVarIntDecoder()
 			for {
@@ -103,8 +103,8 @@ func (r *receiver) listen() {
 
 		select {
 		case <-r.done:
-			r.l.Close()
-			break
+			logError(r.l.Close(), "error while closing listener:")
+			return
 		default:
 		}
 	}
@@ -154,7 +154,7 @@ func (s *sender) dial() {
 			continue
 		}
 		tries = 0
-		defer conn.Close()
+		defer logError(conn.Close(), "error while closing sending connection:")
 
 		enc := NewVarIntEncoder()
 	send:
@@ -181,4 +181,10 @@ func exponentialBackoff(tries float64) time.Duration {
 	base := rand.Float64() * 50
 	backoff := math.Pow(base, tries)
 	return time.Duration(backoff) * time.Microsecond
+}
+
+func logError(err error, msg string) {
+	if err != nil {
+		log.Println(msg, err)
+	}
 }
