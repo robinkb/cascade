@@ -94,7 +94,11 @@ func (r *receiver) listen() {
 					if errors.Is(err, io.EOF) {
 						break
 					}
-					panic(err)
+					if errors.Is(err, net.ErrClosed) {
+						log.Println("breaking", err)
+						break
+					}
+					log.Panicf("%#v\n", err)
 				}
 
 				r.receive <- data
