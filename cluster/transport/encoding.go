@@ -48,29 +48,23 @@ func (e *bufferedEncoder) EncodeStream(id MessageType, r io.Reader) (io.Reader, 
 	return &streamEncoder{
 		mtype: id,
 		src:   r,
-		buf:   bytes.NewBuffer(make([]byte, 1<<10)),
-		msg:   bytes.NewBuffer(make([]byte, 0)),
 	}, nil
 }
 
 type streamEncoder struct {
-	mtype MessageType
-	src   io.Reader
-	buf   *bytes.Buffer
-	msg   *bytes.Buffer
-	done  bool
+	mtype  MessageType
+	src    io.Reader
+	buf    [32 << 10]byte
+	cursor int
+	size   int
 }
 
 func (e *streamEncoder) Read(p []byte) (int, error) {
-	// Buffer is empty, have to read from the source.
-	if e.msg.Len() == 0 && !e.done {
-		e.buf.Reset()
-		n, err := io.CopyN(e.buf, e.src, int64(e.buf.Cap()))
+	var err error
+	if e.cursor == 0 {
+		n, err := e.src.Read(e.buf[headerSize:cap(e.buf)])
 		if err != nil {
-			if err != io.EOF {
-				return int(n), err
-			}
-			e.done = true
+			return 0, err
 		}
 
 		header := header{
@@ -81,12 +75,20 @@ func (e *streamEncoder) Read(p []byte) (int, error) {
 			messageType: uint16(e.mtype),
 			length:      uint32(n),
 		}
-
-		e.msg.Write(header.Bytes())
-		e.msg.Write(e.buf.Bytes())
+		header.Put(e.buf[:headerSize])
+		e.size = headerSize + n
 	}
 
-	return e.msg.Read(p)
+	n := copy(p, e.buf[e.cursor:e.size])
+	e.cursor += n
+	if e.cursor == e.size {
+		e.cursor = 0
+		if e.size < cap(e.buf)-headerSize {
+			err = io.EOF
+		}
+	}
+
+	return n, err
 }
 
 func NewBufferedDecoder() Decoder {
@@ -163,7 +165,7 @@ func (d *streamDecoder) Read(p []byte) (int, error) {
 }
 
 const (
-	headerSize        = 64
+	headerSize        = 8 // Size of the header in bytes
 	headerMagicNumber = 0xCA
 )
 
@@ -187,12 +189,19 @@ type header struct {
 	length      uint32
 }
 
+func (h header) Put(b []byte) {
+	if len(b) != headerSize {
+		panic("expected byte slice of length 8")
+	}
+	b[0] = h.magicNumber
+	b[1] = h.attributes.Byte()
+	binary.LittleEndian.PutUint16(b[2:4], h.messageType)
+	binary.LittleEndian.PutUint32(b[4:8], h.length)
+}
+
 func (h header) Bytes() []byte {
 	buf := make([]byte, headerSize)
-	buf[0] = h.magicNumber
-	buf[1] = h.attributes.Byte()
-	binary.LittleEndian.PutUint16(buf[2:4], h.messageType)
-	binary.LittleEndian.PutUint32(buf[4:8], h.length)
+	h.Put(buf)
 	return buf
 }
 
