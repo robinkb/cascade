@@ -45,36 +45,48 @@ func (e *bufferedEncoder) Encode(id MessageType, data []byte) ([]byte, error) {
 }
 
 func (e *bufferedEncoder) EncodeStream(id MessageType, r io.Reader) (io.Reader, error) {
-	e.buf.Reset()
-	n, err := io.Copy(e.buf, r)
-	if err != nil {
-		return nil, err
-	}
-
-	header := header{
-		magicNumber: headerMagicNumber,
-		attributes: attributes{
-			stream: true,
-		},
-		messageType: uint16(id),
-		length:      uint32(n),
-	}
-
-	msg := new(bytes.Buffer)
-	msg.Write(header.Bytes())
-	msg.Write(e.buf.Bytes())
-
-	return &streamEncoder{id, r, msg}, nil
+	return &streamEncoder{
+		mtype: id,
+		src:   r,
+		buf:   bytes.NewBuffer(make([]byte, 1<<10)),
+		msg:   bytes.NewBuffer(make([]byte, 0)),
+	}, nil
 }
 
 type streamEncoder struct {
 	mtype MessageType
-	r     io.Reader
+	src   io.Reader
 	buf   *bytes.Buffer
+	msg   *bytes.Buffer
+	done  bool
 }
 
 func (e *streamEncoder) Read(p []byte) (int, error) {
-	return e.buf.Read(p)
+	// Buffer is empty, have to read from the source.
+	if e.msg.Len() == 0 && !e.done {
+		e.buf.Reset()
+		n, err := io.CopyN(e.buf, e.src, int64(e.buf.Cap()))
+		if err != nil {
+			if err != io.EOF {
+				return int(n), err
+			}
+			e.done = true
+		}
+
+		header := header{
+			magicNumber: headerMagicNumber,
+			attributes: attributes{
+				stream: true,
+			},
+			messageType: uint16(e.mtype),
+			length:      uint32(n),
+		}
+
+		e.msg.Write(header.Bytes())
+		e.msg.Write(e.buf.Bytes())
+	}
+
+	return e.msg.Read(p)
 }
 
 func NewBufferedDecoder() Decoder {
@@ -93,7 +105,7 @@ func (d *bufferedDecoder) DecodeStream(r io.Reader) (MessageType, io.Reader, err
 	buf := make([]byte, headerSize)
 	_, err := io.ReadFull(r, buf)
 	if err != nil {
-		panic(err)
+		log.Println(err)
 	}
 	header := parseHeader(buf)
 	data := make([]byte, 0, header.length)
@@ -101,19 +113,19 @@ func (d *bufferedDecoder) DecodeStream(r io.Reader) (MessageType, io.Reader, err
 
 	return MessageType(header.messageType), &streamDecoder{
 		mtype: MessageType(header.messageType),
-		r:     r,
+		src:   r,
 		buf:   bytes.NewBuffer(data),
 	}, nil
 }
 
 type streamDecoder struct {
 	mtype MessageType
-	r     io.Reader
+	src   io.Reader
 	buf   *bytes.Buffer
 }
 
 func (d *streamDecoder) Read(p []byte) (int, error) {
-	return d.r.Read(p)
+	return d.src.Read(p)
 }
 
 const (

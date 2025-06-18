@@ -4,6 +4,7 @@ import (
 	crand "crypto/rand"
 	"encoding/json"
 	"fmt"
+	"io"
 	"math/rand/v2"
 	"net/netip"
 	"slices"
@@ -31,6 +32,10 @@ func RandomContents(length int64) []byte {
 	// nolint: errcheck
 	crand.Read(data)
 	return data
+}
+
+func RandomStream(length int64) io.Reader {
+	return io.LimitReader(crand.Reader, length)
 }
 
 func RandomString(length int) string {

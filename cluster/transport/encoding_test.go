@@ -2,10 +2,12 @@ package transport
 
 import (
 	"bytes"
+	"crypto/sha256"
 	"io"
 	"math/rand/v2"
 	"testing"
 
+	"github.com/opencontainers/go-digest"
 	. "github.com/robinkb/cascade-registry/testing"
 )
 
@@ -25,17 +27,13 @@ func TestEncodeDecodeMessage(t *testing.T) {
 }
 
 func TestEncodeDecodeStream(t *testing.T) {
-	encoder := NewBufferedEncoder()
-	decoder := NewBufferedDecoder()
-
 	wantID := MessageType(rand.UintN(1000))
 	wantData := RandomContents(128)
-	wantBuf := bytes.NewBuffer(wantData)
 
-	encoded, err := encoder.EncodeStream(wantID, wantBuf)
+	encoded, err := NewBufferedEncoder().EncodeStream(wantID, bytes.NewBuffer(wantData))
 	RequireNoError(t, err)
 
-	gotID, decoded, err := decoder.DecodeStream(encoded)
+	gotID, decoded, err := NewBufferedDecoder().DecodeStream(encoded)
 	RequireNoError(t, err)
 	AssertEqual(t, gotID, wantID)
 
@@ -44,19 +42,60 @@ func TestEncodeDecodeStream(t *testing.T) {
 	AssertSlicesEqual(t, gotData, wantData)
 }
 
+func TestEncodeDecodeStreamLarge(t *testing.T) {
+	size := 2 << 30
+	encoder := NewBufferedEncoder()
+	decoder := NewBufferedDecoder()
+
+	wantID := MessageType(rand.UintN(1000))
+	wantData := RandomStream(int64(size))
+	wantHash := sha256.New()
+	tee := io.TeeReader(wantData, wantHash)
+
+	encoded, err := encoder.EncodeStream(wantID, tee)
+	RequireNoError(t, err)
+
+	gotID, decoded, err := decoder.DecodeStream(encoded)
+	RequireNoError(t, err)
+	AssertEqual(t, gotID, wantID)
+
+	gotHash := sha256.New()
+	_, err = io.Copy(gotHash, decoded)
+	RequireNoError(t, err)
+	AssertEqual(t,
+		digest.NewDigest(digest.SHA256, gotHash),
+		digest.NewDigest(digest.SHA256, wantHash),
+	)
+}
+
 func TestEncodingDecodingDoesNotAllocate(t *testing.T) {
 	encoder := NewBufferedEncoder()
 	decoder := NewBufferedDecoder()
 
-	id := MessageType(rand.UintN(1000))
-	data := RandomContents(128)
+	t.Run("Ensure buffered encoding does not allocate", func(t *testing.T) {
+		id := MessageType(rand.UintN(1000))
+		data := RandomContents(128)
 
-	allocs := testing.AllocsPerRun(100, func() {
-		encoded, _ := encoder.Encode(id, data)
-		decoder.Decode(encoded)
+		allocs := testing.AllocsPerRun(100, func() {
+			encoded, _ := encoder.Encode(id, data)
+			decoder.Decode(encoded)
+		})
+
+		AssertEqual(t, allocs, 0)
 	})
 
-	AssertEqual(t, allocs, 0)
+	t.Run("Ensure streaming encoding does not allocate", func(t *testing.T) {
+		mtype := MessageType(rand.UintN(1000))
+		data := RandomStream(128)
+
+		allocs := testing.AllocsPerRun(10, func() {
+			encoded, _ := encoder.EncodeStream(mtype, data)
+			_, decoded, _ := decoder.DecodeStream(encoded)
+			io.Copy(io.Discard, decoded)
+		})
+
+		AssertEqual(t, allocs, 0)
+	})
 }
 
 func TestAttributesEncodeDecode(t *testing.T) {
