@@ -11,7 +11,7 @@ func TestEncodeDecode(t *testing.T) {
 	encoder := NewBufferedEncoder()
 	decoder := NewBufferedDecoder()
 
-	wantID := OperationID(rand.UintN(1000))
+	wantID := MessageType(rand.UintN(1000))
 	wantData := RandomContents(128)
 	encoded, err := encoder.Encode(wantID, wantData)
 	RequireNoError(t, err)
@@ -22,15 +22,17 @@ func TestEncodeDecode(t *testing.T) {
 	AssertSlicesEqual(t, gotData, wantData)
 }
 
-func BenchmarkEncodeDecode(b *testing.B) {
+func TestEncodingDecodingDoesNotAllocate(t *testing.T) {
 	encoder := NewBufferedEncoder()
 	decoder := NewBufferedDecoder()
 
-	id := OperationID(rand.UintN(1000))
+	id := MessageType(rand.UintN(1000))
 	data := RandomContents(128)
 
-	for b.Loop() {
+	allocs := testing.AllocsPerRun(100, func() {
 		encoded, _ := encoder.Encode(id, data)
 		decoder.Decode(encoded)
-	}
+	})
+
+	AssertEqual(t, allocs, 0)
 }

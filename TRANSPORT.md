@@ -32,28 +32,28 @@ Message layout could look like this:
 ```mermaid
 packet-beta
     0-7: "Magic Number (0xCA)"
-    8: "Property: Stream"
-    9-15: "Property: Reserved"
-    16-31: "Operation ID"
+    8: "Attribute: Stream"
+    9-15: "Attribute: Reserved"
+    16-31: "Message Type"
     32-63: "Payload Length"
     64-95: "Payload"
 ```
 
 The Magic Number indicates the start of the message.
 It can be used for resynchronization.
-The Operation ID is be provided by the Application.
+The Message Type is be provided by the Application.
 It is not used by the transport.
 Payload length is the amount of data sent in this message.
 Payload contains the actual application data.
 
 When the Stream bit is set to 1, it indicates the start of a streaming message.
 In this special case, the payload length and actual payload contain the length and data as normal.
-The application must not provide an operation ID with the left-most bit set to 1.
+The application must not provide an Message Type with the left-most bit set to 1.
 That is an error.
 
 The end of the streaming session is indicated by the left-most bit in the Header being 0.
 
-Every subsequent message ID in the streaming message must have the Operation ID with the Streaming bit set to 1.
+Every subsequent message ID in the streaming message must have the Message Type with the Streaming bit set to 1.
 If that is not the case, it is an error.
 
 ## Resynchronization

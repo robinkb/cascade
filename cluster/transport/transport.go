@@ -3,11 +3,11 @@ package transport
 import "io"
 
 type (
-	OperationID uint16
+	MessageType uint16
 
 	Sender interface {
-		Send(id OperationID, data []byte) error
-		Stream(id OperationID, r io.Reader) error
+		Send(t MessageType, data []byte) error
+		Stream(t MessageType, r io.Reader) error
 	}
 
 	Receiver interface {
@@ -15,7 +15,7 @@ type (
 	}
 
 	Message interface {
-		ID() OperationID
+		Type() MessageType
 	}
 
 	StreamingMessage interface {
@@ -39,11 +39,11 @@ type sender struct {
 	w io.Writer
 }
 
-func (s *sender) Send(id OperationID, data []byte) error {
+func (s *sender) Send(id MessageType, data []byte) error {
 	return nil
 }
 
-func (s *sender) Stream(id OperationID, r io.Reader) error {
+func (s *sender) Stream(id MessageType, r io.Reader) error {
 	return nil
 }
 
