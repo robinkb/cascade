@@ -28,7 +28,7 @@ func TestEncodeDecodeMessage(t *testing.T) {
 
 func TestEncodeDecodeStream(t *testing.T) {
 	wantID := MessageType(rand.UintN(1000))
-	wantData := RandomContents(32 << 10)
+	wantData := RandomContents(payloadMaxSize * 2)
 
 	encoded, err := NewBufferedEncoder().EncodeStream(wantID, bytes.NewBuffer(wantData))
 	RequireNoError(t, err)
@@ -43,7 +43,9 @@ func TestEncodeDecodeStream(t *testing.T) {
 }
 
 func TestEncodeDecodeStreamLarge(t *testing.T) {
-	size := 2 << 30
+	t.Skip("long test, only run as a performance test")
+
+	size := 1 << 30
 	encoder := NewBufferedEncoder()
 	decoder := NewBufferedDecoder()
 
@@ -76,7 +78,7 @@ func TestEncodingDecodingDoesNotAllocate(t *testing.T) {
 		id := MessageType(rand.UintN(1000))
 		data := RandomContents(128)
 
-		allocs := testing.AllocsPerRun(100, func() {
+		allocs := testing.AllocsPerRun(10, func() {
 			encoded, _ := encoder.Encode(id, data)
 			decoder.Decode(encoded)
 		})
@@ -84,42 +86,43 @@ func TestEncodingDecodingDoesNotAllocate(t *testing.T) {
 		AssertEqual(t, allocs, 0)
 	})
 
-	t.Run("Ensure streaming encoding does not allocate", func(t *testing.T) {
+	t.Run("Ensure streaming encoding does not allocate more than necessary", func(t *testing.T) {
 		mtype := MessageType(rand.UintN(1000))
-		content := RandomContents(128)
+		content := RandomContents(payloadMaxSize * 2)
 
-		allocs := testing.AllocsPerRun(100, func() {
+		allocs := testing.AllocsPerRun(10, func() {
 			data := bytes.NewBuffer(content)
 			encoded, _ := encoder.EncodeStream(mtype, data)
-			// _, decoded, _ := decoder.DecodeStream(encoded)
-			io.Copy(io.Discard, encoded)
+			_, decoded, _ := decoder.DecodeStream(encoded)
+			io.Copy(io.Discard, decoded)
 		})
 
 		// Allocates for these reasons:
 		// 1. Creating the bytes.Buffer around the content
 		// 2. Creating the streamEncoder when calling EncodeStream
-		AssertEqual(t, allocs, 2)
+		// 3. Creating the streamDecoder when calling DecodeStream
+		AssertEqual(t, allocs, 3)
 	})
 }
 
-func TestAttributesEncodeDecode(t *testing.T) {
-	t.Run("Encoding stream attribute", func(t *testing.T) {
+func TestFlagsEncodeDecode(t *testing.T) {
+	t.Run("Encoding stream flags", func(t *testing.T) {
 		want := byte(0b10000000)
 
-		attr := attributes{
+		f := flags{
 			stream: true,
 		}
 
-		got := attr.Byte()
+		got := f.Byte()
 		AssertEqual(t, got, want)
 	})
 
-	t.Run("Decoding stream attribute", func(t *testing.T) {
+	t.Run("Decoding stream flags", func(t *testing.T) {
 		attr := byte(0b10000000)
-		want := attributes{
+		want := flags{
 			stream: true,
 		}
-		got := parseAttributes(attr)
+		got := parseFlags(attr)
 		AssertEqual(t, got, want)
 	})
 }

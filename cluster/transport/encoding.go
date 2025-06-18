@@ -3,6 +3,7 @@ package transport
 import (
 	"bytes"
 	"encoding/binary"
+	"errors"
 	"io"
 	"log"
 )
@@ -32,7 +33,7 @@ type bufferedEncoder struct {
 func (e *bufferedEncoder) Encode(id MessageType, data []byte) ([]byte, error) {
 	header := header{
 		magicNumber: headerMagicNumber,
-		attributes:  attributes{},
+		flags:       flags{},
 		messageType: uint16(id),
 		length:      uint32(len(data)),
 	}
@@ -54,7 +55,7 @@ func (e *bufferedEncoder) EncodeStream(id MessageType, r io.Reader) (io.Reader, 
 type streamEncoder struct {
 	mtype  MessageType
 	src    io.Reader
-	buf    [32 << 10]byte
+	buf    [headerSize + payloadMaxSize]byte
 	cursor int
 	size   int
 }
@@ -69,7 +70,7 @@ func (e *streamEncoder) Read(p []byte) (int, error) {
 
 		header := header{
 			magicNumber: headerMagicNumber,
-			attributes: attributes{
+			flags: flags{
 				stream: true,
 			},
 			messageType: uint16(e.mtype),
@@ -108,27 +109,21 @@ func (d *bufferedDecoder) DecodeStream(r io.Reader) (MessageType, io.Reader, err
 		src: r,
 	}
 
-	n, err := dec.src.Read(dec.hbuf[:])
+	mtype, err := dec.readHeader()
 	if err != nil {
-		return 0, nil, err
-	}
-	if n != headerSize {
-		// Could probably retry here instead?
-		panic("could not read header")
+		return mtype, nil, err
 	}
 
-	header := parseHeader(dec.hbuf[:])
-	dec.mtype = MessageType(header.messageType)
-	dec.size = int(header.length)
+	dec.mtype = mtype
 
-	return MessageType(header.messageType), dec, nil
+	return mtype, dec, nil
 }
 
 type streamDecoder struct {
 	mtype  MessageType
 	src    io.Reader
-	hbuf   [headerSize]byte          // header buffer
-	pbuf   [32<<10 - headerSize]byte // payload buffer
+	hbuf   [headerSize]byte     // header buffer
+	pbuf   [payloadMaxSize]byte // payload buffer
 	cursor int
 	size   int
 }
@@ -136,19 +131,12 @@ type streamDecoder struct {
 func (d *streamDecoder) Read(p []byte) (int, error) {
 	var err error
 	if d.cursor == 0 {
-		// Haven't read the header yet
+		// Haven't read the header yet, or exhausted the buffer
 		if d.size == 0 {
-			n, err := d.src.Read(d.hbuf[:])
+			_, err := d.readHeader()
 			if err != nil {
 				return 0, err
 			}
-			if n != headerSize {
-				// Could probably retry here instead?
-				panic("could not read header")
-			}
-
-			header := parseHeader(d.hbuf[:])
-			d.size = int(header.length)
 		}
 
 		n, err := d.src.Read(d.pbuf[:d.size])
@@ -172,9 +160,25 @@ func (d *streamDecoder) Read(p []byte) (int, error) {
 	return n, err
 }
 
+func (d *streamDecoder) readHeader() (MessageType, error) {
+	n, err := d.src.Read(d.hbuf[:])
+	if err != nil {
+		return 0, err
+	}
+	if n != headerSize {
+		// Could probably retry here instead?
+		return 0, errors.New("could not read header")
+	}
+
+	header := parseHeader(d.hbuf[:])
+	d.size = int(header.length)
+	return MessageType(header.messageType), err
+}
+
 const (
 	headerSize        = 8 // Size of the header in bytes
 	headerMagicNumber = 0xCA
+	payloadMaxSize    = 32<<10 - headerSize
 )
 
 func parseHeader(data []byte) header {
@@ -184,7 +188,7 @@ func parseHeader(data []byte) header {
 
 	return header{
 		magicNumber: data[0],
-		attributes:  parseAttributes(data[1]),
+		flags:       parseFlags(data[1]),
 		messageType: binary.LittleEndian.Uint16(data[2:4]),
 		length:      binary.LittleEndian.Uint32(data[4:8]),
 	}
@@ -192,7 +196,7 @@ func parseHeader(data []byte) header {
 
 type header struct {
 	magicNumber uint8
-	attributes  attributes
+	flags       flags
 	messageType uint16
 	length      uint32
 }
@@ -202,7 +206,7 @@ func (h header) Put(b []byte) {
 		panic("expected byte slice of length 8")
 	}
 	b[0] = h.magicNumber
-	b[1] = h.attributes.Byte()
+	b[1] = h.flags.Byte()
 	binary.LittleEndian.PutUint16(b[2:4], h.messageType)
 	binary.LittleEndian.PutUint32(b[4:8], h.length)
 }
@@ -213,21 +217,21 @@ func (h header) Bytes() []byte {
 	return buf
 }
 
-func parseAttributes(b byte) attributes {
-	var a attributes
+func parseFlags(b byte) flags {
+	var f flags
 	if b>>7 == 1 {
-		a.stream = true
+		f.stream = true
 	}
-	return a
+	return f
 }
 
-type attributes struct {
+type flags struct {
 	stream bool
 }
 
-func (a attributes) Byte() byte {
+func (f flags) Byte() byte {
 	var b byte
-	if a.stream {
+	if f.stream {
 		b += 0b10000000
 	}
 	return b
