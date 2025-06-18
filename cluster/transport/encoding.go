@@ -102,30 +102,64 @@ func (d *bufferedDecoder) Decode(data []byte) (MessageType, []byte, error) {
 }
 
 func (d *bufferedDecoder) DecodeStream(r io.Reader) (MessageType, io.Reader, error) {
-	buf := make([]byte, headerSize)
-	_, err := io.ReadFull(r, buf)
-	if err != nil {
-		log.Println(err)
+	dec := &streamDecoder{
+		src: r,
+		buf: bytes.NewBuffer(make([]byte, 0, 1024)),
 	}
-	header := parseHeader(buf)
-	data := make([]byte, 0, header.length)
-	io.ReadFull(r, data)
 
-	return MessageType(header.messageType), &streamDecoder{
-		mtype: MessageType(header.messageType),
-		src:   r,
-		buf:   bytes.NewBuffer(data),
-	}, nil
+	_, err := io.CopyN(dec.buf, dec.src, headerSize)
+	if err != nil {
+		if err != io.EOF {
+			return 0, nil, err
+		}
+		dec.done = true
+	}
+
+	header := parseHeader(dec.buf.Bytes())
+	dec.buf.Reset()
+	_, err = io.CopyN(dec.buf, dec.src, int64(header.length))
+	if err != nil {
+		if err != io.EOF {
+			return 0, nil, err
+		}
+		dec.done = true
+	}
+	return MessageType(header.messageType), dec, nil
 }
 
 type streamDecoder struct {
 	mtype MessageType
 	src   io.Reader
 	buf   *bytes.Buffer
+	done  bool
 }
 
 func (d *streamDecoder) Read(p []byte) (int, error) {
-	return d.src.Read(p)
+	// Buffer is empty, have to read from the source.
+	if d.buf.Len() == 0 && !d.done {
+		d.buf.Reset()
+		n, err := io.CopyN(d.buf, d.src, headerSize)
+		if err != nil {
+			if err != io.EOF {
+				return int(n), err
+			}
+			d.done = true
+		}
+
+		if !d.done {
+			header := parseHeader(d.buf.Bytes())
+			d.buf.Reset()
+			n, err = io.CopyN(d.buf, d.src, int64(header.length))
+			if err != nil {
+				if err != io.EOF {
+					return int(n), err
+				}
+				d.done = true
+			}
+		}
+	}
+
+	return d.buf.Read(p)
 }
 
 const (
