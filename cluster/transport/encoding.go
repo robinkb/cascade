@@ -106,62 +106,70 @@ func (d *bufferedDecoder) Decode(data []byte) (MessageType, []byte, error) {
 func (d *bufferedDecoder) DecodeStream(r io.Reader) (MessageType, io.Reader, error) {
 	dec := &streamDecoder{
 		src: r,
-		buf: bytes.NewBuffer(make([]byte, 0, 1024)),
 	}
 
-	_, err := io.CopyN(dec.buf, dec.src, headerSize)
+	n, err := dec.src.Read(dec.hbuf[:])
 	if err != nil {
-		if err != io.EOF {
-			return 0, nil, err
-		}
-		dec.done = true
+		return 0, nil, err
+	}
+	if n != headerSize {
+		// Could probably retry here instead?
+		panic("could not read header")
 	}
 
-	header := parseHeader(dec.buf.Bytes())
-	dec.buf.Reset()
-	_, err = io.CopyN(dec.buf, dec.src, int64(header.length))
-	if err != nil {
-		if err != io.EOF {
-			return 0, nil, err
-		}
-		dec.done = true
-	}
+	header := parseHeader(dec.hbuf[:])
+	dec.mtype = MessageType(header.messageType)
+	dec.size = int(header.length)
+
 	return MessageType(header.messageType), dec, nil
 }
 
 type streamDecoder struct {
-	mtype MessageType
-	src   io.Reader
-	buf   *bytes.Buffer
-	done  bool
+	mtype  MessageType
+	src    io.Reader
+	hbuf   [headerSize]byte          // header buffer
+	pbuf   [32<<10 - headerSize]byte // payload buffer
+	cursor int
+	size   int
 }
 
 func (d *streamDecoder) Read(p []byte) (int, error) {
-	// Buffer is empty, have to read from the source.
-	if d.buf.Len() == 0 && !d.done {
-		d.buf.Reset()
-		n, err := io.CopyN(d.buf, d.src, headerSize)
-		if err != nil {
-			if err != io.EOF {
-				return int(n), err
+	var err error
+	if d.cursor == 0 {
+		// Haven't read the header yet
+		if d.size == 0 {
+			n, err := d.src.Read(d.hbuf[:])
+			if err != nil {
+				return 0, err
 			}
-			d.done = true
+			if n != headerSize {
+				// Could probably retry here instead?
+				panic("could not read header")
+			}
+
+			header := parseHeader(d.hbuf[:])
+			d.size = int(header.length)
 		}
 
-		if !d.done {
-			header := parseHeader(d.buf.Bytes())
-			d.buf.Reset()
-			n, err = io.CopyN(d.buf, d.src, int64(header.length))
-			if err != nil {
-				if err != io.EOF {
-					return int(n), err
-				}
-				d.done = true
-			}
+		n, err := d.src.Read(d.pbuf[:d.size])
+		if err != nil && err != io.EOF {
+			return 0, err
+		}
+		d.size = n
+	}
+
+	n := copy(p, d.pbuf[d.cursor:d.size])
+	d.cursor += n
+	if d.cursor == d.size {
+		if d.size < cap(d.pbuf) {
+			err = io.EOF
+		} else {
+			d.cursor = 0
+			d.size = 0
 		}
 	}
 
-	return d.buf.Read(p)
+	return n, err
 }
 
 const (
