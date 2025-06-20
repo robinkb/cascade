@@ -27,30 +27,51 @@ func TestEncodeDecodeMessage(t *testing.T) {
 }
 
 func TestEncodeDecodeStream(t *testing.T) {
-	wantID := MessageType(rand.UintN(1000))
-	wantData := RandomContents(payloadMaxSize * 2)
+	tc := []struct {
+		name string
+		want []byte
+	}{
+		{
+			"Data smaller than maximum payload",
+			RandomContents(payloadMaxSize / 2),
+		},
+		{
+			"Data exactly the maximum payload",
+			RandomContents(payloadMaxSize),
+		},
+		{
+			"Data larger than maximum payload",
+			RandomContents(payloadMaxSize * 2),
+		},
+	}
 
-	encoded, err := NewBufferedEncoder().EncodeStream(wantID, bytes.NewBuffer(wantData))
-	RequireNoError(t, err)
+	for _, tt := range tc {
+		t.Run(tt.name, func(t *testing.T) {
+			wantID := MessageType(rand.UintN(1000))
+			encoded, err := NewBufferedEncoder().EncodeStream(wantID, bytes.NewBuffer(tt.want))
+			RequireNoError(t, err)
 
-	gotID, decoded, err := NewBufferedDecoder().DecodeStream(encoded)
-	RequireNoError(t, err)
-	AssertEqual(t, gotID, wantID)
+			gotID, decoded, err := NewBufferedDecoder().DecodeStream(encoded)
+			RequireNoError(t, err)
+			AssertEqual(t, gotID, wantID)
 
-	gotData, err := io.ReadAll(decoded)
-	RequireNoError(t, err)
-	AssertSlicesEqual(t, gotData, wantData)
+			gotData, err := io.ReadAll(decoded)
+			RequireNoError(t, err)
+			AssertSlicesEqual(t, gotData, tt.want)
+		})
+	}
+
 }
 
 func TestEncodeDecodeStreamLarge(t *testing.T) {
 	t.Skip("long test, only run as a performance test")
 
-	size := 1 << 30
+	size := int64(1 << 30)
 	encoder := NewBufferedEncoder()
 	decoder := NewBufferedDecoder()
 
 	wantID := MessageType(rand.UintN(1000))
-	wantData := RandomStream(int64(size))
+	wantData := RandomStream(size)
 	wantHash := sha256.New()
 	tee := io.TeeReader(wantData, wantHash)
 
@@ -62,8 +83,9 @@ func TestEncodeDecodeStreamLarge(t *testing.T) {
 	AssertEqual(t, gotID, wantID)
 
 	gotHash := sha256.New()
-	_, err = io.Copy(gotHash, decoded)
+	n, err := io.Copy(gotHash, decoded)
 	RequireNoError(t, err)
+	AssertEqual(t, n, size)
 	AssertEqual(t,
 		digest.NewDigest(digest.SHA256, gotHash),
 		digest.NewDigest(digest.SHA256, wantHash),
@@ -125,4 +147,22 @@ func TestFlagsEncodeDecode(t *testing.T) {
 		got := parseFlags(attr)
 		AssertEqual(t, got, want)
 	})
+}
+
+func BenchmarkStreamingEncoding(b *testing.B) {
+	size := int64(1 << 20)
+	encoder := NewBufferedEncoder()
+	decoder := NewBufferedDecoder()
+	mtype := MessageType(rand.UintN(1000))
+	content := RandomContents(size)
+
+	for b.Loop() {
+		data := bytes.NewBuffer(content)
+		encoded, _ := encoder.EncodeStream(mtype, data)
+		_, decoded, _ := decoder.DecodeStream(encoded)
+		n, err := io.Copy(io.Discard, decoded)
+		if n != size || err != nil {
+			panic("test incorrect")
+		}
+	}
 }

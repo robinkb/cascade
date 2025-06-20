@@ -149,12 +149,8 @@ func (d *streamDecoder) Read(p []byte) (int, error) {
 	n := copy(p, d.pbuf[d.cursor:d.size])
 	d.cursor += n
 	if d.cursor == d.size {
-		if d.size < cap(d.pbuf) {
-			err = io.EOF
-		} else {
-			d.cursor = 0
-			d.size = 0
-		}
+		d.cursor = 0
+		d.size = 0
 	}
 
 	return n, err
