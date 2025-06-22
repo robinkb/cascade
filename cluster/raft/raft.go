@@ -42,7 +42,7 @@ func NewNode(id uint64, addr netip.AddrPort, peers []cluster.Peer) cluster.Node 
 		ticker:     time.Tick(1 * time.Second),
 		manualTick: make(chan time.Time),
 		done:       make(chan struct{}),
-		errors: errors{
+		errors: errMan{
 			errs: make(map[uint64]chan error),
 		},
 
@@ -62,7 +62,7 @@ type node struct {
 	manualTick chan time.Time
 	storage    *raft.MemoryStorage
 	done       chan struct{}
-	errors     errors
+	errors     errMan
 
 	transport cluster.Transport
 	peers     []cluster.Peer
@@ -249,26 +249,26 @@ func (n *node) process(entry raftpb.Entry) {
 	}
 }
 
-type errors struct {
+type errMan struct {
 	mu   sync.RWMutex
 	errs map[uint64]chan error
 }
 
-func (e *errors) create(id uint64) chan error {
+func (e *errMan) create(id uint64) chan error {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	e.errs[id] = make(chan error)
 	return e.errs[id]
 }
 
-func (e *errors) get(id uint64) (chan error, bool) {
+func (e *errMan) get(id uint64) (chan error, bool) {
 	e.mu.RLock()
 	defer e.mu.RUnlock()
 	err, ok := e.errs[id]
 	return err, ok
 }
 
-func (e *errors) delete(id uint64) {
+func (e *errMan) delete(id uint64) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	close(e.errs[id])
