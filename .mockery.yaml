@@ -17,3 +17,9 @@ packages:
   github.com/robinkb/cascade-registry/repository:
     interfaces:
       RepositoryService: {}
+  github.com/robinkb/cascade-registry/cluster/raft:
+    interfaces:
+      Node:
+        config:
+          fileName: raft_node.go
+          structName: RaftNode
