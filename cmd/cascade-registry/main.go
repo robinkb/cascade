@@ -11,7 +11,6 @@ import (
 	"strings"
 
 	"github.com/robinkb/cascade-registry"
-	"github.com/robinkb/cascade-registry/cluster"
 	"github.com/robinkb/cascade-registry/cluster/raft"
 	"github.com/robinkb/cascade-registry/server"
 	"github.com/robinkb/cascade-registry/store/boltdb"
@@ -45,7 +44,7 @@ func main() {
 		addr := netip.MustParseAddrPort(raftHostPort)
 
 		hosts := strings.Split(raftPeers, ",")
-		peers := make([]cluster.Peer, len(hosts))
+		peers := make([]raft.Peer, len(hosts))
 		for i := range hosts {
 			parts := strings.Split(hosts[i], ":")
 			id, err := strconv.ParseUint(parts[0], 10, 64)
@@ -53,7 +52,7 @@ func main() {
 				log.Fatal(err)
 			}
 			host := strings.Join(parts[1:3], ":")
-			peers[i] = cluster.Peer{
+			peers[i] = raft.Peer{
 				ID:       id,
 				AddrPort: netip.MustParseAddrPort(host),
 			}

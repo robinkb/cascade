@@ -1,23 +1,37 @@
 package raft
 
 import (
-	"bytes"
 	"context"
-	"encoding/gob"
 	"log"
 	"math"
 	"net/http"
 	"net/netip"
-	"reflect"
-	"sync"
 	"time"
 
-	"github.com/robinkb/cascade-registry/cluster"
 	"go.etcd.io/raft/v3"
 	"go.etcd.io/raft/v3/raftpb"
 )
 
-func NewNode(id uint64, addr netip.AddrPort, peers []cluster.Peer) cluster.Node {
+type (
+	Node interface { // Represents everything that a Raft node has to do for Raft to work
+		// Lifecycle
+		Start()
+		Stop()
+		Tick()
+		ClusterStatus() Status
+
+		// Messaging
+		Receive(m *raftpb.Message) error
+
+		Proposer
+	}
+
+	Status struct {
+		Clustered bool
+	}
+)
+
+func NewNode(id uint64, addr netip.AddrPort, peers []Peer) Node {
 	storage := raft.NewMemoryStorage()
 	conf := raft.Config{
 		ID:              id,
@@ -45,12 +59,9 @@ func NewNode(id uint64, addr netip.AddrPort, peers []cluster.Peer) cluster.Node 
 		ticker:     time.Tick(1 * time.Second),
 		manualTick: make(chan time.Time),
 		done:       make(chan struct{}),
-		errors: errMan{
-			errs: make(map[uint64]chan error),
-		},
-
-		handlerFuncs: make(map[reflect.Type]cluster.HandlerFunc),
 	}
+
+	node.Proposer = NewProposer(node.raft)
 
 	node.addr = addr
 	node.server = NewServer(node)
@@ -66,13 +77,12 @@ type node struct {
 	manualTick chan time.Time
 	storage    *raft.MemoryStorage
 	done       chan struct{}
-	errors     errMan
 
 	addr    netip.AddrPort
 	server  *server
 	clients map[uint64]*Client
 
-	handlerFuncs map[reflect.Type]cluster.HandlerFunc
+	Proposer
 }
 
 func (n *node) Start() {
@@ -90,8 +100,8 @@ func (n *node) Tick() {
 	n.manualTick <- time.Now()
 }
 
-func (n *node) ClusterStatus() cluster.Status {
-	status := cluster.Status{}
+func (n *node) ClusterStatus() Status {
+	status := Status{}
 
 	if n.raft.Status().Lead != 0 {
 		status.Clustered = true
@@ -133,13 +143,19 @@ func (n *node) send(messages []raftpb.Message) {
 	for _, message := range messages {
 		err := n.clients[message.To].SendMessage(&message)
 		if err != nil {
-			log.Panicln("failed to send message:", err)
+			log.Println("failed to send message:", err)
 		}
 
 		if message.Type == raftpb.MsgSnap {
 			// TODO: Snapshotting may fail, and that has to be reported through this method.
 			n.raft.ReportSnapshot(message.To, raft.SnapshotFinish)
 		}
+	}
+}
+
+func (n *node) process(entry raftpb.Entry) {
+	if entry.Data != nil {
+		n.Handler(entry.Data)
 	}
 }
 
@@ -163,91 +179,4 @@ func (n *node) saveToStorage(hardState raftpb.HardState, entries []raftpb.Entry,
 			log.Panicf("failed to apply snapshot: %s\n", err)
 		}
 	}
-}
-
-func (n *node) Propose(op cluster.Operation) error {
-	return n.propose(op)
-}
-
-func (n *node) propose(op cluster.Operation) error {
-	var buf bytes.Buffer
-	if err := gob.NewEncoder(&buf).Encode(&op); err != nil {
-		log.Panicf("failed to encode operation: %s\n", err)
-	}
-
-	errC := n.errors.create(op.ID())
-	// Propose blocks until accepted by the cluster.
-	// TODO: Find out how to retry proposals.
-	err := n.raft.Propose(context.TODO(), buf.Bytes())
-	if err != nil {
-		return err
-	}
-
-	select {
-	case <-time.Tick(5 * time.Second):
-		panic("timed out")
-	case <-errC:
-		return err
-	}
-}
-
-func (n *node) Handle(op cluster.Operation, f cluster.HandlerFunc) {
-	t := reflect.TypeOf(op)
-	if _, ok := n.handlerFuncs[t]; ok {
-		log.Fatalf("operation already registered: %T", op)
-	}
-	n.handlerFuncs[reflect.TypeOf(op)] = f
-	gob.Register(op)
-}
-
-func (n *node) process(entry raftpb.Entry) {
-	if entry.Data != nil {
-		buf := bytes.NewBuffer(entry.Data)
-
-		var op cluster.Operation
-		err := gob.NewDecoder(buf).Decode(&op)
-		if err != nil {
-			log.Panicf("unable to decode as operation: %s", err)
-		}
-
-		f, ok := n.handlerFuncs[reflect.TypeOf(op)]
-		if !ok {
-			log.Panicf("unknown operation received: %T", op)
-		}
-		err = f(op)
-
-		errC, ok := n.errors.get(op.ID())
-		if ok {
-			if err != nil {
-				errC <- err
-			}
-			n.errors.delete(op.ID())
-		}
-	}
-}
-
-type errMan struct {
-	mu   sync.RWMutex
-	errs map[uint64]chan error
-}
-
-func (e *errMan) create(id uint64) chan error {
-	e.mu.Lock()
-	defer e.mu.Unlock()
-	e.errs[id] = make(chan error)
-	return e.errs[id]
-}
-
-func (e *errMan) get(id uint64) (chan error, bool) {
-	e.mu.RLock()
-	defer e.mu.RUnlock()
-	err, ok := e.errs[id]
-	return err, ok
-}
-
-func (e *errMan) delete(id uint64) {
-	e.mu.Lock()
-	defer e.mu.Unlock()
-	close(e.errs[id])
-	delete(e.errs, id)
 }
