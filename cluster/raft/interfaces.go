@@ -1,5 +1,10 @@
 package raft
 
+import (
+	"github.com/robinkb/cascade-registry/cluster"
+	"go.etcd.io/raft/v3/raftpb"
+)
+
 /**
 File for sketching interfaces.
 */
@@ -22,7 +27,10 @@ type (
 		Start()
 		Stop()
 		Tick()
-		ClusterStatus() Status
+		ClusterStatus() cluster.Status
+
+		// Messaging
+		Receive(m *raftpb.Message) error
 	}
 
 	Status struct {

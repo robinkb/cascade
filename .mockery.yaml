@@ -19,7 +19,7 @@ packages:
       RepositoryService: {}
   github.com/robinkb/cascade-registry/cluster/raft:
     interfaces:
-      Receiver:
+      Node:
         config:
-          fileName: raft_receiver.go
-          structName: RaftReceiver
+          fileName: raft_node.go
+          structName: RaftNode

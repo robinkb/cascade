@@ -16,11 +16,12 @@ func TestSendMessage(t *testing.T) {
 		From: rand.Uint64(),
 		To:   rand.Uint64(),
 	}
-	service := mock.NewRaftReceiver(t)
-	service.EXPECT().
-		Receive(want)
+	node := mock.NewRaftNode(t)
+	node.EXPECT().
+		Receive(want).
+		Return(nil)
 
-	server := NewServer(service)
+	server := NewServer(node)
 	ts := httptest.NewServer(server)
 	defer ts.Close()
 

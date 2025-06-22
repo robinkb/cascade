@@ -25,9 +25,9 @@ type (
 	}
 )
 
-func NewServer(receiver Receiver) *server {
+func NewServer(node Node) *server {
 	s := new(server)
-	s.receiver = receiver
+	s.node = node
 
 	router := http.NewServeMux()
 	router.Handle("/message", http.HandlerFunc(s.messageHandler))
@@ -40,7 +40,7 @@ func NewServer(receiver Receiver) *server {
 
 type server struct {
 	http.Handler
-	receiver Receiver
+	node Node
 }
 
 func (s *server) messageHandler(w http.ResponseWriter, r *http.Request) {
@@ -58,7 +58,7 @@ func (s *server) postMessageHandler(w http.ResponseWriter, r *http.Request) {
 	data, _ := io.ReadAll(r.Body)
 	var message raftpb.Message
 	_ = proto.Unmarshal(data, &message)
-	_ = s.receiver.Receive(&message)
+	_ = s.node.Receive(&message)
 	w.WriteHeader(http.StatusOK)
 }
 

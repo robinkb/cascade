@@ -1,5 +1,7 @@
 package cluster
 
+import "net/netip"
+
 type (
 	// Controller manages Nodes.
 	Controller struct{}
@@ -22,5 +24,10 @@ type (
 
 	Status struct {
 		Clustered bool
+	}
+
+	Peer struct {
+		ID       uint64
+		AddrPort netip.AddrPort
 	}
 )
