@@ -53,7 +53,7 @@ func snapElections(nodes []cluster.Node) {
 		go func() {
 			for !n.ClusterStatus().Clustered {
 				n.Tick()
-				time.Sleep(1 * time.Millisecond)
+				wait()
 			}
 			wg.Done()
 		}()
@@ -89,7 +89,7 @@ func TestBlobReplication(t *testing.T) {
 		err := blobs[0].PutBlob(id, content)
 		RequireNoError(t, err)
 
-		time.Sleep(1 * time.Millisecond)
+		wait()
 
 		for _, b := range blobs {
 			info, err := b.StatBlob(id)
@@ -100,7 +100,7 @@ func TestBlobReplication(t *testing.T) {
 		err = blobs[0].DeleteBlob(id)
 		RequireNoError(t, err)
 
-		time.Sleep(1 * time.Millisecond)
+		wait()
 
 		for _, b := range blobs {
 			_, err := b.StatBlob(id)
@@ -113,7 +113,7 @@ func TestBlobReplication(t *testing.T) {
 		err := blobs[0].InitUpload(id)
 		RequireNoError(t, err)
 
-		time.Sleep(1 * time.Millisecond)
+		wait()
 
 		for _, b := range blobs {
 			_, err := b.StatUpload(id)
@@ -129,7 +129,7 @@ func TestBlobReplication(t *testing.T) {
 		err = blobs[0].CloseUpload(id, digest)
 		RequireNoError(t, err)
 
-		time.Sleep(1 * time.Millisecond)
+		wait()
 
 		for _, b := range blobs {
 			got, err := b.GetBlob(digest)
@@ -143,7 +143,7 @@ func TestBlobReplication(t *testing.T) {
 		err := blobs[0].InitUpload(id)
 		RequireNoError(t, err)
 
-		time.Sleep(1 * time.Millisecond)
+		wait()
 
 		for _, b := range blobs {
 			_, err := b.StatUpload(id)
@@ -153,7 +153,7 @@ func TestBlobReplication(t *testing.T) {
 		err = blobs[0].DeleteUpload(id)
 		RequireNoError(t, err)
 
-		time.Sleep(1 * time.Millisecond)
+		wait()
 
 		for _, b := range blobs {
 			_, err := b.StatUpload(id)
@@ -175,7 +175,7 @@ func TestMetadataReplication(t *testing.T) {
 		err := metadata[0].CreateRepository(name)
 		RequireNoError(t, err)
 
-		time.Sleep(1 * time.Millisecond)
+		wait()
 
 		for _, m := range metadata {
 			err := m.GetRepository(name)
@@ -185,7 +185,7 @@ func TestMetadataReplication(t *testing.T) {
 		err = metadata[0].DeleteRepository(name)
 		RequireNoError(t, err)
 
-		time.Sleep(1 * time.Millisecond)
+		wait()
 
 		for _, m := range metadata {
 			err := m.GetRepository(name)
@@ -200,7 +200,7 @@ func TestMetadataReplication(t *testing.T) {
 		err = metadata[0].PutBlob(name, digest)
 		RequireNoError(t, err)
 
-		time.Sleep(1 * time.Millisecond)
+		wait()
 
 		for _, m := range metadata {
 			_, err := m.GetBlob(name, digest)
@@ -210,7 +210,7 @@ func TestMetadataReplication(t *testing.T) {
 		err = metadata[0].DeleteBlob(name, digest)
 		RequireNoError(t, err)
 
-		time.Sleep(1 * time.Millisecond)
+		wait()
 
 		for _, m := range metadata {
 			_, err := m.GetBlob(name, digest)
@@ -233,7 +233,7 @@ func TestMetadataReplication(t *testing.T) {
 		err = metadata[0].PutManifest(name, digest, meta)
 		RequireNoError(t, err)
 
-		time.Sleep(1 * time.Millisecond)
+		wait()
 
 		for _, s := range metadata {
 			got, err := s.GetManifest(name, digest)
@@ -244,7 +244,7 @@ func TestMetadataReplication(t *testing.T) {
 		err = metadata[0].DeleteManifest(name, digest)
 		RequireNoError(t, err)
 
-		time.Sleep(1 * time.Millisecond)
+		wait()
 
 		for _, s := range metadata {
 			_, err := s.GetManifest(name, digest)
@@ -260,7 +260,7 @@ func TestMetadataReplication(t *testing.T) {
 		err = metadata[0].PutTag(name, tag, digest)
 		RequireNoError(t, err)
 
-		time.Sleep(1 * time.Millisecond)
+		wait()
 
 		for _, s := range metadata {
 			got, err := s.GetTag(name, tag)
@@ -271,7 +271,7 @@ func TestMetadataReplication(t *testing.T) {
 		err = metadata[0].DeleteTag(name, tag)
 		RequireNoError(t, err)
 
-		time.Sleep(1 * time.Millisecond)
+		wait()
 
 		for _, s := range metadata {
 			_, err := s.GetTag(name, tag)
@@ -290,7 +290,7 @@ func TestMetadataReplication(t *testing.T) {
 		err = metadata[0].PutUploadSession(name, session)
 		RequireNoError(t, err)
 
-		time.Sleep(1 * time.Millisecond)
+		wait()
 
 		for _, s := range metadata {
 			got, err := s.GetUploadSession(name, id.String())
@@ -301,11 +301,15 @@ func TestMetadataReplication(t *testing.T) {
 		err = metadata[0].DeleteUploadSession(name, id.String())
 		RequireNoError(t, err)
 
-		time.Sleep(1 * time.Millisecond)
+		wait()
 
 		for _, s := range metadata {
 			_, err := s.GetUploadSession(name, id.String())
 			AssertErrorIs(t, err, store.ErrNotFound)
 		}
 	})
+}
+
+func wait() {
+	time.Sleep(150 * time.Microsecond)
 }
