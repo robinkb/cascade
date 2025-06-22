@@ -23,6 +23,11 @@ type (
 	Receiver interface {
 		Receive(msg *raftpb.Message) error
 	}
+
+	Peer struct {
+		ID       uint64
+		AddrPort netip.AddrPort
+	}
 )
 
 func NewServer(node Node) *server {

@@ -5,7 +5,7 @@
 package mock
 
 import (
-	"github.com/robinkb/cascade-registry/cluster"
+	"github.com/robinkb/cascade-registry/cluster/raft"
 	mock "github.com/stretchr/testify/mock"
 	"go.etcd.io/raft/v3/raftpb"
 )
@@ -38,18 +38,18 @@ func (_m *RaftNode) EXPECT() *RaftNode_Expecter {
 }
 
 // ClusterStatus provides a mock function for the type RaftNode
-func (_mock *RaftNode) ClusterStatus() cluster.Status {
+func (_mock *RaftNode) ClusterStatus() raft.Status {
 	ret := _mock.Called()
 
 	if len(ret) == 0 {
 		panic("no return value specified for ClusterStatus")
 	}
 
-	var r0 cluster.Status
-	if returnFunc, ok := ret.Get(0).(func() cluster.Status); ok {
+	var r0 raft.Status
+	if returnFunc, ok := ret.Get(0).(func() raft.Status); ok {
 		r0 = returnFunc()
 	} else {
-		r0 = ret.Get(0).(cluster.Status)
+		r0 = ret.Get(0).(raft.Status)
 	}
 	return r0
 }
@@ -71,12 +71,126 @@ func (_c *RaftNode_ClusterStatus_Call) Run(run func()) *RaftNode_ClusterStatus_C
 	return _c
 }
 
-func (_c *RaftNode_ClusterStatus_Call) Return(status cluster.Status) *RaftNode_ClusterStatus_Call {
+func (_c *RaftNode_ClusterStatus_Call) Return(status raft.Status) *RaftNode_ClusterStatus_Call {
 	_c.Call.Return(status)
 	return _c
 }
 
-func (_c *RaftNode_ClusterStatus_Call) RunAndReturn(run func() cluster.Status) *RaftNode_ClusterStatus_Call {
+func (_c *RaftNode_ClusterStatus_Call) RunAndReturn(run func() raft.Status) *RaftNode_ClusterStatus_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// Handle provides a mock function for the type RaftNode
+func (_mock *RaftNode) Handle(op raft.Operation, f raft.HandlerFunc) {
+	_mock.Called(op, f)
+	return
+}
+
+// RaftNode_Handle_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'Handle'
+type RaftNode_Handle_Call struct {
+	*mock.Call
+}
+
+// Handle is a helper method to define mock.On call
+//   - op
+//   - f
+func (_e *RaftNode_Expecter) Handle(op interface{}, f interface{}) *RaftNode_Handle_Call {
+	return &RaftNode_Handle_Call{Call: _e.mock.On("Handle", op, f)}
+}
+
+func (_c *RaftNode_Handle_Call) Run(run func(op raft.Operation, f raft.HandlerFunc)) *RaftNode_Handle_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(raft.Operation), args[1].(raft.HandlerFunc))
+	})
+	return _c
+}
+
+func (_c *RaftNode_Handle_Call) Return() *RaftNode_Handle_Call {
+	_c.Call.Return()
+	return _c
+}
+
+func (_c *RaftNode_Handle_Call) RunAndReturn(run func(op raft.Operation, f raft.HandlerFunc)) *RaftNode_Handle_Call {
+	_c.Run(run)
+	return _c
+}
+
+// Handler provides a mock function for the type RaftNode
+func (_mock *RaftNode) Handler(data []byte) {
+	_mock.Called(data)
+	return
+}
+
+// RaftNode_Handler_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'Handler'
+type RaftNode_Handler_Call struct {
+	*mock.Call
+}
+
+// Handler is a helper method to define mock.On call
+//   - data
+func (_e *RaftNode_Expecter) Handler(data interface{}) *RaftNode_Handler_Call {
+	return &RaftNode_Handler_Call{Call: _e.mock.On("Handler", data)}
+}
+
+func (_c *RaftNode_Handler_Call) Run(run func(data []byte)) *RaftNode_Handler_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].([]byte))
+	})
+	return _c
+}
+
+func (_c *RaftNode_Handler_Call) Return() *RaftNode_Handler_Call {
+	_c.Call.Return()
+	return _c
+}
+
+func (_c *RaftNode_Handler_Call) RunAndReturn(run func(data []byte)) *RaftNode_Handler_Call {
+	_c.Run(run)
+	return _c
+}
+
+// Propose provides a mock function for the type RaftNode
+func (_mock *RaftNode) Propose(o raft.Operation) error {
+	ret := _mock.Called(o)
+
+	if len(ret) == 0 {
+		panic("no return value specified for Propose")
+	}
+
+	var r0 error
+	if returnFunc, ok := ret.Get(0).(func(raft.Operation) error); ok {
+		r0 = returnFunc(o)
+	} else {
+		r0 = ret.Error(0)
+	}
+	return r0
+}
+
+// RaftNode_Propose_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'Propose'
+type RaftNode_Propose_Call struct {
+	*mock.Call
+}
+
+// Propose is a helper method to define mock.On call
+//   - o
+func (_e *RaftNode_Expecter) Propose(o interface{}) *RaftNode_Propose_Call {
+	return &RaftNode_Propose_Call{Call: _e.mock.On("Propose", o)}
+}
+
+func (_c *RaftNode_Propose_Call) Run(run func(o raft.Operation)) *RaftNode_Propose_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(raft.Operation))
+	})
+	return _c
+}
+
+func (_c *RaftNode_Propose_Call) Return(err error) *RaftNode_Propose_Call {
+	_c.Call.Return(err)
+	return _c
+}
+
+func (_c *RaftNode_Propose_Call) RunAndReturn(run func(o raft.Operation) error) *RaftNode_Propose_Call {
 	_c.Call.Return(run)
 	return _c
 }
