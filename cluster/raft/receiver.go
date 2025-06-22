@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"errors"
 	"io"
+	"log"
 	"net/http"
 	"net/netip"
 
@@ -101,7 +102,11 @@ func (c *Client) SendMessage(m *raftpb.Message) error {
 	if err != nil {
 		return err
 	}
-	defer resp.Body.Close()
+	defer func() {
+		if err := resp.Body.Close(); err != nil {
+			log.Println("error closing response body:", err)
+		}
+	}()
 
 	if resp.StatusCode != http.StatusOK {
 		return errors.New("unexpected error")

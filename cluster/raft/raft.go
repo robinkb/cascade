@@ -77,7 +77,11 @@ type node struct {
 
 func (n *node) Start() {
 	go n.run()
-	go http.ListenAndServe(n.addr.String(), n.server)
+	go func() {
+		if err := http.ListenAndServe(n.addr.String(), n.server); err != nil {
+			log.Println("error closing raft server:", err)
+		}
+	}()
 }
 
 func (n *node) Stop() {}
