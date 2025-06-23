@@ -147,7 +147,7 @@ func (n *node) send(messages []raftpb.Message) {
 
 func (n *node) process(entry raftpb.Entry) {
 	if entry.Data != nil {
-		n.Handler(entry.Data)
+		n.Commit(entry.Data)
 	}
 }
 

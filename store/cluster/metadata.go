@@ -34,131 +34,131 @@ type metadataStore struct {
 }
 
 func (s *metadataStore) CreateRepository(name string) error {
-	op := &createRepository{
+	p := &createRepository{
 		rand.Uint64(),
 		name,
 	}
-	return s.proposer.Propose(op)
+	return s.proposer.Propose(p)
 }
 
-func (s *metadataStore) createRepository(op raft.Operation) error {
-	v := op.(*createRepository)
+func (s *metadataStore) createRepository(p raft.Proposal) error {
+	v := p.(*createRepository)
 	return s.Metadata.CreateRepository(v.Name)
 }
 
 func (s *metadataStore) DeleteRepository(name string) error {
-	op := &deleteRepository{
+	p := &deleteRepository{
 		rand.Uint64(),
 		name,
 	}
-	return s.proposer.Propose(op)
+	return s.proposer.Propose(p)
 }
 
-func (s *metadataStore) deleteRepository(op raft.Operation) error {
-	v := op.(*deleteRepository)
+func (s *metadataStore) deleteRepository(p raft.Proposal) error {
+	v := p.(*deleteRepository)
 	return s.Metadata.DeleteRepository(v.Name)
 }
 
 func (s *metadataStore) PutBlob(name string, digest digest.Digest) error {
-	op := &putBlobMeta{
+	p := &putBlobMeta{
 		rand.Uint64(),
 		name, digest,
 	}
-	return s.proposer.Propose(op)
+	return s.proposer.Propose(p)
 }
 
-func (s *metadataStore) putBlob(op raft.Operation) error {
-	v := op.(*putBlobMeta)
+func (s *metadataStore) putBlob(p raft.Proposal) error {
+	v := p.(*putBlobMeta)
 	return s.Metadata.PutBlob(v.Name, v.Digest)
 }
 
 func (s *metadataStore) DeleteBlob(name string, digest digest.Digest) error {
-	op := &deleteBlobMeta{
+	p := &deleteBlobMeta{
 		rand.Uint64(),
 		name, digest,
 	}
-	return s.proposer.Propose(op)
+	return s.proposer.Propose(p)
 }
 
-func (s *metadataStore) deleteBlob(op raft.Operation) error {
-	v := op.(*deleteBlobMeta)
+func (s *metadataStore) deleteBlob(p raft.Proposal) error {
+	v := p.(*deleteBlobMeta)
 	return s.Metadata.DeleteBlob(v.Name, v.Digest)
 }
 
 func (s *metadataStore) PutManifest(name string, digest digest.Digest, meta *store.ManifestMetadata) error {
-	op := &putManifest{
+	p := &putManifest{
 		rand.Uint64(),
 		name, digest, meta,
 	}
-	return s.proposer.Propose(op)
+	return s.proposer.Propose(p)
 }
 
-func (s *metadataStore) putManifest(op raft.Operation) error {
-	v := op.(*putManifest)
+func (s *metadataStore) putManifest(p raft.Proposal) error {
+	v := p.(*putManifest)
 	return s.Metadata.PutManifest(v.Name, v.Digest, v.Meta)
 }
 
 func (s *metadataStore) DeleteManifest(name string, digest digest.Digest) error {
-	op := &deleteManifest{
+	p := &deleteManifest{
 		rand.Uint64(),
 		name, digest,
 	}
-	return s.proposer.Propose(op)
+	return s.proposer.Propose(p)
 }
 
-func (s *metadataStore) deleteManifest(op raft.Operation) error {
-	v := op.(*deleteManifest)
+func (s *metadataStore) deleteManifest(p raft.Proposal) error {
+	v := p.(*deleteManifest)
 	return s.Metadata.DeleteManifest(v.Name, v.Digest)
 }
 
 func (s *metadataStore) PutTag(name, tag string, digest digest.Digest) error {
-	op := &putTag{
+	p := &putTag{
 		rand.Uint64(),
 		name, tag, digest,
 	}
-	return s.proposer.Propose(op)
+	return s.proposer.Propose(p)
 }
 
-func (s *metadataStore) putTag(op raft.Operation) error {
-	v := op.(*putTag)
+func (s *metadataStore) putTag(p raft.Proposal) error {
+	v := p.(*putTag)
 	return s.Metadata.PutTag(v.Name, v.Tag, v.Digest)
 }
 
 func (s *metadataStore) DeleteTag(name, tag string) error {
-	op := &deleteTag{
+	p := &deleteTag{
 		rand.Uint64(),
 		name, tag,
 	}
-	return s.proposer.Propose(op)
+	return s.proposer.Propose(p)
 }
 
-func (s *metadataStore) deleteTag(op raft.Operation) error {
-	v := op.(*deleteTag)
+func (s *metadataStore) deleteTag(p raft.Proposal) error {
+	v := p.(*deleteTag)
 	return s.Metadata.DeleteTag(v.Name, v.Tag)
 }
 
 func (s *metadataStore) PutUploadSession(name string, session *store.UploadSession) error {
-	op := &putUploadSession{
+	p := &putUploadSession{
 		rand.Uint64(),
 		name, session,
 	}
-	return s.proposer.Propose(op)
+	return s.proposer.Propose(p)
 }
 
-func (s *metadataStore) putUploadSession(op raft.Operation) error {
-	v := op.(*putUploadSession)
+func (s *metadataStore) putUploadSession(p raft.Proposal) error {
+	v := p.(*putUploadSession)
 	return s.Metadata.PutUploadSession(v.Name, v.Session)
 }
 
 func (s *metadataStore) DeleteUploadSession(name string, id string) error {
-	op := &deleteUploadSession{
+	p := &deleteUploadSession{
 		rand.Uint64(),
 		name, id,
 	}
-	return s.proposer.Propose(op)
+	return s.proposer.Propose(p)
 }
 
-func (s *metadataStore) deleteUploadSession(op raft.Operation) error {
-	v := op.(*deleteUploadSession)
+func (s *metadataStore) deleteUploadSession(p raft.Proposal) error {
+	v := p.(*deleteUploadSession)
 	return s.Metadata.DeleteUploadSession(v.Name, v.SessionID)
 }

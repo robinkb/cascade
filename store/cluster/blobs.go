@@ -34,41 +34,41 @@ type blobStore struct {
 }
 
 func (s *blobStore) PutBlob(id digest.Digest, content []byte) error {
-	op := &putBlob{
+	p := &putBlob{
 		rand.Uint64(),
 		id, content,
 	}
-	return s.proposer.Propose(op)
+	return s.proposer.Propose(p)
 }
 
-func (s *blobStore) putBlob(op raft.Operation) error {
-	v := op.(*putBlob)
+func (s *blobStore) putBlob(p raft.Proposal) error {
+	v := p.(*putBlob)
 	return s.Blobs.PutBlob(v.Digest, v.Content)
 }
 
 func (s *blobStore) DeleteBlob(id digest.Digest) error {
-	op := &deleteBlob{
+	p := &deleteBlob{
 		rand.Uint64(),
 		id,
 	}
-	return s.proposer.Propose(op)
+	return s.proposer.Propose(p)
 }
 
-func (s *blobStore) deleteBlob(op raft.Operation) error {
-	v := op.(*deleteBlob)
+func (s *blobStore) deleteBlob(p raft.Proposal) error {
+	v := p.(*deleteBlob)
 	return s.Blobs.DeleteBlob(v.Digest)
 }
 
 func (s *blobStore) InitUpload(id uuid.UUID) error {
-	op := &initUpload{
+	p := &initUpload{
 		rand.Uint64(),
 		id,
 	}
-	return s.proposer.Propose(op)
+	return s.proposer.Propose(p)
 }
 
-func (s *blobStore) initUpload(op raft.Operation) error {
-	v := op.(*initUpload)
+func (s *blobStore) initUpload(p raft.Proposal) error {
+	v := p.(*initUpload)
 	return s.Blobs.InitUpload(v.SessionID)
 }
 
@@ -79,8 +79,8 @@ func (s *blobStore) UploadWriter(id uuid.UUID) (io.Writer, error) {
 	}, nil
 }
 
-func (s *blobStore) appendUpload(op raft.Operation) error {
-	v := op.(*appendUpload)
+func (s *blobStore) appendUpload(p raft.Proposal) error {
+	v := p.(*appendUpload)
 	w, err := s.Blobs.UploadWriter(v.SessionID)
 	if err != nil {
 		return err
@@ -92,28 +92,28 @@ func (s *blobStore) appendUpload(op raft.Operation) error {
 }
 
 func (s *blobStore) CloseUpload(id uuid.UUID, digest digest.Digest) error {
-	op := &closeUpload{
+	p := &closeUpload{
 		rand.Uint64(),
 		id, digest,
 	}
-	return s.proposer.Propose(op)
+	return s.proposer.Propose(p)
 }
 
-func (s *blobStore) closeUpload(op raft.Operation) error {
-	v := op.(*closeUpload)
+func (s *blobStore) closeUpload(p raft.Proposal) error {
+	v := p.(*closeUpload)
 	return s.Blobs.CloseUpload(v.SessionID, v.Digest)
 }
 
 func (s *blobStore) DeleteUpload(id uuid.UUID) error {
-	op := &deleteUpload{
+	p := &deleteUpload{
 		rand.Uint64(),
 		id,
 	}
-	return s.proposer.Propose(op)
+	return s.proposer.Propose(p)
 }
 
-func (s *blobStore) deleteUpload(op raft.Operation) error {
-	v := op.(*deleteUpload)
+func (s *blobStore) deleteUpload(p raft.Proposal) error {
+	v := p.(*deleteUpload)
 	return s.Blobs.DeleteUpload(v.SessionID)
 }
 
@@ -123,11 +123,11 @@ type writer struct {
 }
 
 func (w *writer) Write(p []byte) (n int, err error) {
-	op := &appendUpload{
+	proposal := &appendUpload{
 		rand.Uint64(),
 		w.sessionId, p,
 	}
-	err = w.proposer.Propose(op)
+	err = w.proposer.Propose(proposal)
 	n = len(p)
 	return
 }
