@@ -30,5 +30,4 @@ func TestSendMessage(t *testing.T) {
 
 	err := client.SendMessage(want)
 	AssertNoError(t, err)
-
 }

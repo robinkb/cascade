@@ -19,7 +19,7 @@ type (
 
 	HandlerFunc func(op Operation) error
 
-	Proposer interface { // Used by consumers
+	Proposer interface {
 		Propose(o Operation) error
 		// Consumers must call Handle() to register a function that processes operations.
 		Handle(op Operation, f HandlerFunc)

@@ -4,7 +4,6 @@ import (
 	"context"
 	"log"
 	"math"
-	"net/http"
 	"net/netip"
 	"time"
 
@@ -62,10 +61,10 @@ func NewNode(id uint64, addr netip.AddrPort, peers []Peer) Node {
 	}
 
 	node.Proposer = NewProposer(node.raft)
-
-	node.addr = addr
-	node.server = NewServer(node)
-	node.clients = clients
+	node.mesh = NewMesh(node, addr)
+	for _, peer := range peers {
+		node.mesh.SetPeer(peer.ID, peer.AddrPort)
+	}
 
 	return node
 }
@@ -78,20 +77,13 @@ type node struct {
 	storage    *raft.MemoryStorage
 	done       chan struct{}
 
-	addr    netip.AddrPort
-	server  *server
-	clients map[uint64]*Client
-
+	mesh Mesh
 	Proposer
 }
 
 func (n *node) Start() {
 	go n.run()
-	go func() {
-		if err := http.ListenAndServe(n.addr.String(), n.server); err != nil {
-			log.Println("error closing raft server:", err)
-		}
-	}()
+	go n.mesh.Start()
 }
 
 func (n *node) Stop() {}
@@ -141,7 +133,7 @@ func (n *node) run() {
 
 func (n *node) send(messages []raftpb.Message) {
 	for _, message := range messages {
-		err := n.clients[message.To].SendMessage(&message)
+		err := n.mesh.SendMessage(message.To, &message)
 		if err != nil {
 			log.Println("failed to send message:", err)
 		}
