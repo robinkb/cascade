@@ -313,5 +313,5 @@ func TestMetadataReplication(t *testing.T) {
 }
 
 func wait() {
-	time.Sleep(1500 * time.Microsecond)
+	time.Sleep(2500 * time.Microsecond)
 }
