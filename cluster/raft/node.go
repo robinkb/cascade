@@ -136,6 +136,7 @@ func (n *node) send(messages []raftpb.Message) {
 		err := n.mesh.SendMessage(message.To, &message)
 		if err != nil {
 			log.Println("failed to send message:", err)
+			n.raft.ReportUnreachable(message.To)
 		}
 
 		if message.Type == raftpb.MsgSnap {

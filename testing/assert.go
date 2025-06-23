@@ -12,6 +12,7 @@ import (
 	"reflect"
 	"slices"
 	"testing"
+	"time"
 
 	v1 "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/robinkb/cascade-registry/repository"
@@ -220,6 +221,29 @@ func AssertStructsEqual(t *testing.T, got, want any) bool {
 	}
 
 	return true
+}
+
+type AssertFunc func(i int) bool
+
+func AssertAtLeast[S ~[]T, T any](t *testing.T, s S, n int, f AssertFunc) bool {
+	t.Helper()
+
+	time.Sleep(2500 * time.Microsecond)
+
+	passes := 0
+	for i := range len(s) {
+		if f(i) {
+			passes++
+		}
+	}
+
+	if passes >= n {
+		return true
+	}
+
+	t.Errorf("insufficient passes; got %d, want %d", passes, n)
+
+	return false
 }
 
 func httpStatusText(code int) string {

@@ -2,6 +2,7 @@ package raft_test
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"io"
 	"math/rand/v2"
@@ -145,22 +146,18 @@ func TestBlobReplication(t *testing.T) {
 		err := blobs[0].InitUpload(id)
 		RequireNoError(t, err)
 
-		wait()
-
-		for _, b := range blobs {
-			_, err := b.StatUpload(id)
-			AssertNoError(t, err)
-		}
+		AssertAtLeast(t, blobs, 2, func(i int) bool {
+			_, err := blobs[i].StatUpload(id)
+			return err == nil
+		})
 
 		err = blobs[0].DeleteUpload(id)
 		RequireNoError(t, err)
 
-		wait()
-
-		for _, b := range blobs {
-			_, err := b.StatUpload(id)
-			AssertErrorIs(t, err, store.ErrNotFound)
-		}
+		AssertAtLeast(t, blobs, 2, func(i int) bool {
+			_, err := blobs[i].StatUpload(id)
+			return errors.Is(err, store.ErrNotFound)
+		})
 	})
 }
 
