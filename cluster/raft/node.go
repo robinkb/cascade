@@ -33,12 +33,13 @@ type (
 func NewNode(id uint64, addr netip.AddrPort, peers []Peer) Node {
 	storage := raft.NewMemoryStorage()
 	conf := raft.Config{
-		ID:              id,
-		ElectionTick:    10,
-		HeartbeatTick:   1,
-		Storage:         storage,
-		MaxSizePerMsg:   math.MaxUint16,
-		MaxInflightMsgs: 256,
+		ID:                 id,
+		ElectionTick:       10,
+		HeartbeatTick:      1,
+		Storage:            storage,
+		MaxSizePerMsg:      math.MaxUint16,
+		MaxInflightMsgs:    256,
+		AsyncStorageWrites: true,
 	}
 
 	raftPeers := make([]raft.Peer, len(peers))
@@ -58,6 +59,9 @@ func NewNode(id uint64, addr netip.AddrPort, peers []Peer) Node {
 		ticker:     time.Tick(1 * time.Second),
 		manualTick: make(chan time.Time),
 		done:       make(chan struct{}),
+
+		append: make(chan raftpb.Message),
+		apply:  make(chan raftpb.Message),
 	}
 
 	node.Proposer = NewProposer(node.raft)
@@ -77,11 +81,16 @@ type node struct {
 	storage    *raft.MemoryStorage
 	done       chan struct{}
 
+	append chan raftpb.Message
+	apply  chan raftpb.Message
+
 	mesh Mesh
 	Proposer
 }
 
 func (n *node) Start() {
+	go n.appender()
+	go n.applier()
 	go n.run()
 	go n.mesh.Start()
 }
@@ -105,26 +114,58 @@ func (n *node) ClusterStatus() Status {
 func (n *node) run() {
 	for {
 		select {
+		case <-n.ticker:
+			n.raft.Tick()
 		case rd := <-n.raft.Ready():
-			n.saveToStorage(rd.HardState, rd.Entries, rd.Snapshot)
-			n.send(rd.Messages)
-			for _, entry := range rd.CommittedEntries {
+			for _, m := range rd.Messages {
+				switch m.To {
+				case raft.LocalAppendThread:
+					n.append <- m
+				case raft.LocalApplyThread:
+					n.apply <- m
+				default:
+					n.send([]raftpb.Message{m})
+				}
+			}
+		case <-n.manualTick:
+			n.raft.Tick()
+		case <-n.done:
+			return
+		}
+	}
+}
+
+func (n *node) appender() {
+	for {
+		select {
+		case m := <-n.append:
+			n.saveToStorage(raftpb.HardState{
+				Term:   m.Term,
+				Vote:   m.Vote,
+				Commit: m.Commit,
+			}, m.Entries, m.Snapshot)
+			n.send(m.Responses)
+		case <-n.done:
+			return
+		}
+	}
+}
+
+func (n *node) applier() {
+	for {
+		select {
+		case m := <-n.apply:
+			for _, entry := range m.Entries {
 				switch entry.Type {
 				case raftpb.EntryNormal:
 					n.process(entry)
 				case raftpb.EntryConfChange:
 					var cc raftpb.ConfChange
-					if err := cc.Unmarshal(entry.Data); err != nil {
-						log.Panicf("could not read ConfChange entry: %s", err)
-					}
+					cc.Unmarshal(entry.Data)
 					n.raft.ApplyConfChange(cc)
 				}
 			}
-			n.raft.Advance()
-		case <-n.ticker:
-			n.raft.Tick()
-		case <-n.manualTick:
-			n.raft.Tick()
+			n.send(m.Responses)
 		case <-n.done:
 			return
 		}
@@ -155,7 +196,7 @@ func (n *node) Receive(msg *raftpb.Message) error {
 	return n.raft.Step(context.TODO(), *msg)
 }
 
-func (n *node) saveToStorage(hardState raftpb.HardState, entries []raftpb.Entry, snapshot raftpb.Snapshot) {
+func (n *node) saveToStorage(hardState raftpb.HardState, entries []raftpb.Entry, snapshot *raftpb.Snapshot) {
 	if err := n.storage.Append(entries); err != nil {
 		log.Panicf("failed to append entries to storage: %s\n", err)
 	}
@@ -166,8 +207,8 @@ func (n *node) saveToStorage(hardState raftpb.HardState, entries []raftpb.Entry,
 		}
 	}
 
-	if !raft.IsEmptySnap(snapshot) {
-		if err := n.storage.ApplySnapshot(snapshot); err != nil {
+	if snapshot != nil && !raft.IsEmptySnap(*snapshot) {
+		if err := n.storage.ApplySnapshot(*snapshot); err != nil {
 			log.Panicf("failed to apply snapshot: %s\n", err)
 		}
 	}
