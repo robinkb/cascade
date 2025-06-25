@@ -2,8 +2,8 @@ package raft
 
 import (
 	"context"
+	"errors"
 	"log"
-	"math"
 	"net/netip"
 	"time"
 
@@ -30,15 +30,20 @@ type (
 	}
 )
 
+const (
+	storageMaxLogEntries = 1000
+)
+
 func NewNode(id uint64, addr netip.AddrPort, peers []Peer) Node {
 	storage := raft.NewMemoryStorage()
 	conf := raft.Config{
-		ID:              id,
-		ElectionTick:    10,
-		HeartbeatTick:   1,
-		Storage:         storage,
-		MaxSizePerMsg:   math.MaxUint16,
-		MaxInflightMsgs: 256,
+		ID:                id,
+		ElectionTick:      10,
+		HeartbeatTick:     1,
+		Storage:           storage,
+		MaxSizePerMsg:     64 << 10,
+		MaxInflightMsgs:   256,
+		StepDownOnRemoval: true,
 	}
 
 	raftPeers := make([]raft.Peer, len(peers))
@@ -120,6 +125,7 @@ func (n *node) run() {
 					n.raft.ApplyConfChange(cc)
 				}
 			}
+			n.compact()
 			n.raft.Advance()
 		case <-n.ticker:
 			n.raft.Tick()
@@ -169,6 +175,17 @@ func (n *node) saveToStorage(hardState raftpb.HardState, entries []raftpb.Entry,
 	if !raft.IsEmptySnap(snapshot) {
 		if err := n.storage.ApplySnapshot(snapshot); err != nil {
 			log.Panicf("failed to apply snapshot: %s\n", err)
+		}
+	}
+}
+
+func (n *node) compact() {
+	// This can't actually fail with in-memory raft storage.
+	li, _ := n.storage.LastIndex()
+	if li > storageMaxLogEntries {
+		err := n.storage.Compact(li - storageMaxLogEntries)
+		if !errors.Is(err, raft.ErrCompacted) {
+			log.Panicln("unexpected error while compacting raft log:", err)
 		}
 	}
 }
