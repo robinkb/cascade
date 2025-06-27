@@ -184,7 +184,7 @@ func (n *node) compact() {
 	li, _ := n.storage.LastIndex()
 	if li > storageMaxLogEntries {
 		err := n.storage.Compact(li - storageMaxLogEntries)
-		if !errors.Is(err, raft.ErrCompacted) {
+		if err != nil && !errors.Is(err, raft.ErrCompacted) {
 			log.Panicln("unexpected error while compacting raft log:", err)
 		}
 	}
