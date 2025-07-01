@@ -5,6 +5,7 @@ import (
 	"errors"
 	"hash/crc64"
 	"io"
+	"log"
 )
 
 const (
@@ -23,14 +24,6 @@ var (
 type (
 	RecordType uint32
 
-	// record is the byte representation of an encoded Record.
-	record struct {
-		crc   [8]byte
-		rtype [4]byte
-		size  [4]byte
-		value []byte
-	}
-
 	Record struct {
 		Type  RecordType
 		Value []byte
@@ -47,22 +40,24 @@ type (
 
 func NewEncoder(w io.Writer) Encoder {
 	return &encoder{
-		w: w,
+		w:    w,
+		hbuf: make([]byte, headerSize),
 	}
 }
 
 type encoder struct {
-	w io.Writer
+	w    io.Writer
+	hbuf []byte // header buffer
 }
 
 func (e *encoder) Encode(r Record) error {
-	header := make([]byte, 16)
+	header{
+		crc:   crc64.Checksum(r.Value, crc64Table),
+		rtype: uint32(r.Type),
+		size:  uint32(len(r.Value)),
+	}.Put(e.hbuf)
 
-	binary.LittleEndian.PutUint64(header[0:8], crc64.Checksum(r.Value, crc64Table))
-	binary.LittleEndian.PutUint32(header[8:12], uint32(r.Type))
-	binary.LittleEndian.PutUint32(header[12:16], uint32(len(r.Value)))
-
-	e.w.Write(header)
+	e.w.Write(e.hbuf)
 	e.w.Write(r.Value)
 
 	return nil
@@ -75,26 +70,56 @@ func NewDecoder(r io.Reader) Decoder {
 }
 
 type decoder struct {
-	r io.Reader
+	r    io.Reader
+	hbuf [headerSize]byte   // header buffer
+	vbuf [valueMaxSize]byte // value buffer
 }
 
 func (d *decoder) Decode() (Record, error) {
-	header := make([]byte, 16)
-	d.r.Read(header)
+	d.r.Read(d.hbuf[:])
+	header := parseHeader(d.hbuf[:])
 
-	crc := binary.LittleEndian.Uint64(header[0:8])
-	rtype := binary.LittleEndian.Uint32(header[8:12])
-	size := binary.LittleEndian.Uint32(header[12:16])
+	d.r.Read(d.vbuf[:header.size])
 
-	value := make([]byte, size)
-	d.r.Read(value)
-
-	if crc != crc64.Checksum(value, crc64Table) {
+	if header.crc != crc64.Checksum(d.vbuf[:header.size], crc64Table) {
 		return Record{}, ErrChecksumMismatch
 	}
 
 	return Record{
-		Type:  RecordType(rtype),
-		Value: value,
+		Type:  RecordType(header.rtype),
+		Value: d.vbuf[:header.size],
 	}, nil
+}
+
+const (
+	headerSize   = 16
+	valueMaxSize = 128 << 10
+)
+
+func parseHeader(b []byte) header {
+	if len(b) != headerSize {
+		log.Panicf("invalid header length; got %d while expecting %d", len(b), headerSize)
+	}
+
+	return header{
+		crc:   binary.LittleEndian.Uint64(b[0:8]),
+		rtype: binary.LittleEndian.Uint32(b[8:12]),
+		size:  binary.LittleEndian.Uint32(b[12:16]),
+	}
+}
+
+type header struct {
+	crc   uint64
+	rtype uint32
+	size  uint32
+}
+
+func (h header) Put(b []byte) {
+	if len(b) != headerSize {
+		log.Panicf("expected byte slice of length %d but got %d", headerSize, len(b))
+	}
+
+	binary.LittleEndian.PutUint64(b[0:8], h.crc)
+	binary.LittleEndian.PutUint32(b[8:12], h.rtype)
+	binary.LittleEndian.PutUint32(b[12:16], h.size)
 }

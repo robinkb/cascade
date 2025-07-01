@@ -34,6 +34,23 @@ func TestEncodeDecodeErrorDetection(t *testing.T) {
 	AssertErrorIs(t, err, raft.ErrChecksumMismatch)
 }
 
+func TestEncodeDecodeDoesNotAllocate(t *testing.T) {
+	buf := new(bytes.Buffer)
+	encoder := raft.NewEncoder(buf)
+	decoder := raft.NewDecoder(buf)
+
+	record := randomRecord()
+
+	allocs := testing.AllocsPerRun(10, func() {
+		err := encoder.Encode(record)
+		AssertNoError(t, err)
+		_, err = decoder.Decode()
+		AssertNoError(t, err)
+	})
+
+	AssertEqual(t, allocs, 0)
+}
+
 func randomRecord() raft.Record {
 	return raft.Record{
 		Type:  raft.RecordType(rand.Uint32()),
