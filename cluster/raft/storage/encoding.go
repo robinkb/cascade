@@ -1,4 +1,4 @@
-package raft
+package storage
 
 import (
 	"encoding/binary"
@@ -29,25 +29,34 @@ type (
 		Value []byte
 	}
 
+	// Encoder writes encoded Records to the output stream.
+	// It is not threadsafe.
 	Encoder interface {
+		// Encode writes a Record to the output stream.
 		Encode(r Record) error
 	}
 
+	// Decoder reads decoded Records from the input stream.
+	// It is not threadsafe.
 	Decoder interface {
+		// Decode returns a decoded Record from the input stream.
+		// The returned Record's Value is only valid until the next
+		// call to Decode(). The Value should be unmarshalled or copied
+		// immediately.
 		Decode() (Record, error)
 	}
 )
 
+// NewEncoder returns an Encoder that writes encoded Records to the io.Writer.
 func NewEncoder(w io.Writer) Encoder {
 	return &encoder{
-		w:    w,
-		hbuf: make([]byte, headerSize),
+		w: w,
 	}
 }
 
 type encoder struct {
 	w    io.Writer
-	hbuf []byte // header buffer
+	hbuf [headerSize]byte // header buffer
 }
 
 func (e *encoder) Encode(r Record) error {
@@ -55,14 +64,15 @@ func (e *encoder) Encode(r Record) error {
 		crc:   crc64.Checksum(r.Value, crc64Table),
 		rtype: uint32(r.Type),
 		size:  uint32(len(r.Value)),
-	}.Put(e.hbuf)
+	}.Put(e.hbuf[:])
 
-	e.w.Write(e.hbuf)
+	e.w.Write(e.hbuf[:])
 	e.w.Write(r.Value)
 
 	return nil
 }
 
+// NewDecoder returns a Decoder that reads decoded Records from the io.Reader.
 func NewDecoder(r io.Reader) Decoder {
 	return &decoder{
 		r: r,
@@ -93,7 +103,7 @@ func (d *decoder) Decode() (Record, error) {
 
 const (
 	headerSize   = 16
-	valueMaxSize = 128 << 10
+	valueMaxSize = 128 << 20
 )
 
 func parseHeader(b []byte) header {
