@@ -89,7 +89,7 @@ func (d *decoder) Decode() (Record, error) {
 	d.r.Read(d.hbuf[:])
 	header := parseHeader(d.hbuf[:])
 
-	d.r.Read(d.vbuf[:header.size])
+	_, err := d.r.Read(d.vbuf[:header.size])
 
 	if header.crc != crc64.Checksum(d.vbuf[:header.size], crc64Table) {
 		return Record{}, ErrChecksumMismatch
@@ -98,7 +98,7 @@ func (d *decoder) Decode() (Record, error) {
 	return Record{
 		Type:  RecordType(header.rtype),
 		Value: d.vbuf[:header.size],
-	}, nil
+	}, err
 }
 
 const (
