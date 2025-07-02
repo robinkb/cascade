@@ -5,8 +5,10 @@ import (
 	"errors"
 	"log"
 	"net/netip"
+	"os"
 	"time"
 
+	"github.com/robinkb/cascade-registry/cluster/raft/storage"
 	"go.etcd.io/raft/v3"
 	"go.etcd.io/raft/v3/raftpb"
 )
@@ -35,7 +37,16 @@ const (
 )
 
 func NewNode(id uint64, addr netip.AddrPort, peers []Peer) Node {
-	storage := raft.NewMemoryStorage()
+	w, err := os.OpenFile("raft.log", os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0644)
+	if err != nil {
+		panic(err)
+	}
+	r, err := os.OpenFile("raft.log", os.O_RDONLY, 0644)
+	if err != nil {
+		panic(err)
+	}
+
+	storage := storage.NewLog(r, w)
 	conf := raft.Config{
 		ID:                id,
 		ElectionTick:      10,
@@ -79,7 +90,7 @@ type node struct {
 	raft       raft.Node
 	ticker     <-chan time.Time
 	manualTick chan time.Time
-	storage    *raft.MemoryStorage
+	storage    *storage.Log
 	done       chan struct{}
 
 	mesh Mesh

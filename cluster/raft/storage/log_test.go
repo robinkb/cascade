@@ -1,4 +1,4 @@
-package storage
+package storage_test
 
 import (
 	"io"
@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/robinkb/cascade-registry/cluster/raft/storage"
 	. "github.com/robinkb/cascade-registry/testing"
 	"github.com/stretchr/testify/require"
 	"go.etcd.io/raft/v3"
@@ -48,8 +49,7 @@ func TestStorageTerm(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run("", func(t *testing.T) {
-			r, w := tempLog(t)
-			l := NewLog(r, w)
+			l := storage.NewLog(tempLog(t))
 			l.Append(ents)
 
 			if tt.wpanic {
@@ -90,7 +90,7 @@ func TestStorageEntries(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run("", func(t *testing.T) {
-			s := NewLog(tempLog(t))
+			s := storage.NewLog(tempLog(t))
 			s.Append(ents)
 
 			entries, err := s.Entries(tt.lo, tt.hi, tt.maxsize)
@@ -102,7 +102,7 @@ func TestStorageEntries(t *testing.T) {
 
 func TestStorageLastIndex(t *testing.T) {
 	ents := index(3).terms(3, 4, 5)
-	l := NewLog(tempLog(t))
+	l := storage.NewLog(tempLog(t))
 	l.Append(ents)
 
 	last, err := l.LastIndex()
@@ -117,7 +117,7 @@ func TestStorageLastIndex(t *testing.T) {
 
 func TestStorageFirstIndex(t *testing.T) {
 	ents := index(3).terms(3, 4, 5)
-	l := NewLog(tempLog(t))
+	l := storage.NewLog(tempLog(t))
 	l.Append(ents)
 
 	first, err := l.FirstIndex()
@@ -128,6 +128,17 @@ func TestStorageFirstIndex(t *testing.T) {
 	// first, err = s.FirstIndex()
 	// require.NoError(t, err)
 	// require.Equal(t, uint64(5), first)
+}
+
+func TestStorageEmpty(t *testing.T) {
+	l := storage.NewLog(tempLog(t))
+	fi, err := l.FirstIndex()
+	AssertNoError(t, err)
+	AssertEqual(t, fi, 1)
+
+	li, err := l.LastIndex()
+	AssertNoError(t, err)
+	AssertEqual(t, li, 0)
 }
 
 // index is a helper type for generating slices of raftpb.Entry. The value of index

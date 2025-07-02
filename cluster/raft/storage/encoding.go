@@ -67,9 +67,9 @@ type encoder struct {
 
 func (e *encoder) Encode(r Record) (int64, error) {
 	e.buf.Reset()
-	e.buf.Grow(headerSize + len(r.Value))
+	e.buf.Grow(RecordHeaderLength + len(r.Value))
 
-	header := e.buf.AvailableBuffer()[:headerSize]
+	header := e.buf.AvailableBuffer()[:RecordHeaderLength]
 
 	// Writing starting at byte 8 to leave room for the CRC.
 	binary.LittleEndian.PutUint32(header[8:12], uint32(r.Type))
@@ -101,7 +101,7 @@ func (d *decoder) Decode(r *Record) (int64, error) {
 	d.buf.Reset()
 
 	var read int64
-	n, err := io.CopyN(d.buf, d.src, headerSize)
+	n, err := io.CopyN(d.buf, d.src, RecordHeaderLength)
 	read += n
 	if err != nil {
 		return read, err
@@ -119,7 +119,7 @@ func (d *decoder) Decode(r *Record) (int64, error) {
 
 	r.Type = RecordType(header.rtype)
 	r.Value = r.Value[:header.size]
-	n = int64(copy(r.Value, d.buf.Bytes()[headerSize:]))
+	n = int64(copy(r.Value, d.buf.Bytes()[RecordHeaderLength:]))
 	if n != int64(header.size) {
 		return read, io.ErrShortWrite
 	}
@@ -132,12 +132,12 @@ func (d *decoder) Seek(offset int64, whence int) (int64, error) {
 }
 
 const (
-	headerSize = 16
+	RecordHeaderLength = 16
 )
 
 func parseHeader(b []byte) header {
-	if len(b) != headerSize {
-		log.Panicf("invalid header length; got %d while expecting %d", len(b), headerSize)
+	if len(b) != RecordHeaderLength {
+		log.Panicf("invalid header length; got %d while expecting %d", len(b), RecordHeaderLength)
 	}
 
 	return header{

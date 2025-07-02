@@ -1,4 +1,4 @@
-package storage
+package storage_test
 
 import (
 	"bytes"
@@ -6,31 +6,32 @@ import (
 	"math/rand/v2"
 	"testing"
 
+	"github.com/robinkb/cascade-registry/cluster/raft/storage"
 	. "github.com/robinkb/cascade-registry/testing"
 )
 
 func TestEncodeDecode(t *testing.T) {
-	got := Record{Value: make([]byte, 128)}
+	got := storage.Record{Value: make([]byte, 128)}
 	want := randomRecord(128)
 
 	w := new(bytes.Buffer)
-	written, err := NewEncoder(w).Encode(want)
+	written, err := storage.NewEncoder(w).Encode(want)
 	AssertNoError(t, err)
 
 	r := bytes.NewReader(w.Bytes())
-	read, err := NewDecoder(r).Decode(&got)
+	read, err := storage.NewDecoder(r).Decode(&got)
 	AssertNoError(t, err).Require()
 
-	AssertEqual(t, written, int64(headerSize+len(want.Value)))
+	AssertEqual(t, written, int64(storage.RecordHeaderLength+len(want.Value)))
 	AssertEqual(t, written, read)
 	AssertStructsEqual(t, got, want)
 }
 
 func TestDecodeAllRecords(t *testing.T) {
 	w := new(bytes.Buffer)
-	enc := NewEncoder(w)
+	enc := storage.NewEncoder(w)
 
-	want := make([]Record, 10)
+	want := make([]storage.Record, 10)
 	for i := range want {
 		want[i] = randomRecord(rand.Int64N(16) + 16)
 		_, err := enc.Encode(want[i])
@@ -38,27 +39,27 @@ func TestDecodeAllRecords(t *testing.T) {
 	}
 
 	r := bytes.NewReader(w.Bytes())
-	dec := NewDecoder(r)
+	dec := storage.NewDecoder(r)
 
-	record := Record{Value: make([]byte, 64)}
+	record := storage.Record{Value: make([]byte, 64)}
 	for i := range want {
 		n, err := dec.Decode(&record)
 		AssertNoError(t, err).Require()
-		AssertEqual(t, n, int64(headerSize+len(want[i].Value)))
+		AssertEqual(t, n, int64(storage.RecordHeaderLength+len(want[i].Value)))
 		AssertStructsEqual(t, record, want[i])
 	}
 
 	// After reading every record, calling Decode again should return EOF.
-	n, err := dec.Decode(&Record{})
+	n, err := dec.Decode(&storage.Record{})
 	AssertErrorIs(t, err, io.EOF)
 	AssertEqual(t, n, 0)
 }
 
 func TestDecodeSeek(t *testing.T) {
 	w := new(bytes.Buffer)
-	enc := NewEncoder(w)
+	enc := storage.NewEncoder(w)
 
-	want := make([]Record, 10)
+	want := make([]storage.Record, 10)
 	pos := make([]int64, len(want))
 	var cursor int64
 	for i := range want {
@@ -71,9 +72,9 @@ func TestDecodeSeek(t *testing.T) {
 	}
 
 	r := bytes.NewReader(w.Bytes())
-	dec := NewDecoder(r)
+	dec := storage.NewDecoder(r)
 
-	record := Record{Value: make([]byte, 128)}
+	record := storage.Record{Value: make([]byte, 128)}
 	for i := len(want) - 1; i >= 0; i-- {
 		dec.Seek(pos[i], io.SeekStart)
 		_, err := dec.Decode(&record)
@@ -83,18 +84,18 @@ func TestDecodeSeek(t *testing.T) {
 }
 
 func TestEncodeDecodeErrorDetection(t *testing.T) {
-	got := Record{Value: make([]byte, 128)}
+	got := storage.Record{Value: make([]byte, 128)}
 	w := new(bytes.Buffer)
 
-	_, err := NewEncoder(w).Encode(randomRecord(128))
+	_, err := storage.NewEncoder(w).Encode(randomRecord(128))
 	AssertNoError(t, err)
 
 	// Tamper with the written data.
 	w.Truncate(100)
 
 	r := bytes.NewReader(w.Bytes())
-	_, err = NewDecoder(r).Decode(&got)
-	AssertErrorIs(t, err, ErrChecksumMismatch)
+	_, err = storage.NewDecoder(r).Decode(&got)
+	AssertErrorIs(t, err, storage.ErrChecksumMismatch)
 }
 
 // func TestEncodeDecodeDoesNotAllocate(t *testing.T) {
@@ -106,7 +107,7 @@ func TestEncodeDecodeErrorDetection(t *testing.T) {
 // 	bytes.NewReader()
 // 	bufio.NewReadWriter()
 // 	w := new(bytes.Buffer)
-// 	encoder := NewEncoder(w)
+// 	encoder := storage.NewEncoder(w)
 // 	decoder := NewDecoder(buf)
 
 // 	src := randomRecord(128)
@@ -120,9 +121,9 @@ func TestEncodeDecodeErrorDetection(t *testing.T) {
 // 	AssertEqual(t, allocs, 0)
 // }
 
-func randomRecord(n int64) Record {
-	return Record{
-		Type:  RecordType(rand.Uint32()),
+func randomRecord(n int64) storage.Record {
+	return storage.Record{
+		Type:  storage.RecordType(rand.Uint32()),
 		Value: RandomContents(n),
 	}
 }

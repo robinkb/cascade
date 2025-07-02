@@ -49,12 +49,17 @@ type Log struct {
 	enc Encoder
 	dec Decoder
 
+	hardState raftpb.HardState
+	snapshot  raftpb.Snapshot
+
 	entries []int64
 	cursor  int64
 	offset  uint64
 }
 
-// func (l *Log) InitialState() (raftpb.HardState, raftpb.ConfState, error)
+func (l *Log) InitialState() (raftpb.HardState, raftpb.ConfState, error) {
+	return l.hardState, l.snapshot.Metadata.ConfState, nil
+}
 
 func (l *Log) Entries(lo, hi, maxSize uint64) ([]raftpb.Entry, error) {
 	if lo <= l.offset {
@@ -88,31 +93,11 @@ func (l *Log) Entries(lo, hi, maxSize uint64) ([]raftpb.Entry, error) {
 	return entries, nil
 }
 
-func (l *Log) Append(entries []raftpb.Entry) error {
-	if len(entries) == 0 {
-		return nil
-	}
-
-	if len(l.entries) == 0 {
-		l.offset = entries[0].Index
-	}
-
-	for _, entry := range entries {
-		record := Record{Type: TypeEntry, Value: make([]byte, entry.Size())}
-		entry.MarshalTo(record.Value)
-		n, _ := l.enc.Encode(record)
-		l.entries = append(l.entries, l.cursor)
-		l.cursor += n
-	}
-
-	return nil
-}
-
 func (l *Log) Term(i uint64) (uint64, error) {
 	if i < l.offset {
 		return 0, raft.ErrCompacted
 	}
-	if i >= uint64(len(l.entries))+l.offset {
+	if int(i-l.offset) > len(l.entries)-1 {
 		return 0, raft.ErrUnavailable
 	}
 
@@ -129,11 +114,57 @@ func (l *Log) Term(i uint64) (uint64, error) {
 }
 
 func (l *Log) LastIndex() (uint64, error) {
-	return l.offset + uint64(len(l.entries)) - 1, nil
+	return l.lastIndex(), nil
+}
+
+func (l *Log) lastIndex() uint64 {
+	return l.offset + uint64(len(l.entries))
 }
 
 func (l *Log) FirstIndex() (uint64, error) {
-	return l.offset + 1, nil
+	return l.firstIndex(), nil
 }
 
-// func (l *Log) Snapshot() (raftpb.Snapshot, error)
+func (l *Log) firstIndex() uint64 {
+	return l.offset
+}
+
+func (l *Log) Snapshot() (raftpb.Snapshot, error) {
+	return l.snapshot, nil
+}
+
+func (l *Log) SetHardState(hardState raftpb.HardState) error {
+	// TODO: Persistence
+	l.hardState = hardState
+	return nil
+}
+
+func (l *Log) ApplySnapshot(snapshot raftpb.Snapshot) error {
+	// TODO: Persistence
+	l.snapshot = snapshot
+	return nil
+}
+
+func (l *Log) Append(entries []raftpb.Entry) error {
+	if len(entries) == 0 {
+		return nil
+	}
+
+	if len(l.entries) == 0 {
+		l.offset = entries[0].Index - 1
+	}
+
+	for _, entry := range entries {
+		record := Record{Type: TypeEntry, Value: make([]byte, entry.Size())}
+		entry.MarshalTo(record.Value)
+		n, _ := l.enc.Encode(record)
+		l.entries = append(l.entries, l.cursor)
+		l.cursor += n
+	}
+
+	return nil
+}
+
+func (l *Log) Compact(i uint64) error {
+	return nil
+}
