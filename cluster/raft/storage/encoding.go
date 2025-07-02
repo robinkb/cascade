@@ -86,10 +86,14 @@ type decoder struct {
 }
 
 func (d *decoder) Decode() (Record, error) {
-	d.r.Read(d.hbuf[:])
+	_, err := d.r.Read(d.hbuf[:])
+	if err != nil {
+		return Record{}, err
+	}
+
 	header := parseHeader(d.hbuf[:])
 
-	_, err := d.r.Read(d.vbuf[:header.size])
+	_, err = d.r.Read(d.vbuf[:header.size])
 
 	if header.crc != crc64.Checksum(d.vbuf[:header.size], crc64Table) {
 		return Record{}, ErrChecksumMismatch

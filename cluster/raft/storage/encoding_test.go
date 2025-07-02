@@ -27,7 +27,7 @@ func TestEncodeDecodeErrorDetection(t *testing.T) {
 	AssertNoError(t, err)
 
 	// Tamper with the written data.
-	buf.Truncate(128)
+	buf.Truncate(100)
 
 	_, err = NewDecoder(buf).Decode()
 	AssertErrorIs(t, err, ErrChecksumMismatch)
