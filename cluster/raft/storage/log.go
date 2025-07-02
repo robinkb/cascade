@@ -88,9 +88,9 @@ func (l *Log) Entries(lo, hi, maxSize uint64) ([]raftpb.Entry, error) {
 	return entries, nil
 }
 
-func (l *Log) Append(entries []raftpb.Entry) {
+func (l *Log) Append(entries []raftpb.Entry) error {
 	if len(entries) == 0 {
-		return
+		return nil
 	}
 
 	if len(l.entries) == 0 {
@@ -104,11 +104,32 @@ func (l *Log) Append(entries []raftpb.Entry) {
 		l.entries = append(l.entries, l.cursor)
 		l.cursor += n
 	}
+
+	return nil
 }
 
-// func (l *Log) Term(i uint64) (uint64, error)
+func (l *Log) Term(i uint64) (uint64, error) {
+	if i < l.offset {
+		return 0, raft.ErrCompacted
+	}
+	if i >= uint64(len(l.entries))+l.offset {
+		return 0, raft.ErrUnavailable
+	}
+
+	i -= l.offset
+
+	record := Record{Value: make([]byte, 128)}
+	l.dec.Seek(l.entries[i], io.SeekStart)
+	l.dec.Decode(&record)
+
+	var entry raftpb.Entry
+	entry.Unmarshal(record.Value)
+
+	return entry.Index, nil
+}
+
 func (l *Log) LastIndex() (uint64, error) {
-	return l.offset + uint64(len(l.entries)), nil
+	return l.offset + uint64(len(l.entries)) - 1, nil
 }
 
 func (l *Log) FirstIndex() (uint64, error) {

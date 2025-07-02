@@ -30,6 +30,40 @@ func tempLog(t *testing.T) (io.ReadSeeker, io.Writer) {
 }
 
 // These tests come from etcd-io/raft.
+func TestStorageTerm(t *testing.T) {
+	ents := index(3).terms(3, 4, 5)
+	tests := []struct {
+		i uint64
+
+		werr   error
+		wterm  uint64
+		wpanic bool
+	}{
+		{2, raft.ErrCompacted, 0, false},
+		{3, nil, 3, false},
+		{4, nil, 4, false},
+		{5, nil, 5, false},
+		{6, raft.ErrUnavailable, 0, false},
+	}
+
+	for _, tt := range tests {
+		t.Run("", func(t *testing.T) {
+			r, w := tempLog(t)
+			l := NewLog(r, w)
+			l.Append(ents)
+
+			if tt.wpanic {
+				require.Panics(t, func() {
+					_, _ = l.Term(tt.i)
+				})
+			}
+			term, err := l.Term(tt.i)
+			require.Equal(t, tt.werr, err)
+			require.Equal(t, tt.wterm, term)
+		})
+	}
+}
+
 func TestStorageEntries(t *testing.T) {
 	ents := index(3).terms(3, 4, 5, 6)
 	tests := []struct {
@@ -56,8 +90,7 @@ func TestStorageEntries(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run("", func(t *testing.T) {
-			r, w := tempLog(t)
-			s := NewLog(r, w)
+			s := NewLog(tempLog(t))
 			s.Append(ents)
 
 			entries, err := s.Entries(tt.lo, tt.hi, tt.maxsize)
@@ -65,6 +98,36 @@ func TestStorageEntries(t *testing.T) {
 			require.Equal(t, tt.wentries, entries)
 		})
 	}
+}
+
+func TestStorageLastIndex(t *testing.T) {
+	ents := index(3).terms(3, 4, 5)
+	l := NewLog(tempLog(t))
+	l.Append(ents)
+
+	last, err := l.LastIndex()
+	require.NoError(t, err)
+	require.Equal(t, uint64(5), last)
+
+	require.NoError(t, l.Append(index(6).terms(5)))
+	last, err = l.LastIndex()
+	require.NoError(t, err)
+	require.Equal(t, uint64(6), last)
+}
+
+func TestStorageFirstIndex(t *testing.T) {
+	ents := index(3).terms(3, 4, 5)
+	l := NewLog(tempLog(t))
+	l.Append(ents)
+
+	first, err := l.FirstIndex()
+	require.NoError(t, err)
+	require.Equal(t, uint64(4), first)
+
+	// require.NoError(t, s.Compact(4))
+	// first, err = s.FirstIndex()
+	// require.NoError(t, err)
+	// require.Equal(t, uint64(5), first)
 }
 
 // index is a helper type for generating slices of raftpb.Entry. The value of index
