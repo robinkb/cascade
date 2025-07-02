@@ -2,21 +2,16 @@ package storage
 
 import (
 	"io"
+	"math"
 	"os"
 	"path/filepath"
 	"testing"
 
 	. "github.com/robinkb/cascade-registry/testing"
+	"github.com/stretchr/testify/require"
+	"go.etcd.io/raft/v3"
 	"go.etcd.io/raft/v3/raftpb"
 )
-
-func TestNewLog(t *testing.T) {
-	r, w := tempLog(t)
-	entries := index(3).terms(3, 3, 4, 4, 5, 6, 7, 8)
-
-	l := NewLog(r, w)
-	l.Append(entries)
-}
 
 func tempLog(t *testing.T) (io.ReadSeeker, io.Writer) {
 	filename := filepath.Join(t.TempDir(), "log.bin")
@@ -32,6 +27,44 @@ func tempLog(t *testing.T) (io.ReadSeeker, io.Writer) {
 	})
 
 	return r, w
+}
+
+// These tests come from etcd-io/raft.
+func TestStorageEntries(t *testing.T) {
+	ents := index(3).terms(3, 4, 5, 6)
+	tests := []struct {
+		lo, hi, maxsize uint64
+
+		werr     error
+		wentries []raftpb.Entry
+	}{
+		{2, 6, math.MaxUint64, raft.ErrCompacted, nil},
+		{3, 4, math.MaxUint64, raft.ErrCompacted, nil},
+		{4, 5, math.MaxUint64, nil, index(4).terms(4)},
+		{4, 6, math.MaxUint64, nil, index(4).terms(4, 5)},
+		{4, 7, math.MaxUint64, nil, index(4).terms(4, 5, 6)},
+		// even if maxsize is zero, the first entry should be returned
+		{4, 7, 0, nil, index(4).terms(4)},
+		// limit to 2
+		{4, 7, uint64(ents[1].Size() + ents[2].Size()), nil, index(4).terms(4, 5)},
+		// limit to 2
+		{4, 7, uint64(ents[1].Size() + ents[2].Size() + ents[3].Size()/2), nil, index(4).terms(4, 5)},
+		{4, 7, uint64(ents[1].Size() + ents[2].Size() + ents[3].Size() - 1), nil, index(4).terms(4, 5)},
+		// all
+		{4, 7, uint64(ents[1].Size() + ents[2].Size() + ents[3].Size()), nil, index(4).terms(4, 5, 6)},
+	}
+
+	for _, tt := range tests {
+		t.Run("", func(t *testing.T) {
+			r, w := tempLog(t)
+			s := NewLog(r, w)
+			s.Append(ents)
+
+			entries, err := s.Entries(tt.lo, tt.hi, tt.maxsize)
+			AssertErrorIs(t, err, tt.werr)
+			require.Equal(t, tt.wentries, entries)
+		})
+	}
 }
 
 // index is a helper type for generating slices of raftpb.Entry. The value of index
