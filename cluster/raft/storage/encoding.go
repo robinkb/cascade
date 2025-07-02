@@ -144,13 +144,3 @@ type header struct {
 	rtype uint32
 	size  uint32
 }
-
-func (h header) Put(b []byte) {
-	if len(b) != headerSize {
-		log.Panicf("expected byte slice of length %d but got %d", headerSize, len(b))
-	}
-
-	binary.LittleEndian.PutUint64(b[0:8], h.crc)
-	binary.LittleEndian.PutUint32(b[8:12], h.rtype)
-	binary.LittleEndian.PutUint32(b[12:16], h.size)
-}
