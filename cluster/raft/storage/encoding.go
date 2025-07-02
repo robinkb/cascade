@@ -53,32 +53,38 @@ type (
 func NewEncoder(w io.Writer) Encoder {
 	return &encoder{
 		dst: w,
+		buf: new(bytes.Buffer),
 	}
 }
 
 type encoder struct {
 	dst io.Writer
+	crc [crc64.Size]byte // Buffer to store the CRC
+	buf *bytes.Buffer    // Buffer for the rest of the header + record
+	tmp [8]byte          // Temporary buffer to store type and size
 }
 
 func (e *encoder) Encode(r Record) (int64, error) {
-	var written int64
-	buf := make([]byte, headerSize+len(r.Value))
+	e.buf.Reset()
+	e.buf.Grow(headerSize - crc64.Size + len(r.Value))
 
-	header{
-		rtype: uint32(r.Type),
-		size:  uint32(len(r.Value)),
-	}.Put(buf[:headerSize])
+	binary.LittleEndian.PutUint32(e.tmp[0:4], uint32(r.Type))
+	binary.LittleEndian.PutUint32(e.tmp[4:8], uint32(len(r.Value)))
 
-	n := copy(buf[headerSize:], r.Value)
-	if n != len(r.Value) {
-		return 0, io.ErrShortWrite
+	e.buf.Write(e.tmp[:])
+	e.buf.Write(r.Value)
+
+	crc := crc64.Checksum(e.buf.Bytes(), crc64Table)
+	binary.LittleEndian.PutUint64(e.crc[:], crc)
+
+	n, err := e.dst.Write(e.crc[:])
+	written := int64(n)
+	if err != nil {
+		return written, err
 	}
 
-	crc := crc64.Checksum(buf[crc64.Size:], crc64Table)
-	binary.LittleEndian.PutUint64(buf, crc)
-
-	n, err := e.dst.Write(buf)
-	written += int64(n)
+	n2, err := io.Copy(e.dst, e.buf)
+	written += n2
 
 	return written, err
 }
@@ -86,21 +92,23 @@ func (e *encoder) Encode(r Record) (int64, error) {
 // NewDecoder returns a Decoder that reads decoded Records from the io.Reader.
 func NewDecoder(r io.Reader) Decoder {
 	return &decoder{
-		src: r,
-		buf: new(bytes.Buffer),
+		src:     r,
+		buf:     new(bytes.Buffer),
+		copyBuf: make([]byte, 64<<10),
 	}
 }
 
 type decoder struct {
-	src io.Reader
-	buf *bytes.Buffer
+	src     io.Reader
+	buf     *bytes.Buffer
+	copyBuf []byte
 }
 
 func (d *decoder) Decode(r *Record) (int64, error) {
 	d.buf.Reset()
 
 	var read int64
-	n, err := io.CopyN(d.buf, d.src, headerSize)
+	n, err := io.CopyBuffer(d.buf, io.LimitReader(d.src, headerSize), d.copyBuf)
 	read += n
 	if err != nil {
 		return read, err
@@ -109,7 +117,8 @@ func (d *decoder) Decode(r *Record) (int64, error) {
 	header := parseHeader(d.buf.Bytes())
 
 	d.buf.Grow(int(header.size))
-	n, err = io.CopyN(d.buf, d.src, int64(header.size))
+	n, err = io.CopyBuffer(d.buf, io.LimitReader(d.src, int64(header.size)), d.copyBuf)
+	// n, err = io.CopyN(d.buf, d.src, int64(header.size))
 	read += n
 
 	if header.crc != crc64.Checksum(d.buf.Bytes()[crc64.Size:], crc64Table) {

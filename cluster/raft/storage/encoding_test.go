@@ -63,21 +63,21 @@ func TestEncodeDecodeErrorDetection(t *testing.T) {
 }
 
 // Will revisit this when the API stabilizes.
-// func TestEncodeDecodeDoesNotAllocate(t *testing.T) {
-// 	buf := new(bytes.Buffer)
-// 	encoder := NewEncoder(buf)
-// 	decoder := NewDecoder(buf)
+func TestEncodeDecodeDoesNotAllocate(t *testing.T) {
+	buf := new(bytes.Buffer)
+	encoder := NewEncoder(buf)
+	decoder := NewDecoder(buf)
 
-// 	src := randomRecord(128)
-// 	dst := Record{Value: make([]byte, 128)}
+	src := randomRecord(128)
+	dst := Record{Value: make([]byte, 256)}
 
-// 	allocs := testing.AllocsPerRun(10, func() {
-// 		encoder.Encode(src)
-// 		decoder.Decode(&dst)
-// 	})
+	allocs := testing.AllocsPerRun(10, func() {
+		encoder.Encode(src)
+		decoder.Decode(&dst)
+	})
 
-// 	AssertEqual(t, allocs, 0)
-// }
+	AssertEqual(t, allocs, 0)
+}
 
 func randomRecord(n int64) Record {
 	return Record{
