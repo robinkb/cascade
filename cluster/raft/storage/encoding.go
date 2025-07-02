@@ -34,17 +34,18 @@ type (
 	// It is not threadsafe.
 	Encoder interface {
 		// Encode writes a Record to the output stream.
-		Encode(r Record) error
+		// It returns the amount of bytes written and an error, if any.
+		// The written amount can be used to track positions of records.
+		Encode(r Record) (int64, error)
 	}
 
 	// Decoder reads decoded Records from the input stream.
 	// It is not threadsafe.
 	Decoder interface {
-		// Decode returns a decoded Record from the input stream.
-		// The returned Record's Value is only valid until the next
-		// call to Decode(). The Value should be unmarshalled or copied
-		// immediately.
-		Decode(r *Record) error
+		// Decode decodes a Record from the stream into r.
+		// It returns the amount of bytes read and an error, if any.
+		// The read amount can be used to track positions of records.
+		Decode(r *Record) (int64, error)
 	}
 )
 
@@ -59,7 +60,8 @@ type encoder struct {
 	dst io.Writer
 }
 
-func (e *encoder) Encode(r Record) error {
+func (e *encoder) Encode(r Record) (int64, error) {
+	var written int64
 	buf := make([]byte, headerSize+len(r.Value))
 
 	header{
@@ -67,14 +69,18 @@ func (e *encoder) Encode(r Record) error {
 		size:  uint32(len(r.Value)),
 	}.Put(buf[:headerSize])
 
-	copy(buf[headerSize:], r.Value)
+	n := copy(buf[headerSize:], r.Value)
+	if n != len(r.Value) {
+		return 0, io.ErrShortWrite
+	}
 
-	crc := crc64.Checksum(buf[8:], crc64Table)
+	crc := crc64.Checksum(buf[crc64.Size:], crc64Table)
 	binary.LittleEndian.PutUint64(buf, crc)
 
-	e.dst.Write(buf)
+	n, err := e.dst.Write(buf)
+	written += int64(n)
 
-	return nil
+	return written, err
 }
 
 // NewDecoder returns a Decoder that reads decoded Records from the io.Reader.
@@ -90,29 +96,37 @@ type decoder struct {
 	buf *bytes.Buffer
 }
 
-func (d *decoder) Decode(r *Record) error {
+func (d *decoder) Decode(r *Record) (int64, error) {
 	d.buf.Reset()
 
-	io.CopyN(d.buf, d.src, headerSize)
+	var read int64
+	n, err := io.CopyN(d.buf, d.src, headerSize)
+	read += n
+	if err != nil {
+		return read, err
+	}
+
 	header := parseHeader(d.buf.Bytes())
 
 	d.buf.Grow(int(header.size))
-	io.CopyN(d.buf, d.src, int64(header.size))
+	n, err = io.CopyN(d.buf, d.src, int64(header.size))
+	read += n
 
-	// TODO: CRC should cover everything but itself.
-	if header.crc != crc64.Checksum(d.buf.Bytes()[8:], crc64Table) {
-		return ErrChecksumMismatch
+	if header.crc != crc64.Checksum(d.buf.Bytes()[crc64.Size:], crc64Table) {
+		return read, ErrChecksumMismatch
 	}
 
 	r.Type = RecordType(header.rtype)
-	copy(r.Value, d.buf.Bytes()[headerSize:])
+	n = int64(copy(r.Value, d.buf.Bytes()[headerSize:]))
+	if n != int64(header.size) {
+		return read, io.ErrShortWrite
+	}
 
-	return nil
+	return read, err
 }
 
 const (
-	headerSize   = 16
-	valueMaxSize = 128 << 20
+	headerSize = 16
 )
 
 func parseHeader(b []byte) header {

@@ -23,12 +23,12 @@ func NewLog(r io.ReadSeeker, w io.Writer) *Log {
 	record := Record{Value: make([]byte, 128)}
 	var cursor int64
 	for {
-		err := l.dec.Decode(&record)
+		n, err := l.dec.Decode(&record)
 		if err == io.EOF {
 			break
 		}
 
-		cursor += int64(len(record.Value) + headerSize)
+		cursor += n
 		l.entries = append(l.entries, cursor)
 	}
 
