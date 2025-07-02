@@ -46,6 +46,9 @@ type (
 		// It returns the amount of bytes read and an error, if any.
 		// The read amount can be used to track positions of records.
 		Decode(r *Record) (int64, error)
+		// Seek can be used to set the input stream to a previous position
+		// and decode a Record again.
+		io.Seeker
 	}
 )
 
@@ -81,8 +84,8 @@ func (e *encoder) Encode(r Record) (int64, error) {
 	return io.Copy(e.dst, e.buf)
 }
 
-// NewDecoder returns a Decoder that reads decoded Records from the io.Reader.
-func NewDecoder(r io.Reader) Decoder {
+// NewDecoder returns a Decoder that reads decoded Records from the io.ReaderSeeker.
+func NewDecoder(r io.ReadSeeker) Decoder {
 	return &decoder{
 		src: r,
 		buf: new(bytes.Buffer),
@@ -90,7 +93,7 @@ func NewDecoder(r io.Reader) Decoder {
 }
 
 type decoder struct {
-	src io.Reader
+	src io.ReadSeeker
 	buf *bytes.Buffer
 }
 
@@ -122,6 +125,10 @@ func (d *decoder) Decode(r *Record) (int64, error) {
 	}
 
 	return read, err
+}
+
+func (d *decoder) Seek(offset int64, whence int) (int64, error) {
+	return d.src.Seek(offset, whence)
 }
 
 const (
