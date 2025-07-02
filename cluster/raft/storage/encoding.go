@@ -1,6 +1,7 @@
 package storage
 
 import (
+	"bytes"
 	"encoding/binary"
 	"errors"
 	"hash/crc64"
@@ -12,7 +13,7 @@ const (
 	// The NVME polynomial (reversed, as used by Go).
 	// Apparently differences exist in performance (and other attributes)
 	// between polynomials. I should do some benchmarks.
-	NVME = 0x9a6c9329ac4bc9b5
+	NVME = 0x9A6C9329AC4BC9B5
 )
 
 var (
@@ -43,31 +44,35 @@ type (
 		// The returned Record's Value is only valid until the next
 		// call to Decode(). The Value should be unmarshalled or copied
 		// immediately.
-		Decode() (Record, error)
+		Decode(r *Record) error
 	}
 )
 
 // NewEncoder returns an Encoder that writes encoded Records to the io.Writer.
 func NewEncoder(w io.Writer) Encoder {
 	return &encoder{
-		w: w,
+		dst: w,
 	}
 }
 
 type encoder struct {
-	w    io.Writer
-	hbuf [headerSize]byte // header buffer
+	dst io.Writer
 }
 
 func (e *encoder) Encode(r Record) error {
+	buf := make([]byte, headerSize+len(r.Value))
+
 	header{
-		crc:   crc64.Checksum(r.Value, crc64Table),
 		rtype: uint32(r.Type),
 		size:  uint32(len(r.Value)),
-	}.Put(e.hbuf[:])
+	}.Put(buf[:headerSize])
 
-	e.w.Write(e.hbuf[:])
-	e.w.Write(r.Value)
+	copy(buf[headerSize:], r.Value)
+
+	crc := crc64.Checksum(buf[8:], crc64Table)
+	binary.LittleEndian.PutUint64(buf, crc)
+
+	e.dst.Write(buf)
 
 	return nil
 }
@@ -75,34 +80,34 @@ func (e *encoder) Encode(r Record) error {
 // NewDecoder returns a Decoder that reads decoded Records from the io.Reader.
 func NewDecoder(r io.Reader) Decoder {
 	return &decoder{
-		r: r,
+		src: r,
+		buf: new(bytes.Buffer),
 	}
 }
 
 type decoder struct {
-	r    io.Reader
-	hbuf [headerSize]byte   // header buffer
-	vbuf [valueMaxSize]byte // value buffer
+	src io.Reader
+	buf *bytes.Buffer
 }
 
-func (d *decoder) Decode() (Record, error) {
-	_, err := d.r.Read(d.hbuf[:])
-	if err != nil {
-		return Record{}, err
+func (d *decoder) Decode(r *Record) error {
+	d.buf.Reset()
+
+	io.CopyN(d.buf, d.src, headerSize)
+	header := parseHeader(d.buf.Bytes())
+
+	d.buf.Grow(int(header.size))
+	io.CopyN(d.buf, d.src, int64(header.size))
+
+	// TODO: CRC should cover everything but itself.
+	if header.crc != crc64.Checksum(d.buf.Bytes()[8:], crc64Table) {
+		return ErrChecksumMismatch
 	}
 
-	header := parseHeader(d.hbuf[:])
+	r.Type = RecordType(header.rtype)
+	copy(r.Value, d.buf.Bytes()[headerSize:])
 
-	_, err = d.r.Read(d.vbuf[:header.size])
-
-	if header.crc != crc64.Checksum(d.vbuf[:header.size], crc64Table) {
-		return Record{}, ErrChecksumMismatch
-	}
-
-	return Record{
-		Type:  RecordType(header.rtype),
-		Value: d.vbuf[:header.size],
-	}, err
+	return nil
 }
 
 const (

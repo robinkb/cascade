@@ -20,22 +20,24 @@ func NewLog(r io.ReadSeeker, w io.Writer) *Log {
 		entries: make([]int64, 0),
 	}
 
+	record := Record{Value: make([]byte, 128)}
 	var cursor int64
 	for {
-		rec, err := l.dec.Decode()
+		err := l.dec.Decode(&record)
 		if err == io.EOF {
 			break
 		}
 
-		cursor += int64(len(rec.Value) + headerSize)
+		cursor += int64(len(record.Value) + headerSize)
 		l.entries = append(l.entries, cursor)
 	}
 
 	if len(l.entries) != 0 {
 		l.file.Seek(l.entries[0], io.SeekStart)
 
+		record := Record{Value: make([]byte, 128)}
 		var entry raftpb.Entry
-		record, _ := l.dec.Decode()
+		l.dec.Decode(&record)
 		switch record.Type {
 		case TypeEntry:
 			entry.Unmarshal(record.Value)
