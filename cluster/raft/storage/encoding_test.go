@@ -24,22 +24,23 @@ func TestEncodeDecode(t *testing.T) {
 	AssertStructsEqual(t, got, want)
 }
 
-func TestDecodeFull(t *testing.T) {
+func TestDecodeAllRecords(t *testing.T) {
 	buf := new(bytes.Buffer)
 	enc := NewEncoder(buf)
 	want := make([]Record, 10)
 	for i := range want {
-		want[i] = randomRecord(rand.Int64N(128) + 128)
+		want[i] = randomRecord(rand.Int64N(16) + 16)
 		_, err := enc.Encode(want[i])
 		AssertNoError(t, err).Require()
 	}
 
 	dec := NewDecoder(buf)
-	record := Record{Value: make([]byte, 256)}
+	record := Record{Value: make([]byte, 64)}
 	for i := range want {
 		n, err := dec.Decode(&record)
 		AssertNoError(t, err).Require()
 		AssertEqual(t, n, int64(headerSize+len(want[i].Value)))
+		AssertStructsEqual(t, record, want[i])
 	}
 
 	// After reading every record, calling Decode again should return EOF.

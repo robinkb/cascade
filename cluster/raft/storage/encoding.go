@@ -115,6 +115,7 @@ func (d *decoder) Decode(r *Record) (int64, error) {
 	}
 
 	r.Type = RecordType(header.rtype)
+	r.Value = r.Value[:header.size]
 	n = int64(copy(r.Value, d.buf.Bytes()[headerSize:]))
 	if n != int64(header.size) {
 		return read, io.ErrShortWrite
