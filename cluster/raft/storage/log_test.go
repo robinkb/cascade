@@ -71,7 +71,7 @@ func TestStorageTerm(t *testing.T) {
 
 		fi, _ := l.FirstIndex()
 		_, err := l.Term(fi)
-		AssertNoError(t, err)
+		AssertErrorIs(t, err, raft.ErrUnavailable)
 
 		li, _ := l.LastIndex()
 		_, err = l.Term(li)
@@ -172,18 +172,27 @@ func TestStorageLastIndex(t *testing.T) {
 
 func TestStorageFirstIndex(t *testing.T) {
 	l := storage.NewLog(tempLog(t))
-
 	var want uint64
-	got, err := l.FirstIndex()
-	AssertNoError(t, err).Require()
-	AssertEqual(t, got, want)
 
-	want = 5
-	l.Append(index(want).terms(5, 5, 6, 6, 7, 8))
+	t.Run("first index of an empty storage is 1", func(t *testing.T) {
+		// This reeks like an implementation that had a bug in it.
+		// Then the rest of Raft worked around the bug, and now
+		// it's here to stay.
+		want = 1
+		got, err := l.FirstIndex()
+		AssertNoError(t, err).Require()
+		AssertEqual(t, got, want)
+	})
 
-	got, err = l.FirstIndex()
-	AssertNoError(t, err).Require()
-	AssertEqual(t, got, want)
+	t.Run("first index of a storage with entries is the index of the first entry", func(t *testing.T) {
+		entries := index(want).terms(5, 5, 6, 6, 7, 8)
+		want = entries[0].Index
+		l.Append(entries)
+
+		got, err := l.FirstIndex()
+		AssertNoError(t, err).Require()
+		AssertEqual(t, got, want)
+	})
 }
 
 // index is a helper type for generating slices of raftpb.Entry. The value of index

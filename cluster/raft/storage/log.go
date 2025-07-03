@@ -156,6 +156,11 @@ func (l *Log) FirstIndex() (uint64, error) {
 }
 
 func (l *Log) firstIndex() uint64 {
+	// Makes no sense, but here we are. This is how Raft's MemoryStorage works.
+	// The Raft Node will refuse to start up without it.
+	if len(l.entries) == 0 {
+		return 1
+	}
 	return l.offset
 }
 
