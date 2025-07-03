@@ -20,7 +20,7 @@ func NewLog(r io.ReadSeeker, w io.Writer) *Log {
 		entries: make([]int64, 0),
 	}
 
-	record := Record{Value: make([]byte, 128)}
+	record := Record{Value: make([]byte, 128<<10)}
 	for {
 		n, err := l.dec.Decode(&record)
 		if err == io.EOF {
@@ -34,7 +34,7 @@ func NewLog(r io.ReadSeeker, w io.Writer) *Log {
 	if len(l.entries) != 0 {
 		l.dec.Seek(l.entries[0], io.SeekStart)
 
-		record := Record{Value: make([]byte, 128)}
+		record := Record{Value: make([]byte, 128<<10)}
 		var entry raftpb.Entry
 		l.dec.Decode(&record)
 		entry.Unmarshal(record.Value)
@@ -61,20 +61,36 @@ func (l *Log) InitialState() (raftpb.HardState, raftpb.ConfState, error) {
 	return l.hardState, l.snapshot.Metadata.ConfState, nil
 }
 
+// Entries returns a slice of consecutive log entries in the range [lo, hi),
+// starting from lo. The maxSize limits the total size of the log entries
+// returned, but Entries returns at least one entry if any.
+//
+// The caller of Entries owns the returned slice, and may append to it. The
+// individual entries in the slice must not be mutated, neither by the Storage
+// implementation nor the caller. Note that raft may forward these entries
+// back to the application via Ready struct, so the corresponding handler must
+// not mutate entries either (see comments in Ready struct).
+//
+// Since the caller may append to the returned slice, Storage implementation
+// must protect its state from corruption that such appends may cause. For
+// example, common ways to do so are:
+//   - allocate the slice before returning it (safest option),
+//   - return a slice protected by Go full slice expression, which causes
+//     copying on appends (see MemoryStorage).
+//
+// Returns ErrCompacted if entry lo has been compacted, or ErrUnavailable if
+// encountered an unavailable entry in [lo, hi).
 func (l *Log) Entries(lo, hi, maxSize uint64) ([]raftpb.Entry, error) {
-	if lo <= l.offset {
+	if lo < l.firstIndex() {
 		return nil, raft.ErrCompacted
 	}
-	if hi > uint64(len(l.entries))+l.offset {
-		return nil, raft.ErrUnavailable
-	}
 
-	lo -= l.offset
-	hi -= l.offset
+	lo -= l.firstIndex()
+	hi -= l.firstIndex()
 
 	var size uint64
 	entries := make([]raftpb.Entry, 0)
-	record := Record{Value: make([]byte, 128)}
+	record := Record{Value: make([]byte, 128<<10)}
 
 	for _, pos := range l.entries[lo:hi] {
 		l.dec.Seek(pos, io.SeekStart)
@@ -93,17 +109,24 @@ func (l *Log) Entries(lo, hi, maxSize uint64) ([]raftpb.Entry, error) {
 	return entries, nil
 }
 
+// Term returns the term of entry i, which must be in the range
+// [FirstIndex()-1, LastIndex()]. The term of the entry before
+// FirstIndex is retained for matching purposes even though the
+// rest of that entry may not be available.
 func (l *Log) Term(i uint64) (uint64, error) {
-	if i < l.offset {
-		return 0, raft.ErrCompacted
+	if i == 0 && len(l.entries) == 0 {
+		return 0, nil
 	}
-	if int(i-l.offset) > len(l.entries)-1 {
+	if i > l.lastIndex() {
 		return 0, raft.ErrUnavailable
 	}
+	if i < l.firstIndex() || len(l.entries) == 0 {
+		return 0, raft.ErrCompacted
+	}
 
-	i -= l.offset
+	i -= l.firstIndex()
 
-	record := Record{Value: make([]byte, 128)}
+	record := Record{Value: make([]byte, 128<<10)}
 	l.dec.Seek(l.entries[i], io.SeekStart)
 	l.dec.Decode(&record)
 
@@ -113,14 +136,21 @@ func (l *Log) Term(i uint64) (uint64, error) {
 	return entry.Index, nil
 }
 
+// LastIndex returns the index of the last entry in the log.
 func (l *Log) LastIndex() (uint64, error) {
 	return l.lastIndex(), nil
 }
 
 func (l *Log) lastIndex() uint64 {
-	return l.offset + uint64(len(l.entries))
+	if len(l.entries) == 0 {
+		return l.offset
+	}
+	return l.firstIndex() + uint64(len(l.entries)) - 1
 }
 
+// FirstIndex returns the index of the first log entry that is
+// possibly available via Entries (older entries have been incorporated
+// into the latest Snapshot).
 func (l *Log) FirstIndex() (uint64, error) {
 	return l.firstIndex(), nil
 }
@@ -151,7 +181,7 @@ func (l *Log) Append(entries []raftpb.Entry) error {
 	}
 
 	if len(l.entries) == 0 {
-		l.offset = entries[0].Index - 1
+		l.offset = entries[0].Index
 	}
 
 	for _, entry := range entries {

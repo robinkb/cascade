@@ -30,41 +30,92 @@ func tempLog(t *testing.T) (io.ReadSeeker, io.Writer) {
 	return r, w
 }
 
-// These tests come from etcd-io/raft.
-func TestStorageTerm(t *testing.T) {
-	ents := index(3).terms(3, 4, 5)
-	tests := []struct {
-		i uint64
+func TestStorageEntries(t *testing.T) {
+	entries := index(3).terms(3, 4, 5, 5, 6, 7, 7, 7, 7, 8)
+	l := storage.NewLog(tempLog(t))
+	l.Append(entries)
 
-		werr   error
-		wterm  uint64
-		wpanic bool
+	tc := []struct {
+		name        string
+		lo, hi      uint64
+		wantEntries []raftpb.Entry
+		wantErr     error
 	}{
-		{2, raft.ErrCompacted, 0, false},
-		{3, nil, 3, false},
-		{4, nil, 4, false},
-		{5, nil, 5, false},
-		{6, raft.ErrUnavailable, 0, false},
+		{"get the first entry",
+			3, 4,
+			entries[0:1], nil},
+		{"get middle entries",
+			4, 11,
+			entries[1 : len(entries)-2], nil},
+		{"get the very last entry",
+			11, 12,
+			entries[len(entries)-2 : len(entries)-1], nil},
+		{"lo before first entry returns ErrCompacted",
+			2, 4,
+			nil, raft.ErrCompacted},
+		// {"hi after"}
 	}
 
-	for _, tt := range tests {
-		t.Run("", func(t *testing.T) {
-			l := storage.NewLog(tempLog(t))
-			l.Append(ents)
-
-			if tt.wpanic {
-				require.Panics(t, func() {
-					_, _ = l.Term(tt.i)
-				})
-			}
-			term, err := l.Term(tt.i)
-			require.Equal(t, tt.werr, err)
-			require.Equal(t, tt.wterm, term)
+	for _, tt := range tc {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := l.Entries(tt.lo, tt.hi, math.MaxUint64)
+			AssertErrorIs(t, err, tt.wantErr)
+			AssertStructsEqual(t, got, tt.wantEntries)
 		})
 	}
 }
 
-func TestStorageEntries(t *testing.T) {
+func TestStorageTerm(t *testing.T) {
+	t.Run("for empty storage", func(t *testing.T) {
+		l := storage.NewLog(tempLog(t))
+
+		fi, _ := l.FirstIndex()
+		_, err := l.Term(fi)
+		AssertNoError(t, err)
+
+		li, _ := l.LastIndex()
+		_, err = l.Term(li)
+		AssertNoError(t, err)
+
+		_, err = l.Term(li + 1)
+		AssertErrorIs(t, err, raft.ErrUnavailable)
+	})
+
+	t.Run("for storage with entries", func(t *testing.T) {
+		ents := index(3).terms(3, 4, 5)
+		tests := []struct {
+			name string
+			i    uint64
+
+			werr  error
+			wterm uint64
+		}{
+			{"index lower than FirstIndex() returns ErrCompacted",
+				2, raft.ErrCompacted, 0},
+			{"first entry returns term 4",
+				3, nil, 3},
+			{"second entry returns term 4",
+				4, nil, 4},
+			{"third entry returns term 5",
+				5, nil, 5},
+			{"index higher than LastIndex() returns ErrUnavailable",
+				6, raft.ErrUnavailable, 0},
+		}
+
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				l := storage.NewLog(tempLog(t))
+				l.Append(ents)
+
+				term, err := l.Term(tt.i)
+				AssertErrorIs(t, err, tt.werr).Require()
+				AssertEqual(t, term, tt.wterm).Require()
+			})
+		}
+	})
+}
+
+func TestStorageEntries2(t *testing.T) {
 	ents := index(3).terms(3, 4, 5, 6)
 	tests := []struct {
 		lo, hi, maxsize uint64
@@ -101,44 +152,36 @@ func TestStorageEntries(t *testing.T) {
 }
 
 func TestStorageLastIndex(t *testing.T) {
-	ents := index(3).terms(3, 4, 5)
 	l := storage.NewLog(tempLog(t))
-	l.Append(ents)
 
-	last, err := l.LastIndex()
-	require.NoError(t, err)
-	require.Equal(t, uint64(5), last)
+	var want uint64
+	got, err := l.LastIndex()
+	AssertNoError(t, err).Require()
+	AssertEqual(t, got, want)
 
-	require.NoError(t, l.Append(index(6).terms(5)))
-	last, err = l.LastIndex()
-	require.NoError(t, err)
-	require.Equal(t, uint64(6), last)
+	entries := index(3).terms(3, 4, want)
+	want = entries[len(entries)-1].Index
+	l.Append(entries)
+
+	got, err = l.LastIndex()
+	AssertNoError(t, err).Require()
+	AssertEqual(t, got, want)
 }
 
 func TestStorageFirstIndex(t *testing.T) {
-	ents := index(3).terms(3, 4, 5)
 	l := storage.NewLog(tempLog(t))
-	l.Append(ents)
 
-	first, err := l.FirstIndex()
-	require.NoError(t, err)
-	require.Equal(t, uint64(4), first)
+	var want uint64
+	got, err := l.FirstIndex()
+	AssertNoError(t, err).Require()
+	AssertEqual(t, got, want)
 
-	// require.NoError(t, s.Compact(4))
-	// first, err = s.FirstIndex()
-	// require.NoError(t, err)
-	// require.Equal(t, uint64(5), first)
-}
+	want = 5
+	l.Append(index(want).terms(5, 5, 6, 6, 7, 8))
 
-func TestStorageEmpty(t *testing.T) {
-	l := storage.NewLog(tempLog(t))
-	fi, err := l.FirstIndex()
-	AssertNoError(t, err)
-	AssertEqual(t, fi, 1)
-
-	li, err := l.LastIndex()
-	AssertNoError(t, err)
-	AssertEqual(t, li, 0)
+	got, err = l.FirstIndex()
+	AssertNoError(t, err).Require()
+	AssertEqual(t, got, want)
 }
 
 // index is a helper type for generating slices of raftpb.Entry. The value of index
