@@ -14,6 +14,8 @@ const (
 	// Apparently differences exist in performance (and other attributes)
 	// between polynomials. I should do some benchmarks.
 	NVME = 0x9A6C9329AC4BC9B5
+	// Length of the header of a Record in bytes.
+	RecordHeaderLength = 16
 )
 
 var (
@@ -30,6 +32,12 @@ type (
 		Value []byte
 	}
 
+	header struct {
+		crc   uint64 // 8 bytes
+		rtype uint32 // 4 bytes
+		size  uint32 // 4 bytes
+	}
+
 	// Encoder writes encoded Records to the output stream.
 	// It is not threadsafe.
 	Encoder interface {
@@ -42,6 +50,7 @@ type (
 	// Decoder reads decoded Records from the input stream.
 	Decoder interface {
 		// DecodeAt is a wrapper around an io.ReaderAt for decoding Records.
+		// It returns the amount of bytes written and an error, if any.
 		DecodeAt(r *Record, off int64) (int64, error)
 	}
 )
@@ -134,10 +143,6 @@ func (d *decoder) DecodeAt(r *Record, off int64) (int64, error) {
 	return read, nil
 }
 
-const (
-	RecordHeaderLength = 16
-)
-
 func parseHeader(b []byte) header {
 	if len(b) != RecordHeaderLength {
 		log.Panicf("invalid header length; got %d while expecting %d", len(b), RecordHeaderLength)
@@ -148,10 +153,4 @@ func parseHeader(b []byte) header {
 		rtype: binary.LittleEndian.Uint32(b[8:12]),
 		size:  binary.LittleEndian.Uint32(b[12:16]),
 	}
-}
-
-type header struct {
-	crc   uint64
-	rtype uint32
-	size  uint32
 }
