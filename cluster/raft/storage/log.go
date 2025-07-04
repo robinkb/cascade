@@ -15,11 +15,20 @@ const (
 	TypeSnapshot
 )
 
+// EntryPointer stores the offset of an Entry within the log's file.
+// It also stores the Term that the Entry belongs to as an optimization.
+// The Term of an Entry is queried very often by Raft, and we can keep it in-memory
+// for a negligble cost, saving disk reads and record decodes.
+type EntryPointer struct {
+	Offset int64
+	Term   uint64
+}
+
 func NewLog(r io.ReaderAt, w io.Writer) *Log {
 	l := &Log{
 		enc:     NewEncoder(w),
 		dec:     NewDecoder(r),
-		entries: make([]int64, 0),
+		entries: make([]EntryPointer, 0),
 	}
 
 	// record := Record{Value: make([]byte, 128<<10)}
@@ -47,8 +56,8 @@ func NewLog(r io.ReaderAt, w io.Writer) *Log {
 		for {
 			time.Sleep(1 * time.Second)
 			log.Printf(
-				"initialState: %6d, entries: %6d, term: %6d, lastIndex: %6d, firstIndex: %6d, snapshot: %6d",
-				cs.initialState, cs.entries, cs.term, cs.lastIndex, cs.firstIndex, cs.snapshot,
+				"[InitialState: %2d, Entries: %6d, Term: %6d, LastIndex: %7d, FirstIndex: %7d, Snapshot: %2d] [SetHardState: %6d, ApplySnapshot: %6d, Append: %6d, Compact: %6d]",
+				cs.initialState, cs.entries, cs.term, cs.lastIndex, cs.firstIndex, cs.snapshot, cs.setHardState, cs.applySnapshot, cs.append, cs.compact,
 			)
 		}
 	}()
@@ -63,17 +72,31 @@ type Log struct {
 	hardState raftpb.HardState
 	snapshot  raftpb.Snapshot
 
-	entries []int64
-	cursor  int64
-	offset  uint64
+	// entries stores a series of pointers to Entries in the log file.
+	// It is assumed that the Index of every Entry is sequential and without gaps.
+	// It also stores each Entry's Term as an optimization.
+	entries []EntryPointer
+	// cursor tracks the position of our writes to the log file.
+	// It is used to construct the location of Entries in the log file as stored
+	// in the entries slice. The log is only ever appended, and cursor only ever increases.
+	cursor int64
+	// indexOffset stores the index of the oldest entry in the log.
+	indexOffset uint64
 
 	callStats struct {
+		// part of the raft.Storage interface, called by Raft Node
 		initialState int
 		entries      int
 		term         int
 		lastIndex    int
 		firstIndex   int
 		snapshot     int
+
+		// methods called by the application
+		setHardState  int
+		applySnapshot int
+		append        int
+		compact       int
 	}
 }
 
@@ -115,8 +138,8 @@ func (l *Log) Entries(lo, hi, maxSize uint64) ([]raftpb.Entry, error) {
 	entries := make([]raftpb.Entry, 0)
 	record := new(Record)
 
-	for _, pos := range l.entries[lo:hi] {
-		_, err = l.dec.DecodeAt(record, pos)
+	for _, ptr := range l.entries[lo:hi] {
+		_, err = l.dec.DecodeAt(record, ptr.Offset)
 		panicOnErr(err)
 
 		size += uint64(len(record.Value))
@@ -155,16 +178,7 @@ func (l *Log) Term(i uint64) (uint64, error) {
 
 	i -= l.firstIndex()
 
-	var err error
-	record := Record{Value: make([]byte, 128<<10)}
-	_, err = l.dec.DecodeAt(&record, l.entries[i])
-	panicOnErr(err)
-
-	var entry raftpb.Entry
-	err = entry.Unmarshal(record.Value)
-	panicOnErr(err)
-
-	return entry.Term, nil
+	return l.entries[i].Term, nil
 }
 
 // LastIndex returns the index of the last entry in the log.
@@ -175,7 +189,7 @@ func (l *Log) LastIndex() (uint64, error) {
 
 func (l *Log) lastIndex() uint64 {
 	if len(l.entries) == 0 {
-		return l.offset
+		return l.indexOffset
 	}
 	return l.firstIndex() + uint64(len(l.entries)) - 1
 }
@@ -194,7 +208,7 @@ func (l *Log) firstIndex() uint64 {
 	if len(l.entries) == 0 {
 		return 1
 	}
-	return l.offset
+	return l.indexOffset
 }
 
 func (l *Log) Snapshot() (raftpb.Snapshot, error) {
@@ -203,24 +217,27 @@ func (l *Log) Snapshot() (raftpb.Snapshot, error) {
 }
 
 func (l *Log) SetHardState(hardState raftpb.HardState) error {
+	l.callStats.setHardState++
 	// TODO: Persistence
 	l.hardState = hardState
 	return nil
 }
 
 func (l *Log) ApplySnapshot(snapshot raftpb.Snapshot) error {
+	l.callStats.applySnapshot++
 	// TODO: Persistence
 	l.snapshot = snapshot
 	return nil
 }
 
 func (l *Log) Append(entries []raftpb.Entry) error {
+	l.callStats.append++
 	if len(entries) == 0 {
 		return nil
 	}
 
 	if len(l.entries) == 0 {
-		l.offset = entries[0].Index
+		l.indexOffset = entries[0].Index
 	}
 
 	var err error
@@ -230,7 +247,11 @@ func (l *Log) Append(entries []raftpb.Entry) error {
 		panicOnErr(err)
 		n, err := l.enc.Encode(record)
 		panicOnErr(err)
-		l.entries = append(l.entries, l.cursor)
+
+		l.entries = append(l.entries, EntryPointer{
+			Offset: l.cursor,
+			Term:   entry.Term,
+		})
 		l.cursor += n
 	}
 
@@ -238,6 +259,7 @@ func (l *Log) Append(entries []raftpb.Entry) error {
 }
 
 func (l *Log) Compact(i uint64) error {
+	l.callStats.compact++
 	return nil
 }
 
