@@ -3,6 +3,7 @@ package storage_test
 import (
 	"io"
 	"math"
+	"math/rand/v2"
 	"os"
 	"path/filepath"
 	"testing"
@@ -195,6 +196,39 @@ func TestStorageFirstIndex(t *testing.T) {
 		AssertNoError(t, err).Require()
 		AssertEqual(t, got, want)
 	})
+}
+
+func TestSetHardState(t *testing.T) {
+	l := storage.NewLog(tempLog(t))
+
+	want := raftpb.HardState{
+		Term:   rand.Uint64(),
+		Vote:   rand.Uint64(),
+		Commit: rand.Uint64(),
+	}
+
+	err := l.SetHardState(want)
+	AssertNoError(t, err)
+
+	got, _, err := l.InitialState()
+	AssertStructsEqual(t, got, want)
+}
+
+func TestApplySnapshot(t *testing.T) {
+	l := storage.NewLog(tempLog(t))
+
+	want := raftpb.Snapshot{
+		Metadata: raftpb.SnapshotMetadata{
+			Index: rand.Uint64(),
+			Term:  rand.Uint64(),
+		},
+	}
+
+	err := l.ApplySnapshot(want)
+	AssertNoError(t, err)
+
+	got, err := l.Snapshot()
+	AssertStructsEqual(t, got, want)
 }
 
 // index is a helper type for generating slices of raftpb.Entry. The value of index

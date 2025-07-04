@@ -218,14 +218,36 @@ func (l *Log) Snapshot() (raftpb.Snapshot, error) {
 
 func (l *Log) SetHardState(hardState raftpb.HardState) error {
 	l.callStats.setHardState++
-	// TODO: Persistence
+
+	record := &Record{
+		Type:  TypeHardState,
+		Value: make([]byte, hardState.Size()),
+	}
+	_, err := hardState.MarshalTo(record.Value)
+	panicOnErr(err)
+
+	n, err := l.enc.Encode(record)
+	panicOnErr(err)
+	l.cursor += n
+
 	l.hardState = hardState
 	return nil
 }
 
 func (l *Log) ApplySnapshot(snapshot raftpb.Snapshot) error {
 	l.callStats.applySnapshot++
-	// TODO: Persistence
+
+	record := &Record{
+		Type:  TypeSnapshot,
+		Value: make([]byte, snapshot.Size()),
+	}
+	_, err := snapshot.MarshalTo(record.Value)
+	panicOnErr(err)
+
+	n, err := l.enc.Encode(record)
+	panicOnErr(err)
+	l.cursor += n
+
 	l.snapshot = snapshot
 	return nil
 }
