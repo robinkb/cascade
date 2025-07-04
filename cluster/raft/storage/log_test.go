@@ -231,6 +231,45 @@ func TestApplySnapshot(t *testing.T) {
 	AssertStructsEqual(t, got, want)
 }
 
+func TestPersistence(t *testing.T) {
+	r, w := tempLog(t)
+
+	oldLog := storage.NewLog(r, w)
+	want := struct {
+		hardState raftpb.HardState
+		snapshot  raftpb.Snapshot
+		entries   []raftpb.Entry
+	}{
+		hardState: raftpb.HardState{Term: rand.Uint64(), Vote: rand.Uint64()},
+		snapshot:  raftpb.Snapshot{Metadata: raftpb.SnapshotMetadata{ConfState: raftpb.ConfState{AutoLeave: true}}},
+		entries:   index(3).terms(3, 4, 5, 6, 7),
+	}
+
+	err := oldLog.SetHardState(want.hardState)
+	AssertNoError(t, err).Require()
+	err = oldLog.ApplySnapshot(want.snapshot)
+	AssertNoError(t, err).Require()
+	err = oldLog.Append(want.entries)
+	AssertNoError(t, err).Require()
+
+	newLog := storage.NewLog(r, w)
+	gotHardState, gotConfState, err := newLog.InitialState()
+	AssertNoError(t, err).Require()
+	AssertStructsEqual(t, gotHardState, want.hardState)
+	AssertStructsEqual(t, gotConfState, want.snapshot.Metadata.ConfState)
+
+	lo, err := newLog.FirstIndex()
+	AssertNoError(t, err)
+	AssertEqual(t, lo, want.entries[0].Index)
+	hi, err := newLog.LastIndex()
+	AssertNoError(t, err)
+	AssertEqual(t, hi, want.entries[len(want.entries)-1].Index)
+
+	gotEntries, err := newLog.Entries(lo, hi+1, math.MaxUint64)
+	AssertNoError(t, err)
+	AssertStructsEqual(t, gotEntries, want.entries)
+}
+
 // index is a helper type for generating slices of raftpb.Entry. The value of index
 // is the first entry index in the generated slices.
 type index uint64

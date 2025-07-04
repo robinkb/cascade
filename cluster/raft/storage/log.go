@@ -31,25 +31,39 @@ func NewLog(r io.ReaderAt, w io.Writer) *Log {
 		entries: make([]EntryPointer, 0),
 	}
 
-	// record := Record{Value: make([]byte, 128<<10)}
-	// for {
-	// 	n, err := l.dec.DecodeAt(&record, l.cursor)
-	// 	if err == io.EOF {
-	// 		break
-	// 	}
+	record := new(Record)
+	var entry raftpb.Entry
+	for {
+		n, err := l.dec.DecodeAt(record, l.cursor)
+		if err == io.EOF {
+			break
+		}
 
-	// 	l.entries = append(l.entries, l.cursor)
-	// 	l.cursor += n
-	// }
+		switch record.Type {
+		case TypeEntry:
+			err := entry.Unmarshal(record.Value)
+			panicOnErr(err)
+			l.entries = append(l.entries, EntryPointer{
+				Offset: l.cursor,
+				Term:   entry.Term,
+			})
+		case TypeHardState:
+			err := l.hardState.Unmarshal(record.Value)
+			panicOnErr(err)
+		case TypeSnapshot:
+			err := l.snapshot.Unmarshal(record.Value)
+			panicOnErr(err)
+		}
 
-	// if len(l.entries) != 0 {
-	// 	record := new(Record)
-	// 	var entry raftpb.Entry
-	// 	l.dec.DecodeAt(record, l.entries[0])
-	// 	entry.Unmarshal(record.Value)
+		l.cursor += n
+	}
 
-	// 	l.offset = entry.Index
-	// }
+	if len(l.entries) != 0 {
+		l.dec.DecodeAt(record, l.entries[0].Offset)
+		entry.Unmarshal(record.Value)
+
+		l.indexOffset = entry.Index
+	}
 
 	go func() {
 		cs := &l.callStats
