@@ -27,10 +27,10 @@ func main() {
 
 	dec := storage.NewDecoder(f)
 
-	r := storage.Record{Value: make([]byte, 128<<10)}
+	r := new(storage.Record)
 	var pos int64
 	for {
-		n, err := dec.Decode(&r)
+		n, err := dec.DecodeAt(r, pos)
 		if err != nil {
 			if err == io.EOF {
 				break

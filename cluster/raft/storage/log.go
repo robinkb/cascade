@@ -2,6 +2,8 @@ package storage
 
 import (
 	"io"
+	"log"
+	"time"
 
 	"go.etcd.io/raft/v3"
 	"go.etcd.io/raft/v3/raftpb"
@@ -20,25 +22,36 @@ func NewLog(r io.ReaderAt, w io.Writer) *Log {
 		entries: make([]int64, 0),
 	}
 
-	record := Record{Value: make([]byte, 128<<10)}
-	for {
-		n, err := l.dec.DecodeAt(&record, l.cursor)
-		if err == io.EOF {
-			break
+	// record := Record{Value: make([]byte, 128<<10)}
+	// for {
+	// 	n, err := l.dec.DecodeAt(&record, l.cursor)
+	// 	if err == io.EOF {
+	// 		break
+	// 	}
+
+	// 	l.entries = append(l.entries, l.cursor)
+	// 	l.cursor += n
+	// }
+
+	// if len(l.entries) != 0 {
+	// 	record := new(Record)
+	// 	var entry raftpb.Entry
+	// 	l.dec.DecodeAt(record, l.entries[0])
+	// 	entry.Unmarshal(record.Value)
+
+	// 	l.offset = entry.Index
+	// }
+
+	go func() {
+		cs := &l.callStats
+		for {
+			time.Sleep(1 * time.Second)
+			log.Printf(
+				"initialState: %6d, entries: %6d, term: %6d, lastIndex: %6d, firstIndex: %6d, snapshot: %6d",
+				cs.initialState, cs.entries, cs.term, cs.lastIndex, cs.firstIndex, cs.snapshot,
+			)
 		}
-
-		l.entries = append(l.entries, l.cursor)
-		l.cursor += n
-	}
-
-	if len(l.entries) != 0 {
-		record := new(Record)
-		var entry raftpb.Entry
-		l.dec.DecodeAt(record, l.entries[0])
-		entry.Unmarshal(record.Value)
-
-		l.offset = entry.Index
-	}
+	}()
 
 	return l
 }
@@ -53,9 +66,19 @@ type Log struct {
 	entries []int64
 	cursor  int64
 	offset  uint64
+
+	callStats struct {
+		initialState int
+		entries      int
+		term         int
+		lastIndex    int
+		firstIndex   int
+		snapshot     int
+	}
 }
 
 func (l *Log) InitialState() (raftpb.HardState, raftpb.ConfState, error) {
+	l.callStats.initialState++
 	return l.hardState, l.snapshot.Metadata.ConfState, nil
 }
 
@@ -79,6 +102,7 @@ func (l *Log) InitialState() (raftpb.HardState, raftpb.ConfState, error) {
 // Returns ErrCompacted if entry lo has been compacted, or ErrUnavailable if
 // encountered an unavailable entry in [lo, hi).
 func (l *Log) Entries(lo, hi, maxSize uint64) ([]raftpb.Entry, error) {
+	l.callStats.entries++
 	if lo < l.firstIndex() {
 		return nil, raft.ErrCompacted
 	}
@@ -115,6 +139,10 @@ func (l *Log) Entries(lo, hi, maxSize uint64) ([]raftpb.Entry, error) {
 // FirstIndex is retained for matching purposes even though the
 // rest of that entry may not be available.
 func (l *Log) Term(i uint64) (uint64, error) {
+	// TODO: Term is being called REALLY often, but keeping terms in memory
+	// along with indices would not increase memory usage much.
+	// I should refactor this so that it doesn't have to go to disk.
+	l.callStats.term++
 	if i == 0 && len(l.entries) == 0 {
 		return 0, nil
 	}
@@ -141,6 +169,7 @@ func (l *Log) Term(i uint64) (uint64, error) {
 
 // LastIndex returns the index of the last entry in the log.
 func (l *Log) LastIndex() (uint64, error) {
+	l.callStats.lastIndex++
 	return l.lastIndex(), nil
 }
 
@@ -155,6 +184,7 @@ func (l *Log) lastIndex() uint64 {
 // possibly available via Entries (older entries have been incorporated
 // into the latest Snapshot).
 func (l *Log) FirstIndex() (uint64, error) {
+	l.callStats.firstIndex++
 	return l.firstIndex(), nil
 }
 
@@ -168,6 +198,7 @@ func (l *Log) firstIndex() uint64 {
 }
 
 func (l *Log) Snapshot() (raftpb.Snapshot, error) {
+	l.callStats.snapshot++
 	return l.snapshot, nil
 }
 

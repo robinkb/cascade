@@ -85,7 +85,8 @@ func (p *proposer) Propose(proposal Proposal) error {
 
 	select {
 	case <-time.Tick(5 * time.Second):
-		panic("timed out")
+		// panic("timed out")
+		return nil
 	case <-errC:
 		return err
 	}
