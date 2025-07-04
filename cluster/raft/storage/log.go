@@ -164,7 +164,7 @@ func (l *Log) Term(i uint64) (uint64, error) {
 	err = entry.Unmarshal(record.Value)
 	panicOnErr(err)
 
-	return entry.Index, nil
+	return entry.Term, nil
 }
 
 // LastIndex returns the index of the last entry in the log.
