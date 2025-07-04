@@ -89,12 +89,15 @@ func (l *Log) Entries(lo, hi, maxSize uint64) ([]raftpb.Entry, error) {
 	hi -= l.firstIndex()
 
 	var size uint64
+	var err error
 	entries := make([]raftpb.Entry, 0)
 	record := Record{Value: make([]byte, 128<<10)}
 
 	for _, pos := range l.entries[lo:hi] {
-		l.dec.Seek(pos, io.SeekStart)
-		l.dec.Decode(&record)
+		_, err = l.dec.Seek(pos, io.SeekStart)
+		panicOnErr(err)
+		_, err = l.dec.Decode(&record)
+		panicOnErr(err)
 
 		size += uint64(len(record.Value))
 		if size > maxSize && len(entries) != 0 {
@@ -102,7 +105,9 @@ func (l *Log) Entries(lo, hi, maxSize uint64) ([]raftpb.Entry, error) {
 		}
 
 		var entry raftpb.Entry
-		entry.Unmarshal(record.Value)
+		err = entry.Unmarshal(record.Value)
+		panicOnErr(err)
+
 		entries = append(entries, entry)
 	}
 
@@ -126,12 +131,16 @@ func (l *Log) Term(i uint64) (uint64, error) {
 
 	i -= l.firstIndex()
 
+	var err error
 	record := Record{Value: make([]byte, 128<<10)}
-	l.dec.Seek(l.entries[i], io.SeekStart)
-	l.dec.Decode(&record)
+	_, err = l.dec.Seek(l.entries[i], io.SeekStart)
+	panicOnErr(err)
+	_, err = l.dec.Decode(&record)
+	panicOnErr(err)
 
 	var entry raftpb.Entry
-	entry.Unmarshal(record.Value)
+	err = entry.Unmarshal(record.Value)
+	panicOnErr(err)
 
 	return entry.Index, nil
 }
@@ -189,10 +198,13 @@ func (l *Log) Append(entries []raftpb.Entry) error {
 		l.offset = entries[0].Index
 	}
 
+	var err error
 	for _, entry := range entries {
 		record := Record{Type: TypeEntry, Value: make([]byte, entry.Size())}
-		entry.MarshalTo(record.Value)
-		n, _ := l.enc.Encode(record)
+		_, err = entry.MarshalTo(record.Value)
+		panicOnErr(err)
+		n, err := l.enc.Encode(record)
+		panicOnErr(err)
 		l.entries = append(l.entries, l.cursor)
 		l.cursor += n
 	}
@@ -202,4 +214,10 @@ func (l *Log) Append(entries []raftpb.Entry) error {
 
 func (l *Log) Compact(i uint64) error {
 	return nil
+}
+
+func panicOnErr(err error) {
+	if err != nil {
+		panic(err)
+	}
 }
