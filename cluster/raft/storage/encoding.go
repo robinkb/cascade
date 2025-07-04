@@ -36,19 +36,13 @@ type (
 		// Encode writes a Record to the output stream.
 		// It returns the amount of bytes written and an error, if any.
 		// The written amount can be used to track positions of records.
-		Encode(r Record) (int64, error)
+		Encode(r *Record) (int64, error)
 	}
 
 	// Decoder reads decoded Records from the input stream.
-	// It is not threadsafe.
 	Decoder interface {
-		// Decode decodes a Record from the stream into r.
-		// It returns the amount of bytes read and an error, if any.
-		// The read amount can be used to track positions of records.
-		Decode(r *Record) (int64, error)
-		// Seek can be used to set the input stream to a previous position
-		// and decode a Record again.
-		io.Seeker
+		// DecodeAt is a wrapper around an io.ReaderAt for decoding Records.
+		DecodeAt(r *Record, off int64) (int64, error)
 	}
 )
 
@@ -65,7 +59,7 @@ type encoder struct {
 	buf *bytes.Buffer
 }
 
-func (e *encoder) Encode(r Record) (int64, error) {
+func (e *encoder) Encode(r *Record) (int64, error) {
 	e.buf.Reset()
 	e.buf.Grow(RecordHeaderLength + len(r.Value))
 
@@ -84,8 +78,8 @@ func (e *encoder) Encode(r Record) (int64, error) {
 	return io.Copy(e.dst, e.buf)
 }
 
-// NewDecoder returns a Decoder that reads decoded Records from the io.ReaderSeeker.
-func NewDecoder(r io.ReadSeeker) Decoder {
+// NewDecoder returns a Decoder that reads decoded Records from the io.ReaderAt.
+func NewDecoder(r io.ReaderAt) Decoder {
 	return &decoder{
 		src: r,
 		buf: new(bytes.Buffer),
@@ -93,42 +87,51 @@ func NewDecoder(r io.ReadSeeker) Decoder {
 }
 
 type decoder struct {
-	src io.ReadSeeker
+	src io.ReaderAt
 	buf *bytes.Buffer
 }
 
-func (d *decoder) Decode(r *Record) (int64, error) {
+func (d *decoder) DecodeAt(r *Record, off int64) (int64, error) {
 	d.buf.Reset()
-
 	var read int64
-	n, err := io.CopyN(d.buf, d.src, RecordHeaderLength)
-	read += n
+
+	// Reading and parsing the header
+	d.buf.Grow(RecordHeaderLength)
+	hbuf := d.buf.Bytes()[:RecordHeaderLength]
+	n, err := d.src.ReadAt(hbuf, off)
+	read += int64(n)
 	if err != nil {
 		return read, err
 	}
+	// Ensure header is available in the buffer for later CRC calculation,
+	// which includes parts of the header.
+	d.buf.Write(hbuf)
+	header := parseHeader(hbuf)
 
-	header := parseHeader(d.buf.Bytes())
-
-	d.buf.Grow(int(header.size))
-	n, err = io.CopyN(d.buf, d.src, int64(header.size))
-	read += n
+	// Reading and checking the payload.
+	d.buf.Grow(RecordHeaderLength + int(header.size))
+	pbuf := d.buf.Bytes()[RecordHeaderLength : RecordHeaderLength+header.size]
+	n, err = d.src.ReadAt(pbuf, off+RecordHeaderLength)
+	read += int64(n)
+	if err != nil {
+		// An EOF is not expected here. It would indicate a short read,
+		// and thus definitely a checksum mismatch.
+		if err == io.EOF {
+			return read, ErrChecksumMismatch
+		}
+		return read, err
+	}
+	d.buf.Write(pbuf)
 
 	if header.crc != crc64.Checksum(d.buf.Bytes()[crc64.Size:], crc64Table) {
 		return read, ErrChecksumMismatch
 	}
 
+	// Placing values into the Record.
 	r.Type = RecordType(header.rtype)
-	r.Value = r.Value[:header.size]
-	n = int64(copy(r.Value, d.buf.Bytes()[RecordHeaderLength:]))
-	if n != int64(header.size) {
-		return read, io.ErrShortWrite
-	}
+	r.Value = d.buf.Bytes()[RecordHeaderLength : RecordHeaderLength+header.size]
 
-	return read, err
-}
-
-func (d *decoder) Seek(offset int64, whence int) (int64, error) {
-	return d.src.Seek(offset, whence)
+	return read, nil
 }
 
 const (

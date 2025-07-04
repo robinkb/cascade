@@ -14,7 +14,7 @@ import (
 	"go.etcd.io/raft/v3/raftpb"
 )
 
-func tempLog(t *testing.T) (io.ReadSeeker, io.Writer) {
+func tempLog(t *testing.T) (io.ReaderAt, io.Writer) {
 	filename := filepath.Join(t.TempDir(), "log.bin")
 	w, err := os.OpenFile(filename, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0644)
 	AssertNoError(t, err).Require()

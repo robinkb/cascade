@@ -13,7 +13,7 @@ const (
 	TypeSnapshot
 )
 
-func NewLog(r io.ReadSeeker, w io.Writer) *Log {
+func NewLog(r io.ReaderAt, w io.Writer) *Log {
 	l := &Log{
 		enc:     NewEncoder(w),
 		dec:     NewDecoder(r),
@@ -22,7 +22,7 @@ func NewLog(r io.ReadSeeker, w io.Writer) *Log {
 
 	record := Record{Value: make([]byte, 128<<10)}
 	for {
-		n, err := l.dec.Decode(&record)
+		n, err := l.dec.DecodeAt(&record, l.cursor)
 		if err == io.EOF {
 			break
 		}
@@ -32,11 +32,9 @@ func NewLog(r io.ReadSeeker, w io.Writer) *Log {
 	}
 
 	if len(l.entries) != 0 {
-		l.dec.Seek(l.entries[0], io.SeekStart)
-
-		record := Record{Value: make([]byte, 128<<10)}
+		record := new(Record)
 		var entry raftpb.Entry
-		l.dec.Decode(&record)
+		l.dec.DecodeAt(record, l.entries[0])
 		entry.Unmarshal(record.Value)
 
 		l.offset = entry.Index
@@ -91,12 +89,10 @@ func (l *Log) Entries(lo, hi, maxSize uint64) ([]raftpb.Entry, error) {
 	var size uint64
 	var err error
 	entries := make([]raftpb.Entry, 0)
-	record := Record{Value: make([]byte, 128<<10)}
+	record := new(Record)
 
 	for _, pos := range l.entries[lo:hi] {
-		_, err = l.dec.Seek(pos, io.SeekStart)
-		panicOnErr(err)
-		_, err = l.dec.Decode(&record)
+		_, err = l.dec.DecodeAt(record, pos)
 		panicOnErr(err)
 
 		size += uint64(len(record.Value))
@@ -133,9 +129,7 @@ func (l *Log) Term(i uint64) (uint64, error) {
 
 	var err error
 	record := Record{Value: make([]byte, 128<<10)}
-	_, err = l.dec.Seek(l.entries[i], io.SeekStart)
-	panicOnErr(err)
-	_, err = l.dec.Decode(&record)
+	_, err = l.dec.DecodeAt(&record, l.entries[i])
 	panicOnErr(err)
 
 	var entry raftpb.Entry
@@ -200,7 +194,7 @@ func (l *Log) Append(entries []raftpb.Entry) error {
 
 	var err error
 	for _, entry := range entries {
-		record := Record{Type: TypeEntry, Value: make([]byte, entry.Size())}
+		record := &Record{Type: TypeEntry, Value: make([]byte, entry.Size())}
 		_, err = entry.MarshalTo(record.Value)
 		panicOnErr(err)
 		n, err := l.enc.Encode(record)
