@@ -50,7 +50,7 @@ type (
 	// Decoder reads decoded Records from the input stream.
 	Decoder interface {
 		// DecodeAt is a wrapper around an io.ReaderAt for decoding Records.
-		// It returns the amount of bytes written and an error, if any.
+		// It returns the amount of bytes read and an error, if any.
 		DecodeAt(r *Record, off int64) (int64, error)
 	}
 )
@@ -72,13 +72,13 @@ func (e *encoder) Encode(r *Record) (int64, error) {
 	e.buf.Reset()
 	e.buf.Grow(RecordHeaderLength + len(r.Value))
 
-	header := e.buf.AvailableBuffer()[:RecordHeaderLength]
+	hbuf := e.buf.Bytes()[:RecordHeaderLength]
 
 	// Writing starting at byte 8 to leave room for the CRC.
-	binary.LittleEndian.PutUint32(header[8:12], uint32(r.Type))
-	binary.LittleEndian.PutUint32(header[12:16], uint32(len(r.Value)))
+	binary.LittleEndian.PutUint32(hbuf[8:12], uint32(r.Type))
+	binary.LittleEndian.PutUint32(hbuf[12:16], uint32(len(r.Value)))
 
-	e.buf.Write(header)
+	e.buf.Write(hbuf)
 	e.buf.Write(r.Value)
 
 	crc := crc64.Checksum(e.buf.Bytes()[crc64.Size:], crc64Table)
@@ -104,7 +104,7 @@ func (d *decoder) DecodeAt(r *Record, off int64) (int64, error) {
 	d.buf.Reset()
 	var read int64
 
-	// Reading and parsing the header
+	// Reading and parsing the header.
 	d.buf.Grow(RecordHeaderLength)
 	hbuf := d.buf.Bytes()[:RecordHeaderLength]
 	n, err := d.src.ReadAt(hbuf, off)
@@ -117,7 +117,7 @@ func (d *decoder) DecodeAt(r *Record, off int64) (int64, error) {
 	d.buf.Write(hbuf)
 	header := parseHeader(hbuf)
 
-	// Reading and checking the payload.
+	// Reading the payload.
 	d.buf.Grow(RecordHeaderLength + int(header.size))
 	pbuf := d.buf.Bytes()[RecordHeaderLength : RecordHeaderLength+header.size]
 	n, err = d.src.ReadAt(pbuf, off+RecordHeaderLength)
@@ -125,6 +125,8 @@ func (d *decoder) DecodeAt(r *Record, off int64) (int64, error) {
 	if err != nil {
 		// An EOF is not expected here. It would indicate a short read,
 		// and thus definitely a checksum mismatch.
+		// TODO: This could actually indicate unrecoverable corruption of the log.
+		// Another error might be warranted here. Or panic.
 		if err == io.EOF {
 			return read, ErrChecksumMismatch
 		}
@@ -132,6 +134,7 @@ func (d *decoder) DecodeAt(r *Record, off int64) (int64, error) {
 	}
 	d.buf.Write(pbuf)
 
+	// CRC check on the entire record except for the CRC itself.
 	if header.crc != crc64.Checksum(d.buf.Bytes()[crc64.Size:], crc64Table) {
 		return read, ErrChecksumMismatch
 	}

@@ -1,6 +1,7 @@
 package storage
 
 import (
+	"errors"
 	"io"
 	"log"
 	"time"
@@ -13,6 +14,10 @@ const (
 	TypeEntry RecordType = iota
 	TypeHardState
 	TypeSnapshot
+)
+
+var (
+	ErrUnknownEntryType = errors.New("found unknown entry type")
 )
 
 // EntryPointer stores the offset of an Entry within the log's file.
@@ -62,6 +67,9 @@ func NewLog(r io.ReaderAt, w io.Writer) (*Log, error) {
 			if err != nil {
 				return nil, err
 			}
+
+		default:
+			return nil, ErrUnknownEntryType
 		}
 
 		l.cursor += n
