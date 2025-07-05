@@ -59,8 +59,10 @@ func NewLog(r io.ReaderAt, w io.Writer) *Log {
 	}
 
 	if len(l.entries) != 0 {
-		l.dec.DecodeAt(record, l.entries[0].Offset)
-		entry.Unmarshal(record.Value)
+		_, err := l.dec.DecodeAt(record, l.entries[0].Offset)
+		panicOnErr(err)
+		err = entry.Unmarshal(record.Value)
+		panicOnErr(err)
 
 		l.indexOffset = entry.Index
 	}

@@ -24,8 +24,14 @@ func tempLog(t *testing.T) (io.ReaderAt, io.Writer) {
 	AssertNoError(t, err).Require()
 
 	t.Cleanup(func() {
-		r.Close()
-		w.Close()
+		err := r.Close()
+		if err != nil {
+			t.Log("error closing read handler for temporary log:", err)
+		}
+		err = w.Close()
+		if err != nil {
+			t.Log("error closing write handler for temporary log:", err)
+		}
 	})
 
 	return r, w
@@ -34,7 +40,8 @@ func tempLog(t *testing.T) (io.ReaderAt, io.Writer) {
 func TestStorageEntries(t *testing.T) {
 	entries := index(3).terms(3, 4, 5, 5, 6, 7, 7, 7, 7, 8)
 	l := storage.NewLog(tempLog(t))
-	l.Append(entries)
+	err := l.Append(entries)
+	AssertNoError(t, err)
 
 	tc := []struct {
 		name        string
@@ -108,7 +115,8 @@ func TestStorageTerm(t *testing.T) {
 		for _, tt := range tests {
 			t.Run(tt.name, func(t *testing.T) {
 				l := storage.NewLog(tempLog(t))
-				l.Append(ents)
+				err := l.Append(ents)
+				AssertNoError(t, err)
 
 				term, err := l.Term(tt.i)
 				AssertErrorIs(t, err, tt.werr).Require()
@@ -146,10 +154,11 @@ func TestStorageEntries2(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run("", func(t *testing.T) {
-			s := storage.NewLog(tempLog(t))
-			s.Append(ents)
+			l := storage.NewLog(tempLog(t))
+			err := l.Append(ents)
+			AssertNoError(t, err)
 
-			entries, err := s.Entries(tt.lo, tt.hi, tt.maxsize)
+			entries, err := l.Entries(tt.lo, tt.hi, tt.maxsize)
 			AssertErrorIs(t, err, tt.werr)
 			require.Equal(t, tt.wentries, entries)
 		})
@@ -166,7 +175,8 @@ func TestStorageLastIndex(t *testing.T) {
 
 	entries := index(3).terms(3, 4, want)
 	want = entries[len(entries)-1].Index
-	l.Append(entries)
+	err = l.Append(entries)
+	AssertNoError(t, err)
 
 	got, err = l.LastIndex()
 	AssertNoError(t, err).Require()
@@ -190,7 +200,8 @@ func TestStorageFirstIndex(t *testing.T) {
 	t.Run("first index of a storage with entries is the index of the first entry", func(t *testing.T) {
 		entries := index(want).terms(5, 5, 6, 6, 7, 8)
 		want = entries[0].Index
-		l.Append(entries)
+		err := l.Append(entries)
+		AssertNoError(t, err)
 
 		got, err := l.FirstIndex()
 		AssertNoError(t, err).Require()
@@ -211,6 +222,7 @@ func TestSetHardState(t *testing.T) {
 	AssertNoError(t, err)
 
 	got, _, err := l.InitialState()
+	AssertNoError(t, err)
 	AssertStructsEqual(t, got, want)
 }
 
@@ -228,6 +240,7 @@ func TestApplySnapshot(t *testing.T) {
 	AssertNoError(t, err)
 
 	got, err := l.Snapshot()
+	AssertNoError(t, err)
 	AssertStructsEqual(t, got, want)
 }
 
