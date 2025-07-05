@@ -156,7 +156,9 @@ func (l *Log) Entries(lo, hi, maxSize uint64) ([]raftpb.Entry, error) {
 
 	for _, ptr := range l.entries[lo:hi] {
 		_, err = l.dec.DecodeAt(record, ptr.Offset)
-		panicOnErr(err)
+		if err != nil {
+			return nil, err
+		}
 
 		size += uint64(len(record.Value))
 		if size > maxSize && len(entries) != 0 {
@@ -165,7 +167,9 @@ func (l *Log) Entries(lo, hi, maxSize uint64) ([]raftpb.Entry, error) {
 
 		var entry raftpb.Entry
 		err = entry.Unmarshal(record.Value)
-		panicOnErr(err)
+		if err != nil {
+			return nil, err
+		}
 
 		entries = append(entries, entry)
 	}
@@ -178,9 +182,6 @@ func (l *Log) Entries(lo, hi, maxSize uint64) ([]raftpb.Entry, error) {
 // FirstIndex is retained for matching purposes even though the
 // rest of that entry may not be available.
 func (l *Log) Term(i uint64) (uint64, error) {
-	// TODO: Term is being called REALLY often, but keeping terms in memory
-	// along with indices would not increase memory usage much.
-	// I should refactor this so that it doesn't have to go to disk.
 	l.callStats.term++
 	if i == 0 && len(l.entries) == 0 {
 		return 0, nil
@@ -240,10 +241,14 @@ func (l *Log) SetHardState(hardState raftpb.HardState) error {
 		Value: make([]byte, hardState.Size()),
 	}
 	_, err := hardState.MarshalTo(record.Value)
-	panicOnErr(err)
+	if err != nil {
+		return err
+	}
 
 	n, err := l.enc.Encode(record)
-	panicOnErr(err)
+	if err != nil {
+		return err
+	}
 	l.cursor += n
 
 	l.hardState = hardState
@@ -258,10 +263,14 @@ func (l *Log) ApplySnapshot(snapshot raftpb.Snapshot) error {
 		Value: make([]byte, snapshot.Size()),
 	}
 	_, err := snapshot.MarshalTo(record.Value)
-	panicOnErr(err)
+	if err != nil {
+		return err
+	}
 
 	n, err := l.enc.Encode(record)
-	panicOnErr(err)
+	if err != nil {
+		return err
+	}
 	l.cursor += n
 
 	l.snapshot = snapshot
@@ -282,9 +291,13 @@ func (l *Log) Append(entries []raftpb.Entry) error {
 	for _, entry := range entries {
 		record := &Record{Type: TypeEntry, Value: make([]byte, entry.Size())}
 		_, err = entry.MarshalTo(record.Value)
-		panicOnErr(err)
+		if err != nil {
+			return err
+		}
 		n, err := l.enc.Encode(record)
-		panicOnErr(err)
+		if err != nil {
+			return err
+		}
 
 		l.entries = append(l.entries, EntryPointer{
 			Offset: l.cursor,
