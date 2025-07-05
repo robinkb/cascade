@@ -335,9 +335,3 @@ func (l *Log) Compact(i uint64) error {
 	l.callStats.compact++
 	return nil
 }
-
-func panicOnErr(err error) {
-	if err != nil {
-		panic(err)
-	}
-}
