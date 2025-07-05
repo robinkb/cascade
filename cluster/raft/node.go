@@ -6,6 +6,7 @@ import (
 	"log"
 	"net/netip"
 	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/robinkb/cascade-registry/cluster/raft/storage"
@@ -36,12 +37,13 @@ const (
 	storageMaxLogEntries = 1000
 )
 
-func NewNode(id uint64, addr netip.AddrPort, peers []Peer) Node {
-	w, err := os.OpenFile("raft.log", os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0644)
+func NewNode(id uint64, addr netip.AddrPort, peers []Peer, workDir string) Node {
+	logFile := filepath.Join(workDir, "raft.log")
+	w, err := os.OpenFile(logFile, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0644)
 	if err != nil {
 		panic(err)
 	}
-	r, err := os.OpenFile("raft.log", os.O_RDONLY, 0644)
+	r, err := os.OpenFile(logFile, os.O_RDONLY, 0644)
 	if err != nil {
 		panic(err)
 	}
@@ -90,11 +92,11 @@ type node struct {
 	raft       raft.Node
 	ticker     <-chan time.Time
 	manualTick chan time.Time
-	storage    *storage.Log
 	done       chan struct{}
 
-	mesh Mesh
 	Proposer
+	mesh    Mesh
+	storage *storage.Log
 }
 
 func (n *node) Start() {
