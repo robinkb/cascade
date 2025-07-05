@@ -39,8 +39,9 @@ func tempLog(t *testing.T) (io.ReaderAt, io.Writer) {
 
 func TestStorageEntries(t *testing.T) {
 	entries := index(3).terms(3, 4, 5, 5, 6, 7, 7, 7, 7, 8)
-	l := storage.NewLog(tempLog(t))
-	err := l.Append(entries)
+	l, err := storage.NewLog(tempLog(t))
+	AssertNoError(t, err).Require()
+	err = l.Append(entries)
 	AssertNoError(t, err)
 
 	tc := []struct {
@@ -75,10 +76,11 @@ func TestStorageEntries(t *testing.T) {
 
 func TestStorageTerm(t *testing.T) {
 	t.Run("for empty storage", func(t *testing.T) {
-		l := storage.NewLog(tempLog(t))
+		l, err := storage.NewLog(tempLog(t))
+		AssertNoError(t, err).Require()
 
 		fi, _ := l.FirstIndex()
-		_, err := l.Term(fi)
+		_, err = l.Term(fi)
 		AssertErrorIs(t, err, raft.ErrUnavailable)
 
 		li, _ := l.LastIndex()
@@ -114,8 +116,9 @@ func TestStorageTerm(t *testing.T) {
 
 		for _, tt := range tests {
 			t.Run(tt.name, func(t *testing.T) {
-				l := storage.NewLog(tempLog(t))
-				err := l.Append(ents)
+				l, err := storage.NewLog(tempLog(t))
+				AssertNoError(t, err).Require()
+				err = l.Append(ents)
 				AssertNoError(t, err)
 
 				term, err := l.Term(tt.i)
@@ -127,6 +130,7 @@ func TestStorageTerm(t *testing.T) {
 }
 
 func TestStorageEntries2(t *testing.T) {
+	// TODO: Still need to expand my own tests to cover size limiting
 	t.SkipNow()
 
 	ents := index(3).terms(3, 4, 5, 6)
@@ -154,8 +158,9 @@ func TestStorageEntries2(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run("", func(t *testing.T) {
-			l := storage.NewLog(tempLog(t))
-			err := l.Append(ents)
+			l, err := storage.NewLog(tempLog(t))
+			AssertNoError(t, err).Require()
+			err = l.Append(ents)
 			AssertNoError(t, err)
 
 			entries, err := l.Entries(tt.lo, tt.hi, tt.maxsize)
@@ -166,7 +171,8 @@ func TestStorageEntries2(t *testing.T) {
 }
 
 func TestStorageLastIndex(t *testing.T) {
-	l := storage.NewLog(tempLog(t))
+	l, err := storage.NewLog(tempLog(t))
+	AssertNoError(t, err).Require()
 
 	var want uint64
 	got, err := l.LastIndex()
@@ -184,7 +190,8 @@ func TestStorageLastIndex(t *testing.T) {
 }
 
 func TestStorageFirstIndex(t *testing.T) {
-	l := storage.NewLog(tempLog(t))
+	l, err := storage.NewLog(tempLog(t))
+	AssertNoError(t, err).Require()
 	var want uint64
 
 	t.Run("first index of an empty storage is 1", func(t *testing.T) {
@@ -210,7 +217,8 @@ func TestStorageFirstIndex(t *testing.T) {
 }
 
 func TestSetHardState(t *testing.T) {
-	l := storage.NewLog(tempLog(t))
+	l, err := storage.NewLog(tempLog(t))
+	AssertNoError(t, err).Require()
 
 	want := raftpb.HardState{
 		Term:   rand.Uint64(),
@@ -218,7 +226,7 @@ func TestSetHardState(t *testing.T) {
 		Commit: rand.Uint64(),
 	}
 
-	err := l.SetHardState(want)
+	err = l.SetHardState(want)
 	AssertNoError(t, err)
 
 	got, _, err := l.InitialState()
@@ -227,7 +235,8 @@ func TestSetHardState(t *testing.T) {
 }
 
 func TestApplySnapshot(t *testing.T) {
-	l := storage.NewLog(tempLog(t))
+	l, err := storage.NewLog(tempLog(t))
+	AssertNoError(t, err).Require()
 
 	want := raftpb.Snapshot{
 		Metadata: raftpb.SnapshotMetadata{
@@ -236,7 +245,7 @@ func TestApplySnapshot(t *testing.T) {
 		},
 	}
 
-	err := l.ApplySnapshot(want)
+	err = l.ApplySnapshot(want)
 	AssertNoError(t, err)
 
 	got, err := l.Snapshot()
@@ -247,7 +256,9 @@ func TestApplySnapshot(t *testing.T) {
 func TestPersistence(t *testing.T) {
 	r, w := tempLog(t)
 
-	oldLog := storage.NewLog(r, w)
+	oldLog, err := storage.NewLog(r, w)
+	AssertNoError(t, err).Require()
+
 	want := struct {
 		hardState raftpb.HardState
 		snapshot  raftpb.Snapshot
@@ -258,14 +269,16 @@ func TestPersistence(t *testing.T) {
 		entries:   index(3).terms(3, 4, 5, 6, 7),
 	}
 
-	err := oldLog.SetHardState(want.hardState)
+	err = oldLog.SetHardState(want.hardState)
 	AssertNoError(t, err).Require()
 	err = oldLog.ApplySnapshot(want.snapshot)
 	AssertNoError(t, err).Require()
 	err = oldLog.Append(want.entries)
 	AssertNoError(t, err).Require()
 
-	newLog := storage.NewLog(r, w)
+	newLog, err := storage.NewLog(r, w)
+	AssertNoError(t, err).Require()
+
 	gotHardState, gotConfState, err := newLog.InitialState()
 	AssertNoError(t, err).Require()
 	AssertStructsEqual(t, gotHardState, want.hardState)
@@ -274,6 +287,7 @@ func TestPersistence(t *testing.T) {
 	lo, err := newLog.FirstIndex()
 	AssertNoError(t, err)
 	AssertEqual(t, lo, want.entries[0].Index)
+
 	hi, err := newLog.LastIndex()
 	AssertNoError(t, err)
 	AssertEqual(t, hi, want.entries[len(want.entries)-1].Index)

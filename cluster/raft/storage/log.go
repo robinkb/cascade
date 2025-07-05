@@ -24,7 +24,7 @@ type EntryPointer struct {
 	Term   uint64
 }
 
-func NewLog(r io.ReaderAt, w io.Writer) *Log {
+func NewLog(r io.ReaderAt, w io.Writer) (*Log, error) {
 	l := &Log{
 		enc:     NewEncoder(w),
 		dec:     NewDecoder(r),
@@ -42,17 +42,26 @@ func NewLog(r io.ReaderAt, w io.Writer) *Log {
 		switch record.Type {
 		case TypeEntry:
 			err := entry.Unmarshal(record.Value)
-			panicOnErr(err)
+			if err != nil {
+				return nil, err
+			}
+
 			l.entries = append(l.entries, EntryPointer{
 				Offset: l.cursor,
 				Term:   entry.Term,
 			})
+
 		case TypeHardState:
 			err := l.hardState.Unmarshal(record.Value)
-			panicOnErr(err)
+			if err != nil {
+				return nil, err
+			}
+
 		case TypeSnapshot:
 			err := l.snapshot.Unmarshal(record.Value)
-			panicOnErr(err)
+			if err != nil {
+				return nil, err
+			}
 		}
 
 		l.cursor += n
@@ -60,9 +69,14 @@ func NewLog(r io.ReaderAt, w io.Writer) *Log {
 
 	if len(l.entries) != 0 {
 		_, err := l.dec.DecodeAt(record, l.entries[0].Offset)
-		panicOnErr(err)
+		if err != nil {
+			return nil, err
+		}
+
 		err = entry.Unmarshal(record.Value)
-		panicOnErr(err)
+		if err != nil {
+			return nil, err
+		}
 
 		l.indexOffset = entry.Index
 	}
@@ -78,7 +92,7 @@ func NewLog(r io.ReaderAt, w io.Writer) *Log {
 		}
 	}()
 
-	return l
+	return l, nil
 }
 
 type Log struct {

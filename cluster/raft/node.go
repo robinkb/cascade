@@ -37,6 +37,7 @@ const (
 	storageMaxLogEntries = 1000
 )
 
+// TODO: NewNode should return an error instead of panicking? Probably?
 func NewNode(id uint64, addr netip.AddrPort, peers []Peer, workDir string) Node {
 	logFile := filepath.Join(workDir, "raft.log")
 	w, err := os.OpenFile(logFile, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0644)
@@ -48,7 +49,11 @@ func NewNode(id uint64, addr netip.AddrPort, peers []Peer, workDir string) Node 
 		panic(err)
 	}
 
-	storage := storage.NewLog(r, w)
+	storage, err := storage.NewLog(r, w)
+	if err != nil {
+		panic(err)
+	}
+
 	conf := raft.Config{
 		ID:                id,
 		ElectionTick:      10,
