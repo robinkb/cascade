@@ -5,8 +5,11 @@ import (
 	"errors"
 	"log"
 	"net/netip"
+	"os"
+	"path/filepath"
 	"time"
 
+	"github.com/robinkb/cascade-registry/cluster/raft/storage"
 	"go.etcd.io/raft/v3"
 	"go.etcd.io/raft/v3/raftpb"
 )
@@ -34,8 +37,23 @@ const (
 	storageMaxLogEntries = 1000
 )
 
-func NewNode(id uint64, addr netip.AddrPort, peers []Peer) Node {
-	storage := raft.NewMemoryStorage()
+// TODO: NewNode should return an error instead of panicking? Probably?
+func NewNode(id uint64, addr netip.AddrPort, peers []Peer, workDir string) Node {
+	logFile := filepath.Join(workDir, "raft.log")
+	w, err := os.OpenFile(logFile, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0644)
+	if err != nil {
+		panic(err)
+	}
+	r, err := os.OpenFile(logFile, os.O_RDONLY, 0644)
+	if err != nil {
+		panic(err)
+	}
+
+	storage, err := storage.NewLog(r, w)
+	if err != nil {
+		panic(err)
+	}
+
 	conf := raft.Config{
 		ID:                id,
 		ElectionTick:      10,
@@ -79,11 +97,11 @@ type node struct {
 	raft       raft.Node
 	ticker     <-chan time.Time
 	manualTick chan time.Time
-	storage    *raft.MemoryStorage
 	done       chan struct{}
 
-	mesh Mesh
 	Proposer
+	mesh    Mesh
+	storage *storage.Log
 }
 
 func (n *node) Start() {

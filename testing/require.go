@@ -5,7 +5,7 @@ import "testing"
 func RequireNoError(t *testing.T, err error) {
 	t.Helper()
 
-	if !AssertNoError(t, err) {
+	if !AssertNoError(t, err).success {
 		t.FailNow()
 	}
 }

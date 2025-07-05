@@ -17,27 +17,38 @@ import (
 	"github.com/robinkb/cascade-registry/repository"
 )
 
-func AssertErrorIs(t *testing.T, got, want error) bool {
+type Result struct {
+	t       *testing.T
+	success bool
+}
+
+func (r *Result) Require() {
+	if !r.success {
+		r.t.FailNow()
+	}
+}
+
+func AssertErrorIs(t *testing.T, got, want error) *Result {
 	t.Helper()
 
 	if !errors.Is(got, want) {
 		t.Errorf("unexpected error: got %q, want %q", got, want)
-		return false
+		return &Result{t, false}
 	}
-	return true
+	return &Result{t, true}
 }
 
-func AssertNoError(t *testing.T, got error) bool {
+func AssertNoError(t *testing.T, got error) *Result {
 	t.Helper()
 
 	if got != nil {
 		t.Errorf("unexpected error: %s", got)
-		return false
+		return &Result{t, false}
 	}
-	return true
+	return &Result{t, true}
 }
 
-func AssertResponseCode(t *testing.T, got *http.Response, want int) bool {
+func AssertResponseCode(t *testing.T, got *http.Response, want int) *Result {
 	t.Helper()
 
 	if got.StatusCode != want {
@@ -45,12 +56,12 @@ func AssertResponseCode(t *testing.T, got *http.Response, want int) bool {
 			httpStatusText(got.StatusCode),
 			httpStatusText(want),
 		)
-		return false
+		return &Result{t, false}
 	}
-	return true
+	return &Result{t, true}
 }
 
-func AssertResponseHeader(t *testing.T, got *http.Response, header string, want ...string) bool {
+func AssertResponseHeader(t *testing.T, got *http.Response, header string, want ...string) *Result {
 	t.Helper()
 
 	// Normalize header name, because they are supposed to be case-insensitive.
@@ -60,17 +71,17 @@ func AssertResponseHeader(t *testing.T, got *http.Response, header string, want 
 	val, ok := got.Header[header]
 	if !ok {
 		t.Errorf("header %q is not set", header)
-		return false
+		return &Result{t, false}
 	}
 
 	if !slices.Equal(val, want) {
 		t.Errorf("unexpected value for header %q; got %q, want %q", header, val, want)
-		return false
+		return &Result{t, false}
 	}
-	return true
+	return &Result{t, true}
 }
 
-func AssertResponseHeaderSet(t *testing.T, got *http.Response, header string) bool {
+func AssertResponseHeaderSet(t *testing.T, got *http.Response, header string) *Result {
 	t.Helper()
 
 	header = textproto.CanonicalMIMEHeaderKey(header)
@@ -78,12 +89,12 @@ func AssertResponseHeaderSet(t *testing.T, got *http.Response, header string) bo
 	_, ok := got.Header[header]
 	if !ok {
 		t.Errorf("header %q is not set", header)
-		return false
+		return &Result{t, false}
 	}
-	return true
+	return &Result{t, true}
 }
 
-func AssertResponseHeaderUnset(t *testing.T, got *http.Response, header string) bool {
+func AssertResponseHeaderUnset(t *testing.T, got *http.Response, header string) *Result {
 	t.Helper()
 
 	header = textproto.CanonicalMIMEHeaderKey(header)
@@ -91,50 +102,50 @@ func AssertResponseHeaderUnset(t *testing.T, got *http.Response, header string) 
 	_, ok := got.Header[header]
 	if ok {
 		t.Errorf("header %q is set", header)
-		return false
+		return &Result{t, false}
 	}
-	return true
+	return &Result{t, true}
 }
 
-func AssertResponseBodyEquals(t *testing.T, got *http.Response, want []byte) bool {
+func AssertResponseBodyEquals(t *testing.T, got *http.Response, want []byte) *Result {
 	t.Helper()
 
 	data, err := io.ReadAll(got.Body)
 	if err != nil {
 		t.Fatalf("unexpected error while reading response body: %s", err)
-		return false
+		return &Result{t, false}
 	}
 
 	if !bytes.Equal(data, want) {
 		t.Errorf("request did not return the expected content")
-		return false
+		return &Result{t, false}
 	}
-	return true
+	return &Result{t, true}
 }
 
-func AssertResponseBodyUnmarshals[T any](t *testing.T, got *http.Response, obj T) bool {
+func AssertResponseBodyUnmarshals[T any](t *testing.T, got *http.Response, obj T) *Result {
 	t.Helper()
 
 	data, err := io.ReadAll(got.Body)
 	if err != nil {
 		t.Fatalf("unexpected error while reading response body: %s", err)
-		return false
+		return &Result{t, false}
 	}
 
 	err = json.Unmarshal(data, obj)
 	if err != nil {
 		t.Errorf("could not unmarshal response body as %T: %s", obj, err)
-		return false
+		return &Result{t, false}
 	}
-	return true
+	return &Result{t, true}
 }
 
-func AssertResponseBodyContainsError(t *testing.T, got *http.Response, want repository.Error) bool {
+func AssertResponseBodyContainsError(t *testing.T, got *http.Response, want repository.Error) *Result {
 	t.Helper()
 
 	if got.Body == nil || got.Body == http.NoBody {
 		t.Errorf("response body is empty while expecting error")
-		return false
+		return &Result{t, false}
 	}
 
 	var errs repository.ErrorResponse
@@ -143,20 +154,20 @@ func AssertResponseBodyContainsError(t *testing.T, got *http.Response, want repo
 
 	for _, err := range errs.Errors {
 		if errors.Is(err, want) {
-			return true
+			return &Result{t, true}
 		}
 	}
 
 	t.Errorf("could not find error in response body; got %q, want %q", errs, want)
-	return false
+	return &Result{t, false}
 }
 
-func AssertIndex(t *testing.T, got, want *v1.Index) bool {
+func AssertIndex(t *testing.T, got, want *v1.Index) *Result {
 	t.Helper()
 
 	if len(got.Manifests) != len(want.Manifests) {
 		t.Errorf("unexpected descriptor count; got %d, want %d", len(got.Manifests), len(want.Manifests))
-		return false
+		return &Result{t, false}
 	}
 
 	slices.SortStableFunc(got.Manifests, descriptorSortFunc)
@@ -166,60 +177,60 @@ func AssertIndex(t *testing.T, got, want *v1.Index) bool {
 		gotDescriptor := got.Manifests[i]
 		wantDescriptor := want.Manifests[i]
 
-		if !AssertStructsEqual(t, gotDescriptor, wantDescriptor) {
-			return false
+		if !AssertStructsEqual(t, gotDescriptor, wantDescriptor).success {
+			return &Result{t, false}
 		}
 	}
 
-	return true
+	return &Result{t, true}
 }
 
-func AssertEqual[T comparable](t *testing.T, got, want T) bool {
+func AssertEqual[T comparable](t *testing.T, got, want T) *Result {
 	t.Helper()
 
 	if got != want {
 		t.Errorf("values are not equal; got %v, want %v", got, want)
-		return false
+		return &Result{t, false}
 	}
 
-	return true
+	return &Result{t, true}
 }
 
-func AssertSlicesEqual[S ~[]E, E comparable](t *testing.T, got S, want S) bool {
+func AssertSlicesEqual[S ~[]E, E comparable](t *testing.T, got S, want S) *Result {
 	t.Helper()
 
 	if len(got) != len(want) {
 		t.Errorf("slices are of unequal length; got %d, want %d", len(got), len(want))
-		return false
+		return &Result{t, false}
 	}
 
 	if !slices.Equal(got, want) {
 		t.Errorf("slices are not equal;\ngot\n%v\nwant\n%v", got, want)
-		return false
+		return &Result{t, false}
 	}
-	return true
+	return &Result{t, true}
 }
 
-func AssertMapsEqual[M1, M2 ~map[K]V, K, V comparable](t *testing.T, got M1, want M2) bool {
+func AssertMapsEqual[M1, M2 ~map[K]V, K, V comparable](t *testing.T, got M1, want M2) *Result {
 	t.Helper()
 
 	if !maps.Equal(got, want) {
 		t.Errorf("maps are not equal; got %+v, want %+v", got, want)
-		return false
+		return &Result{t, false}
 	}
 
-	return true
+	return &Result{t, true}
 }
 
-func AssertStructsEqual(t *testing.T, got, want any) bool {
+func AssertStructsEqual(t *testing.T, got, want any) *Result {
 	t.Helper()
 
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("structs are not equal;\ngot:\n%+v\nwant:\n%+v", got, want)
-		return false
+		return &Result{t, false}
 	}
 
-	return true
+	return &Result{t, true}
 }
 
 func httpStatusText(code int) string {
