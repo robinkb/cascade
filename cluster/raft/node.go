@@ -49,7 +49,7 @@ func NewNode(id uint64, addr netip.AddrPort, peers []Peer, workDir string) Node 
 		panic(err)
 	}
 
-	storage, err := storage.NewLog(r, w)
+	storage, err := storage.NewLogStorage(r, w)
 	if err != nil {
 		panic(err)
 	}
@@ -101,7 +101,7 @@ type node struct {
 
 	Proposer
 	mesh    Mesh
-	storage *storage.Log
+	storage *storage.LogStorage
 }
 
 func (n *node) Start() {

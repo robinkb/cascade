@@ -29,8 +29,8 @@ type EntryPointer struct {
 	Term   uint64
 }
 
-func NewLog(r io.ReaderAt, w io.Writer) (*Log, error) {
-	l := &Log{
+func NewLogStorage(r io.ReaderAt, w io.Writer) (*LogStorage, error) {
+	l := &LogStorage{
 		enc:     NewEncoder(w),
 		dec:     NewDecoder(r),
 		entries: make([]EntryPointer, 0),
@@ -103,7 +103,7 @@ func NewLog(r io.ReaderAt, w io.Writer) (*Log, error) {
 	return l, nil
 }
 
-type Log struct {
+type LogStorage struct {
 	enc Encoder
 	dec Decoder
 
@@ -138,7 +138,7 @@ type Log struct {
 	}
 }
 
-func (l *Log) InitialState() (raftpb.HardState, raftpb.ConfState, error) {
+func (l *LogStorage) InitialState() (raftpb.HardState, raftpb.ConfState, error) {
 	l.callStats.initialState++
 	return l.hardState, l.snapshot.Metadata.ConfState, nil
 }
@@ -162,7 +162,7 @@ func (l *Log) InitialState() (raftpb.HardState, raftpb.ConfState, error) {
 //
 // Returns ErrCompacted if entry lo has been compacted, or ErrUnavailable if
 // encountered an unavailable entry in [lo, hi).
-func (l *Log) Entries(lo, hi, maxSize uint64) ([]raftpb.Entry, error) {
+func (l *LogStorage) Entries(lo, hi, maxSize uint64) ([]raftpb.Entry, error) {
 	l.callStats.entries++
 	if lo < l.firstIndex() {
 		return nil, raft.ErrCompacted
@@ -203,7 +203,7 @@ func (l *Log) Entries(lo, hi, maxSize uint64) ([]raftpb.Entry, error) {
 // [FirstIndex()-1, LastIndex()]. The term of the entry before
 // FirstIndex is retained for matching purposes even though the
 // rest of that entry may not be available.
-func (l *Log) Term(i uint64) (uint64, error) {
+func (l *LogStorage) Term(i uint64) (uint64, error) {
 	l.callStats.term++
 	if i == 0 && len(l.entries) == 0 {
 		return 0, nil
@@ -221,12 +221,12 @@ func (l *Log) Term(i uint64) (uint64, error) {
 }
 
 // LastIndex returns the index of the last entry in the log.
-func (l *Log) LastIndex() (uint64, error) {
+func (l *LogStorage) LastIndex() (uint64, error) {
 	l.callStats.lastIndex++
 	return l.lastIndex(), nil
 }
 
-func (l *Log) lastIndex() uint64 {
+func (l *LogStorage) lastIndex() uint64 {
 	if len(l.entries) == 0 {
 		return l.indexOffset
 	}
@@ -236,12 +236,12 @@ func (l *Log) lastIndex() uint64 {
 // FirstIndex returns the index of the first log entry that is
 // possibly available via Entries (older entries have been incorporated
 // into the latest Snapshot).
-func (l *Log) FirstIndex() (uint64, error) {
+func (l *LogStorage) FirstIndex() (uint64, error) {
 	l.callStats.firstIndex++
 	return l.firstIndex(), nil
 }
 
-func (l *Log) firstIndex() uint64 {
+func (l *LogStorage) firstIndex() uint64 {
 	// Makes no sense, but here we are. This is how Raft's MemoryStorage works.
 	// The Raft Node will refuse to start up without it.
 	if len(l.entries) == 0 {
@@ -250,12 +250,12 @@ func (l *Log) firstIndex() uint64 {
 	return l.indexOffset
 }
 
-func (l *Log) Snapshot() (raftpb.Snapshot, error) {
+func (l *LogStorage) Snapshot() (raftpb.Snapshot, error) {
 	l.callStats.snapshot++
 	return l.snapshot, nil
 }
 
-func (l *Log) SetHardState(hardState raftpb.HardState) error {
+func (l *LogStorage) SetHardState(hardState raftpb.HardState) error {
 	l.callStats.setHardState++
 
 	record := &Record{
@@ -277,7 +277,7 @@ func (l *Log) SetHardState(hardState raftpb.HardState) error {
 	return nil
 }
 
-func (l *Log) ApplySnapshot(snapshot raftpb.Snapshot) error {
+func (l *LogStorage) ApplySnapshot(snapshot raftpb.Snapshot) error {
 	l.callStats.applySnapshot++
 
 	record := &Record{
@@ -299,7 +299,7 @@ func (l *Log) ApplySnapshot(snapshot raftpb.Snapshot) error {
 	return nil
 }
 
-func (l *Log) Append(entries []raftpb.Entry) error {
+func (l *LogStorage) Append(entries []raftpb.Entry) error {
 	l.callStats.append++
 	if len(entries) == 0 {
 		return nil
@@ -331,7 +331,57 @@ func (l *Log) Append(entries []raftpb.Entry) error {
 	return nil
 }
 
-func (l *Log) Compact(i uint64) error {
+func (l *LogStorage) Compact(i uint64) error {
 	l.callStats.compact++
 	return nil
+}
+
+type Log struct {
+	enc Encoder
+	dec Decoder
+	// cursor tracks the position of writes to the log.
+	// The log is only ever appended, and cursor only ever increases.
+	cursor int64
+	// read tracks wether or not the Log has been fully read.
+	// It cannot be appended to until it's been read in full.
+	read bool
+}
+
+func (l *Log) Append(r *Record) (int64, error) {
+	if !l.read {
+		return 0, errors.New("log must be read before being appended to")
+	}
+
+	n, err := l.enc.Encode(r)
+	l.cursor += n
+	return l.cursor, err
+}
+
+func (l *Log) ReadAt(r *Record, offset int64) (int64, error) {
+	return l.dec.DecodeAt(r, offset)
+}
+
+func (l *Log) ReadAll() chan<- *Record {
+	ch := make(chan *Record)
+	r := new(Record)
+
+	go func() {
+		for {
+			n, err := l.dec.DecodeAt(r, l.cursor)
+			if err != nil {
+				if err == io.EOF {
+					break
+				}
+				log.Panicln("error while reading log:", err)
+			}
+
+			ch <- r
+			l.cursor += n
+		}
+
+		l.read = true
+		close(ch)
+	}()
+
+	return ch
 }
