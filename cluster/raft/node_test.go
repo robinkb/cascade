@@ -18,7 +18,7 @@ import (
 	. "github.com/robinkb/cascade-registry/testing"
 )
 
-func newTestCluster(n int) ([]raft.Node, []store.Blobs, []store.Metadata) {
+func newTestCluster(t *testing.T, n int) ([]raft.Node, []store.Blobs, []store.Metadata) {
 	peers := make([]raft.Peer, n)
 	nodes := make([]raft.Node, n)
 	blobs := make([]store.Blobs, n)
@@ -38,6 +38,7 @@ func newTestCluster(n int) ([]raft.Node, []store.Blobs, []store.Metadata) {
 			peers[i].ID,
 			peers[i].AddrPort,
 			peers,
+			t.TempDir(),
 		)
 		blobs[i] = storecluster.NewBlobStore(nodes[i], inmemory.NewBlobStore())
 		metadata[i] = storecluster.NewMetadataStore(nodes[i], inmemory.NewMetadataStore())
@@ -62,7 +63,7 @@ func snapElections(nodes []raft.Node) {
 }
 
 func TestRaftClusterFormation(t *testing.T) {
-	nodes, _, _ := newTestCluster(3)
+	nodes, _, _ := newTestCluster(t, 3)
 
 	for _, n := range nodes {
 		AssertEqual(t, n.ClusterStatus().Clustered, false)
@@ -78,7 +79,7 @@ func TestRaftClusterFormation(t *testing.T) {
 
 func TestBlobReplication(t *testing.T) {
 	t.Parallel()
-	nodes, blobs, _ := newTestCluster(3)
+	nodes, blobs, _ := newTestCluster(t, 3)
 	for _, n := range nodes {
 		n.Start()
 	}
@@ -166,7 +167,7 @@ func TestBlobReplication(t *testing.T) {
 
 func TestMetadataReplication(t *testing.T) {
 	t.Parallel()
-	nodes, _, metadata := newTestCluster(3)
+	nodes, _, metadata := newTestCluster(t, 3)
 	for _, n := range nodes {
 		n.Start()
 	}

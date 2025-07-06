@@ -7,11 +7,11 @@ toolchain go1.24.3
 require (
 	github.com/gofrs/uuid/v5 v5.3.2
 	github.com/golang/protobuf v1.5.4
-	github.com/moby/moby v28.2.2+incompatible
+	github.com/moby/moby v28.3.0+incompatible
 	github.com/opencontainers/go-digest v1.0.0
 	github.com/opencontainers/image-spec v1.1.1
 	github.com/stretchr/testify v1.10.0
-	go.etcd.io/bbolt v1.4.1
+	go.etcd.io/bbolt v1.4.2
 	go.etcd.io/raft/v3 v3.6.0
 )
 

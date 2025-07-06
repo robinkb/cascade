@@ -58,7 +58,7 @@ func main() {
 			}
 		}
 
-		node := raft.NewNode(uint64(raftId), addr, peers)
+		node := raft.NewNode(uint64(raftId), addr, peers, path)
 		metadata = clusterstore.NewMetadataStore(node, metadata)
 		blobs = clusterstore.NewBlobStore(node, blobs)
 		node.Start()

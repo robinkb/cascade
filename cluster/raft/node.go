@@ -2,11 +2,14 @@ package raft
 
 import (
 	"context"
+	"errors"
 	"log"
-	"math"
 	"net/netip"
+	"os"
+	"path/filepath"
 	"time"
 
+	"github.com/robinkb/cascade-registry/cluster/raft/storage"
 	"go.etcd.io/raft/v3"
 	"go.etcd.io/raft/v3/raftpb"
 )
@@ -30,15 +33,35 @@ type (
 	}
 )
 
-func NewNode(id uint64, addr netip.AddrPort, peers []Peer) Node {
-	storage := raft.NewMemoryStorage()
+const (
+	storageMaxLogEntries = 1000
+)
+
+// TODO: NewNode should return an error instead of panicking? Probably?
+func NewNode(id uint64, addr netip.AddrPort, peers []Peer, workDir string) Node {
+	logFile := filepath.Join(workDir, "raft.log")
+	w, err := os.OpenFile(logFile, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0644)
+	if err != nil {
+		panic(err)
+	}
+	r, err := os.OpenFile(logFile, os.O_RDONLY, 0644)
+	if err != nil {
+		panic(err)
+	}
+
+	storage, err := storage.NewLog(r, w)
+	if err != nil {
+		panic(err)
+	}
+
 	conf := raft.Config{
 		ID:                 id,
 		ElectionTick:       10,
 		HeartbeatTick:      1,
 		Storage:            storage,
-		MaxSizePerMsg:      math.MaxUint16,
+		MaxSizePerMsg:      64 << 10,
 		MaxInflightMsgs:    256,
+		StepDownOnRemoval:  true,
 		AsyncStorageWrites: true,
 	}
 
@@ -78,14 +101,14 @@ type node struct {
 	raft       raft.Node
 	ticker     <-chan time.Time
 	manualTick chan time.Time
-	storage    *raft.MemoryStorage
 	done       chan struct{}
 
 	append chan raftpb.Message
 	apply  chan raftpb.Message
 
-	mesh Mesh
 	Proposer
+	mesh    Mesh
+	storage *storage.Log
 }
 
 func (n *node) Start() {
@@ -210,6 +233,17 @@ func (n *node) saveToStorage(hardState raftpb.HardState, entries []raftpb.Entry,
 	if snapshot != nil && !raft.IsEmptySnap(*snapshot) {
 		if err := n.storage.ApplySnapshot(*snapshot); err != nil {
 			log.Panicf("failed to apply snapshot: %s\n", err)
+		}
+	}
+}
+
+func (n *node) compact() {
+	// This can't actually fail with in-memory raft storage.
+	li, _ := n.storage.LastIndex()
+	if li > storageMaxLogEntries {
+		err := n.storage.Compact(li - storageMaxLogEntries)
+		if err != nil && !errors.Is(err, raft.ErrCompacted) {
+			log.Panicln("unexpected error while compacting raft log:", err)
 		}
 	}
 }
