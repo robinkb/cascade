@@ -48,7 +48,7 @@ func TestLogReadAll(t *testing.T) {
 	}
 
 	for i := range want {
-		_, err := l.Append(want[i])
+		err := l.Append(want[i])
 		AssertNoError(t, err).Require()
 	}
 

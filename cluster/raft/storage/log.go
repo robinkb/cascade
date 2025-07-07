@@ -72,7 +72,7 @@ func NewLogStorage(r io.ReaderAt, w io.Writer) (*LogStorage, error) {
 
 	if len(l.entries) != 0 {
 		record := new(Record)
-		_, err := l.log.ReadAt(record, l.entries[0].Offset)
+		err := l.log.ReadAt(record, l.entries[0].Offset)
 		if err != nil {
 			return nil, err
 		}
@@ -168,7 +168,7 @@ func (l *LogStorage) Entries(lo, hi, maxSize uint64) ([]raftpb.Entry, error) {
 	record := new(Record)
 
 	for _, ptr := range l.entries[lo:hi] {
-		_, err = l.log.ReadAt(record, ptr.Offset)
+		err = l.log.ReadAt(record, ptr.Offset)
 		if err != nil {
 			return nil, err
 		}
@@ -258,7 +258,7 @@ func (l *LogStorage) SetHardState(hardState raftpb.HardState) error {
 		return err
 	}
 
-	_, err = l.log.Append(record)
+	err = l.log.Append(record)
 	if err != nil {
 		return err
 	}
@@ -279,7 +279,7 @@ func (l *LogStorage) ApplySnapshot(snapshot raftpb.Snapshot) error {
 		return err
 	}
 
-	_, err = l.log.Append(record)
+	err = l.log.Append(record)
 	if err != nil {
 		return err
 	}
@@ -306,7 +306,7 @@ func (l *LogStorage) Append(entries []raftpb.Entry) error {
 			return err
 		}
 
-		_, err = l.log.Append(record)
+		err = l.log.Append(record)
 		if err != nil {
 			return err
 		}
@@ -343,14 +343,15 @@ type Log struct {
 	pointer int64
 }
 
-func (l *Log) Append(r *Record) (int64, error) {
+func (l *Log) Append(r *Record) error {
 	n, err := l.enc.Encode(r)
 	l.advance(n)
-	return n, err
+	return err
 }
 
-func (l *Log) ReadAt(r *Record, offset int64) (int64, error) {
-	return l.dec.DecodeAt(r, offset)
+func (l *Log) ReadAt(r *Record, offset int64) error {
+	_, err := l.dec.DecodeAt(r, offset)
+	return err
 }
 
 func (l *Log) ReadAll() iter.Seq[*Record] {
