@@ -3,6 +3,7 @@ package storage
 import (
 	"errors"
 	"io"
+	"iter"
 	"log"
 	"time"
 
@@ -31,19 +32,15 @@ type EntryPointer struct {
 
 func NewLogStorage(r io.ReaderAt, w io.Writer) (*LogStorage, error) {
 	l := &LogStorage{
-		enc:     NewEncoder(w),
-		dec:     NewDecoder(r),
+		log: Log{
+			enc: NewEncoder(w),
+			dec: NewDecoder(r),
+		},
 		entries: make([]EntryPointer, 0),
 	}
 
-	record := new(Record)
 	var entry raftpb.Entry
-	for {
-		n, err := l.dec.DecodeAt(record, l.cursor)
-		if err == io.EOF {
-			break
-		}
-
+	for record := range l.log.ReadAll() {
 		switch record.Type {
 		case TypeEntry:
 			err := entry.Unmarshal(record.Value)
@@ -52,7 +49,7 @@ func NewLogStorage(r io.ReaderAt, w io.Writer) (*LogStorage, error) {
 			}
 
 			l.entries = append(l.entries, EntryPointer{
-				Offset: l.cursor,
+				Offset: l.log.Pointer(),
 				Term:   entry.Term,
 			})
 
@@ -71,12 +68,11 @@ func NewLogStorage(r io.ReaderAt, w io.Writer) (*LogStorage, error) {
 		default:
 			return nil, ErrUnknownEntryType
 		}
-
-		l.cursor += n
 	}
 
 	if len(l.entries) != 0 {
-		_, err := l.dec.DecodeAt(record, l.entries[0].Offset)
+		record := new(Record)
+		_, err := l.log.ReadAt(record, l.entries[0].Offset)
 		if err != nil {
 			return nil, err
 		}
@@ -104,8 +100,7 @@ func NewLogStorage(r io.ReaderAt, w io.Writer) (*LogStorage, error) {
 }
 
 type LogStorage struct {
-	enc Encoder
-	dec Decoder
+	log Log
 
 	hardState raftpb.HardState
 	snapshot  raftpb.Snapshot
@@ -114,10 +109,6 @@ type LogStorage struct {
 	// It is assumed that the Index of every Entry is sequential and without gaps.
 	// It also stores each Entry's Term as an optimization.
 	entries []EntryPointer
-	// cursor tracks the position of our writes to the log file.
-	// It is used to construct the location of Entries in the log file as stored
-	// in the entries slice. The log is only ever appended, and cursor only ever increases.
-	cursor int64
 	// indexOffset stores the index of the oldest entry in the log.
 	indexOffset uint64
 
@@ -177,7 +168,7 @@ func (l *LogStorage) Entries(lo, hi, maxSize uint64) ([]raftpb.Entry, error) {
 	record := new(Record)
 
 	for _, ptr := range l.entries[lo:hi] {
-		_, err = l.dec.DecodeAt(record, ptr.Offset)
+		_, err = l.log.ReadAt(record, ptr.Offset)
 		if err != nil {
 			return nil, err
 		}
@@ -267,11 +258,10 @@ func (l *LogStorage) SetHardState(hardState raftpb.HardState) error {
 		return err
 	}
 
-	n, err := l.enc.Encode(record)
+	_, err = l.log.Append(record)
 	if err != nil {
 		return err
 	}
-	l.cursor += n
 
 	l.hardState = hardState
 	return nil
@@ -289,11 +279,10 @@ func (l *LogStorage) ApplySnapshot(snapshot raftpb.Snapshot) error {
 		return err
 	}
 
-	n, err := l.enc.Encode(record)
+	_, err = l.log.Append(record)
 	if err != nil {
 		return err
 	}
-	l.cursor += n
 
 	l.snapshot = snapshot
 	return nil
@@ -316,16 +305,16 @@ func (l *LogStorage) Append(entries []raftpb.Entry) error {
 		if err != nil {
 			return err
 		}
-		n, err := l.enc.Encode(record)
+
+		_, err = l.log.Append(record)
 		if err != nil {
 			return err
 		}
 
 		l.entries = append(l.entries, EntryPointer{
-			Offset: l.cursor,
+			Offset: l.log.Pointer(),
 			Term:   entry.Term,
 		})
-		l.cursor += n
 	}
 
 	return nil
@@ -336,52 +325,64 @@ func (l *LogStorage) Compact(i uint64) error {
 	return nil
 }
 
+func NewLog(r io.ReaderAt, w io.Writer) *Log {
+	return &Log{
+		enc: NewEncoder(w),
+		dec: NewDecoder(r),
+	}
+}
+
 type Log struct {
 	enc Encoder
 	dec Decoder
 	// cursor tracks the position of writes to the log.
 	// The log is only ever appended, and cursor only ever increases.
 	cursor int64
-	// read tracks wether or not the Log has been fully read.
-	// It cannot be appended to until it's been read in full.
-	read bool
+	// pointer contains the starting position of the last record
+	// written to the log.
+	pointer int64
 }
 
 func (l *Log) Append(r *Record) (int64, error) {
-	if !l.read {
-		return 0, errors.New("log must be read before being appended to")
-	}
-
 	n, err := l.enc.Encode(r)
-	l.cursor += n
-	return l.cursor, err
+	l.advance(n)
+	return n, err
 }
 
 func (l *Log) ReadAt(r *Record, offset int64) (int64, error) {
 	return l.dec.DecodeAt(r, offset)
 }
 
-func (l *Log) ReadAll() chan<- *Record {
-	ch := make(chan *Record)
-	r := new(Record)
-
-	go func() {
+func (l *Log) ReadAll() iter.Seq[*Record] {
+	return func(yield func(*Record) bool) {
+		r := new(Record)
 		for {
 			n, err := l.dec.DecodeAt(r, l.cursor)
 			if err != nil {
 				if err == io.EOF {
-					break
+					return
 				}
 				log.Panicln("error while reading log:", err)
 			}
+			l.advance(n)
 
-			ch <- r
-			l.cursor += n
+			if !yield(r) {
+				break
+			}
 		}
+	}
+}
 
-		l.read = true
-		close(ch)
-	}()
+func (l *Log) Pointer() int64 {
+	return l.pointer
+}
 
-	return ch
+func (l *Log) Rewind() {
+	l.cursor = 0
+	l.pointer = 0
+}
+
+func (l *Log) advance(n int64) {
+	l.pointer = l.cursor
+	l.cursor += n
 }

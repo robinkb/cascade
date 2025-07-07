@@ -37,6 +37,30 @@ func tempLog(t *testing.T) (io.ReaderAt, io.Writer) {
 	return r, w
 }
 
+func TestLogReadAll(t *testing.T) {
+	l := storage.NewLog(tempLog(t))
+
+	l.ReadAll()
+
+	want := make([]*storage.Record, 10)
+	for i := range want {
+		want[i] = randomRecord(rand.Int64N(16) + 16)
+	}
+
+	for i := range want {
+		_, err := l.Append(want[i])
+		AssertNoError(t, err).Require()
+	}
+
+	l.Rewind()
+
+	i := 0
+	for got := range l.ReadAll() {
+		AssertStructsEqual(t, got, want[i])
+		i++
+	}
+}
+
 func TestStorageEntries(t *testing.T) {
 	entries := index(3).terms(3, 4, 5, 5, 6, 7, 7, 7, 7, 8)
 	l, err := storage.NewLogStorage(tempLog(t))

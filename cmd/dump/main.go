@@ -3,11 +3,11 @@ package main
 import (
 	"flag"
 	"fmt"
-	"io"
 	"log"
 	"os"
 
 	"github.com/robinkb/cascade-registry/cluster/raft/storage"
+	"go.etcd.io/raft/v3"
 	"go.etcd.io/raft/v3/raftpb"
 )
 
@@ -29,19 +29,9 @@ func main() {
 		}
 	}()
 
-	dec := storage.NewDecoder(f)
+	l := storage.NewLog(f, nil)
 
-	r := new(storage.Record)
-	var pos int64
-	for {
-		n, err := dec.DecodeAt(r, pos)
-		if err != nil {
-			if err == io.EOF {
-				break
-			}
-			log.Fatalln(err)
-		}
-
+	for r := range l.ReadAll() {
 		switch r.Type {
 		case storage.TypeEntry:
 			var entry raftpb.Entry
@@ -50,18 +40,21 @@ func main() {
 				log.Fatalln(err)
 			}
 
-			fmt.Printf("%-16d:%8d [entry] index: %d, term %d, type %s\n", pos, n, entry.Index, entry.Term, entry.Type.String())
+			fmt.Printf("[entry] %s\n", raft.DescribeEntry(entry, nil))
 		case storage.TypeHardState:
 			var hs raftpb.HardState
 			err = hs.Unmarshal(r.Value)
 			if err != nil {
 				log.Fatalln(err)
 			}
-			fmt.Printf("%16d:%8d [state] commit: %d, term %d, vote %d\n", pos, n, hs.Commit, hs.Term, hs.Vote)
+			fmt.Printf("[state] %s\n", raft.DescribeHardState(hs))
 		case storage.TypeSnapshot:
-			fmt.Printf("%16d:%8d [snapshot]\n", pos, n)
+			var snap raftpb.Snapshot
+			err = snap.Unmarshal(r.Value)
+			if err != nil {
+				log.Fatalln(err)
+			}
+			fmt.Printf("[snapshot] %s\n", raft.DescribeSnapshot(snap))
 		}
-
-		pos += n
 	}
 }
