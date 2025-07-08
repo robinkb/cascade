@@ -40,7 +40,7 @@ func tempLog(t *testing.T) (io.ReaderAt, io.Writer) {
 func TestLogReadAll(t *testing.T) {
 	l := storage.NewLog(tempLog(t))
 
-	l.ReadAll()
+	l.All()
 
 	want := make([]*storage.Record, 10)
 	for i := range want {
@@ -55,7 +55,7 @@ func TestLogReadAll(t *testing.T) {
 	l.Rewind()
 
 	i := 0
-	for got := range l.ReadAll() {
+	for got := range l.All() {
 		AssertStructsEqual(t, got, want[i])
 		i++
 	}

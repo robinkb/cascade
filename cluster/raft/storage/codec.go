@@ -25,13 +25,6 @@ var (
 )
 
 type (
-	RecordType uint32
-
-	Record struct {
-		Type  RecordType
-		Value []byte
-	}
-
 	header struct {
 		crc   uint64 // 8 bytes
 		rtype uint32 // 4 bytes
@@ -54,6 +47,17 @@ type (
 		DecodeAt(r *Record, off int64) (int64, error)
 	}
 )
+
+type RecordType uint32
+
+type Record struct {
+	Type  RecordType
+	Value []byte
+}
+
+func (r *Record) Size() int64 {
+	return int64(RecordHeaderLength + len(r.Value))
+}
 
 // NewEncoder returns an Encoder that writes encoded Records to the io.Writer.
 func NewEncoder(w io.Writer) Encoder {
