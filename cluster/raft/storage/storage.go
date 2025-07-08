@@ -98,6 +98,7 @@ func NewLogStorage(dir string) (*LogStorage, error) {
 	return l, nil
 }
 
+// TODO: Sync. And hope performance doesn't tank.
 type LogStorage struct {
 	deck Deck
 
@@ -207,6 +208,7 @@ func (l *LogStorage) Term(i uint64) (uint64, error) {
 
 	i -= l.firstIndex()
 
+	// TODO: Optimize so that Term is read from memory again.
 	r := new(Record)
 	err := l.deck.ReadAt(r, l.entries[i])
 	if err != nil {

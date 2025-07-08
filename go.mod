@@ -13,6 +13,7 @@ require (
 	github.com/stretchr/testify v1.10.0
 	go.etcd.io/bbolt v1.4.2
 	go.etcd.io/raft/v3 v3.6.0
+	golang.org/x/exp v0.0.0-20250620022241-b7579e27df2b
 )
 
 require (

@@ -6,6 +6,9 @@ import (
 	"iter"
 	"os"
 	"path/filepath"
+	"syscall"
+
+	"golang.org/x/exp/mmap"
 )
 
 type DeckConfig struct {
@@ -111,11 +114,16 @@ func (d *Deck) newLog() *Log {
 
 	logFile := filepath.Join(d.dir, fmt.Sprintf("%020d.log", d.sequence))
 
-	w, err := os.OpenFile(logFile, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0644)
+	w, err := os.OpenFile(logFile, os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
 		panic(err)
 	}
-	r, err := os.OpenFile(logFile, os.O_RDONLY, 0)
+	err = syscall.Fallocate(int(w.Fd()), 0, 0, d.maxLogSize)
+	if err != nil {
+		panic(err)
+	}
+
+	r, err := mmap.Open(logFile)
 	if err != nil {
 		panic(err)
 	}
@@ -135,6 +143,7 @@ func (d *Deck) activeLog() *Log {
 	return d.logs[len(d.logs)-1]
 }
 
+// TODO: Should close Log's file descriptors here...?
 func (d *Deck) compact() {
 	if len(d.logs) > d.maxLogCount {
 		id := d.logs[0].ID
@@ -150,6 +159,7 @@ func (d *Deck) compact() {
 }
 
 // Compactions transmits IDs of Logs that have been compacted by the Deck.
+// It expects the application to act upon them, blocking until it is read from the channel.
 func (d *Deck) Compactions() <-chan int64 {
 	return d.compactions
 }
