@@ -15,7 +15,7 @@ import (
 
 func TestStorageEntries(t *testing.T) {
 	entries := index(3).terms(3, 4, 5, 5, 6, 7, 7, 7, 7, 8)
-	l, err := storage.NewLogStorage(tempLog(t))
+	l, err := storage.NewLogStorage(t.TempDir())
 	AssertNoError(t, err).Require()
 	err = l.Append(entries)
 	AssertNoError(t, err)
@@ -52,7 +52,7 @@ func TestStorageEntries(t *testing.T) {
 
 func TestStorageTerm(t *testing.T) {
 	t.Run("for empty storage", func(t *testing.T) {
-		l, err := storage.NewLogStorage(tempLog(t))
+		l, err := storage.NewLogStorage(t.TempDir())
 		AssertNoError(t, err).Require()
 
 		fi, _ := l.FirstIndex()
@@ -92,7 +92,7 @@ func TestStorageTerm(t *testing.T) {
 
 		for _, tt := range tests {
 			t.Run(tt.name, func(t *testing.T) {
-				l, err := storage.NewLogStorage(tempLog(t))
+				l, err := storage.NewLogStorage(t.TempDir())
 				AssertNoError(t, err).Require()
 				err = l.Append(ents)
 				AssertNoError(t, err)
@@ -134,7 +134,7 @@ func TestStorageEntries2(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run("", func(t *testing.T) {
-			l, err := storage.NewLogStorage(tempLog(t))
+			l, err := storage.NewLogStorage(t.TempDir())
 			AssertNoError(t, err).Require()
 			err = l.Append(ents)
 			AssertNoError(t, err)
@@ -147,7 +147,7 @@ func TestStorageEntries2(t *testing.T) {
 }
 
 func TestStorageLastIndex(t *testing.T) {
-	l, err := storage.NewLogStorage(tempLog(t))
+	l, err := storage.NewLogStorage(t.TempDir())
 	AssertNoError(t, err).Require()
 
 	var want uint64
@@ -166,7 +166,7 @@ func TestStorageLastIndex(t *testing.T) {
 }
 
 func TestStorageFirstIndex(t *testing.T) {
-	l, err := storage.NewLogStorage(tempLog(t))
+	l, err := storage.NewLogStorage(t.TempDir())
 	AssertNoError(t, err).Require()
 	var want uint64
 
@@ -193,7 +193,7 @@ func TestStorageFirstIndex(t *testing.T) {
 }
 
 func TestSetHardState(t *testing.T) {
-	l, err := storage.NewLogStorage(tempLog(t))
+	l, err := storage.NewLogStorage(t.TempDir())
 	AssertNoError(t, err).Require()
 
 	want := raftpb.HardState{
@@ -211,7 +211,7 @@ func TestSetHardState(t *testing.T) {
 }
 
 func TestApplySnapshot(t *testing.T) {
-	l, err := storage.NewLogStorage(tempLog(t))
+	l, err := storage.NewLogStorage(t.TempDir())
 	AssertNoError(t, err).Require()
 
 	want := raftpb.Snapshot{
@@ -230,9 +230,9 @@ func TestApplySnapshot(t *testing.T) {
 }
 
 func TestPersistence(t *testing.T) {
-	r, w := tempLog(t)
+	dir := t.TempDir()
 
-	oldLog, err := storage.NewLogStorage(r, w)
+	oldLog, err := storage.NewLogStorage(dir)
 	AssertNoError(t, err).Require()
 
 	want := struct {
@@ -252,7 +252,7 @@ func TestPersistence(t *testing.T) {
 	err = oldLog.Append(want.entries)
 	AssertNoError(t, err).Require()
 
-	newLog, err := storage.NewLogStorage(r, w)
+	newLog, err := storage.NewLogStorage(dir)
 	AssertNoError(t, err).Require()
 
 	gotHardState, gotConfState, err := newLog.InitialState()

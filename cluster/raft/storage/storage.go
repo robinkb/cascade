@@ -2,9 +2,7 @@ package storage
 
 import (
 	"errors"
-	"io"
 	"log"
-	"time"
 
 	"go.etcd.io/raft/v3"
 	"go.etcd.io/raft/v3/raftpb"
@@ -29,49 +27,45 @@ type EntryPointer struct {
 	Term   uint64
 }
 
-func NewLogStorage(r io.ReaderAt, w io.Writer) (*LogStorage, error) {
+func NewLogStorage(dir string) (*LogStorage, error) {
 	l := &LogStorage{
-		log: Log{
-			enc: NewEncoder(w),
-			dec: NewDecoder(r),
-		},
-		entries: make([]EntryPointer, 0),
+		deck:    NewDeck(dir, nil),
+		entries: make([]Pointer, 0),
 	}
 
 	var entry raftpb.Entry
-	for record := range l.log.All() {
-		switch record.Type {
-		case TypeEntry:
-			err := entry.Unmarshal(record.Value)
-			if err != nil {
-				return nil, err
+	for log := range l.deck.All() {
+		for record := range log.All() {
+			switch record.Type {
+			case TypeEntry:
+				err := entry.Unmarshal(record.Value)
+				if err != nil {
+					return nil, err
+				}
+
+				l.entries = append(l.entries, l.deck.Pointer())
+
+			case TypeHardState:
+				err := l.hardState.Unmarshal(record.Value)
+				if err != nil {
+					return nil, err
+				}
+
+			case TypeSnapshot:
+				err := l.snapshot.Unmarshal(record.Value)
+				if err != nil {
+					return nil, err
+				}
+
+			default:
+				return nil, ErrUnknownEntryType
 			}
-
-			l.entries = append(l.entries, EntryPointer{
-				Offset: l.log.Pointer(),
-				Term:   entry.Term,
-			})
-
-		case TypeHardState:
-			err := l.hardState.Unmarshal(record.Value)
-			if err != nil {
-				return nil, err
-			}
-
-		case TypeSnapshot:
-			err := l.snapshot.Unmarshal(record.Value)
-			if err != nil {
-				return nil, err
-			}
-
-		default:
-			return nil, ErrUnknownEntryType
 		}
 	}
 
 	if len(l.entries) != 0 {
 		record := new(Record)
-		err := l.log.ReadAt(record, l.entries[0].Offset)
+		err := l.deck.ReadAt(record, l.entries[0])
 		if err != nil {
 			return nil, err
 		}
@@ -84,14 +78,20 @@ func NewLogStorage(r io.ReaderAt, w io.Writer) (*LogStorage, error) {
 		l.indexOffset = entry.Index
 	}
 
+	// go func() {
+	// 	cs := &l.callStats
+	// 	for {
+	// 		time.Sleep(1 * time.Second)
+	// 		log.Printf(
+	// 			"[InitialState: %2d, Entries: %6d, Term: %6d, LastIndex: %7d, FirstIndex: %7d, Snapshot: %2d] [SetHardState: %6d, ApplySnapshot: %6d, Append: %6d, Compact: %6d]",
+	// 			cs.initialState, cs.entries, cs.term, cs.lastIndex, cs.firstIndex, cs.snapshot, cs.setHardState, cs.applySnapshot, cs.append, cs.compact,
+	// 		)
+	// 	}
+	// }()
+
 	go func() {
-		cs := &l.callStats
-		for {
-			time.Sleep(1 * time.Second)
-			log.Printf(
-				"[InitialState: %2d, Entries: %6d, Term: %6d, LastIndex: %7d, FirstIndex: %7d, Snapshot: %2d] [SetHardState: %6d, ApplySnapshot: %6d, Append: %6d, Compact: %6d]",
-				cs.initialState, cs.entries, cs.term, cs.lastIndex, cs.firstIndex, cs.snapshot, cs.setHardState, cs.applySnapshot, cs.append, cs.compact,
-			)
+		for c := range l.deck.Compactions() {
+			log.Println("COMPACTED:", c)
 		}
 	}()
 
@@ -99,7 +99,7 @@ func NewLogStorage(r io.ReaderAt, w io.Writer) (*LogStorage, error) {
 }
 
 type LogStorage struct {
-	log Log
+	deck Deck
 
 	hardState raftpb.HardState
 	snapshot  raftpb.Snapshot
@@ -107,7 +107,7 @@ type LogStorage struct {
 	// entries stores a series of pointers to Entries in the log file.
 	// It is assumed that the Index of every Entry is sequential and without gaps.
 	// It also stores each Entry's Term as an optimization.
-	entries []EntryPointer
+	entries []Pointer
 	// indexOffset stores the index of the oldest entry in the log.
 	indexOffset uint64
 
@@ -167,7 +167,7 @@ func (l *LogStorage) Entries(lo, hi, maxSize uint64) ([]raftpb.Entry, error) {
 	record := new(Record)
 
 	for _, ptr := range l.entries[lo:hi] {
-		err = l.log.ReadAt(record, ptr.Offset)
+		err = l.deck.ReadAt(record, ptr)
 		if err != nil {
 			return nil, err
 		}
@@ -207,7 +207,19 @@ func (l *LogStorage) Term(i uint64) (uint64, error) {
 
 	i -= l.firstIndex()
 
-	return l.entries[i].Term, nil
+	r := new(Record)
+	err := l.deck.ReadAt(r, l.entries[i])
+	if err != nil {
+		return 0, err
+	}
+
+	var entry raftpb.Entry
+	err = entry.Unmarshal(r.Value)
+	if err != nil {
+		return 0, err
+	}
+
+	return entry.Term, nil
 }
 
 // LastIndex returns the index of the last entry in the log.
@@ -257,7 +269,7 @@ func (l *LogStorage) SetHardState(hardState raftpb.HardState) error {
 		return err
 	}
 
-	err = l.log.Append(record)
+	err = l.deck.Append(record)
 	if err != nil {
 		return err
 	}
@@ -278,7 +290,7 @@ func (l *LogStorage) ApplySnapshot(snapshot raftpb.Snapshot) error {
 		return err
 	}
 
-	err = l.log.Append(record)
+	err = l.deck.Append(record)
 	if err != nil {
 		return err
 	}
@@ -305,15 +317,12 @@ func (l *LogStorage) Append(entries []raftpb.Entry) error {
 			return err
 		}
 
-		err = l.log.Append(record)
+		err = l.deck.Append(record)
 		if err != nil {
 			return err
 		}
 
-		l.entries = append(l.entries, EntryPointer{
-			Offset: l.log.Pointer(),
-			Term:   entry.Term,
-		})
+		l.entries = append(l.entries, l.deck.Pointer())
 	}
 
 	return nil

@@ -1,11 +1,11 @@
 package storage
 
 import (
+	"errors"
 	"fmt"
 	"iter"
 	"os"
 	"path/filepath"
-	"runtime"
 )
 
 type DeckConfig struct {
@@ -39,9 +39,22 @@ func NewDeck(dir string, c *DeckConfig) Deck {
 		}
 	}
 
-	runtime.SetFinalizer(&d, func(d *Deck) {
-		close(d.compactions)
-	})
+	info, err := os.Stat(dir)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			err := os.Mkdir(d.dir, 0755)
+			if err != nil {
+				panic(err)
+			}
+		} else {
+			panic(err)
+		}
+	} else {
+		// TODO: Write test for this case.
+		if !info.IsDir() {
+			panic("not a directory")
+		}
+	}
 
 	return d
 }
@@ -131,6 +144,7 @@ func (d *Deck) compact() {
 			panic(err)
 		}
 		d.logs = d.logs[1:len(d.logs)]
+		d.offset++
 		d.compactions <- id
 	}
 }
