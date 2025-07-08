@@ -7,7 +7,6 @@ import (
 	"os"
 
 	"github.com/robinkb/cascade-registry/cluster/raft/storage"
-	"go.etcd.io/raft/v3"
 	"go.etcd.io/raft/v3/raftpb"
 )
 
@@ -31,7 +30,7 @@ func main() {
 
 	l := storage.NewLog(f, nil)
 
-	for r := range l.ReadAll() {
+	for r := range l.All() {
 		switch r.Type {
 		case storage.TypeEntry:
 			var entry raftpb.Entry
@@ -39,22 +38,23 @@ func main() {
 			if err != nil {
 				log.Fatalln(err)
 			}
+			fmt.Printf("%020d [entry] index: %d, term %d, type %s\n", l.Pointer(), entry.Index, entry.Term, entry.Type.String())
 
-			fmt.Printf("[entry] %s\n", raft.DescribeEntry(entry, nil))
 		case storage.TypeHardState:
 			var hs raftpb.HardState
 			err = hs.Unmarshal(r.Value)
 			if err != nil {
 				log.Fatalln(err)
 			}
-			fmt.Printf("[state] %s\n", raft.DescribeHardState(hs))
+			fmt.Printf("%020d [state] commit: %d, term %d, vote %d\n", l.Pointer(), hs.Commit, hs.Term, hs.Vote)
+
 		case storage.TypeSnapshot:
 			var snap raftpb.Snapshot
 			err = snap.Unmarshal(r.Value)
 			if err != nil {
 				log.Fatalln(err)
 			}
-			fmt.Printf("[snapshot] %s\n", raft.DescribeSnapshot(snap))
+			fmt.Printf("%020d [snapshot]\n", l.Pointer())
 		}
 	}
 }
