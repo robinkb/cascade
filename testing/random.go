@@ -10,7 +10,6 @@ import (
 	"testing"
 
 	"github.com/gofrs/uuid/v5"
-	"github.com/moby/moby/pkg/namesgenerator"
 	"github.com/opencontainers/go-digest"
 	v1 "github.com/opencontainers/image-spec/specs-go/v1"
 )
@@ -22,7 +21,11 @@ const (
 )
 
 func RandomName() string {
-	return strings.ReplaceAll(namesgenerator.GetRandomName(0), "_", "/")
+	b := new(strings.Builder)
+	b.WriteString(RandomString(rand.IntN(6) + 6))
+	b.WriteRune('/')
+	b.WriteString(RandomString(rand.IntN(6) + 6))
+	return b.String()
 }
 
 func RandomContents(length int64) []byte {
