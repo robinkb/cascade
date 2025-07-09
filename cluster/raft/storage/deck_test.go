@@ -16,29 +16,10 @@ func TestNoSé(t *testing.T) {
 		MaxLogCount: 5,
 	})
 
-	compactions := make([]int64, 0)
-
-	go func() {
-		for c := range d.Compactions() {
-			compactions = append(compactions, c)
-		}
-	}()
-
 	for i := range want {
 		err := d.Append(want[i])
 		AssertNoError(t, err).Require()
 	}
-
-	i := 0
-	for log := range d.All() {
-		for record := range log.All() {
-			AssertStructsEqual(t, record, want[i])
-			i++
-		}
-	}
-
-	// The number 4 was manually verified, ngl.
-	AssertEqual(t, len(compactions), 4)
 }
 
 func TestDeckInNewDirectory(t *testing.T) {

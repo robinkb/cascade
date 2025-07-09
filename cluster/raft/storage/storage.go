@@ -1,9 +1,6 @@
 package storage
 
 import (
-	"errors"
-	"log"
-
 	"go.etcd.io/raft/v3"
 	"go.etcd.io/raft/v3/raftpb"
 )
@@ -14,62 +11,21 @@ const (
 	TypeSnapshot
 )
 
-var (
-	ErrUnknownEntryType = errors.New("found unknown entry type")
-)
-
-// EntryPointer stores the offset of an Entry within the log's file.
-// It also stores the Term that the Entry belongs to as an optimization.
-// The Term of an Entry is queried very often by Raft, and we can keep it in-memory
-// for a negligble cost, saving disk reads and record decodes.
-type EntryPointer struct {
-	Offset int64
-	Term   uint64
-}
-
 func NewLogStorage(dir string) (*LogStorage, error) {
 	l := &LogStorage{
-		deck:    NewDeck(dir, nil),
-		entries: make([]Pointer, 0),
+		deck: NewDeck(dir, nil),
 	}
 
-	var entry raftpb.Entry
-	for log := range l.deck.All() {
-		for record := range log.All() {
-			switch record.Type {
-			case TypeEntry:
-				err := entry.Unmarshal(record.Value)
-				if err != nil {
-					return nil, err
-				}
+	l.deck.ReadAll()
 
-				l.entries = append(l.entries, l.deck.Pointer())
-
-			case TypeHardState:
-				err := l.hardState.Unmarshal(record.Value)
-				if err != nil {
-					return nil, err
-				}
-
-			case TypeSnapshot:
-				err := l.snapshot.Unmarshal(record.Value)
-				if err != nil {
-					return nil, err
-				}
-
-			default:
-				return nil, ErrUnknownEntryType
-			}
-		}
-	}
-
-	if len(l.entries) != 0 {
+	if l.deck.Count(TypeEntry) > 0 {
 		record := new(Record)
-		err := l.deck.ReadAt(record, l.entries[0])
+		err := l.deck.First(TypeEntry, record)
 		if err != nil {
 			return nil, err
 		}
 
+		var entry raftpb.Entry
 		err = entry.Unmarshal(record.Value)
 		if err != nil {
 			return nil, err
@@ -89,12 +45,6 @@ func NewLogStorage(dir string) (*LogStorage, error) {
 	// 	}
 	// }()
 
-	go func() {
-		for c := range l.deck.Compactions() {
-			log.Println("COMPACTED:", c)
-		}
-	}()
-
 	return l, nil
 }
 
@@ -105,10 +55,6 @@ type LogStorage struct {
 	hardState raftpb.HardState
 	snapshot  raftpb.Snapshot
 
-	// entries stores a series of pointers to Entries in the log file.
-	// It is assumed that the Index of every Entry is sequential and without gaps.
-	// It also stores each Entry's Term as an optimization.
-	entries []Pointer
 	// indexOffset stores the index of the oldest entry in the log.
 	indexOffset uint64
 
@@ -163,12 +109,9 @@ func (l *LogStorage) Entries(lo, hi, maxSize uint64) ([]raftpb.Entry, error) {
 	hi -= l.firstIndex()
 
 	var size uint64
-	var err error
 	entries := make([]raftpb.Entry, 0)
-	record := new(Record)
 
-	for _, ptr := range l.entries[lo:hi] {
-		err = l.deck.ReadAt(record, ptr)
+	for record, err := range l.deck.Range(TypeEntry, lo, hi) {
 		if err != nil {
 			return nil, err
 		}
@@ -196,13 +139,13 @@ func (l *LogStorage) Entries(lo, hi, maxSize uint64) ([]raftpb.Entry, error) {
 // rest of that entry may not be available.
 func (l *LogStorage) Term(i uint64) (uint64, error) {
 	l.callStats.term++
-	if i == 0 && len(l.entries) == 0 {
+	if i == 0 && l.deck.Count(TypeEntry) == 0 {
 		return 0, nil
 	}
 	if i > l.lastIndex() {
 		return 0, raft.ErrUnavailable
 	}
-	if i < l.firstIndex() || len(l.entries) == 0 {
+	if i < l.firstIndex() || l.deck.Count(TypeEntry) == 0 {
 		return 0, raft.ErrCompacted
 	}
 
@@ -210,7 +153,7 @@ func (l *LogStorage) Term(i uint64) (uint64, error) {
 
 	// TODO: Optimize so that Term is read from memory again.
 	r := new(Record)
-	err := l.deck.ReadAt(r, l.entries[i])
+	err := l.deck.Get(TypeEntry, i, r)
 	if err != nil {
 		return 0, err
 	}
@@ -231,10 +174,10 @@ func (l *LogStorage) LastIndex() (uint64, error) {
 }
 
 func (l *LogStorage) lastIndex() uint64 {
-	if len(l.entries) == 0 {
+	if l.deck.Count(TypeEntry) == 0 {
 		return l.indexOffset
 	}
-	return l.firstIndex() + uint64(len(l.entries)) - 1
+	return l.firstIndex() + uint64(l.deck.Count(TypeEntry)) - 1
 }
 
 // FirstIndex returns the index of the first log entry that is
@@ -248,7 +191,7 @@ func (l *LogStorage) FirstIndex() (uint64, error) {
 func (l *LogStorage) firstIndex() uint64 {
 	// Makes no sense, but here we are. This is how Raft's MemoryStorage works.
 	// The Raft Node will refuse to start up without it.
-	if len(l.entries) == 0 {
+	if l.deck.Count(TypeEntry) == 0 {
 		return 1
 	}
 	return l.indexOffset
@@ -307,7 +250,7 @@ func (l *LogStorage) Append(entries []raftpb.Entry) error {
 		return nil
 	}
 
-	if len(l.entries) == 0 {
+	if l.deck.Count(TypeEntry) == 0 {
 		l.indexOffset = entries[0].Index
 	}
 
@@ -323,8 +266,6 @@ func (l *LogStorage) Append(entries []raftpb.Entry) error {
 		if err != nil {
 			return err
 		}
-
-		l.entries = append(l.entries, l.deck.Pointer())
 	}
 
 	return nil

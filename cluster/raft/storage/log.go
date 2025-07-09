@@ -8,8 +8,9 @@ import (
 
 func NewLog(r io.ReaderAt, w io.Writer) *Log {
 	return &Log{
-		enc: NewEncoder(w),
-		dec: NewDecoder(r),
+		enc:      NewEncoder(w),
+		dec:      NewDecoder(r),
+		counters: make(map[RecordType]uint64),
 	}
 }
 
@@ -24,11 +25,16 @@ type Log struct {
 	// pointer contains the starting position of the last record
 	// written to the log.
 	pointer int64
+	// counters tracks how many records of each type is in the Log.
+	// It is used by Deck during compaction to purge its in-memory pointers.
+	// Writes to counters are never concurrent and it is only read when
+	// the Log is being compacted, so a mutex should not be needed.
+	counters map[RecordType]uint64
 }
 
 func (l *Log) Append(r *Record) error {
 	n, err := l.enc.Encode(r)
-	l.advance(n)
+	l.advance(n, r.Type)
 	return err
 }
 
@@ -48,7 +54,7 @@ func (l *Log) All() iter.Seq[*Record] {
 				}
 				log.Panicln("error while reading log:", err)
 			}
-			l.advance(n)
+			l.advance(n, r.Type)
 
 			if !yield(r) {
 				break
@@ -66,7 +72,8 @@ func (l *Log) Rewind() {
 	l.pointer = 0
 }
 
-func (l *Log) advance(n int64) {
+func (l *Log) advance(n int64, t RecordType) {
 	l.pointer = l.cursor
 	l.cursor += n
+	l.counters[t]++
 }
