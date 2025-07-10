@@ -47,19 +47,6 @@ func TestInventory(t *testing.T) {
 		}
 	})
 
-	t.Run("Count(t) returns the expected result", func(t *testing.T) {
-		got := inv.Count(rtype1)
-		AssertEqual(t, got, len(pointers1))
-
-		got = inv.Count(rtype2)
-		AssertEqual(t, got, len(pointers2))
-	})
-
-	t.Run("Count of an unknown RecordType returns 0", func(t *testing.T) {
-		got := inv.Count(randomRecordType())
-		AssertEqual(t, got, 0)
-	})
-
 	t.Run("getting pointer with unknown record type returns ErrRecordTypeUnknown", func(t *testing.T) {
 		_, err := inv.Get(randomRecordType(), 0)
 		AssertErrorIs(t, err, storage.ErrRecordTypeUnknown)
@@ -71,6 +58,49 @@ func TestInventory(t *testing.T) {
 
 		_, err = inv.Get(rtype1, -1)
 		AssertErrorIs(t, err, storage.ErrPointerNotFound)
+	})
+
+	t.Run("Range returns all pointers for a given type", func(t *testing.T) {
+		got, err := inv.Range(rtype1, 0, len(pointers1))
+		AssertNoError(t, err)
+		AssertStructsEqual(t, got, pointers1)
+	})
+
+	t.Run("Range for an unknown record type returns ErrRecordTypeUnknown", func(t *testing.T) {
+		_, err := inv.Range(randomRecordType(), 0, 1)
+		AssertErrorIs(t, err, storage.ErrRecordTypeUnknown)
+	})
+
+	t.Run("Range with invalid ranges returns ErrRangeInvalid", func(t *testing.T) {
+		tc := []struct {
+			name   string
+			lo, hi int
+		}{
+			{"lo equal to hi", 1, 1},
+			{"hi lower than lo", 1, 0},
+			{"negative lo", -1, 1},
+			{"hi higher than number of pointers", 0, 100},
+		}
+
+		for _, tt := range tc {
+			t.Run(tt.name, func(t *testing.T) {
+				_, err := inv.Range(rtype1, tt.lo, tt.hi)
+				AssertErrorIs(t, err, storage.ErrRangeInvalid)
+			})
+		}
+	})
+
+	t.Run("Count(t) returns the number of pointers of a given type", func(t *testing.T) {
+		got := inv.Count(rtype1)
+		AssertEqual(t, got, len(pointers1))
+
+		got = inv.Count(rtype2)
+		AssertEqual(t, got, len(pointers2))
+	})
+
+	t.Run("Count of an unknown RecordType returns 0", func(t *testing.T) {
+		got := inv.Count(randomRecordType())
+		AssertEqual(t, got, 0)
 	})
 
 	t.Run("remove purges pointers according to given Counters", func(t *testing.T) {

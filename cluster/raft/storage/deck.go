@@ -29,7 +29,7 @@ func NewDeck(dir string, c *DeckConfig) Deck {
 		maxLogSize:  defaultDeckConfig.MaxLogSize,
 		maxLogCount: defaultDeckConfig.MaxLogCount,
 
-		records: make(map[RecordType][]Pointer),
+		inventory: NewInventory(),
 	}
 
 	if c != nil {
@@ -84,7 +84,7 @@ type Deck struct {
 	// records holds pointers to all known Records in the Deck,
 	// organized by type. It grows when appending Records to the Deck,
 	// and shrinks when Logs in the Deck are compacted.
-	records map[RecordType][]Pointer
+	inventory Inventory
 }
 
 func (d *Deck) Append(r *Record) error {
@@ -98,38 +98,52 @@ func (d *Deck) Append(r *Record) error {
 		return err
 	}
 
-	if d.records[r.Type] == nil {
-		d.records[r.Type] = make([]Pointer, 0)
-	}
-
-	d.records[r.Type] = append(d.records[r.Type], d.Pointer())
+	d.inventory.Add(r.Type, d.Pointer())
 
 	return nil
 }
 
-func (d *Deck) Get(t RecordType, i uint64, r *Record) error {
-	ptr := d.records[t][i]
+func (d *Deck) Get(t RecordType, i int, r *Record) error {
+	ptr, err := d.inventory.Get(t, i)
+	if err != nil {
+		return err
+	}
+
 	return d.readAt(r, ptr)
 }
 
 func (d *Deck) Count(t RecordType) int {
-	return len(d.records[t])
+	return d.inventory.Count(t)
 }
 
 func (d *Deck) First(t RecordType, r *Record) error {
-	ptr := d.records[t][0]
+	ptr, err := d.inventory.Get(t, 0)
+	if err != nil {
+		return err
+	}
+
 	return d.readAt(r, ptr)
 }
 
 func (d *Deck) Last(t RecordType, r *Record) error {
-	ptr := d.records[t][len(d.records[t])-1]
+	ptr, err := d.inventory.Get(t, d.inventory.Count(t)-1)
+	if err != nil {
+		return err
+	}
+
 	return d.readAt(r, ptr)
 }
 
-func (d *Deck) Range(t RecordType, lo, hi uint64) iter.Seq2[*Record, error] {
-	r := new(Record)
+func (d *Deck) Range(t RecordType, lo, hi int) iter.Seq2[*Record, error] {
 	return func(yield func(*Record, error) bool) {
-		for _, ptr := range d.records[t][lo:hi] {
+		pointers, err := d.inventory.Range(t, lo, hi)
+		if err != nil {
+			yield(nil, err)
+			return
+		}
+
+		r := new(Record)
+		for _, ptr := range pointers {
 			err := d.readAt(r, ptr)
 			if !yield(r, err) {
 				return
@@ -145,11 +159,7 @@ func (d *Deck) readAt(r *Record, p Pointer) error {
 func (d *Deck) ReadAll() {
 	for _, log := range d.logs {
 		for record := range log.All() {
-			if d.records[record.Type] == nil {
-				d.records[record.Type] = make([]Pointer, 0)
-			}
-
-			d.records[record.Type] = append(d.records[record.Type], Pointer{
+			d.inventory.Add(record.Type, Pointer{
 				Log:    log.ID,
 				Offset: log.Pointer(),
 			})
@@ -202,9 +212,7 @@ func (d *Deck) compact() {
 			panic(err)
 		}
 
-		for t, count := range log.counters {
-			d.records[t] = d.records[t][count-1:]
-		}
+		d.inventory.Remove(log.Counters())
 
 		d.logs = d.logs[1:len(d.logs)]
 		d.offset++

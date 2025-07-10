@@ -32,6 +32,27 @@ func (inv *Inventory) Get(t RecordType, i int) (Pointer, error) {
 	return pointers[i], nil
 }
 
+func (inv *Inventory) Range(t RecordType, lo, hi int) ([]Pointer, error) {
+	if lo < 0 || !(lo < hi) {
+		return nil, fmt.Errorf("%w: lo [%d], hi [%d]", ErrRangeInvalid, lo, hi)
+	}
+
+	pointers, ok := inv.records[t]
+	if !ok {
+		return nil, fmt.Errorf("%w: %d", ErrRecordTypeUnknown, t)
+	}
+
+	if len(pointers) < hi {
+		return nil, fmt.Errorf("%w: hi [%d] out of bounds", ErrRangeInvalid, hi)
+	}
+
+	result := make([]Pointer, hi-lo)
+	for i := range len(result) {
+		result[i] = pointers[lo+i]
+	}
+	return result, nil
+}
+
 // Count returns the number of Pointers of the given RecordType.
 // If the Inventory contains no Pointers of a RecordType,
 // it returns 0 instead of panicking.

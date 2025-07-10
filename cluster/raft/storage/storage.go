@@ -111,7 +111,7 @@ func (l *LogStorage) Entries(lo, hi, maxSize uint64) ([]raftpb.Entry, error) {
 	var size uint64
 	entries := make([]raftpb.Entry, 0)
 
-	for record, err := range l.deck.Range(TypeEntry, lo, hi) {
+	for record, err := range l.deck.Range(TypeEntry, int(lo), int(hi)) {
 		if err != nil {
 			return nil, err
 		}
@@ -153,7 +153,7 @@ func (l *LogStorage) Term(i uint64) (uint64, error) {
 
 	// TODO: Optimize so that Term is read from memory again.
 	r := new(Record)
-	err := l.deck.Get(TypeEntry, i, r)
+	err := l.deck.Get(TypeEntry, int(i), r)
 	if err != nil {
 		return 0, err
 	}
