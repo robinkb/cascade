@@ -3,7 +3,6 @@ package storage
 import (
 	"bytes"
 	"encoding/binary"
-	"errors"
 	"hash/crc64"
 	"io"
 	"log"
@@ -20,8 +19,6 @@ const (
 
 var (
 	crc64Table = crc64.MakeTable(NVME)
-
-	ErrChecksumMismatch = errors.New("CRC checksums did not match")
 )
 
 type (
