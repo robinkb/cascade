@@ -131,9 +131,6 @@ type Deck struct {
 	sequence uint64
 	// offset translates on-disk Log indices to their in-memory equivalent.
 	offset int64
-	// activeLogSize is the current size of the Log that is being appended to.
-	// This can be fetched from the Log's cursor, so will probably remove.
-	activeLogSize int64
 	// maxLogSize determines the maximum size that a log can have.
 	// If a Record will cause a Log to exceed its maximum allowed size,
 	// a new Log will be provisioned and the Record will be appended there.

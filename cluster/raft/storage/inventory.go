@@ -41,7 +41,7 @@ func (inv *Inventory) Range(t RecordType, lo, hi int) ([]Pointer, error) {
 	inv.mu.RLock()
 	defer inv.mu.RUnlock()
 
-	if lo < 0 || !(lo < hi) {
+	if lo < 0 || lo >= hi {
 		return nil, fmt.Errorf("%w: lo [%d], hi [%d]", ErrRangeInvalid, lo, hi)
 	}
 
