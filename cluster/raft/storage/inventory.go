@@ -7,8 +7,8 @@ import (
 )
 
 // NewInventory returns an empty Inventory.
-func NewInventory() Inventory {
-	return Inventory{
+func NewInventory() *Inventory {
+	return &Inventory{
 		records: make(map[RecordType][]Pointer),
 	}
 }

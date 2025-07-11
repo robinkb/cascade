@@ -144,7 +144,7 @@ type Deck struct {
 	// Inventory holds pointers to all known Records in the Deck,
 	// organized by type. It grows when appending Records to the Deck,
 	// and shrinks when Logs in the Deck are compacted.
-	inventory Inventory
+	inventory *Inventory
 	// compactHandler is provided by the Deck consumer. If provided,
 	// it is called by Deck after every compaction, allowing the consumer
 	// to update its internal bookkeeping.
