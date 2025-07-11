@@ -70,15 +70,22 @@ func TestStorageTerm(t *testing.T) {
 
 	t.Run("for storage with entries", func(t *testing.T) {
 		ents := index(3).terms(3, 4, 4, 5)
-		tests := []struct {
-			name string
-			i    uint64
 
+		l, err := storage.NewLogStorage(t.TempDir(), nil)
+		AssertNoError(t, err).Require()
+		err = l.Append(ents)
+		AssertNoError(t, err)
+
+		tests := []struct {
+			name  string
+			i     uint64
 			werr  error
 			wterm uint64
 		}{
-			{"index lower than FirstIndex() returns ErrCompacted",
-				2, raft.ErrCompacted, 0},
+			{"index lower than FirstIndex()-1 returns ErrCompacted",
+				1, raft.ErrCompacted, 0},
+			{"index at FirstIndex() -1 returns term 0",
+				2, nil, 0},
 			{"first entry returns term 4",
 				3, nil, 3},
 			{"second entry returns term 4",
@@ -93,11 +100,6 @@ func TestStorageTerm(t *testing.T) {
 
 		for _, tt := range tests {
 			t.Run(tt.name, func(t *testing.T) {
-				l, err := storage.NewLogStorage(t.TempDir(), nil)
-				AssertNoError(t, err).Require()
-				err = l.Append(ents)
-				AssertNoError(t, err)
-
 				term, err := l.Term(tt.i)
 				AssertErrorIs(t, err, tt.werr).Require()
 				AssertEqual(t, term, tt.wterm).Require()
