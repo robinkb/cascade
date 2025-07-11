@@ -26,6 +26,8 @@ type DeckConfig struct {
 	MaxLogCount int
 }
 
+type CompactionHandler func(c Counters) error
+
 var defaultDeckConfig = DeckConfig{
 	MaxLogSize:  64 << 20,
 	MaxLogCount: 16,
@@ -143,10 +145,10 @@ type Deck struct {
 	// organized by type. It grows when appending Records to the Deck,
 	// and shrinks when Logs in the Deck are compacted.
 	inventory Inventory
-	// compactions signals the consumer of the Deck that a compaction happened.
-	// The consumer can user the sent Counters to update its internal bookkeeping.
-	// Listening is optional.
-	compactions chan Counters
+	// compactHandler is provided by the Deck consumer. If provided,
+	// it is called by Deck after every compaction, allowing the consumer
+	// to update its internal bookkeeping.
+	compactHandler CompactionHandler
 }
 
 func (d *Deck) Append(r *Record) error {
@@ -161,6 +163,10 @@ func (d *Deck) Append(r *Record) error {
 	}
 
 	d.inventory.Add(r.Type, d.Pointer())
+
+	// Run compaction _after_ adding the new entry so that
+	// the compaction handler has an up-to-date view of the Deck.
+	d.compact()
 
 	return nil
 }
@@ -229,14 +235,11 @@ func (d *Deck) ReadAll() {
 	}
 }
 
-func (d *Deck) Compactions() <-chan Counters {
-	d.compactions = make(chan Counters)
-	return d.compactions
+func (d *Deck) CompactionHandler(h CompactionHandler) {
+	d.compactHandler = h
 }
 
 func (d *Deck) newLog() *Log {
-	defer d.compact()
-
 	logFile := filepath.Join(d.dir, fmt.Sprintf("%020d.log", d.sequence))
 
 	w, err := os.OpenFile(logFile, os.O_CREATE|os.O_WRONLY, 0644)
@@ -284,8 +287,11 @@ func (d *Deck) compact() {
 		d.logs = d.logs[1:len(d.logs)]
 		d.offset++
 
-		if d.compactions != nil {
-			d.compactions <- log.Counters()
+		if d.compactHandler != nil {
+			err := d.compactHandler(log.Counters())
+			if err != nil {
+				panic(err)
+			}
 		}
 	}
 }
