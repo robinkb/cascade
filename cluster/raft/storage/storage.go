@@ -185,13 +185,15 @@ func (l *LogStorage) Term(i uint64) (uint64, error) {
 	if i > l.lastIndex() {
 		return 0, raft.ErrUnavailable
 	}
+	if i == l.firstIndex()-1 {
+		return l.compactedEntry.Term, nil
+	}
 	if i < l.firstIndex() || l.deck.Count(TypeEntry) == 0 {
 		return 0, raft.ErrCompacted
 	}
 
 	i -= l.firstIndex()
 
-	// TODO: Optimize so that Term is read from memory again.
 	r := new(Record)
 	err := l.deck.Get(TypeEntry, int(i), r)
 	if err != nil {

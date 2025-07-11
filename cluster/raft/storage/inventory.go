@@ -3,6 +3,7 @@ package storage
 import (
 	"fmt"
 	"iter"
+	"sync"
 )
 
 // NewInventory returns an empty Inventory.
@@ -15,11 +16,15 @@ func NewInventory() Inventory {
 // Inventory holds a Pointer to every known record in every Log
 // in a Deck, organized by RecordType.
 type Inventory struct {
+	mu      sync.RWMutex
 	records map[RecordType][]Pointer
 }
 
 // Get returns the Pointer to a Record at the given type and index.
 func (inv *Inventory) Get(t RecordType, i int) (Pointer, error) {
+	inv.mu.RLock()
+	defer inv.mu.RUnlock()
+
 	pointers, ok := inv.records[t]
 	if !ok {
 		return Pointer{}, fmt.Errorf("%w: %d", ErrRecordTypeUnknown, t)
@@ -33,6 +38,9 @@ func (inv *Inventory) Get(t RecordType, i int) (Pointer, error) {
 }
 
 func (inv *Inventory) Range(t RecordType, lo, hi int) ([]Pointer, error) {
+	inv.mu.RLock()
+	defer inv.mu.RUnlock()
+
 	if lo < 0 || !(lo < hi) {
 		return nil, fmt.Errorf("%w: lo [%d], hi [%d]", ErrRangeInvalid, lo, hi)
 	}
@@ -57,11 +65,17 @@ func (inv *Inventory) Range(t RecordType, lo, hi int) ([]Pointer, error) {
 // If the Inventory contains no Pointers of a RecordType,
 // it returns 0 instead of panicking.
 func (inv *Inventory) Count(t RecordType) int {
+	inv.mu.RLock()
+	defer inv.mu.RUnlock()
+
 	return len(inv.records[t])
 }
 
 // Add appends a Pointer of a given RecordType to the Inventory.
 func (inv *Inventory) Add(t RecordType, p Pointer) {
+	inv.mu.Lock()
+	defer inv.mu.Unlock()
+
 	inv.records[t] = append(inv.records[t], p)
 }
 
@@ -74,6 +88,9 @@ func (inv *Inventory) Add(t RecordType, p Pointer) {
 // Any error encountered in this process indicates some kind of issue
 // in synchronizing the Inventory with the Log contents and should panic.
 func (inv *Inventory) Remove(c Counters) {
+	inv.mu.Lock()
+	defer inv.mu.Unlock()
+
 	for t, count := range c.All() {
 		pointers, ok := inv.records[t]
 		if !ok {

@@ -274,6 +274,8 @@ func TestPersistence(t *testing.T) {
 	AssertStructsEqual(t, gotEntries, want.entries)
 }
 
+// TestCompaction is probably a bit too big, and asserts a little too much.
+// Basically everything to do with compaction.
 func TestCompaction(t *testing.T) {
 	// Prepare a store with a ridiculously low limit
 	// to immediately trigger compactions.
@@ -322,6 +324,10 @@ func TestCompaction(t *testing.T) {
 	got2, err := store.Entries(2, 3, math.MaxUint64)
 	AssertNoError(t, err)
 	AssertStructsEqual(t, got2[0], want2[0])
+	// Term of the last compacted entry should still be available as well.
+	term, err := store.Term(fi - 1)
+	AssertNoError(t, err)
+	AssertEqual(t, term, want1[0].Index)
 }
 
 // index is a helper type for generating slices of raftpb.Entry. The value of index
