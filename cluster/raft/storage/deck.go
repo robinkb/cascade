@@ -6,6 +6,9 @@ import (
 	"iter"
 	"os"
 	"path/filepath"
+	"regexp"
+	"slices"
+	"strconv"
 	"syscall"
 
 	"golang.org/x/exp/mmap"
@@ -20,6 +23,8 @@ var defaultDeckConfig = DeckConfig{
 	MaxLogSize:  64 << 20,
 	MaxLogCount: 16,
 }
+
+var logNameRe = regexp.MustCompile(`(\d{20}).log`)
 
 func NewDeck(dir string, c *DeckConfig) Deck {
 	d := Deck{
@@ -59,7 +64,53 @@ func NewDeck(dir string, c *DeckConfig) Deck {
 		}
 	}
 
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		panic(err)
+	}
+
+	logFiles := make([]string, 0)
+	for _, e := range entries {
+		if e.IsDir() {
+			continue
+		}
+
+		if logNameRe.MatchString(e.Name()) {
+			logFiles = append(logFiles, e.Name())
+		}
+	}
+
+	slices.Sort(logFiles)
+
+	for _, name := range logFiles {
+		id, err := strconv.ParseInt(name[:len(name)-4], 10, 64)
+		if err != nil {
+			panic(err)
+		}
+
+		name := filepath.Join(d.dir, name)
+		w, err := os.OpenFile(name, os.O_WRONLY, 0644)
+		if err != nil {
+			panic(err)
+		}
+
+		r, err := mmap.Open(name)
+		if err != nil {
+			panic(err)
+		}
+
+		log := NewLog(r, w)
+		log.ID = id
+		d.logs = append(d.logs, log)
+		d.sequence++
+	}
+
 	return d
+}
+
+type LogIndex struct {
+	Log *Log
+	ID  uint64
 }
 
 // Deck is an organized collection of Logs.
@@ -81,7 +132,7 @@ type Deck struct {
 	// maxLogCount determines the maximum amount of logs stored in the Deck.
 	// When the number of logs exceeds this number, the oldest log will be compacted.
 	maxLogCount int
-	// records holds pointers to all known Records in the Deck,
+	// Inventory holds pointers to all known Records in the Deck,
 	// organized by type. It grows when appending Records to the Deck,
 	// and shrinks when Logs in the Deck are compacted.
 	inventory Inventory

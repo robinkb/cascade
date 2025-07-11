@@ -18,8 +18,8 @@ func NewLogStorage(dir string) (*LogStorage, error) {
 
 	l.deck.ReadAll()
 
+	record := new(Record)
 	if l.deck.Count(TypeEntry) > 0 {
-		record := new(Record)
 		err := l.deck.First(TypeEntry, record)
 		if err != nil {
 			return nil, err
@@ -32,6 +32,36 @@ func NewLogStorage(dir string) (*LogStorage, error) {
 		}
 
 		l.indexOffset = entry.Index
+	}
+
+	if l.deck.Count(TypeHardState) > 0 {
+		err := l.deck.Last(TypeHardState, record)
+		if err != nil {
+			return nil, err
+		}
+
+		var hardState raftpb.HardState
+		err = hardState.Unmarshal(record.Value)
+		if err != nil {
+			return nil, err
+		}
+
+		l.hardState = hardState
+	}
+
+	if l.deck.Count(TypeSnapshot) > 0 {
+		err := l.deck.Last(TypeSnapshot, record)
+		if err != nil {
+			return nil, err
+		}
+
+		var snapshot raftpb.Snapshot
+		err = snapshot.Unmarshal(record.Value)
+		if err != nil {
+			return nil, err
+		}
+
+		l.snapshot = snapshot
 	}
 
 	// go func() {
@@ -56,6 +86,14 @@ type LogStorage struct {
 	snapshot  raftpb.Snapshot
 
 	// indexOffset stores the index of the oldest entry in the log.
+	// TODO: This is currently never updated. And because compaction in Deck is async,
+	// this might be tricky to do. So we might just have to query the Deck every time
+	// that we have to fetch the first index.
+	// OR: Save the first entry and last compacted entry in LogStorage.
+	// Go back to having Deck notify of Compactions, but sending the Counters used
+	// in the compaction. That can be used as a signal to first fetch the first Entry again.
+	// Move current first entry into last compacted entry, and newly fetched entry into first entry.
+	// But let's hold off until I fully understand how Snapshots work. Because that might come into play.
 	indexOffset uint64
 
 	callStats struct {

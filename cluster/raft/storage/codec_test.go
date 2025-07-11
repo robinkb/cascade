@@ -74,7 +74,7 @@ func TestEncodeDecodeErrorDetection(t *testing.T) {
 
 		r := bytes.NewReader(w.Bytes())
 		_, err = storage.NewDecoder(r).DecodeAt(got, 0)
-		AssertErrorIs(t, err, storage.ErrChecksumMismatch)
+		AssertErrorIs(t, err, storage.ErrShortRead)
 	})
 
 	t.Run("corrupt record leads to CRC mismatch", func(t *testing.T) {

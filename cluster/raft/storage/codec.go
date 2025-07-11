@@ -22,12 +22,6 @@ var (
 )
 
 type (
-	header struct {
-		crc   uint64 // 8 bytes
-		rtype uint32 // 4 bytes
-		size  uint32 // 4 bytes
-	}
-
 	// Encoder writes encoded Records to the output stream.
 	// It is not threadsafe.
 	Encoder interface {
@@ -118,6 +112,13 @@ func (d *decoder) DecodeAt(r *Record, off int64) (int64, error) {
 	d.buf.Write(hbuf)
 	header := parseHeader(hbuf)
 
+	// The decoder normally keeps reading until EOF.
+	// But with a pre-allocated file, a lot of the file might be empty.
+	// Treat reading an empty header the same as EOF in that case.
+	if header.isEmpty() {
+		return 0, io.EOF
+	}
+
 	// Reading the payload.
 	d.buf.Grow(RecordHeaderLength + int(header.size))
 	pbuf := d.buf.Bytes()[RecordHeaderLength : RecordHeaderLength+header.size]
@@ -129,7 +130,7 @@ func (d *decoder) DecodeAt(r *Record, off int64) (int64, error) {
 		// TODO: This could actually indicate unrecoverable corruption of the log.
 		// Another error might be warranted here. Or panic.
 		if err == io.EOF {
-			return read, ErrChecksumMismatch
+			return read, ErrShortRead
 		}
 		return read, err
 	}
@@ -157,4 +158,14 @@ func parseHeader(b []byte) header {
 		rtype: binary.LittleEndian.Uint32(b[8:12]),
 		size:  binary.LittleEndian.Uint32(b[12:16]),
 	}
+}
+
+type header struct {
+	crc   uint64 // 8 bytes
+	rtype uint32 // 4 bytes
+	size  uint32 // 4 bytes
+}
+
+func (h *header) isEmpty() bool {
+	return h.crc == 0 && h.rtype == 0 && h.size == 0
 }

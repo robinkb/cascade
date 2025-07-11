@@ -2,13 +2,14 @@ package storage_test
 
 import (
 	"io"
-	"math/rand/v2"
 	"os"
 	"path/filepath"
+	"syscall"
 	"testing"
 
 	"github.com/robinkb/cascade-registry/cluster/raft/storage"
 	. "github.com/robinkb/cascade-registry/testing"
+	"golang.org/x/exp/mmap"
 )
 
 func tempLog(t *testing.T) (io.ReaderAt, io.Writer) {
@@ -34,14 +35,9 @@ func tempLog(t *testing.T) (io.ReaderAt, io.Writer) {
 }
 
 func TestLogReadAll(t *testing.T) {
+	want := randomRecordsN(10, 16, 32)
+
 	l := storage.NewLog(tempLog(t))
-
-	l.All()
-
-	want := make([]*storage.Record, 10)
-	for i := range want {
-		want[i] = randomRecord(rand.Int64N(16) + 16)
-	}
 
 	for i := range want {
 		err := l.Append(want[i])
@@ -53,6 +49,34 @@ func TestLogReadAll(t *testing.T) {
 	i := 0
 	for got := range l.All() {
 		AssertStructsEqual(t, got, want[i])
+		i++
+	}
+}
+
+// The decoder normally keeps reading until EOF.
+// But with a pre-allocated file, a lot of the file might be empty.
+// This is easiest to test using the Log, but the actual fix
+// is in the decoder. It treats reading an empty header as EOF.
+func TestLogReadAllPreallocated(t *testing.T) {
+	name := filepath.Join(t.TempDir(), RandomString(5)+".log")
+	w, err := os.OpenFile(name, os.O_CREATE|os.O_WRONLY, 0644)
+	AssertNoError(t, err).Require()
+	err = syscall.Fallocate(int(w.Fd()), 0, 0, 1<<10)
+	AssertNoError(t, err).Require()
+	r, err := mmap.Open(name)
+	AssertNoError(t, err).Require()
+
+	log := storage.NewLog(r, w)
+
+	want := randomRecordsN(10, 16, 32)
+	for i := range want {
+		err := log.Append(want[i])
+		AssertNoError(t, err).Require()
+	}
+
+	i := 0
+	for got := range log.All() {
+		AssertEqual(t, got, want[i])
 		i++
 	}
 }
