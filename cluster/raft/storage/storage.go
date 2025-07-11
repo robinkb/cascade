@@ -36,7 +36,10 @@ func NewLogStorage(dir string, c *DeckConfig) (*LogStorage, error) {
 			return nil, err
 		}
 
-		l.indexOffset = entry.Index
+		l.firstEntry = raftpb.Entry{
+			Term:  entry.Term,
+			Index: entry.Index,
+		}
 	}
 
 	if l.deck.Count(TypeHardState) > 0 {
@@ -80,6 +83,8 @@ func NewLogStorage(dir string, c *DeckConfig) (*LogStorage, error) {
 	// 	}
 	// }()
 
+	go l.compactions()
+
 	return l, nil
 }
 
@@ -90,6 +95,9 @@ type LogStorage struct {
 	hardState raftpb.HardState
 	snapshot  raftpb.Snapshot
 
+	firstEntry     raftpb.Entry
+	compactedEntry raftpb.Entry
+
 	// indexOffset stores the index of the oldest entry in the log.
 	// TODO: This is currently never updated. And because compaction in Deck is async,
 	// this might be tricky to do. So we might just have to query the Deck every time
@@ -99,7 +107,7 @@ type LogStorage struct {
 	// in the compaction. That can be used as a signal to first fetch the first Entry again.
 	// Move current first entry into last compacted entry, and newly fetched entry into first entry.
 	// But let's hold off until I fully understand how Snapshots work. Because that might come into play.
-	indexOffset uint64
+	// indexOffset uint64
 
 	callStats struct {
 		// part of the raft.Storage interface, called by Raft Node
@@ -218,7 +226,7 @@ func (l *LogStorage) LastIndex() (uint64, error) {
 
 func (l *LogStorage) lastIndex() uint64 {
 	if l.deck.Count(TypeEntry) == 0 {
-		return l.indexOffset
+		return l.firstEntry.Index
 	}
 	return l.firstIndex() + uint64(l.deck.Count(TypeEntry)) - 1
 }
@@ -237,7 +245,7 @@ func (l *LogStorage) firstIndex() uint64 {
 	if l.deck.Count(TypeEntry) == 0 {
 		return 1
 	}
-	return l.indexOffset
+	return l.firstEntry.Index
 }
 
 func (l *LogStorage) Snapshot() (raftpb.Snapshot, error) {
@@ -294,7 +302,10 @@ func (l *LogStorage) Append(entries []raftpb.Entry) error {
 	}
 
 	if l.deck.Count(TypeEntry) == 0 {
-		l.indexOffset = entries[0].Index
+		l.firstEntry = raftpb.Entry{
+			Term:  entries[0].Term,
+			Index: entries[0].Index,
+		}
 	}
 
 	var err error
@@ -312,6 +323,28 @@ func (l *LogStorage) Append(entries []raftpb.Entry) error {
 	}
 
 	return nil
+}
+
+func (l *LogStorage) compactions() {
+	var newEntry raftpb.Entry
+	r := new(Record)
+	for range l.deck.Compactions() {
+		err := l.deck.First(TypeEntry, r)
+		if err != nil {
+			panic(err)
+		}
+
+		err = newEntry.Unmarshal(r.Value)
+		if err != nil {
+			panic(err)
+		}
+
+		l.compactedEntry = l.firstEntry
+		l.firstEntry = raftpb.Entry{
+			Index: newEntry.Index,
+			Term:  newEntry.Term,
+		}
+	}
 }
 
 func (l *LogStorage) Compact(i uint64) error {

@@ -143,6 +143,10 @@ type Deck struct {
 	// organized by type. It grows when appending Records to the Deck,
 	// and shrinks when Logs in the Deck are compacted.
 	inventory Inventory
+	// compactions signals the consumer of the Deck that a compaction happened.
+	// The consumer can user the sent Counters to update its internal bookkeeping.
+	// Listening is optional.
+	compactions chan Counters
 }
 
 func (d *Deck) Append(r *Record) error {
@@ -225,6 +229,11 @@ func (d *Deck) ReadAll() {
 	}
 }
 
+func (d *Deck) Compactions() <-chan Counters {
+	d.compactions = make(chan Counters)
+	return d.compactions
+}
+
 func (d *Deck) newLog() *Log {
 	defer d.compact()
 
@@ -274,6 +283,10 @@ func (d *Deck) compact() {
 
 		d.logs = d.logs[1:len(d.logs)]
 		d.offset++
+
+		if d.compactions != nil {
+			d.compactions <- log.Counters()
+		}
 	}
 }
 

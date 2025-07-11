@@ -4,6 +4,7 @@ import (
 	"math"
 	"math/rand/v2"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 	"go.etcd.io/raft/v3"
@@ -307,6 +308,8 @@ func TestCompaction(t *testing.T) {
 	want2 := index(2).terms(2)
 	err = store.Append(want2)
 	AssertNoError(t, err)
+
+	time.Sleep(10 * time.Millisecond)
 
 	// FirstIndex should now return the Index of our new Entry.
 	fi, err = store.FirstIndex()
