@@ -15,7 +15,14 @@ import (
 )
 
 type DeckConfig struct {
-	MaxLogSize  int64
+	// MaxLogSize determines the maximum size that a single Log in the Deck can have.
+	// When appending a Record to a Log would make it grow larger than MaxLogSize,
+	// a new Log is provisioned, and the Record is appended there.
+	// The total maximum Deck size on disk is MaxLogSize * MaxLogCount.
+	MaxLogSize int64
+	// MaxLogCount determines how many Logs can be contained in the Deck.
+	// Once exceeded, the oldest Log in the Deck is compacted.
+	// The total maximum Deck size on disk is MaxLogSize * MaxLogCount.
 	MaxLogCount int
 }
 

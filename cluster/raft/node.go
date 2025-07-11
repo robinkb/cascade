@@ -37,7 +37,7 @@ const (
 
 // TODO: NewNode should return an error instead of panicking? Probably?
 func NewNode(id uint64, addr netip.AddrPort, peers []Peer, workDir string) Node {
-	storage, err := storage.NewLogStorage("raft")
+	storage, err := storage.NewLogStorage("raft", nil)
 	if err != nil {
 		panic(err)
 	}

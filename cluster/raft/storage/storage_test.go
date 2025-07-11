@@ -15,7 +15,7 @@ import (
 
 func TestStorageEntries(t *testing.T) {
 	entries := index(3).terms(3, 4, 5, 5, 6, 7, 7, 7, 7, 8)
-	l, err := storage.NewLogStorage(t.TempDir())
+	l, err := storage.NewLogStorage(t.TempDir(), nil)
 	AssertNoError(t, err).Require()
 	err = l.Append(entries)
 	AssertNoError(t, err)
@@ -52,7 +52,7 @@ func TestStorageEntries(t *testing.T) {
 
 func TestStorageTerm(t *testing.T) {
 	t.Run("for empty storage", func(t *testing.T) {
-		l, err := storage.NewLogStorage(t.TempDir())
+		l, err := storage.NewLogStorage(t.TempDir(), nil)
 		AssertNoError(t, err).Require()
 
 		fi, _ := l.FirstIndex()
@@ -92,7 +92,7 @@ func TestStorageTerm(t *testing.T) {
 
 		for _, tt := range tests {
 			t.Run(tt.name, func(t *testing.T) {
-				l, err := storage.NewLogStorage(t.TempDir())
+				l, err := storage.NewLogStorage(t.TempDir(), nil)
 				AssertNoError(t, err).Require()
 				err = l.Append(ents)
 				AssertNoError(t, err)
@@ -134,7 +134,7 @@ func TestStorageEntries2(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run("", func(t *testing.T) {
-			l, err := storage.NewLogStorage(t.TempDir())
+			l, err := storage.NewLogStorage(t.TempDir(), nil)
 			AssertNoError(t, err).Require()
 			err = l.Append(ents)
 			AssertNoError(t, err)
@@ -147,7 +147,7 @@ func TestStorageEntries2(t *testing.T) {
 }
 
 func TestStorageLastIndex(t *testing.T) {
-	l, err := storage.NewLogStorage(t.TempDir())
+	l, err := storage.NewLogStorage(t.TempDir(), nil)
 	AssertNoError(t, err).Require()
 
 	var want uint64
@@ -166,7 +166,7 @@ func TestStorageLastIndex(t *testing.T) {
 }
 
 func TestStorageFirstIndex(t *testing.T) {
-	l, err := storage.NewLogStorage(t.TempDir())
+	l, err := storage.NewLogStorage(t.TempDir(), nil)
 	AssertNoError(t, err).Require()
 	var want uint64
 
@@ -193,7 +193,7 @@ func TestStorageFirstIndex(t *testing.T) {
 }
 
 func TestSetHardState(t *testing.T) {
-	l, err := storage.NewLogStorage(t.TempDir())
+	l, err := storage.NewLogStorage(t.TempDir(), nil)
 	AssertNoError(t, err).Require()
 
 	want := raftpb.HardState{
@@ -211,7 +211,7 @@ func TestSetHardState(t *testing.T) {
 }
 
 func TestApplySnapshot(t *testing.T) {
-	l, err := storage.NewLogStorage(t.TempDir())
+	l, err := storage.NewLogStorage(t.TempDir(), nil)
 	AssertNoError(t, err).Require()
 
 	want := raftpb.Snapshot{
@@ -232,7 +232,7 @@ func TestApplySnapshot(t *testing.T) {
 func TestPersistence(t *testing.T) {
 	dir := t.TempDir()
 
-	oldLog, err := storage.NewLogStorage(dir)
+	oldLog, err := storage.NewLogStorage(dir, nil)
 	AssertNoError(t, err).Require()
 
 	want := struct {
@@ -252,7 +252,7 @@ func TestPersistence(t *testing.T) {
 	err = oldLog.Append(want.entries)
 	AssertNoError(t, err).Require()
 
-	newLog, err := storage.NewLogStorage(dir)
+	newLog, err := storage.NewLogStorage(dir, nil)
 	AssertNoError(t, err).Require()
 
 	gotHardState, gotConfState, err := newLog.InitialState()
@@ -273,6 +273,54 @@ func TestPersistence(t *testing.T) {
 	AssertStructsEqual(t, gotEntries, want.entries)
 }
 
+func TestCompaction(t *testing.T) {
+	// Prepare a store with a ridiculously low limit
+	// to immediately trigger compactions.
+	store, err := storage.NewLogStorage(t.TempDir(), &storage.DeckConfig{
+		MaxLogSize:  32,
+		MaxLogCount: 1,
+	})
+	AssertNoError(t, err).Require()
+
+	// This entry will "fill up" the first Log.
+	want1 := index(1).terms(1)
+	// Not really for testing, but to ensure that the size is as expected.
+	// With MaxLogSize of 32, only one entry can fit in a log.
+	// And with MaxLogCount of 1, a second entry will immediately trigger a compaction,
+	// and push the first entry out.
+	AssertEqual(t, storage.RecordHeaderLength+want1[0].Size(), 22)
+	err = store.Append(want1)
+	AssertNoError(t, err)
+
+	// Ensure that FirstIndex returns the Index of the Entry that we just put in.
+	fi, err := store.FirstIndex()
+	AssertNoError(t, err)
+	AssertEqual(t, fi, want1[0].Index)
+
+	// We should be able to retrieve our Entry.
+	got1, err := store.Entries(1, 2, math.MaxUint64)
+	AssertNoError(t, err)
+	AssertStructsEqual(t, got1[0], want1[0])
+
+	// This second Entry should push our little store over its limit
+	// and cause the first Log containing the first Entry to be compacted.
+	want2 := index(2).terms(2)
+	err = store.Append(want2)
+	AssertNoError(t, err)
+
+	// FirstIndex should now return the Index of our new Entry.
+	fi, err = store.FirstIndex()
+	AssertNoError(t, err)
+	AssertEqual(t, fi, want2[0].Index)
+	// The Entry that was pushed earlier should be unavailable.
+	_, err = store.Entries(1, 2, math.MaxUint64)
+	AssertErrorIs(t, err, raft.ErrCompacted)
+	// The new Entry should also be available.
+	got2, err := store.Entries(2, 3, math.MaxUint64)
+	AssertNoError(t, err)
+	AssertStructsEqual(t, got2[0], want2[0])
+}
+
 // index is a helper type for generating slices of raftpb.Entry. The value of index
 // is the first entry index in the generated slices.
 type index uint64
@@ -287,4 +335,9 @@ func (i index) terms(terms ...uint64) []raftpb.Entry {
 		index++
 	}
 	return entries
+}
+
+func TestScratch(t *testing.T) {
+	s := []byte("hardstate")
+	t.Log(len(s))
 }

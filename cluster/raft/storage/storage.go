@@ -6,14 +6,19 @@ import (
 )
 
 const (
+	// TODO: Types of Records being saved to the log.
+	// Any changes to the values of these will break storage compatibility.
+	// So maybe I should use strings instead. My budget for entry types is uint32.
+	// 32 characters should be plenty. Type casting strings straight from
+	// bytes should not be any more expensive than unsigned integers.
 	TypeEntry RecordType = iota
 	TypeHardState
 	TypeSnapshot
 )
 
-func NewLogStorage(dir string) (*LogStorage, error) {
+func NewLogStorage(dir string, c *DeckConfig) (*LogStorage, error) {
 	l := &LogStorage{
-		deck: NewDeck(dir, nil),
+		deck: NewDeck(dir, c),
 	}
 
 	l.deck.ReadAll()
