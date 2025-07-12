@@ -1,6 +1,8 @@
 package storage
 
 import (
+	"fmt"
+
 	"go.etcd.io/raft/v3"
 	"go.etcd.io/raft/v3/raftpb"
 )
@@ -141,19 +143,21 @@ func (l *LogStorage) InitialState() (raftpb.HardState, raftpb.ConfState, error) 
 // encountered an unavailable entry in [lo, hi).
 func (l *LogStorage) Entries(lo, hi, maxSize uint64) ([]raftpb.Entry, error) {
 	l.callStats.entries++
-	if lo < l.firstIndex() {
+
+	fi := l.firstIndex()
+	if lo < fi {
 		return nil, raft.ErrCompacted
 	}
 
-	lo -= l.firstIndex()
-	hi -= l.firstIndex()
+	lo -= fi
+	hi -= fi
 
 	var size uint64
 	entries := make([]raftpb.Entry, 0)
 
 	for record, err := range l.deck.Range(TypeEntry, int(lo), int(hi)) {
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("failed to get entries [lo: %d] [hi: %d]: %w", lo, hi, err)
 		}
 
 		size += uint64(len(record.Value))
@@ -182,22 +186,26 @@ func (l *LogStorage) Term(i uint64) (uint64, error) {
 	if i == 0 && l.deck.Count(TypeEntry) == 0 {
 		return 0, nil
 	}
-	if i > l.lastIndex() {
+
+	li := l.lastIndex()
+	if i > li {
 		return 0, raft.ErrUnavailable
 	}
-	if i == l.firstIndex()-1 {
+
+	fi := l.firstIndex()
+	if i == fi-1 {
 		return l.compactedEntry.Term, nil
 	}
-	if i < l.firstIndex() || l.deck.Count(TypeEntry) == 0 {
+	if i < fi || l.deck.Count(TypeEntry) == 0 {
 		return 0, raft.ErrCompacted
 	}
 
-	i -= l.firstIndex()
+	i -= fi
 
 	r := new(Record)
 	err := l.deck.Get(TypeEntry, int(i), r)
 	if err != nil {
-		return 0, err
+		return 0, fmt.Errorf("failed to get term [i: %d] [fi: %d] [li: %d]: %w", i, fi, li, err)
 	}
 
 	var entry raftpb.Entry

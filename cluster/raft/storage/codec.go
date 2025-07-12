@@ -116,7 +116,7 @@ func (d *decoder) DecodeAt(r *Record, off int64) (int64, error) {
 	// But with a pre-allocated file, a lot of the file might be empty.
 	// Treat reading an empty header the same as EOF in that case.
 	if header.isEmpty() {
-		return 0, io.EOF
+		return read, io.EOF
 	}
 
 	// Reading the payload.
