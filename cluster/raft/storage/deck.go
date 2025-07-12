@@ -273,6 +273,19 @@ func (d *Deck) compact() {
 	if len(d.logs) > d.maxLogCount {
 		log := d.logs[0]
 		id := log.ID
+
+		// The CompactionHandler is run _before_ compaction actually occurs
+		// so that the Deck consumer has a full view of the data, including
+		// what is being removed. Technically compaction may fail afterwards
+		// without the application knowing about it, but we're talking
+		// about removing a file and in-memory operations that are well-tested.
+		if d.compactHandler != nil {
+			err := d.compactHandler(log.Counters())
+			if err != nil {
+				panic(err)
+			}
+		}
+
 		logFile := filepath.Join(d.dir, fmt.Sprintf("%020d.log", id))
 		err := os.Remove(logFile)
 		if err != nil {
@@ -283,13 +296,6 @@ func (d *Deck) compact() {
 
 		d.logs = d.logs[1:len(d.logs)]
 		d.offset++
-
-		if d.compactHandler != nil {
-			err := d.compactHandler(log.Counters())
-			if err != nil {
-				panic(err)
-			}
-		}
 	}
 }
 

@@ -83,7 +83,7 @@ func NewLogStorage(dir string, c *DeckConfig) (*LogStorage, error) {
 	// 	}
 	// }()
 
-	l.deck.CompactionHandler(l.compactHandler())
+	l.deck.CompactionHandler(l.compactionHandler())
 
 	return l, nil
 }
@@ -316,25 +316,46 @@ func (l *LogStorage) Append(entries []raftpb.Entry) error {
 	return nil
 }
 
-func (l *LogStorage) compactHandler() CompactionHandler {
-	var newEntry raftpb.Entry
+func (l *LogStorage) compactionHandler() CompactionHandler {
+	var entry raftpb.Entry
 	r := new(Record)
 
 	return func(c Counters) error {
-		err := l.deck.First(TypeEntry, r)
-		if err != nil {
-			return err
-		}
+		for t, count := range c.All() {
+			// We only do something with Entries atm.
+			if t != TypeEntry {
+				continue
+			}
 
-		err = newEntry.Unmarshal(r.Value)
-		if err != nil {
-			return err
-		}
+			err := l.deck.Get(TypeEntry, int(count)-1, r)
+			if err != nil {
+				return err
+			}
 
-		l.compactedEntry = l.firstEntry
-		l.firstEntry = raftpb.Entry{
-			Index: newEntry.Index,
-			Term:  newEntry.Term,
+			err = entry.Unmarshal(r.Value)
+			if err != nil {
+				return err
+			}
+
+			l.compactedEntry = raftpb.Entry{
+				Index: entry.Index,
+				Term:  entry.Term,
+			}
+
+			err = l.deck.Get(TypeEntry, int(count), r)
+			if err != nil {
+				return err
+			}
+
+			err = entry.Unmarshal(r.Value)
+			if err != nil {
+				return err
+			}
+
+			l.firstEntry = raftpb.Entry{
+				Index: entry.Index,
+				Term:  entry.Term,
+			}
 		}
 
 		return nil

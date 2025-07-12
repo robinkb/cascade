@@ -327,6 +327,7 @@ func TestCompaction(t *testing.T) {
 	AssertNoError(t, err)
 	AssertStructsEqual(t, got2[0], want2[0])
 	// Term of the last compacted entry should still be available as well.
+	// TODO: This is only correct when compacting out one entry. So in reality, never.
 	term, err := store.Term(fi - 1)
 	AssertNoError(t, err)
 	AssertEqual(t, term, want1[0].Index)
