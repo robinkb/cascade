@@ -1,8 +1,8 @@
 package raft
 
 import (
+	"bytes"
 	"context"
-	"errors"
 	"log"
 	"net/netip"
 	"time"
@@ -36,7 +36,7 @@ const (
 )
 
 // TODO: NewNode should return an error instead of panicking? Probably?
-func NewNode(id uint64, addr netip.AddrPort, peers []Peer, workDir string) Node {
+func NewNode(id uint64, addr netip.AddrPort, peers []Peer, workDir string, snap SnapshotRestorer) Node {
 	storage, err := storage.NewLogStorage(workDir, nil)
 	if err != nil {
 		panic(err)
@@ -76,6 +76,7 @@ func NewNode(id uint64, addr netip.AddrPort, peers []Peer, workDir string) Node 
 	for _, peer := range peers {
 		node.mesh.SetPeer(peer.ID, peer.AddrPort)
 	}
+	node.snap = snap
 
 	return node
 }
@@ -90,6 +91,7 @@ type node struct {
 	Proposer
 	mesh    Mesh
 	storage *storage.LogStorage
+	snap    SnapshotRestorer
 }
 
 func (n *node) Start() {
@@ -119,19 +121,10 @@ func (n *node) run() {
 		case rd := <-n.raft.Ready():
 			n.saveToStorage(rd.HardState, rd.Entries, rd.Snapshot)
 			n.send(rd.Messages)
-			for _, entry := range rd.CommittedEntries {
-				switch entry.Type {
-				case raftpb.EntryNormal:
-					n.process(entry)
-				case raftpb.EntryConfChange:
-					var cc raftpb.ConfChange
-					if err := cc.Unmarshal(entry.Data); err != nil {
-						log.Panicf("could not read ConfChange entry: %s", err)
-					}
-					n.raft.ApplyConfChange(cc)
-				}
+			if !raft.IsEmptySnap(rd.Snapshot) {
+				n.processSnapshot(rd.Snapshot)
 			}
-			n.compact()
+			n.processEntries(rd.CommittedEntries)
 			n.raft.Advance()
 		case <-n.ticker:
 			n.raft.Tick()
@@ -157,10 +150,32 @@ func (n *node) send(messages []raftpb.Message) {
 	}
 }
 
-func (n *node) process(entry raftpb.Entry) {
-	if entry.Data != nil {
-		n.Commit(entry.Data)
+func (n *node) processSnapshot(snap raftpb.Snapshot) {
+	buf := bytes.NewBuffer(snap.Data)
+	err := n.snap.Restore(buf)
+	if err != nil {
+		n.raft.ReportSnapshot(n.id, raft.SnapshotFailure)
+		log.Printf("failed to restore snapshot: %s", err)
 	}
+	n.raft.ReportSnapshot(n.id, raft.SnapshotFinish)
+}
+
+func (n *node) processEntries(entries []raftpb.Entry) {
+	for _, entry := range entries {
+		switch entry.Type {
+		case raftpb.EntryNormal:
+			if entry.Data != nil {
+				n.Commit(entry.Data)
+			}
+		case raftpb.EntryConfChange:
+			var cc raftpb.ConfChange
+			if err := cc.Unmarshal(entry.Data); err != nil {
+				log.Panicf("could not read ConfChange entry: %s", err)
+			}
+			n.raft.ApplyConfChange(cc)
+		}
+	}
+
 }
 
 func (n *node) Receive(msg *raftpb.Message) error {
@@ -181,17 +196,6 @@ func (n *node) saveToStorage(hardState raftpb.HardState, entries []raftpb.Entry,
 	if !raft.IsEmptySnap(snapshot) {
 		if err := n.storage.ApplySnapshot(snapshot); err != nil {
 			log.Panicf("failed to apply snapshot: %s\n", err)
-		}
-	}
-}
-
-func (n *node) compact() {
-	// This can't actually fail with in-memory raft storage.
-	li, _ := n.storage.LastIndex()
-	if li > storageMaxLogEntries {
-		err := n.storage.Compact(li - storageMaxLogEntries)
-		if err != nil && !errors.Is(err, raft.ErrCompacted) {
-			log.Panicln("unexpected error while compacting raft log:", err)
 		}
 	}
 }
