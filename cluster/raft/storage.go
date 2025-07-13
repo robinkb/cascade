@@ -1,8 +1,9 @@
-package storage
+package raft
 
 import (
 	"fmt"
 
+	"github.com/robinkb/cascade-registry/cluster/raft/storage"
 	"go.etcd.io/raft/v3"
 	"go.etcd.io/raft/v3/raftpb"
 )
@@ -13,19 +14,19 @@ const (
 	// So maybe I should use strings instead. My budget for entry types is uint32.
 	// 32 characters should be plenty. Type casting strings straight from
 	// bytes should not be any more expensive than unsigned integers.
-	TypeEntry RecordType = iota
+	TypeEntry storage.RecordType = iota
 	TypeHardState
 	TypeSnapshot
 )
 
-func NewLogStorage(dir string, c *DeckConfig) (*LogStorage, error) {
-	l := &LogStorage{
-		deck: NewDeck(dir, c),
+func NewDiskStorage(dir string, c *storage.DeckConfig) (*DiskStorage, error) {
+	l := &DiskStorage{
+		deck: storage.NewDeck(dir, c),
 	}
 
 	l.deck.ReadAll()
 
-	record := new(Record)
+	record := new(storage.Record)
 	if l.deck.Count(TypeEntry) > 0 {
 		err := l.deck.First(TypeEntry, record)
 		if err != nil {
@@ -91,8 +92,8 @@ func NewLogStorage(dir string, c *DeckConfig) (*LogStorage, error) {
 }
 
 // TODO: Sync. And hope performance doesn't tank.
-type LogStorage struct {
-	deck Deck
+type DiskStorage struct {
+	deck storage.Deck
 
 	hardState raftpb.HardState
 	snapshot  raftpb.Snapshot
@@ -117,7 +118,7 @@ type LogStorage struct {
 	}
 }
 
-func (l *LogStorage) InitialState() (raftpb.HardState, raftpb.ConfState, error) {
+func (l *DiskStorage) InitialState() (raftpb.HardState, raftpb.ConfState, error) {
 	l.callStats.initialState++
 	return l.hardState, l.snapshot.Metadata.ConfState, nil
 }
@@ -141,7 +142,7 @@ func (l *LogStorage) InitialState() (raftpb.HardState, raftpb.ConfState, error) 
 //
 // Returns ErrCompacted if entry lo has been compacted, or ErrUnavailable if
 // encountered an unavailable entry in [lo, hi).
-func (l *LogStorage) Entries(lo, hi, maxSize uint64) ([]raftpb.Entry, error) {
+func (l *DiskStorage) Entries(lo, hi, maxSize uint64) ([]raftpb.Entry, error) {
 	l.callStats.entries++
 
 	fi := l.firstIndex()
@@ -181,7 +182,7 @@ func (l *LogStorage) Entries(lo, hi, maxSize uint64) ([]raftpb.Entry, error) {
 // [FirstIndex()-1, LastIndex()]. The term of the entry before
 // FirstIndex is retained for matching purposes even though the
 // rest of that entry may not be available.
-func (l *LogStorage) Term(i uint64) (uint64, error) {
+func (l *DiskStorage) Term(i uint64) (uint64, error) {
 	l.callStats.term++
 	if i == 0 && l.deck.Count(TypeEntry) == 0 {
 		return 0, nil
@@ -202,7 +203,7 @@ func (l *LogStorage) Term(i uint64) (uint64, error) {
 
 	i -= fi
 
-	r := new(Record)
+	r := new(storage.Record)
 	err := l.deck.Get(TypeEntry, int(i), r)
 	if err != nil {
 		return 0, fmt.Errorf("failed to get term [i: %d] [fi: %d] [li: %d]: %w", i, fi, li, err)
@@ -218,12 +219,12 @@ func (l *LogStorage) Term(i uint64) (uint64, error) {
 }
 
 // LastIndex returns the index of the last entry in the log.
-func (l *LogStorage) LastIndex() (uint64, error) {
+func (l *DiskStorage) LastIndex() (uint64, error) {
 	l.callStats.lastIndex++
 	return l.lastIndex(), nil
 }
 
-func (l *LogStorage) lastIndex() uint64 {
+func (l *DiskStorage) lastIndex() uint64 {
 	if l.deck.Count(TypeEntry) == 0 {
 		return l.firstEntry.Index
 	}
@@ -233,12 +234,12 @@ func (l *LogStorage) lastIndex() uint64 {
 // FirstIndex returns the index of the first log entry that is
 // possibly available via Entries (older entries have been incorporated
 // into the latest Snapshot).
-func (l *LogStorage) FirstIndex() (uint64, error) {
+func (l *DiskStorage) FirstIndex() (uint64, error) {
 	l.callStats.firstIndex++
 	return l.firstIndex(), nil
 }
 
-func (l *LogStorage) firstIndex() uint64 {
+func (l *DiskStorage) firstIndex() uint64 {
 	// Makes no sense, but here we are. This is how Raft's MemoryStorage works.
 	// The Raft Node will refuse to start up without it.
 	if l.deck.Count(TypeEntry) == 0 {
@@ -247,15 +248,50 @@ func (l *LogStorage) firstIndex() uint64 {
 	return l.firstEntry.Index
 }
 
-func (l *LogStorage) Snapshot() (raftpb.Snapshot, error) {
+// Snapshot returns the latest snapshot persisted to storage.
+func (l *DiskStorage) Snapshot() (raftpb.Snapshot, error) {
 	l.callStats.snapshot++
 	return l.snapshot, nil
 }
 
-func (l *LogStorage) SetHardState(hardState raftpb.HardState) error {
+// Append writes the entries to persistent storage. Entries are then available
+// through the Entries, Term, FirstIndex, and LastIndex methods.
+func (l *DiskStorage) Append(entries []raftpb.Entry) error {
+	l.callStats.append++
+	if len(entries) == 0 {
+		return nil
+	}
+
+	if l.deck.Count(TypeEntry) == 0 {
+		l.firstEntry = raftpb.Entry{
+			Term:  entries[0].Term,
+			Index: entries[0].Index,
+		}
+	}
+
+	var err error
+	for _, entry := range entries {
+		record := &storage.Record{Type: TypeEntry, Value: make([]byte, entry.Size())}
+		_, err = entry.MarshalTo(record.Value)
+		if err != nil {
+			return err
+		}
+
+		err = l.deck.Append(record)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+// SaveHardState writes the hard state to persistent storage,
+// and makes it available for when Raft has to restart.
+func (l *DiskStorage) SaveHardState(hardState raftpb.HardState) error {
 	l.callStats.setHardState++
 
-	record := &Record{
+	record := &storage.Record{
 		Type:  TypeHardState,
 		Value: make([]byte, hardState.Size()),
 	}
@@ -273,10 +309,12 @@ func (l *LogStorage) SetHardState(hardState raftpb.HardState) error {
 	return nil
 }
 
-func (l *LogStorage) ApplySnapshot(snapshot raftpb.Snapshot) error {
+// SaveSnapshot writes the snapshot to persistent storage,
+// and makes it available through the Snapshot() method.
+func (l *DiskStorage) SaveSnapshot(snapshot raftpb.Snapshot) error {
 	l.callStats.applySnapshot++
 
-	record := &Record{
+	record := &storage.Record{
 		Type:  TypeSnapshot,
 		Value: make([]byte, snapshot.Size()),
 	}
@@ -294,41 +332,11 @@ func (l *LogStorage) ApplySnapshot(snapshot raftpb.Snapshot) error {
 	return nil
 }
 
-func (l *LogStorage) Append(entries []raftpb.Entry) error {
-	l.callStats.append++
-	if len(entries) == 0 {
-		return nil
-	}
-
-	if l.deck.Count(TypeEntry) == 0 {
-		l.firstEntry = raftpb.Entry{
-			Term:  entries[0].Term,
-			Index: entries[0].Index,
-		}
-	}
-
-	var err error
-	for _, entry := range entries {
-		record := &Record{Type: TypeEntry, Value: make([]byte, entry.Size())}
-		_, err = entry.MarshalTo(record.Value)
-		if err != nil {
-			return err
-		}
-
-		err = l.deck.Append(record)
-		if err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
-
-func (l *LogStorage) compactionHandler() CompactionHandler {
+func (l *DiskStorage) compactionHandler() storage.CompactionHandler {
 	var entry raftpb.Entry
-	r := new(Record)
+	r := new(storage.Record)
 
-	return func(c Counters) error {
+	return func(c storage.Counters) error {
 		for t, count := range c.All() {
 			// We only do something with Entries atm.
 			if t != TypeEntry {
@@ -368,9 +376,4 @@ func (l *LogStorage) compactionHandler() CompactionHandler {
 
 		return nil
 	}
-}
-
-func (l *LogStorage) Compact(i uint64) error {
-	l.callStats.compact++
-	return nil
 }

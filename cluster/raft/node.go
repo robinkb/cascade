@@ -7,7 +7,6 @@ import (
 	"net/netip"
 	"time"
 
-	"github.com/robinkb/cascade-registry/cluster/raft/storage"
 	"go.etcd.io/raft/v3"
 	"go.etcd.io/raft/v3/raftpb"
 )
@@ -37,7 +36,7 @@ const (
 
 // TODO: NewNode should return an error instead of panicking? Probably?
 func NewNode(id uint64, addr netip.AddrPort, peers []Peer, workDir string, snap SnapshotRestorer) Node {
-	storage, err := storage.NewLogStorage(workDir, nil)
+	storage, err := NewDiskStorage(workDir, nil)
 	if err != nil {
 		panic(err)
 	}
@@ -90,7 +89,7 @@ type node struct {
 
 	Proposer
 	mesh    Mesh
-	storage *storage.LogStorage
+	storage *DiskStorage
 	snap    SnapshotRestorer
 }
 
@@ -188,13 +187,13 @@ func (n *node) saveToStorage(hardState raftpb.HardState, entries []raftpb.Entry,
 	}
 
 	if !raft.IsEmptyHardState(hardState) {
-		if err := n.storage.SetHardState(hardState); err != nil {
+		if err := n.storage.SaveHardState(hardState); err != nil {
 			log.Panicf("failed to save hardstate: %s\n", err)
 		}
 	}
 
 	if !raft.IsEmptySnap(snapshot) {
-		if err := n.storage.ApplySnapshot(snapshot); err != nil {
+		if err := n.storage.SaveSnapshot(snapshot); err != nil {
 			log.Panicf("failed to apply snapshot: %s\n", err)
 		}
 	}
