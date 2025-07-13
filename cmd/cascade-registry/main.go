@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/netip"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 
@@ -14,7 +15,7 @@ import (
 	"github.com/robinkb/cascade-registry/cluster/raft"
 	"github.com/robinkb/cascade-registry/server"
 	"github.com/robinkb/cascade-registry/store/boltdb"
-	clusterstore "github.com/robinkb/cascade-registry/store/cluster"
+	"github.com/robinkb/cascade-registry/store/cluster"
 	"github.com/robinkb/cascade-registry/store/fs"
 )
 
@@ -58,9 +59,9 @@ func main() {
 			}
 		}
 
-		node := raft.NewNode(uint64(raftId), addr, peers, path)
-		metadata = clusterstore.NewMetadataStore(node, metadata)
-		blobs = clusterstore.NewBlobStore(node, blobs)
+		node := raft.NewNode(uint64(raftId), addr, peers, filepath.Join(path, "raft"))
+		metadata = cluster.NewMetadataStore(node, metadata)
+		blobs = cluster.NewBlobStore(node, blobs)
 		node.Start()
 	}
 

@@ -2,6 +2,7 @@ package store
 
 import (
 	"io"
+	"iter"
 
 	"github.com/gofrs/uuid/v5"
 	"github.com/opencontainers/go-digest"
@@ -32,7 +33,7 @@ type (
 		// it will create an empty file on the blob store that will later be appended.
 		InitUpload(id uuid.UUID) error
 		// UploadWriter returns an io.Writer to write to an initialized upload.
-		// Uploads are always uploaded in order andappended to. If an upload fails or must be truncated,
+		// Uploads are always uploaded in order and appended to. If an upload fails or must be truncated,
 		// a new session must be started instead.
 		UploadWriter(id uuid.UUID) (io.Writer, error)
 		// CloseUpload finishes an upload and makes its contents accessible in the blob store by its digest.
@@ -41,6 +42,20 @@ type (
 		// DeleteUpload removes an upload from the store.
 		// Intended for cleaning up expired or failed uploads.
 		DeleteUpload(id uuid.UUID) error
+	}
+
+	// Syncer provides the methods for directly reading and writing to a Blobs store,
+	// bypassing the usual upload process. It can be used to manage the Blob store
+	// outside of regular registry operations.
+	Syncer interface {
+		// All iterates over all blobs in the store.
+		All() iter.Seq2[digest.Digest, error]
+		// Writer returns an io.Writer to write a blob.
+		Writer(id digest.Digest) (io.Writer, error)
+		// Reader returns an io.Reader that can be used to read a blob in a streaming fashion.
+		Reader(id digest.Digest) (io.Reader, error)
+		// Delete removes a blob from the blob store.
+		Delete(id digest.Digest) error
 	}
 
 	// BlobInfo contains the basic information of a blob.
