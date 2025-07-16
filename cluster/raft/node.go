@@ -35,8 +35,10 @@ const (
 )
 
 // TODO: NewNode should return an error instead of panicking? Probably?
+// Also, I should probably decompose this more and allow passing dependencies
+// like a Mesh and DiskStorage directly.
 func NewNode(id uint64, addr netip.AddrPort, peers []Peer, workDir string, snap SnapshotRestorer) Node {
-	storage, err := NewDiskStorage(workDir, nil)
+	storage, err := NewDiskStorage(workDir, snap, nil)
 	if err != nil {
 		panic(err)
 	}
@@ -75,7 +77,7 @@ func NewNode(id uint64, addr netip.AddrPort, peers []Peer, workDir string, snap 
 	for _, peer := range peers {
 		node.mesh.SetPeer(peer.ID, peer.AddrPort)
 	}
-	node.snap = snap
+	node.restorer = snap
 
 	return node
 }
@@ -88,9 +90,9 @@ type node struct {
 	done       chan struct{}
 
 	Proposer
-	mesh    Mesh
-	storage *DiskStorage
-	snap    SnapshotRestorer
+	mesh     Mesh
+	storage  *DiskStorage
+	restorer Restorer
 }
 
 func (n *node) Start() {
@@ -151,15 +153,19 @@ func (n *node) send(messages []raftpb.Message) {
 
 func (n *node) processSnapshot(snap raftpb.Snapshot) {
 	buf := bytes.NewBuffer(snap.Data)
-	err := n.snap.Restore(buf)
+	err := n.restorer.Restore(buf)
 	if err != nil {
-		n.raft.ReportSnapshot(n.id, raft.SnapshotFailure)
 		log.Printf("failed to restore snapshot: %s", err)
+		n.raft.ReportSnapshot(n.id, raft.SnapshotFailure)
 	}
 	n.raft.ReportSnapshot(n.id, raft.SnapshotFinish)
 }
 
 func (n *node) processEntries(entries []raftpb.Entry) {
+	if len(entries) == 0 {
+		return
+	}
+
 	for _, entry := range entries {
 		switch entry.Type {
 		case raftpb.EntryNormal:
@@ -171,10 +177,15 @@ func (n *node) processEntries(entries []raftpb.Entry) {
 			if err := cc.Unmarshal(entry.Data); err != nil {
 				log.Panicf("could not read ConfChange entry: %s", err)
 			}
-			n.raft.ApplyConfChange(cc)
+			cs := n.raft.ApplyConfChange(cc)
+			n.storage.SaveConfState(cs)
 		}
 	}
 
+	// TODO: Commit should return an error or something to signal
+	// if the commit was successfully applied. We can't just set
+	// AppliedIndex to the last Entry's Index.
+	n.storage.AppliedIndex(entries[len(entries)-1].Index)
 }
 
 func (n *node) Receive(msg *raftpb.Message) error {

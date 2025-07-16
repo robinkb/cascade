@@ -27,6 +27,7 @@ type DeckConfig struct {
 }
 
 type CompactionHandler func(c Counters) error
+type CutHandler func(seq uint64) error
 
 var defaultDeckConfig = DeckConfig{
 	MaxLogSize:  64 << 20,
@@ -142,6 +143,9 @@ type Deck struct {
 	// organized by type. It grows when appending Records to the Deck,
 	// and shrinks when Logs in the Deck are compacted.
 	inventory *Inventory
+	// cutHandler is provided by the Deck consumer. If provided,
+	// it is called by Deck after every Log is cut.
+	cutHandler CutHandler
 	// compactHandler is provided by the Deck consumer. If provided,
 	// it is called by Deck after every compaction, allowing the consumer
 	// to update its internal bookkeeping.
@@ -232,6 +236,10 @@ func (d *Deck) ReadAll() {
 	}
 }
 
+func (d *Deck) CutHandler(h CutHandler) {
+	d.cutHandler = h
+}
+
 func (d *Deck) CompactionHandler(h CompactionHandler) {
 	d.compactHandler = h
 }
@@ -256,6 +264,12 @@ func (d *Deck) newLog() *Log {
 	log := NewLog(r, w)
 	log.ID = int64(d.sequence)
 	d.logs = append(d.logs, log)
+	if d.cutHandler != nil && d.sequence != 0 {
+		err := d.cutHandler(uint64(log.ID))
+		if err != nil {
+			panic(err)
+		}
+	}
 	d.sequence++
 
 	return log

@@ -1,6 +1,7 @@
 package raft
 
 import (
+	"bytes"
 	"fmt"
 
 	"github.com/robinkb/cascade-registry/cluster/raft/storage"
@@ -19,9 +20,10 @@ const (
 	TypeSnapshot
 )
 
-func NewDiskStorage(dir string, c *storage.DeckConfig) (*DiskStorage, error) {
+func NewDiskStorage(dir string, snap Snapshotter, c *storage.DeckConfig) (*DiskStorage, error) {
 	l := &DiskStorage{
 		deck: storage.NewDeck(dir, c),
+		snap: snap,
 	}
 
 	l.deck.ReadAll()
@@ -86,6 +88,7 @@ func NewDiskStorage(dir string, c *storage.DeckConfig) (*DiskStorage, error) {
 	// 	}
 	// }()
 
+	l.deck.CutHandler(l.cutHandler())
 	l.deck.CompactionHandler(l.compactionHandler())
 
 	return l, nil
@@ -94,10 +97,13 @@ func NewDiskStorage(dir string, c *storage.DeckConfig) (*DiskStorage, error) {
 // TODO: Sync. And hope performance doesn't tank.
 type DiskStorage struct {
 	deck storage.Deck
+	snap Snapshotter
 
 	hardState raftpb.HardState
 	snapshot  raftpb.Snapshot
+	confState *raftpb.ConfState
 
+	appliedIndex   uint64
 	firstEntry     raftpb.Entry
 	compactedEntry raftpb.Entry
 
@@ -239,6 +245,10 @@ func (l *DiskStorage) FirstIndex() (uint64, error) {
 	return l.firstIndex(), nil
 }
 
+func (l *DiskStorage) AppliedIndex(i uint64) {
+	l.appliedIndex = i
+}
+
 func (l *DiskStorage) firstIndex() uint64 {
 	// Makes no sense, but here we are. This is how Raft's MemoryStorage works.
 	// The Raft Node will refuse to start up without it.
@@ -330,6 +340,51 @@ func (l *DiskStorage) SaveSnapshot(snapshot raftpb.Snapshot) error {
 
 	l.snapshot = snapshot
 	return nil
+}
+
+func (l *DiskStorage) SaveConfState(cs *raftpb.ConfState) {
+	l.confState = cs
+}
+
+func (l *DiskStorage) cutHandler() storage.CutHandler {
+	var entry raftpb.Entry
+	r := new(storage.Record)
+	buf := new(bytes.Buffer)
+
+	return func(seq uint64) error {
+		buf.Reset()
+
+		if err := l.deck.Get(TypeEntry, int(l.appliedIndex), r); err != nil {
+			return err
+		}
+
+		if err := entry.Unmarshal(r.Value); err != nil {
+			return err
+		}
+
+		if err := l.snap.Snapshot(buf); err != nil {
+			return err
+		}
+
+		snap := raftpb.Snapshot{
+			Metadata: raftpb.SnapshotMetadata{
+				Index:     entry.Index,
+				Term:      entry.Term,
+				ConfState: *l.confState,
+			},
+			Data: buf.Bytes(),
+		}
+
+		data, err := snap.Marshal()
+		if err != nil {
+			return err
+		}
+
+		return l.deck.Append(&storage.Record{
+			Type:  TypeSnapshot,
+			Value: data,
+		})
+	}
 }
 
 func (l *DiskStorage) compactionHandler() storage.CompactionHandler {
