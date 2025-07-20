@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	"github.com/robinkb/cascade-registry/store"
-	. "github.com/robinkb/cascade-registry/testing"
+	. "github.com/robinkb/cascade-registry/testing" // nolint: staticcheck
 	"github.com/stretchr/testify/suite"
 )
 
@@ -15,7 +15,6 @@ type MetadataSuite struct {
 	suite.Suite
 
 	Constructor MetadataStoreConstructor
-	store       store.Metadata
 }
 
 func (s *MetadataSuite) TestSnapshotRestore() {

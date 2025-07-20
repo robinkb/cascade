@@ -30,10 +30,6 @@ type (
 	}
 )
 
-const (
-	storageMaxLogEntries = 1000
-)
-
 // TODO: NewNode should return an error instead of panicking? Probably?
 // Also, I should probably decompose this more and allow passing dependencies
 // like a Mesh and DiskStorage directly.

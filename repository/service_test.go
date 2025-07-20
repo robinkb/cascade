@@ -68,7 +68,7 @@ func TestWithBoltDBStore(t *testing.T) {
 			blobs := inmemory.NewBlobStore()
 
 			t.Cleanup(func() {
-				os.RemoveAll(tmp)
+				os.RemoveAll(tmp) // nolint: errcheck
 			})
 
 			return metadata, blobs
@@ -84,7 +84,7 @@ func TestWithFilesystemStore(t *testing.T) {
 			blobs := fs.NewBlobStore(tmp)
 
 			t.Cleanup(func() {
-				os.RemoveAll(tmp)
+				os.RemoveAll(tmp) // nolint: errcheck
 			})
 
 			return metadata, blobs

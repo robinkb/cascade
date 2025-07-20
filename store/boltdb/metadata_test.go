@@ -14,7 +14,7 @@ func TestMetadataSuite(t *testing.T) {
 		Constructor: func() store.Metadata {
 			tmp := t.TempDir()
 			t.Cleanup(func() {
-				os.RemoveAll(tmp)
+				os.RemoveAll(tmp) // nolint: errcheck
 			})
 
 			return NewMetadataStore(tmp)
