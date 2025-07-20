@@ -178,5 +178,6 @@ func randomPointer() storage.Pointer {
 	return storage.Pointer{
 		Log:    rand.Int64(),
 		Offset: rand.Int64(),
+		Size:   rand.Int64(),
 	}
 }

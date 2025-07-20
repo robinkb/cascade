@@ -36,8 +36,8 @@ func (l *Log) Append(r *Record) error {
 	return err
 }
 
-func (l *Log) ReadAt(r *Record, offset int64) error {
-	_, err := l.dec.RecordAt(r, offset)
+func (l *Log) ValueAt(p []byte, offset int64) error {
+	_, err := l.dec.ValueAt(p, offset)
 	return err
 }
 

@@ -173,7 +173,9 @@ func (d *Deck) Append(r *Record) error {
 
 	// Run compaction _after_ adding the new entry so that
 	// the compaction handler has an up-to-date view of the Deck.
-	d.compact()
+	if len(d.logs) > d.maxLogCount {
+		d.compact()
+	}
 
 	return nil
 }
@@ -182,57 +184,60 @@ func (d *Deck) Sync() error {
 	return syscall.Fdatasync(int(d.activeLog().File.Fd()))
 }
 
-func (d *Deck) Get(t RecordType, i int, r *Record) error {
+func (d *Deck) Get(t RecordType, i int) ([]byte, error) {
 	ptr, err := d.inventory.Get(t, i)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	return d.readAt(r, ptr)
+	return d.valueAt(ptr)
 }
 
 func (d *Deck) Count(t RecordType) int {
 	return d.inventory.Count(t)
 }
 
-func (d *Deck) First(t RecordType, r *Record) error {
+func (d *Deck) First(t RecordType) ([]byte, error) {
 	ptr, err := d.inventory.Get(t, 0)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	return d.readAt(r, ptr)
+	return d.valueAt(ptr)
 }
 
-func (d *Deck) Last(t RecordType, r *Record) error {
+func (d *Deck) Last(t RecordType) ([]byte, error) {
 	ptr, err := d.inventory.Get(t, d.inventory.Count(t)-1)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	return d.readAt(r, ptr)
+	return d.valueAt(ptr)
 }
 
-func (d *Deck) Range(t RecordType, lo, hi int) iter.Seq2[*Record, error] {
-	return func(yield func(*Record, error) bool) {
+func (d *Deck) Range(t RecordType, lo, hi int) iter.Seq2[[]byte, error] {
+	return func(yield func([]byte, error) bool) {
 		pointers, err := d.inventory.Range(t, lo, hi)
 		if err != nil {
 			yield(nil, err)
 			return
 		}
 
-		r := new(Record)
 		for _, ptr := range pointers {
-			err := d.readAt(r, ptr)
-			if !yield(r, err) {
+			b, err := d.valueAt(ptr)
+			if !yield(b, err) {
 				return
 			}
 		}
 	}
 }
 
-func (d *Deck) readAt(r *Record, p Pointer) error {
-	return d.logs[p.Log-d.offset].ReadAt(r, p.Offset)
+// This allocates, after all the hard work of making sure that nothing does.
+// What to do? Maybe use a buffer pool?
+func (d *Deck) valueAt(p Pointer) ([]byte, error) {
+	value := make([]byte, p.Size)
+	err := d.logs[p.Log-d.offset].ValueAt(value, p.Offset)
+	return value, err
 }
 
 func (d *Deck) ReadAll() {
@@ -302,33 +307,31 @@ func (d *Deck) activeLog() ManagedLog {
 
 // TODO: Should close Log's file descriptors here...?
 func (d *Deck) compact() {
-	if len(d.logs) > d.maxLogCount {
-		log := d.logs[0]
-		id := log.ID
+	log := d.logs[0]
+	id := log.ID
 
-		// The CompactionHandler is run _before_ compaction actually occurs
-		// so that the Deck consumer has a full view of the data, including
-		// what is being removed. Technically compaction may fail afterwards
-		// without the application knowing about it, but we're talking
-		// about removing a file and in-memory operations that are well-tested.
-		if d.compactHandler != nil {
-			err := d.compactHandler(log.Counters())
-			if err != nil {
-				panic(err)
-			}
-		}
-
-		logFile := filepath.Join(d.dir, fmt.Sprintf("%020d.log", id))
-		err := os.Remove(logFile)
+	// The CompactionHandler is run _before_ compaction actually occurs
+	// so that the Deck consumer has a full view of the data, including
+	// what is being removed. Technically compaction may fail afterwards
+	// without the application knowing about it, but we're talking
+	// about removing a file and in-memory operations that are well-tested.
+	if d.compactHandler != nil {
+		err := d.compactHandler(log.Counters())
 		if err != nil {
 			panic(err)
 		}
-
-		d.inventory.Remove(log.Counters())
-
-		d.logs = d.logs[1:len(d.logs)]
-		d.offset++
 	}
+
+	logFile := filepath.Join(d.dir, fmt.Sprintf("%020d.log", id))
+	err := os.Remove(logFile)
+	if err != nil {
+		panic(err)
+	}
+
+	d.inventory.Remove(log.Counters())
+
+	d.logs = d.logs[1:len(d.logs)]
+	d.offset++
 }
 
 // Pointer returns the location of the Record last written to the Deck.
