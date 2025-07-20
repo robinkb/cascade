@@ -178,9 +178,9 @@ func (d *Deck) Append(r *Record) error {
 	return nil
 }
 
-// func (d *Deck) Sync() error {
-// 	return d.activeLog().Sync()
-// }
+func (d *Deck) Sync() error {
+	return syscall.Fdatasync(int(d.activeLog().File.Fd()))
+}
 
 func (d *Deck) Get(t RecordType, i int, r *Record) error {
 	ptr, err := d.inventory.Get(t, i)

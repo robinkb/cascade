@@ -293,7 +293,7 @@ func (l *DiskStorage) Append(entries []raftpb.Entry) error {
 		}
 	}
 
-	return nil
+	return l.deck.Sync()
 }
 
 // SaveHardState writes the hard state to persistent storage,
@@ -316,7 +316,8 @@ func (l *DiskStorage) SaveHardState(hardState raftpb.HardState) error {
 	}
 
 	l.hardState = hardState
-	return nil
+
+	return l.deck.Sync()
 }
 
 // SaveSnapshot writes the snapshot to persistent storage,
@@ -339,7 +340,8 @@ func (l *DiskStorage) SaveSnapshot(snapshot raftpb.Snapshot) error {
 	}
 
 	l.snapshot = snapshot
-	return nil
+
+	return l.deck.Sync()
 }
 
 func (l *DiskStorage) SaveConfState(cs raftpb.ConfState) {
@@ -351,7 +353,7 @@ func (l *DiskStorage) cutHandler() storage.CutHandler {
 	r := new(storage.Record)
 	buf := new(bytes.Buffer)
 
-	return func(seq uint64) error {
+	return func(seq int64) error {
 		buf.Reset()
 
 		if err := l.deck.Get(TypeEntry, int(l.appliedIndex), r); err != nil {
