@@ -1,6 +1,7 @@
 package storage
 
 import (
+	"errors"
 	"io"
 	"iter"
 	"log"
@@ -46,7 +47,7 @@ func (l *Log) All() iter.Seq[*Record] {
 		for {
 			n, err := l.dec.DecodeAt(r, l.cursor)
 			if err != nil {
-				if err == io.EOF {
+				if errors.Is(err, io.EOF) {
 					return
 				}
 				log.Panicln("error while reading log:", err)

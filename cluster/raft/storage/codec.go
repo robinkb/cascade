@@ -3,6 +3,7 @@ package storage
 import (
 	"bytes"
 	"encoding/binary"
+	"fmt"
 	"hash/crc64"
 	"io"
 	"log"
@@ -105,7 +106,7 @@ func (d *decoder) DecodeAt(r *Record, off int64) (int64, error) {
 	n, err := d.src.ReadAt(hbuf, off)
 	read += int64(n)
 	if err != nil {
-		return read, err
+		return read, fmt.Errorf("could not read header: %w", err)
 	}
 	// Ensure header is available in the buffer for later CRC calculation,
 	// which includes parts of the header.
@@ -116,7 +117,7 @@ func (d *decoder) DecodeAt(r *Record, off int64) (int64, error) {
 	// But with a pre-allocated file, a lot of the file might be empty.
 	// Treat reading an empty header the same as EOF in that case.
 	if header.isEmpty() {
-		return read, io.EOF
+		return read, fmt.Errorf("%w (empty header)", io.EOF)
 	}
 
 	// Reading the payload.
@@ -132,7 +133,7 @@ func (d *decoder) DecodeAt(r *Record, off int64) (int64, error) {
 		if err == io.EOF {
 			return read, ErrShortRead
 		}
-		return read, err
+		return read, fmt.Errorf("failed to read payload: %w", err)
 	}
 	d.buf.Write(pbuf)
 
