@@ -23,7 +23,7 @@ func TestStorageEntries(t *testing.T) {
 	entries := index(3).terms(3, 4, 5, 5, 6, 7, 7, 7, 7, 8)
 	l, err := craft.NewDiskStorage(t.TempDir(), new(craft.SpySnapshotter), nil)
 	AssertNoError(t, err).Require()
-	err = l.Save(entries, emptyHardState)
+	err = l.Save(entries, emptyHardState, false)
 	AssertNoError(t, err)
 
 	tc := []struct {
@@ -78,7 +78,7 @@ func TestStorageTerm(t *testing.T) {
 
 		l, err := craft.NewDiskStorage(t.TempDir(), nil, nil)
 		AssertNoError(t, err).Require()
-		err = l.Save(ents, emptyHardState)
+		err = l.Save(ents, emptyHardState, false)
 		AssertNoError(t, err)
 
 		tests := []struct {
@@ -144,7 +144,7 @@ func TestStorageEntries2(t *testing.T) {
 		t.Run("", func(t *testing.T) {
 			l, err := craft.NewDiskStorage(t.TempDir(), nil, nil)
 			AssertNoError(t, err).Require()
-			err = l.Save(ents, emptyHardState)
+			err = l.Save(ents, emptyHardState, false)
 			AssertNoError(t, err)
 
 			entries, err := l.Entries(tt.lo, tt.hi, tt.maxsize)
@@ -165,7 +165,7 @@ func TestStorageLastIndex(t *testing.T) {
 
 	entries := index(3).terms(3, 4, want)
 	want = entries[len(entries)-1].Index
-	err = l.Save(entries, emptyHardState)
+	err = l.Save(entries, emptyHardState, false)
 	AssertNoError(t, err)
 
 	got, err = l.LastIndex()
@@ -191,7 +191,7 @@ func TestStorageFirstIndex(t *testing.T) {
 	t.Run("first index of a storage with entries is the index of the first entry", func(t *testing.T) {
 		entries := index(want).terms(5, 5, 6, 6, 7, 8)
 		want = entries[0].Index
-		err := l.Save(entries, emptyHardState)
+		err := l.Save(entries, emptyHardState, false)
 		AssertNoError(t, err)
 
 		got, err := l.FirstIndex()
@@ -210,7 +210,7 @@ func TestSetHardState(t *testing.T) {
 		Commit: rand.Uint64(),
 	}
 
-	err = l.Save(nil, want)
+	err = l.Save(nil, want, false)
 	AssertNoError(t, err)
 
 	got, _, err := l.InitialState()
@@ -253,7 +253,7 @@ func TestPersistence(t *testing.T) {
 		entries:   index(3).terms(3, 4, 5, 6, 7),
 	}
 
-	err = oldLog.Save(want.entries, want.hardState)
+	err = oldLog.Save(want.entries, want.hardState, false)
 	AssertNoError(t, err).Require()
 	err = oldLog.SaveSnapshot(want.snapshot)
 	AssertNoError(t, err).Require()
@@ -299,7 +299,7 @@ func TestCompaction(t *testing.T) {
 	// And with MaxLogCount of 1, a second entry will immediately trigger a compaction,
 	// and push the first entry out.
 	AssertEqual(t, storage.RecordHeaderLength+want1[0].Size(), 22)
-	err = store.Save(want1, emptyHardState)
+	err = store.Save(want1, emptyHardState, false)
 	AssertNoError(t, err)
 
 	// Ensure that FirstIndex returns the Index of the Entry that we just put in.
@@ -315,7 +315,7 @@ func TestCompaction(t *testing.T) {
 	// This second Entry should push our little store over its limit
 	// and cause the first Log containing the first Entry to be compacted.
 	want2 := index(2).terms(2)
-	err = store.Save(want2, emptyHardState)
+	err = store.Save(want2, emptyHardState, false)
 	AssertNoError(t, err)
 
 	time.Sleep(10 * time.Millisecond)

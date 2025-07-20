@@ -262,12 +262,10 @@ func (s *DiskStorage) Snapshot() (raftpb.Snapshot, error) {
 	return s.snapshot, nil
 }
 
-func (s *DiskStorage) Save(entries []raftpb.Entry, hardState raftpb.HardState) error {
+func (s *DiskStorage) Save(entries []raftpb.Entry, hardState raftpb.HardState, sync bool) error {
 	if len(entries) == 0 && raft.IsEmptyHardState(hardState) {
 		return nil
 	}
-
-	sync := raft.MustSync(hardState, s.hardState, len(entries))
 
 	if len(entries) != 0 {
 		if s.deck.Count(TypeEntry) == 0 {

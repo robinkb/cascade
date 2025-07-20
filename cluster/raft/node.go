@@ -116,7 +116,7 @@ func (n *node) run() {
 	for {
 		select {
 		case rd := <-n.raft.Ready():
-			n.saveToStorage(rd.HardState, rd.Entries, rd.Snapshot)
+			n.saveToStorage(rd.HardState, rd.Entries, rd.Snapshot, rd.MustSync)
 			n.send(rd.Messages)
 			if !raft.IsEmptySnap(rd.Snapshot) {
 				n.processSnapshot(rd.Snapshot)
@@ -188,8 +188,8 @@ func (n *node) Receive(msg *raftpb.Message) error {
 	return n.raft.Step(context.TODO(), *msg)
 }
 
-func (n *node) saveToStorage(hardState raftpb.HardState, entries []raftpb.Entry, snapshot raftpb.Snapshot) {
-	if err := n.storage.Save(entries, hardState); err != nil {
+func (n *node) saveToStorage(hardState raftpb.HardState, entries []raftpb.Entry, snapshot raftpb.Snapshot, mustSync bool) {
+	if err := n.storage.Save(entries, hardState, mustSync); err != nil {
 		log.Panicf("failed to append entries and hardstate to storage: %s", err)
 	}
 
