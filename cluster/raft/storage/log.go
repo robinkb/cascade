@@ -37,7 +37,7 @@ func (l *Log) Append(r *Record) error {
 }
 
 func (l *Log) ReadAt(r *Record, offset int64) error {
-	_, err := l.dec.DecodeAt(r, offset)
+	_, err := l.dec.RecordAt(r, offset)
 	return err
 }
 
@@ -45,7 +45,7 @@ func (l *Log) All() iter.Seq[*Record] {
 	return func(yield func(*Record) bool) {
 		r := new(Record)
 		for {
-			n, err := l.dec.DecodeAt(r, l.cursor)
+			n, err := l.dec.RecordAt(r, l.cursor)
 			if err != nil {
 				if errors.Is(err, io.EOF) {
 					return

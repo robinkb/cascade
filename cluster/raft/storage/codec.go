@@ -34,9 +34,12 @@ type (
 
 	// Decoder reads decoded Records from the input stream.
 	Decoder interface {
-		// DecodeAt is a wrapper around an io.ReaderAt for decoding Records.
+		// RecordAt is a wrapper around an io.ReaderAt for decoding Records.
 		// It returns the amount of bytes read and an error, if any.
-		DecodeAt(r *Record, off int64) (int64, error)
+		RecordAt(r *Record, off int64) (int64, error)
+		// ValueAt is a wrapper around an io.ReaderAt for reading Record values.
+		// Its behavior is the same as io.ReaderAt.
+		ValueAt(p []byte, off int64) (int, error)
 	}
 )
 
@@ -96,7 +99,7 @@ type decoder struct {
 	buf *bytes.Buffer
 }
 
-func (d *decoder) DecodeAt(r *Record, off int64) (int64, error) {
+func (d *decoder) RecordAt(r *Record, off int64) (int64, error) {
 	d.buf.Reset()
 	var read int64
 
@@ -147,6 +150,10 @@ func (d *decoder) DecodeAt(r *Record, off int64) (int64, error) {
 	r.Value = d.buf.Bytes()[RecordHeaderLength : RecordHeaderLength+header.size]
 
 	return read, nil
+}
+
+func (d *decoder) ValueAt(p []byte, off int64) (int, error) {
+	return d.src.ReadAt(p, off)
 }
 
 func parseHeader(b []byte) header {
