@@ -238,9 +238,12 @@ func (d *Deck) readAt(r *Record, p Pointer) error {
 func (d *Deck) ReadAll() {
 	for _, log := range d.logs {
 		for record := range log.All() {
+			offset, size := log.Pointer()
+
 			d.inventory.Add(record.Type, Pointer{
 				Log:    log.ID,
-				Offset: log.Pointer(),
+				Offset: offset,
+				Size:   size,
 			})
 		}
 	}
@@ -330,13 +333,22 @@ func (d *Deck) compact() {
 
 // Pointer returns the location of the Record last written to the Deck.
 func (d *Deck) Pointer() Pointer {
+	log := d.activeLog()
+	offset, size := log.Pointer()
+
 	return Pointer{
-		Log:    d.logs[len(d.logs)-1].ID,
-		Offset: d.logs[len(d.logs)-1].Pointer(),
+		Log:    log.ID,
+		Offset: offset,
+		Size:   size,
 	}
 }
 
+// Pointer points to the location and size of a Record's Value in a Log.
 type Pointer struct {
-	Log    int64
+	// Log is the ID of the Log within the Deck that Value resides in.
+	Log int64
+	// Offset is the position within the Log that the Value starts at.
 	Offset int64
+	// Size is the length of the Value in bytes.
+	Size int64
 }
