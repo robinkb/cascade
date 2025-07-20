@@ -1,6 +1,8 @@
 package inmemory
 
 import (
+	"encoding/gob"
+	"io"
 	"slices"
 	"sync"
 
@@ -10,29 +12,29 @@ import (
 
 func NewMetadataStore() store.Metadata {
 	return &metadataStore{
-		repositories: make(map[string]*repository),
+		Repositories: make(map[string]*repository),
 	}
 }
 
 type (
 	metadataStore struct {
-		repositories map[string]*repository
+		Repositories map[string]*repository
 		mu           sync.RWMutex
 	}
 
 	repository struct {
-		blobs          map[string]*blob
-		manifests      map[string]*manifest
-		tags           map[string]*ttag
-		uploadSessions map[string]*store.UploadSession
+		Blobs          map[string]*blob
+		Manifests      map[string]*manifest
+		Tags           map[string]*ttag
+		UploadSessions map[string]*store.UploadSession
 	}
 
 	manifest struct {
-		annotations  map[string]string
-		artifactType string
-		mediaType    string
-		referrers    map[godigest.Digest]any
-		size         int64
+		Annotations  map[string]string
+		ArtifactType string
+		MediaType    string
+		Referrers    map[godigest.Digest]any
+		Size         int64
 	}
 
 	blob struct{}
@@ -40,7 +42,7 @@ type (
 	// Named 'ttag' instead of 'tag', because otherwise
 	// this type would be shadowed by variables named 'tag'.
 	ttag struct {
-		digest godigest.Digest
+		Digest godigest.Digest
 	}
 )
 
@@ -48,12 +50,12 @@ func (s *metadataStore) CreateRepository(name string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	if _, ok := s.repositories[name]; !ok {
-		s.repositories[name] = &repository{
-			blobs:          make(map[string]*blob),
-			manifests:      make(map[string]*manifest),
-			tags:           make(map[string]*ttag),
-			uploadSessions: make(map[string]*store.UploadSession),
+	if _, ok := s.Repositories[name]; !ok {
+		s.Repositories[name] = &repository{
+			Blobs:          make(map[string]*blob),
+			Manifests:      make(map[string]*manifest),
+			Tags:           make(map[string]*ttag),
+			UploadSessions: make(map[string]*store.UploadSession),
 		}
 	}
 	return nil
@@ -63,7 +65,7 @@ func (s *metadataStore) GetRepository(name string) error {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
-	if _, ok := s.repositories[name]; !ok {
+	if _, ok := s.Repositories[name]; !ok {
 		return store.ErrRepositoryNotFound
 	}
 	return nil
@@ -73,7 +75,7 @@ func (s *metadataStore) DeleteRepository(name string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	delete(s.repositories, name)
+	delete(s.Repositories, name)
 	return nil
 }
 
@@ -81,8 +83,8 @@ func (s *metadataStore) GetBlob(repository string, digest godigest.Digest) (stri
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
-	if repo, ok := s.repositories[repository]; ok {
-		if _, ok := repo.blobs[digest.String()]; ok {
+	if repo, ok := s.Repositories[repository]; ok {
+		if _, ok := repo.Blobs[digest.String()]; ok {
 			return "", nil
 		}
 	}
@@ -93,12 +95,12 @@ func (s *metadataStore) PutBlob(repository string, digest godigest.Digest) error
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	repo, ok := s.repositories[repository]
+	repo, ok := s.Repositories[repository]
 	if !ok {
 		return store.ErrRepositoryNotFound
 	}
 
-	repo.blobs[digest.String()] = &blob{}
+	repo.Blobs[digest.String()] = &blob{}
 	return nil
 }
 
@@ -106,7 +108,7 @@ func (s *metadataStore) DeleteBlob(repository string, digest godigest.Digest) er
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	delete(s.repositories[repository].blobs, digest.String())
+	delete(s.Repositories[repository].Blobs, digest.String())
 	return nil
 }
 
@@ -114,17 +116,17 @@ func (s *metadataStore) GetManifest(repository string, digest godigest.Digest) (
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
-	repo, ok := s.repositories[repository]
+	repo, ok := s.Repositories[repository]
 	if !ok {
 		return nil, store.ErrRepositoryNotFound
 	}
 
-	if manifest, ok := repo.manifests[digest.String()]; ok {
+	if manifest, ok := repo.Manifests[digest.String()]; ok {
 		return &store.ManifestMetadata{
-			Annotations:  manifest.annotations,
-			ArtifactType: manifest.artifactType,
-			MediaType:    manifest.mediaType,
-			Size:         manifest.size,
+			Annotations:  manifest.Annotations,
+			ArtifactType: manifest.ArtifactType,
+			MediaType:    manifest.MediaType,
+			Size:         manifest.Size,
 		}, nil
 	}
 	return nil, store.ErrMetadataNotFound
@@ -134,29 +136,29 @@ func (s *metadataStore) PutManifest(repository string, digest godigest.Digest, m
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	manifests, ok := s.repositories[repository].manifests[digest.String()]
+	manifests, ok := s.Repositories[repository].Manifests[digest.String()]
 	if !ok {
 		manifests = &manifest{
-			referrers: make(map[godigest.Digest]any),
+			Referrers: make(map[godigest.Digest]any),
 		}
-		s.repositories[repository].manifests[digest.String()] = manifests
+		s.Repositories[repository].Manifests[digest.String()] = manifests
 	}
 
-	manifests.annotations = meta.Annotations
-	manifests.artifactType = meta.ArtifactType
-	manifests.mediaType = meta.MediaType
-	manifests.size = meta.Size
+	manifests.Annotations = meta.Annotations
+	manifests.ArtifactType = meta.ArtifactType
+	manifests.MediaType = meta.MediaType
+	manifests.Size = meta.Size
 
 	if meta.Subject != "" {
-		manifests, ok := s.repositories[repository].manifests[meta.Subject.String()]
+		manifests, ok := s.Repositories[repository].Manifests[meta.Subject.String()]
 		if !ok {
 			manifests = &manifest{
-				referrers: make(map[godigest.Digest]any),
+				Referrers: make(map[godigest.Digest]any),
 			}
-			s.repositories[repository].manifests[meta.Subject.String()] = manifests
+			s.Repositories[repository].Manifests[meta.Subject.String()] = manifests
 		}
 
-		manifests.referrers[digest] = nil
+		manifests.Referrers[digest] = nil
 	}
 
 	return nil
@@ -166,8 +168,8 @@ func (s *metadataStore) DeleteManifest(repository string, digest godigest.Digest
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	if repo, ok := s.repositories[repository]; ok {
-		delete(repo.manifests, digest.String())
+	if repo, ok := s.Repositories[repository]; ok {
+		delete(repo.Manifests, digest.String())
 	}
 	return nil
 }
@@ -178,7 +180,7 @@ func (s *metadataStore) ListTags(repository string, count int, last string) ([]s
 
 	tags := []string{}
 
-	for key := range s.repositories[repository].tags {
+	for key := range s.Repositories[repository].Tags {
 		tags = append(tags, key)
 	}
 
@@ -209,9 +211,9 @@ func (s *metadataStore) GetTag(repository, tag string) (godigest.Digest, error) 
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
-	if repo, ok := s.repositories[repository]; ok {
-		if tag, ok := repo.tags[tag]; ok {
-			return tag.digest, nil
+	if repo, ok := s.Repositories[repository]; ok {
+		if tag, ok := repo.Tags[tag]; ok {
+			return tag.Digest, nil
 		}
 	}
 	return "", store.ErrNotFound
@@ -221,12 +223,12 @@ func (s *metadataStore) PutTag(repository, tag string, digest godigest.Digest) e
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	repo, ok := s.repositories[repository]
+	repo, ok := s.Repositories[repository]
 	if !ok {
 		return store.ErrRepositoryNotFound
 	}
-	repo.tags[tag] = &ttag{
-		digest: digest,
+	repo.Tags[tag] = &ttag{
+		Digest: digest,
 	}
 	return nil
 }
@@ -235,7 +237,7 @@ func (s *metadataStore) DeleteTag(repository, tag string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	delete(s.repositories[repository].tags, tag)
+	delete(s.Repositories[repository].Tags, tag)
 	return nil
 }
 
@@ -243,19 +245,19 @@ func (s *metadataStore) ListReferrers(repository string, digest godigest.Digest)
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
-	repo, ok := s.repositories[repository]
+	repo, ok := s.Repositories[repository]
 	if !ok {
 		return nil, store.ErrNotFound
 	}
 
-	manifest, ok := repo.manifests[digest.String()]
+	manifest, ok := repo.Manifests[digest.String()]
 	if !ok {
 		return []godigest.Digest{}, nil
 	}
 
 	referrers := make([]godigest.Digest, 0)
 
-	for d := range manifest.referrers {
+	for d := range manifest.Referrers {
 		referrers = append(referrers, d)
 	}
 
@@ -266,11 +268,11 @@ func (s *metadataStore) GetUploadSession(repository, id string) (*store.UploadSe
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
-	repo, ok := s.repositories[repository]
+	repo, ok := s.Repositories[repository]
 	if !ok {
 		return nil, store.ErrRepositoryNotFound
 	}
-	if session, ok := repo.uploadSessions[id]; ok {
+	if session, ok := repo.UploadSessions[id]; ok {
 		return session, nil
 	}
 	return nil, store.ErrNotFound
@@ -280,11 +282,11 @@ func (s *metadataStore) PutUploadSession(repository string, session *store.Uploa
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	repo, ok := s.repositories[repository]
+	repo, ok := s.Repositories[repository]
 	if !ok {
 		return store.ErrRepositoryNotFound
 	}
-	repo.uploadSessions[session.ID.String()] = session
+	repo.UploadSessions[session.ID.String()] = session
 	return nil
 }
 
@@ -292,6 +294,14 @@ func (s *metadataStore) DeleteUploadSession(repository string, sessionID string)
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	delete(s.repositories[repository].uploadSessions, sessionID)
+	delete(s.Repositories[repository].UploadSessions, sessionID)
 	return nil
+}
+
+func (s *metadataStore) Snapshot(w io.Writer) error {
+	return gob.NewEncoder(w).Encode(s)
+}
+
+func (s *metadataStore) Restore(r io.Reader) error {
+	return gob.NewDecoder(r).Decode(s)
 }

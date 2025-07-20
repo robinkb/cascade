@@ -26,6 +26,8 @@ type (
 
 	// Proposer encapsulates making proposals to the Raft log,
 	// and handles committing proposals once they are accepted.
+	// TODO: Could probably split this into Proposer and Committer interfaces.
+	// Proposer is the consumer side, and Committer is the server side.
 	Proposer interface {
 		// Consumers must call Handle() to register a function that commits
 		// proposals of a certain concrete type.

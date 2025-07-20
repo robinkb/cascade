@@ -1,6 +1,7 @@
 package repository_test
 
 import (
+	"os"
 	"testing"
 
 	"github.com/robinkb/cascade-registry/repository"
@@ -62,8 +63,13 @@ func TestWithInMemoryStore(t *testing.T) {
 func TestWithBoltDBStore(t *testing.T) {
 	suite.Run(t, &Suite{
 		StoreConstructor: func() (store.Metadata, store.Blobs) {
-			metadata := boltdb.NewMetadataStore(t.TempDir())
+			tmp := t.TempDir()
+			metadata := boltdb.NewMetadataStore(tmp)
 			blobs := inmemory.NewBlobStore()
+
+			t.Cleanup(func() {
+				os.RemoveAll(tmp) // nolint: errcheck
+			})
 
 			return metadata, blobs
 		},
@@ -73,8 +79,13 @@ func TestWithBoltDBStore(t *testing.T) {
 func TestWithFilesystemStore(t *testing.T) {
 	suite.Run(t, &Suite{
 		StoreConstructor: func() (store.Metadata, store.Blobs) {
+			tmp := t.TempDir()
 			metadata := inmemory.NewMetadataStore()
-			blobs := fs.NewBlobStore(t.TempDir())
+			blobs := fs.NewBlobStore(tmp)
+
+			t.Cleanup(func() {
+				os.RemoveAll(tmp) // nolint: errcheck
+			})
 
 			return metadata, blobs
 		},

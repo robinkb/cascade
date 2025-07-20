@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"encoding/gob"
 	"errors"
+	"io"
+	"os"
 	"path/filepath"
 	"time"
 
@@ -27,9 +29,10 @@ var (
 func NewMetadataStore(baseDir string) store.Metadata {
 	path := filepath.Join(baseDir, "metadata.db")
 
-	db, err := bolt.Open(path, 0600, &bolt.Options{
+	opts := &bolt.Options{
 		Timeout: 1 * time.Second,
-	})
+	}
+	db, err := bolt.Open(path, 0600, opts)
 	if err != nil {
 		panic(err)
 	}
@@ -42,12 +45,14 @@ func NewMetadataStore(baseDir string) store.Metadata {
 	}
 
 	return &metadataStore{
-		db: db,
+		db:   db,
+		opts: opts,
 	}
 }
 
 type metadataStore struct {
-	db *bolt.DB
+	db   *bolt.DB
+	opts *bolt.Options
 }
 
 type manifestMetadata struct {
@@ -400,6 +405,47 @@ func (s *metadataStore) DeleteUploadSession(name string, id string) error {
 
 		return repo.Bucket(_UPLOADS).Delete([]byte(id))
 	})
+}
+
+func (s *metadataStore) Snapshot(w io.Writer) error {
+	return s.db.View(func(tx *bolt.Tx) error {
+		_, err := tx.WriteTo(w)
+		return err
+	})
+}
+
+func (s *metadataStore) Restore(r io.Reader) error {
+	path := s.db.Path()
+	tmp := path + ".tmp"
+
+	f, err := os.OpenFile(tmp, os.O_CREATE|os.O_WRONLY, 0600)
+	if err != nil {
+		return err
+	}
+	_, err = io.Copy(f, r)
+	if err != nil {
+		return err
+	}
+	err = f.Close()
+	if err != nil {
+		return err
+	}
+
+	err = s.db.Close()
+	if err != nil {
+		return err
+	}
+	err = os.Rename(tmp, path)
+	if err != nil {
+		return err
+	}
+	db, err := bolt.Open(path, 0600, s.opts)
+	if err != nil {
+		return err
+	}
+
+	s.db = db
+	return nil
 }
 
 func (s *metadataStore) createManifestBucketIfNotExists(bucket *bolt.Bucket, digest digest.Digest) (*bolt.Bucket, error) {

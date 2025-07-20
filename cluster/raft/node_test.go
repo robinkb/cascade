@@ -39,6 +39,7 @@ func newTestCluster(t *testing.T, n int) ([]raft.Node, []store.Blobs, []store.Me
 			peers[i].AddrPort,
 			peers,
 			t.TempDir(),
+			new(raft.SpySnapshotter),
 		)
 		blobs[i] = storecluster.NewBlobStore(nodes[i], inmemory.NewBlobStore())
 		metadata[i] = storecluster.NewMetadataStore(nodes[i], inmemory.NewMetadataStore())
