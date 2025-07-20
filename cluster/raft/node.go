@@ -189,14 +189,8 @@ func (n *node) Receive(msg *raftpb.Message) error {
 }
 
 func (n *node) saveToStorage(hardState raftpb.HardState, entries []raftpb.Entry, snapshot raftpb.Snapshot) {
-	if err := n.storage.Append(entries); err != nil {
-		log.Panicf("failed to append entries to storage: %s\n", err)
-	}
-
-	if !raft.IsEmptyHardState(hardState) {
-		if err := n.storage.SaveHardState(hardState); err != nil {
-			log.Panicf("failed to save hardstate: %s\n", err)
-		}
+	if err := n.storage.Save(entries, hardState); err != nil {
+		log.Panicf("failed to append entries and hardstate to storage: %s", err)
 	}
 
 	if !raft.IsEmptySnap(snapshot) {
