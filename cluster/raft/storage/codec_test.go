@@ -108,7 +108,7 @@ func BenchmarkDecode(b *testing.B) {
 
 	for _, tt := range tc {
 		w := new(bytes.Buffer)
-		storage.NewEncoder(w).Encode(tt.record)
+		storage.NewEncoder(w).Encode(tt.record) // nolint: errcheck
 
 		r := bytes.NewReader(w.Bytes())
 		dec := storage.NewDecoder(r)
@@ -117,7 +117,7 @@ func BenchmarkDecode(b *testing.B) {
 			record := new(storage.Record)
 			for b.Loop() {
 				b.SetBytes(record.Size())
-				dec.RecordAt(record, 0)
+				dec.RecordAt(record, 0) // nolint: errcheck
 			}
 		})
 
@@ -126,7 +126,7 @@ func BenchmarkDecode(b *testing.B) {
 			size := int64(len(p))
 			for b.Loop() {
 				b.SetBytes(size)
-				dec.ValueAt(p, storage.RecordHeaderLength)
+				dec.ValueAt(p, storage.RecordHeaderLength) // nolint: errcheck
 			}
 		})
 	}

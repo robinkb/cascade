@@ -78,11 +78,11 @@ func BenchmarkDeckAppend(b *testing.B) {
 				b.SetBytes(int64(tt.size) + storage.RecordHeaderLength)
 
 				t := storage.RecordType(rand.Uint64())
-				crand.Read(value)
+				crand.Read(value) // nolint: errcheck
 
-				deck.Append(t, value)
+				deck.Append(t, value) // nolint: errcheck
 				if tt.sync {
-					deck.Sync()
+					deck.Sync() // nolint: errcheck
 				}
 			}
 		})
