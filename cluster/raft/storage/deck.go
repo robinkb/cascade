@@ -27,7 +27,7 @@ type DeckConfig struct {
 }
 
 type CompactionHandler func(c Counters) error
-type CutHandler func(seq uint64) error
+type CutHandler func(seq int64) error
 
 var defaultDeckConfig = DeckConfig{
 	MaxLogSize:  64 << 20,
@@ -38,7 +38,7 @@ var logNameRe = regexp.MustCompile(`(\d{20}).log`)
 
 func NewDeck(dir string, c *DeckConfig) Deck {
 	d := Deck{
-		logs: make([]*Log, 0),
+		logs: make([]ManagedLog, 0),
 
 		dir:         dir,
 		maxLogSize:  defaultDeckConfig.MaxLogSize,
@@ -109,23 +109,29 @@ func NewDeck(dir string, c *DeckConfig) Deck {
 			panic(err)
 		}
 
-		log := NewLog(r, w)
-		log.ID = id
-		d.logs = append(d.logs, log)
+		d.logs = append(d.logs, ManagedLog{
+			ID:   id,
+			File: w,
+			Log:  NewLog(r, w),
+		})
 		d.sequence++
 	}
 
 	return d
 }
 
-type LogIndex struct {
-	Log *Log
-	ID  uint64
+// ManagedLog represents a Log that is managed by a Deck.
+// It wraps the basic Log and adds an ID for tracking unique Logs,
+// and the handle of the underlying file.
+type ManagedLog struct {
+	*Log
+	ID   int64
+	File *os.File
 }
 
 // Deck is an organized collection of Logs.
 type Deck struct {
-	logs []*Log
+	logs []ManagedLog
 	// dir is the directory where the Logs are stored on-disk.
 	dir string
 	// sequence holds the ID of the last log created.
@@ -171,6 +177,10 @@ func (d *Deck) Append(r *Record) error {
 
 	return nil
 }
+
+// func (d *Deck) Sync() error {
+// 	return d.activeLog().Sync()
+// }
 
 func (d *Deck) Get(t RecordType, i int, r *Record) error {
 	ptr, err := d.inventory.Get(t, i)
@@ -244,7 +254,7 @@ func (d *Deck) CompactionHandler(h CompactionHandler) {
 	d.compactHandler = h
 }
 
-func (d *Deck) newLog() *Log {
+func (d *Deck) newLog() ManagedLog {
 	logFile := filepath.Join(d.dir, fmt.Sprintf("%020d.log", d.sequence))
 
 	w, err := os.OpenFile(logFile, os.O_CREATE|os.O_WRONLY, 0644)
@@ -261,21 +271,26 @@ func (d *Deck) newLog() *Log {
 		panic(err)
 	}
 
-	log := NewLog(r, w)
-	log.ID = int64(d.sequence)
+	log := ManagedLog{
+		Log:  NewLog(r, w),
+		ID:   int64(d.sequence),
+		File: w,
+	}
 	d.logs = append(d.logs, log)
+
 	if d.cutHandler != nil && d.sequence != 0 {
-		err := d.cutHandler(uint64(log.ID))
+		err := d.cutHandler(log.ID)
 		if err != nil {
 			panic(err)
 		}
 	}
+
 	d.sequence++
 
 	return log
 }
 
-func (d *Deck) activeLog() *Log {
+func (d *Deck) activeLog() ManagedLog {
 	if len(d.logs) == 0 {
 		return d.newLog()
 	}
