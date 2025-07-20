@@ -14,6 +14,7 @@ type (
 		CreateRepository(name string) error
 		DeleteRepository(name string) error
 
+		// TODO: Remove returned string, not used.
 		GetBlob(name string, digest digest.Digest) (string, error)
 		PutBlob(name string, digest digest.Digest) error
 		DeleteBlob(name string, digest digest.Digest) error
@@ -32,10 +33,7 @@ type (
 		GetUploadSession(name string, id string) (*UploadSession, error)
 		PutUploadSession(name string, session *UploadSession) error
 		DeleteUploadSession(name string, id string) error
-	}
 
-	// Snapshotter snapshots and restores a Metadata store.
-	Snapshotter interface {
 		// Snapshot writes a snapshot of the MetadataStore to the given Writer.
 		Snapshot(w io.Writer) error
 		// Restore reads a snapshot of the MetadataStore from the given Reader.

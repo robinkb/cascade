@@ -59,7 +59,7 @@ func main() {
 			}
 		}
 
-		node := raft.NewNode(uint64(raftId), addr, peers, filepath.Join(path, "raft"), new(raft.SpySnapshotter))
+		node := raft.NewNode(uint64(raftId), addr, peers, filepath.Join(path, "raft"), metadata)
 		metadata = cluster.NewMetadataStore(node, metadata)
 		blobs = cluster.NewBlobStore(node, blobs)
 		node.Start()

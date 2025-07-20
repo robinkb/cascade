@@ -38,6 +38,6 @@ type ()
 
 // Reconciler
 type Reconciler struct {
-	snap Snapshotter
-	sync Syncer
+	// snap Snapshotter
+	// sync Syncer
 }
