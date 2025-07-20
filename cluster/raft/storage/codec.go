@@ -3,6 +3,7 @@ package storage
 import (
 	"bytes"
 	"encoding/binary"
+	"fmt"
 	"hash/crc64"
 	"io"
 	"log"
@@ -33,9 +34,12 @@ type (
 
 	// Decoder reads decoded Records from the input stream.
 	Decoder interface {
-		// DecodeAt is a wrapper around an io.ReaderAt for decoding Records.
+		// RecordAt is a wrapper around an io.ReaderAt for decoding Records.
 		// It returns the amount of bytes read and an error, if any.
-		DecodeAt(r *Record, off int64) (int64, error)
+		RecordAt(r *Record, off int64) (int64, error)
+		// ValueAt is a wrapper around an io.ReaderAt for reading Record values.
+		// Its behavior is the same as io.ReaderAt.
+		ValueAt(p []byte, off int64) (int, error)
 	}
 )
 
@@ -79,7 +83,8 @@ func (e *encoder) Encode(r *Record) (int64, error) {
 	crc := crc64.Checksum(e.buf.Bytes()[crc64.Size:], crc64Table)
 	binary.LittleEndian.PutUint64(e.buf.Bytes(), crc)
 
-	return io.Copy(e.dst, e.buf)
+	n, err := e.dst.Write(e.buf.Bytes())
+	return int64(n), err
 }
 
 // NewDecoder returns a Decoder that reads decoded Records from the io.ReaderAt.
@@ -95,7 +100,7 @@ type decoder struct {
 	buf *bytes.Buffer
 }
 
-func (d *decoder) DecodeAt(r *Record, off int64) (int64, error) {
+func (d *decoder) RecordAt(r *Record, off int64) (int64, error) {
 	d.buf.Reset()
 	var read int64
 
@@ -105,7 +110,7 @@ func (d *decoder) DecodeAt(r *Record, off int64) (int64, error) {
 	n, err := d.src.ReadAt(hbuf, off)
 	read += int64(n)
 	if err != nil {
-		return read, err
+		return read, fmt.Errorf("could not read header: %w", err)
 	}
 	// Ensure header is available in the buffer for later CRC calculation,
 	// which includes parts of the header.
@@ -116,7 +121,7 @@ func (d *decoder) DecodeAt(r *Record, off int64) (int64, error) {
 	// But with a pre-allocated file, a lot of the file might be empty.
 	// Treat reading an empty header the same as EOF in that case.
 	if header.isEmpty() {
-		return read, io.EOF
+		return read, fmt.Errorf("%w (empty header)", io.EOF)
 	}
 
 	// Reading the payload.
@@ -132,7 +137,7 @@ func (d *decoder) DecodeAt(r *Record, off int64) (int64, error) {
 		if err == io.EOF {
 			return read, ErrShortRead
 		}
-		return read, err
+		return read, fmt.Errorf("failed to read payload: %w", err)
 	}
 	d.buf.Write(pbuf)
 
@@ -146,6 +151,10 @@ func (d *decoder) DecodeAt(r *Record, off int64) (int64, error) {
 	r.Value = d.buf.Bytes()[RecordHeaderLength : RecordHeaderLength+header.size]
 
 	return read, nil
+}
+
+func (d *decoder) ValueAt(p []byte, off int64) (int, error) {
+	return d.src.ReadAt(p, off)
 }
 
 func parseHeader(b []byte) header {

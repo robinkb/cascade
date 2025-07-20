@@ -27,7 +27,7 @@ type DeckConfig struct {
 }
 
 type CompactionHandler func(c Counters) error
-type CutHandler func(seq uint64) error
+type CutHandler func(seq int64) error
 
 var defaultDeckConfig = DeckConfig{
 	MaxLogSize:  64 << 20,
@@ -38,7 +38,7 @@ var logNameRe = regexp.MustCompile(`(\d{20}).log`)
 
 func NewDeck(dir string, c *DeckConfig) Deck {
 	d := Deck{
-		logs: make([]*Log, 0),
+		logs: make([]ManagedLog, 0),
 
 		dir:         dir,
 		maxLogSize:  defaultDeckConfig.MaxLogSize,
@@ -109,23 +109,29 @@ func NewDeck(dir string, c *DeckConfig) Deck {
 			panic(err)
 		}
 
-		log := NewLog(r, w)
-		log.ID = id
-		d.logs = append(d.logs, log)
+		d.logs = append(d.logs, ManagedLog{
+			ID:   id,
+			File: w,
+			Log:  NewLog(r, w),
+		})
 		d.sequence++
 	}
 
 	return d
 }
 
-type LogIndex struct {
-	Log *Log
-	ID  uint64
+// ManagedLog represents a Log that is managed by a Deck.
+// It wraps the basic Log and adds an ID for tracking unique Logs,
+// and the handle of the underlying file.
+type ManagedLog struct {
+	*Log
+	ID   int64
+	File *os.File
 }
 
 // Deck is an organized collection of Logs.
 type Deck struct {
-	logs []*Log
+	logs []ManagedLog
 	// dir is the directory where the Logs are stored on-disk.
 	dir string
 	// sequence holds the ID of the last log created.
@@ -152,7 +158,12 @@ type Deck struct {
 	compactHandler CompactionHandler
 }
 
-func (d *Deck) Append(r *Record) error {
+func (d *Deck) Append(t RecordType, value []byte) error {
+	r := &Record{
+		Type:  t,
+		Value: value,
+	}
+
 	log := d.activeLog()
 	if log.cursor+r.Size() > d.maxLogSize {
 		log = d.newLog()
@@ -167,70 +178,82 @@ func (d *Deck) Append(r *Record) error {
 
 	// Run compaction _after_ adding the new entry so that
 	// the compaction handler has an up-to-date view of the Deck.
-	d.compact()
+	if len(d.logs) > d.maxLogCount {
+		d.compact()
+	}
 
 	return nil
 }
 
-func (d *Deck) Get(t RecordType, i int, r *Record) error {
+func (d *Deck) Sync() error {
+	return syscall.Fdatasync(int(d.activeLog().File.Fd()))
+}
+
+func (d *Deck) Get(t RecordType, i int) ([]byte, error) {
 	ptr, err := d.inventory.Get(t, i)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	return d.readAt(r, ptr)
+	return d.valueAt(ptr)
 }
 
 func (d *Deck) Count(t RecordType) int {
 	return d.inventory.Count(t)
 }
 
-func (d *Deck) First(t RecordType, r *Record) error {
+func (d *Deck) First(t RecordType) ([]byte, error) {
 	ptr, err := d.inventory.Get(t, 0)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	return d.readAt(r, ptr)
+	return d.valueAt(ptr)
 }
 
-func (d *Deck) Last(t RecordType, r *Record) error {
+func (d *Deck) Last(t RecordType) ([]byte, error) {
 	ptr, err := d.inventory.Get(t, d.inventory.Count(t)-1)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	return d.readAt(r, ptr)
+	return d.valueAt(ptr)
 }
 
-func (d *Deck) Range(t RecordType, lo, hi int) iter.Seq2[*Record, error] {
-	return func(yield func(*Record, error) bool) {
+func (d *Deck) Range(t RecordType, lo, hi int) iter.Seq2[[]byte, error] {
+	return func(yield func([]byte, error) bool) {
 		pointers, err := d.inventory.Range(t, lo, hi)
 		if err != nil {
 			yield(nil, err)
 			return
 		}
 
-		r := new(Record)
 		for _, ptr := range pointers {
-			err := d.readAt(r, ptr)
-			if !yield(r, err) {
+			b, err := d.valueAt(ptr)
+			if !yield(b, err) {
 				return
 			}
 		}
 	}
 }
 
-func (d *Deck) readAt(r *Record, p Pointer) error {
-	return d.logs[p.Log-d.offset].ReadAt(r, p.Offset)
+// This allocates, after all the hard work of making sure that nothing does.
+// What to do? Maybe use a buffer pool?
+func (d *Deck) valueAt(p Pointer) ([]byte, error) {
+	value := make([]byte, p.Size)
+	err := d.logs[p.Log-d.offset].ValueAt(value, p.Offset)
+	return value, err
 }
 
 func (d *Deck) ReadAll() {
 	for _, log := range d.logs {
 		for record := range log.All() {
+			offset, size := log.Pointer()
+
 			d.inventory.Add(record.Type, Pointer{
 				Log:    log.ID,
-				Offset: log.Pointer(),
+				Offset: offset,
+				Size:   size,
 			})
 		}
 	}
@@ -244,7 +267,7 @@ func (d *Deck) CompactionHandler(h CompactionHandler) {
 	d.compactHandler = h
 }
 
-func (d *Deck) newLog() *Log {
+func (d *Deck) newLog() ManagedLog {
 	logFile := filepath.Join(d.dir, fmt.Sprintf("%020d.log", d.sequence))
 
 	w, err := os.OpenFile(logFile, os.O_CREATE|os.O_WRONLY, 0644)
@@ -261,21 +284,26 @@ func (d *Deck) newLog() *Log {
 		panic(err)
 	}
 
-	log := NewLog(r, w)
-	log.ID = int64(d.sequence)
+	log := ManagedLog{
+		Log:  NewLog(r, w),
+		ID:   int64(d.sequence),
+		File: w,
+	}
 	d.logs = append(d.logs, log)
+
 	if d.cutHandler != nil && d.sequence != 0 {
-		err := d.cutHandler(uint64(log.ID))
+		err := d.cutHandler(log.ID)
 		if err != nil {
 			panic(err)
 		}
 	}
+
 	d.sequence++
 
 	return log
 }
 
-func (d *Deck) activeLog() *Log {
+func (d *Deck) activeLog() ManagedLog {
 	if len(d.logs) == 0 {
 		return d.newLog()
 	}
@@ -284,44 +312,51 @@ func (d *Deck) activeLog() *Log {
 
 // TODO: Should close Log's file descriptors here...?
 func (d *Deck) compact() {
-	if len(d.logs) > d.maxLogCount {
-		log := d.logs[0]
-		id := log.ID
+	log := d.logs[0]
+	id := log.ID
 
-		// The CompactionHandler is run _before_ compaction actually occurs
-		// so that the Deck consumer has a full view of the data, including
-		// what is being removed. Technically compaction may fail afterwards
-		// without the application knowing about it, but we're talking
-		// about removing a file and in-memory operations that are well-tested.
-		if d.compactHandler != nil {
-			err := d.compactHandler(log.Counters())
-			if err != nil {
-				panic(err)
-			}
-		}
-
-		logFile := filepath.Join(d.dir, fmt.Sprintf("%020d.log", id))
-		err := os.Remove(logFile)
+	// The CompactionHandler is run _before_ compaction actually occurs
+	// so that the Deck consumer has a full view of the data, including
+	// what is being removed. Technically compaction may fail afterwards
+	// without the application knowing about it, but we're talking
+	// about removing a file and in-memory operations that are well-tested.
+	if d.compactHandler != nil {
+		err := d.compactHandler(log.Counters())
 		if err != nil {
 			panic(err)
 		}
-
-		d.inventory.Remove(log.Counters())
-
-		d.logs = d.logs[1:len(d.logs)]
-		d.offset++
 	}
+
+	logFile := filepath.Join(d.dir, fmt.Sprintf("%020d.log", id))
+	err := os.Remove(logFile)
+	if err != nil {
+		panic(err)
+	}
+
+	d.inventory.Remove(log.Counters())
+
+	d.logs = d.logs[1:len(d.logs)]
+	d.offset++
 }
 
 // Pointer returns the location of the Record last written to the Deck.
 func (d *Deck) Pointer() Pointer {
+	log := d.activeLog()
+	offset, size := log.Pointer()
+
 	return Pointer{
-		Log:    d.logs[len(d.logs)-1].ID,
-		Offset: d.logs[len(d.logs)-1].Pointer(),
+		Log:    log.ID,
+		Offset: offset,
+		Size:   size,
 	}
 }
 
+// Pointer points to the location and size of a Record's Value in a Log.
 type Pointer struct {
-	Log    int64
+	// Log is the ID of the Log within the Deck that Value resides in.
+	Log int64
+	// Offset is the position within the Log that the Value starts at.
 	Offset int64
+	// Size is the length of the Value in bytes.
+	Size int64
 }

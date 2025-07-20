@@ -39,7 +39,8 @@ func main() {
 			if err != nil {
 				log.Fatalln(err)
 			}
-			fmt.Printf("%20d:%-6d [entry   ] index %d, term %d, type %s\n", l.Pointer(), r.Size(), entry.Index, entry.Term, entry.Type.String())
+			offset, size := l.Pointer()
+			fmt.Printf("%20d:%-6d [entry   ] index %d, term %d, type %s\n", offset, size, entry.Index, entry.Term, entry.Type.String())
 
 		case raft.TypeHardState:
 			var hs raftpb.HardState
@@ -47,7 +48,8 @@ func main() {
 			if err != nil {
 				log.Fatalln(err)
 			}
-			fmt.Printf("%20d:%-6d [state   ] commit %d, term %d, vote %d\n", l.Pointer(), r.Size(), hs.Commit, hs.Term, hs.Vote)
+			offset, size := l.Pointer()
+			fmt.Printf("%20d:%-6d [state   ] commit %d, term %d, vote %d\n", offset, size, hs.Commit, hs.Term, hs.Vote)
 
 		case raft.TypeSnapshot:
 			var snap raftpb.Snapshot
@@ -55,7 +57,8 @@ func main() {
 			if err != nil {
 				log.Fatalln(err)
 			}
-			fmt.Printf("%20d:%-6d [snapshot] index %d, term %d, confState %s\n", l.Pointer(), r.Size(), snap.Metadata.Index, snap.Metadata.Term, snap.Metadata.ConfState.String())
+			offset, size := l.Pointer()
+			fmt.Printf("%20d:%-6d [snapshot] index %d, term %d, confState %s\n", offset, size, snap.Metadata.Index, snap.Metadata.Term, snap.Metadata.ConfState.String())
 		}
 	}
 }
