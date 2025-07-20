@@ -35,6 +35,14 @@ func RandomContents(length int64) []byte {
 	return data
 }
 
+func RandomContentsN(n int, minSize, maxSize int64) [][]byte {
+	values := make([][]byte, n)
+	for i := range values {
+		values[i] = RandomContents(rand.Int64N(maxSize-minSize) + minSize)
+	}
+	return values
+}
+
 func RandomString(length int) string {
 	data := make([]byte, length)
 	for i := range data {

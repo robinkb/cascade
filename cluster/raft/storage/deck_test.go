@@ -12,14 +12,14 @@ import (
 )
 
 func TestNoSé(t *testing.T) {
-	want := randomRecordsN(10, 150, 200)
+	want := RandomContentsN(10, 150, 200)
 	d := storage.NewDeck(t.TempDir(), &storage.DeckConfig{
 		MaxLogSize:  256,
 		MaxLogCount: 5,
 	})
 
 	for i := range want {
-		err := d.Append(want[i])
+		err := d.Append(randomRecordType(), want[i])
 		AssertNoError(t, err).Require()
 	}
 }
@@ -29,7 +29,7 @@ func TestDeckInNewDirectory(t *testing.T) {
 	d := storage.NewDeck(path, nil)
 
 	// Write whatever to force Deck to create a file.
-	err := d.Append(randomRecord(128))
+	err := d.Append(randomRecordType(), RandomContents(128))
 	AssertNoError(t, err)
 }
 
@@ -72,16 +72,15 @@ func BenchmarkDeckAppend(b *testing.B) {
 			path := filepath.Join(b.TempDir(), RandomString(8))
 			deck := storage.NewDeck(path, nil)
 
-			r := new(storage.Record)
-			r.Value = make([]byte, tt.size)
+			value := make([]byte, tt.size)
 
 			for b.Loop() {
-				b.SetBytes(r.Size())
+				b.SetBytes(int64(tt.size) + storage.RecordHeaderLength)
 
-				r.Type = storage.RecordType(rand.Uint64())
-				crand.Read(r.Value)
+				t := storage.RecordType(rand.Uint64())
+				crand.Read(value)
 
-				deck.Append(r)
+				deck.Append(t, value)
 				if tt.sync {
 					deck.Sync()
 				}

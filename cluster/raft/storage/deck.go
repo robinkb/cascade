@@ -158,7 +158,12 @@ type Deck struct {
 	compactHandler CompactionHandler
 }
 
-func (d *Deck) Append(r *Record) error {
+func (d *Deck) Append(t RecordType, value []byte) error {
+	r := &Record{
+		Type:  t,
+		Value: value,
+	}
+
 	log := d.activeLog()
 	if log.cursor+r.Size() > d.maxLogSize {
 		log = d.newLog()

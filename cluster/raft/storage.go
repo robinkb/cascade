@@ -28,15 +28,14 @@ func NewDiskStorage(dir string, snap Snapshotter, c *storage.DeckConfig) (*DiskS
 
 	l.deck.ReadAll()
 
-	record := new(storage.Record)
 	if l.deck.Count(TypeEntry) > 0 {
-		err := l.deck.First(TypeEntry, record)
+		value, err := l.deck.First(TypeEntry)
 		if err != nil {
 			return nil, err
 		}
 
 		var entry raftpb.Entry
-		err = entry.Unmarshal(record.Value)
+		err = entry.Unmarshal(value)
 		if err != nil {
 			return nil, err
 		}
@@ -48,13 +47,13 @@ func NewDiskStorage(dir string, snap Snapshotter, c *storage.DeckConfig) (*DiskS
 	}
 
 	if l.deck.Count(TypeHardState) > 0 {
-		err := l.deck.Last(TypeHardState, record)
+		value, err := l.deck.Last(TypeHardState)
 		if err != nil {
 			return nil, err
 		}
 
 		var hardState raftpb.HardState
-		err = hardState.Unmarshal(record.Value)
+		err = hardState.Unmarshal(value)
 		if err != nil {
 			return nil, err
 		}
@@ -63,13 +62,13 @@ func NewDiskStorage(dir string, snap Snapshotter, c *storage.DeckConfig) (*DiskS
 	}
 
 	if l.deck.Count(TypeSnapshot) > 0 {
-		err := l.deck.Last(TypeSnapshot, record)
+		value, err := l.deck.Last(TypeSnapshot)
 		if err != nil {
 			return nil, err
 		}
 
 		var snapshot raftpb.Snapshot
-		err = snapshot.Unmarshal(record.Value)
+		err = snapshot.Unmarshal(value)
 		if err != nil {
 			return nil, err
 		}
@@ -162,18 +161,18 @@ func (l *DiskStorage) Entries(lo, hi, maxSize uint64) ([]raftpb.Entry, error) {
 	var size uint64
 	entries := make([]raftpb.Entry, 0)
 
-	for record, err := range l.deck.Range(TypeEntry, int(lo), int(hi)) {
+	for value, err := range l.deck.Range(TypeEntry, int(lo), int(hi)) {
 		if err != nil {
 			return nil, fmt.Errorf("failed to get entries [lo: %d] [hi: %d]: %w", lo, hi, err)
 		}
 
-		size += uint64(len(record.Value))
+		size += uint64(len(value))
 		if size > maxSize && len(entries) != 0 {
 			return entries, nil
 		}
 
 		var entry raftpb.Entry
-		err = entry.Unmarshal(record.Value)
+		err = entry.Unmarshal(value)
 		if err != nil {
 			return nil, err
 		}
@@ -209,14 +208,13 @@ func (l *DiskStorage) Term(i uint64) (uint64, error) {
 
 	i -= fi
 
-	r := new(storage.Record)
-	err := l.deck.Get(TypeEntry, int(i), r)
+	value, err := l.deck.Get(TypeEntry, int(i))
 	if err != nil {
 		return 0, fmt.Errorf("failed to get term [i: %d] [fi: %d] [li: %d]: %w", i, fi, li, err)
 	}
 
 	var entry raftpb.Entry
-	err = entry.Unmarshal(r.Value)
+	err = entry.Unmarshal(value)
 	if err != nil {
 		return 0, err
 	}
@@ -281,13 +279,13 @@ func (l *DiskStorage) Append(entries []raftpb.Entry) error {
 
 	var err error
 	for _, entry := range entries {
-		record := &storage.Record{Type: TypeEntry, Value: make([]byte, entry.Size())}
-		_, err = entry.MarshalTo(record.Value)
+		value := make([]byte, entry.Size())
+		_, err = entry.MarshalTo(value)
 		if err != nil {
 			return err
 		}
 
-		err = l.deck.Append(record)
+		err = l.deck.Append(TypeEntry, value)
 		if err != nil {
 			return err
 		}
@@ -301,16 +299,13 @@ func (l *DiskStorage) Append(entries []raftpb.Entry) error {
 func (l *DiskStorage) SaveHardState(hardState raftpb.HardState) error {
 	l.callStats.setHardState++
 
-	record := &storage.Record{
-		Type:  TypeHardState,
-		Value: make([]byte, hardState.Size()),
-	}
-	_, err := hardState.MarshalTo(record.Value)
+	value := make([]byte, hardState.Size())
+	_, err := hardState.MarshalTo(value)
 	if err != nil {
 		return err
 	}
 
-	err = l.deck.Append(record)
+	err = l.deck.Append(TypeHardState, value)
 	if err != nil {
 		return err
 	}
@@ -325,16 +320,13 @@ func (l *DiskStorage) SaveHardState(hardState raftpb.HardState) error {
 func (l *DiskStorage) SaveSnapshot(snapshot raftpb.Snapshot) error {
 	l.callStats.applySnapshot++
 
-	record := &storage.Record{
-		Type:  TypeSnapshot,
-		Value: make([]byte, snapshot.Size()),
-	}
-	_, err := snapshot.MarshalTo(record.Value)
+	value := make([]byte, snapshot.Size())
+	_, err := snapshot.MarshalTo(value)
 	if err != nil {
 		return err
 	}
 
-	err = l.deck.Append(record)
+	err = l.deck.Append(TypeSnapshot, value)
 	if err != nil {
 		return err
 	}
@@ -350,17 +342,17 @@ func (l *DiskStorage) SaveConfState(cs raftpb.ConfState) {
 
 func (l *DiskStorage) cutHandler() storage.CutHandler {
 	var entry raftpb.Entry
-	r := new(storage.Record)
 	buf := new(bytes.Buffer)
 
 	return func(seq int64) error {
 		buf.Reset()
 
-		if err := l.deck.Get(TypeEntry, int(l.appliedIndex), r); err != nil {
+		value, err := l.deck.Get(TypeEntry, int(l.appliedIndex))
+		if err != nil {
 			return err
 		}
 
-		if err := entry.Unmarshal(r.Value); err != nil {
+		if err := entry.Unmarshal(value); err != nil {
 			return err
 		}
 
@@ -382,16 +374,12 @@ func (l *DiskStorage) cutHandler() storage.CutHandler {
 			return err
 		}
 
-		return l.deck.Append(&storage.Record{
-			Type:  TypeSnapshot,
-			Value: data,
-		})
+		return l.deck.Append(TypeSnapshot, data)
 	}
 }
 
 func (l *DiskStorage) compactionHandler() storage.CompactionHandler {
 	var entry raftpb.Entry
-	r := new(storage.Record)
 
 	return func(c storage.Counters) error {
 		for t, count := range c.All() {
@@ -400,12 +388,12 @@ func (l *DiskStorage) compactionHandler() storage.CompactionHandler {
 				continue
 			}
 
-			err := l.deck.Get(TypeEntry, int(count)-1, r)
+			value, err := l.deck.Get(TypeEntry, int(count)-1)
 			if err != nil {
 				return err
 			}
 
-			err = entry.Unmarshal(r.Value)
+			err = entry.Unmarshal(value)
 			if err != nil {
 				return err
 			}
@@ -415,12 +403,12 @@ func (l *DiskStorage) compactionHandler() storage.CompactionHandler {
 				Term:  entry.Term,
 			}
 
-			err = l.deck.Get(TypeEntry, int(count), r)
+			value, err = l.deck.Get(TypeEntry, int(count))
 			if err != nil {
 				return err
 			}
 
-			err = entry.Unmarshal(r.Value)
+			err = entry.Unmarshal(value)
 			if err != nil {
 				return err
 			}
