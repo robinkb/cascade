@@ -83,7 +83,8 @@ func (e *encoder) Encode(r *Record) (int64, error) {
 	crc := crc64.Checksum(e.buf.Bytes()[crc64.Size:], crc64Table)
 	binary.LittleEndian.PutUint64(e.buf.Bytes(), crc)
 
-	return io.Copy(e.dst, e.buf)
+	n, err := e.dst.Write(e.buf.Bytes())
+	return int64(n), err
 }
 
 // NewDecoder returns a Decoder that reads decoded Records from the io.ReaderAt.
