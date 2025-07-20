@@ -101,7 +101,7 @@ type DiskStorage struct {
 
 	hardState raftpb.HardState
 	snapshot  raftpb.Snapshot
-	confState *raftpb.ConfState
+	confState raftpb.ConfState
 
 	appliedIndex   uint64
 	firstEntry     raftpb.Entry
@@ -342,7 +342,7 @@ func (l *DiskStorage) SaveSnapshot(snapshot raftpb.Snapshot) error {
 	return nil
 }
 
-func (l *DiskStorage) SaveConfState(cs *raftpb.ConfState) {
+func (l *DiskStorage) SaveConfState(cs raftpb.ConfState) {
 	l.confState = cs
 }
 
@@ -370,7 +370,7 @@ func (l *DiskStorage) cutHandler() storage.CutHandler {
 			Metadata: raftpb.SnapshotMetadata{
 				Index:     entry.Index,
 				Term:      entry.Term,
-				ConfState: *l.confState,
+				ConfState: l.confState,
 			},
 			Data: buf.Bytes(),
 		}

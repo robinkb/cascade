@@ -174,7 +174,7 @@ func (n *node) processEntries(entries []raftpb.Entry) {
 				log.Panicf("could not read ConfChange entry: %s", err)
 			}
 			cs := n.raft.ApplyConfChange(cc)
-			n.storage.SaveConfState(cs)
+			n.storage.SaveConfState(*cs)
 		}
 	}
 
