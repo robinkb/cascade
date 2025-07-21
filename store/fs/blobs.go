@@ -105,7 +105,7 @@ func (s *blobStore) InitUpload(id uuid.UUID) error {
 // UploadWriter returns an io.Writer to write to an initialized upload.
 // Uploads are always uploaded in order andappended to. If an upload fails or must be truncated,
 // a new session must be started instead.
-func (s *blobStore) UploadWriter(id uuid.UUID) (io.Writer, error) {
+func (s *blobStore) UploadWriter(id uuid.UUID) (io.WriteCloser, error) {
 	path := s.uuidToPath(id)
 	return os.OpenFile(path, os.O_APPEND|os.O_WRONLY, os.ModeAppend)
 }

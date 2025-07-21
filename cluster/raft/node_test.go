@@ -130,6 +130,9 @@ func TestBlobReplication(t *testing.T) {
 		_, err = io.Copy(w, bytes.NewBuffer(content))
 		RequireNoError(t, err)
 
+		err = w.Close()
+		RequireNoError(t, err)
+
 		err = blobs[0].CloseUpload(id, digest)
 		RequireNoError(t, err)
 

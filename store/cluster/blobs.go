@@ -72,8 +72,9 @@ func (s *blobStore) initUpload(p raft.Proposal) error {
 	return s.Blobs.InitUpload(v.SessionID)
 }
 
-func (s *blobStore) UploadWriter(id uuid.UUID) (io.Writer, error) {
+func (s *blobStore) UploadWriter(id uuid.UUID) (io.WriteCloser, error) {
 	return &writer{
+		buf:       new(bytes.Buffer),
 		proposer:  s.proposer,
 		sessionId: id,
 	}, nil
@@ -117,17 +118,37 @@ func (s *blobStore) deleteUpload(p raft.Proposal) error {
 	return s.Blobs.DeleteUpload(v.SessionID)
 }
 
+const (
+	// TODO: Make this configurable?
+	writeBufferSize = 1 << 20
+)
+
 type writer struct {
 	proposer  raft.Proposer
 	sessionId uuid.UUID
+	buf       *bytes.Buffer
 }
 
 func (w *writer) Write(p []byte) (n int, err error) {
-	proposal := &appendUpload{
-		rand.Uint64(),
-		w.sessionId, p,
+	if w.buf.Len()+len(p) > writeBufferSize {
+		err = w.flush()
+		if err != nil {
+			return 0, err
+		}
 	}
-	err = w.proposer.Propose(proposal)
-	n = len(p)
-	return
+
+	return w.buf.Write(p)
+}
+
+func (w *writer) flush() error {
+	defer w.buf.Reset()
+	return w.proposer.Propose(&appendUpload{
+		rand.Uint64(),
+		w.sessionId,
+		w.buf.Bytes(),
+	})
+}
+
+func (w *writer) Close() error {
+	return w.flush()
 }

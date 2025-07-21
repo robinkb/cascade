@@ -99,6 +99,11 @@ func (s *repositoryService) AppendUpload(repository, sessionID string, r io.Read
 		return err
 	}
 
+	err = w.Close()
+	if err != nil {
+		return err
+	}
+
 	session.HashState, err = hash.(encoding.BinaryMarshaler).MarshalBinary()
 	if err != nil {
 		return err
