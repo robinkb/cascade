@@ -44,7 +44,7 @@ func NewNode(id uint64, addr netip.AddrPort, peers []Peer, workDir string, snap 
 		ElectionTick:      10,
 		HeartbeatTick:     1,
 		Storage:           storage,
-		MaxSizePerMsg:     64 << 10,
+		MaxSizePerMsg:     1 << 20,
 		MaxInflightMsgs:   256,
 		StepDownOnRemoval: true,
 	}
@@ -116,7 +116,7 @@ func (n *node) run() {
 	for {
 		select {
 		case rd := <-n.raft.Ready():
-			n.saveToStorage(rd.HardState, rd.Entries, rd.Snapshot)
+			n.saveToStorage(rd.HardState, rd.Entries, rd.Snapshot, rd.MustSync)
 			n.send(rd.Messages)
 			if !raft.IsEmptySnap(rd.Snapshot) {
 				n.processSnapshot(rd.Snapshot)
@@ -188,15 +188,9 @@ func (n *node) Receive(msg *raftpb.Message) error {
 	return n.raft.Step(context.TODO(), *msg)
 }
 
-func (n *node) saveToStorage(hardState raftpb.HardState, entries []raftpb.Entry, snapshot raftpb.Snapshot) {
-	if err := n.storage.Append(entries); err != nil {
-		log.Panicf("failed to append entries to storage: %s\n", err)
-	}
-
-	if !raft.IsEmptyHardState(hardState) {
-		if err := n.storage.SaveHardState(hardState); err != nil {
-			log.Panicf("failed to save hardstate: %s\n", err)
-		}
+func (n *node) saveToStorage(hardState raftpb.HardState, entries []raftpb.Entry, snapshot raftpb.Snapshot, mustSync bool) {
+	if err := n.storage.Save(entries, hardState, mustSync); err != nil {
+		log.Panicf("failed to append entries and hardstate to storage: %s", err)
 	}
 
 	if !raft.IsEmptySnap(snapshot) {

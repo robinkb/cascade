@@ -27,19 +27,6 @@ type blobStore struct {
 	mu    sync.RWMutex
 }
 
-type writer struct {
-	s    *blobStore
-	path string
-}
-
-func (w *writer) Write(p []byte) (n int, err error) {
-	w.s.mu.Lock()
-	defer w.s.mu.Unlock()
-
-	w.s.store[w.path] = append(w.s.store[w.path], p...)
-	return len(p), nil
-}
-
 func (s *blobStore) StatBlob(id digest.Digest) (*store.BlobInfo, error) {
 	path := s.digestToPath(id)
 	return s.stat(path)
@@ -95,7 +82,7 @@ func (s *blobStore) InitUpload(id uuid.UUID) error {
 	return nil
 }
 
-func (s *blobStore) UploadWriter(id uuid.UUID) (io.Writer, error) {
+func (s *blobStore) UploadWriter(id uuid.UUID) (io.WriteCloser, error) {
 	path := s.uuidToPath(id)
 	return &writer{s, path}, nil
 }
@@ -145,5 +132,22 @@ func (s *blobStore) delete(path string) error {
 	defer s.mu.Unlock()
 
 	delete(s.store, path)
+	return nil
+}
+
+type writer struct {
+	s    *blobStore
+	path string
+}
+
+func (w *writer) Write(p []byte) (n int, err error) {
+	w.s.mu.Lock()
+	defer w.s.mu.Unlock()
+
+	w.s.store[w.path] = append(w.s.store[w.path], p...)
+	return len(p), nil
+}
+
+func (w *writer) Close() error {
 	return nil
 }

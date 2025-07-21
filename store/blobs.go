@@ -35,7 +35,7 @@ type (
 		// UploadWriter returns an io.Writer to write to an initialized upload.
 		// Uploads are always uploaded in order and appended to. If an upload fails or must be truncated,
 		// a new session must be started instead.
-		UploadWriter(id uuid.UUID) (io.Writer, error)
+		UploadWriter(id uuid.UUID) (io.WriteCloser, error)
 		// CloseUpload finishes an upload and makes its contents accessible in the blob store by its digest.
 		// In some implementations, this may effectively be a rename.
 		CloseUpload(id uuid.UUID, digest digest.Digest) error
