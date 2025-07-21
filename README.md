@@ -30,7 +30,19 @@ Buffered proposer with 256kiB buffer: 4s -> Clear correlation in performance. Ac
 
 Re-runs with time command:
 256 kiB buffer: 4.13s   --> 14.5 MiB/s
-512 kiB buffer: 3.08s   -->
-1 MiB buffer:   2.35s   -->
-2 MiB buffer:   1.85s   -->
-4 MiB buffer:   1.68s   -->
+512 kiB buffer: 3.08s   --> 19.3 MiB/s
+1 MiB buffer:   2.35s   --> 25.4 MiB/s
+2 MiB buffer:   1.85s   --> 32.2 MiB/s
+4 MiB buffer:   1.68s   --> 35.5 MiB/s
+
+Raft's MaxSizePerMsg does help in parallel writes
+
+Testing commands:
+
+mkdir test
+cd test
+mkdir node{1,2,3}
+cd node1
+go run ../../cmd/cascade-registry -port 5000 -raft-id=1 -raft-host=127.0.0.1:3001 -raft-peers=1:127.0.0.1:3001,2:127.0.0.1:3002,3:127.0.0.1:3003
+go run ../../cmd/cascade-registry -port 5002 -raft-id=2 -raft-host=127.0.0.1:3002 -raft-peers=1:127.0.0.1:3001,2:127.0.0.1:3002,3:127.0.0.1:3003
+go run ../../cmd/cascade-registry -port 5003 -raft-id=3 -raft-host=127.0.0.1:3003 -raft-peers=1:127.0.0.1:3001,2:127.0.0.1:3002,3:127.0.0.1:3003
