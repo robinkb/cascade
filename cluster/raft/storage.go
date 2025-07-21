@@ -87,7 +87,7 @@ func NewDiskStorage(dir string, snap Snapshotter, c *storage.DeckConfig) (*DiskS
 	// 	}
 	// }()
 
-	s.deck.CutHandler(s.cutHandler())
+	// s.deck.CutHandler(s.cutHandler())
 	s.deck.CompactionHandler(s.compactionHandler())
 
 	return s, nil

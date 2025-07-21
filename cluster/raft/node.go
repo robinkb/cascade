@@ -44,7 +44,7 @@ func NewNode(id uint64, addr netip.AddrPort, peers []Peer, workDir string, snap 
 		ElectionTick:      10,
 		HeartbeatTick:     1,
 		Storage:           storage,
-		MaxSizePerMsg:     64 << 10,
+		MaxSizePerMsg:     1 << 20,
 		MaxInflightMsgs:   256,
 		StepDownOnRemoval: true,
 	}
