@@ -1,4 +1,4 @@
-package storage_test
+package logdeck_test
 
 import (
 	crand "crypto/rand"
@@ -7,13 +7,13 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/robinkb/cascade-registry/cluster/raft/storage"
+	"github.com/robinkb/cascade-registry/cluster/raft/logdeck"
 	. "github.com/robinkb/cascade-registry/testing"
 )
 
 func TestNoSé(t *testing.T) {
 	want := RandomContentsN(10, 150, 200)
-	d := storage.NewDeck(t.TempDir(), &storage.DeckConfig{
+	d := logdeck.Open(t.TempDir(), &logdeck.Options{
 		MaxLogSize:  256,
 		MaxLogCount: 5,
 	})
@@ -26,7 +26,7 @@ func TestNoSé(t *testing.T) {
 
 func TestDeckInNewDirectory(t *testing.T) {
 	path := filepath.Join(t.TempDir(), RandomString(8))
-	d := storage.NewDeck(path, nil)
+	d := logdeck.Open(path, nil)
 
 	// Write whatever to force Deck to create a file.
 	err := d.Append(randomRecordType(), RandomContents(128))
@@ -70,14 +70,14 @@ func BenchmarkDeckAppend(b *testing.B) {
 		name := fmt.Sprintf("RecordSize:%dkB Sync:%t", tt.size/1024, tt.sync)
 		b.Run(name, func(b *testing.B) {
 			path := filepath.Join(b.TempDir(), RandomString(8))
-			deck := storage.NewDeck(path, nil)
+			deck := logdeck.Open(path, nil)
 
 			value := make([]byte, tt.size)
 
 			for b.Loop() {
-				b.SetBytes(int64(tt.size) + storage.RecordHeaderLength)
+				b.SetBytes(int64(tt.size) + logdeck.RecordHeaderLength)
 
-				t := storage.RecordType(rand.Uint64())
+				t := logdeck.RecordType(rand.Uint64())
 				crand.Read(value) // nolint: errcheck
 
 				deck.Append(t, value) // nolint: errcheck
@@ -89,8 +89,8 @@ func BenchmarkDeckAppend(b *testing.B) {
 	}
 }
 
-func randomRecordsN(n int, minSize, maxSize int64) []*storage.Record {
-	records := make([]*storage.Record, n)
+func randomRecordsN(n int, minSize, maxSize int64) []*logdeck.Record {
+	records := make([]*logdeck.Record, n)
 	for i := range records {
 		records[i] = randomRecord(rand.Int64N(maxSize-minSize) + minSize)
 	}

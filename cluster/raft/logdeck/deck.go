@@ -1,4 +1,4 @@
-package storage
+package logdeck
 
 import (
 	"errors"
@@ -14,7 +14,7 @@ import (
 	"golang.org/x/exp/mmap"
 )
 
-type DeckConfig struct {
+type Options struct {
 	// MaxLogSize determines the maximum size that a single Log in the Deck can have.
 	// When appending a Record to a Log would make it grow larger than MaxLogSize,
 	// a new Log is provisioned, and the Record is appended there.
@@ -26,23 +26,23 @@ type DeckConfig struct {
 	MaxLogCount int
 }
 
-type CompactionHandler func(c Counters) error
-type CutHandler func(seq int64) error
+type CompactionHookFunc func(c Counters) error
+type CutHookFunc func(seq int64) error
 
-var defaultDeckConfig = DeckConfig{
+var defaultOptions = Options{
 	MaxLogSize:  64 << 20,
 	MaxLogCount: 16,
 }
 
 var logNameRe = regexp.MustCompile(`(\d{20}).log`)
 
-func NewDeck(dir string, c *DeckConfig) Deck {
-	d := Deck{
+func Open(dir string, c *Options) DB {
+	d := DB{
 		logs: make([]ManagedLog, 0),
 
 		dir:         dir,
-		maxLogSize:  defaultDeckConfig.MaxLogSize,
-		maxLogCount: defaultDeckConfig.MaxLogCount,
+		maxLogSize:  defaultOptions.MaxLogSize,
+		maxLogCount: defaultOptions.MaxLogCount,
 
 		inventory: NewInventory(),
 	}
@@ -129,8 +129,8 @@ type ManagedLog struct {
 	File *os.File
 }
 
-// Deck is an organized collection of Logs.
-type Deck struct {
+// DB is an organized collection of Logs.
+type DB struct {
 	logs []ManagedLog
 	// dir is the directory where the Logs are stored on-disk.
 	dir string
@@ -151,14 +151,14 @@ type Deck struct {
 	inventory *Inventory
 	// cutHandler is provided by the Deck consumer. If provided,
 	// it is called by Deck after every Log is cut.
-	cutHandler CutHandler
+	cutHandler CutHookFunc
 	// compactHandler is provided by the Deck consumer. If provided,
 	// it is called by Deck after every compaction, allowing the consumer
 	// to update its internal bookkeeping.
-	compactHandler CompactionHandler
+	compactHandler CompactionHookFunc
 }
 
-func (d *Deck) Append(t RecordType, value []byte) error {
+func (d *DB) Append(t RecordType, value []byte) error {
 	r := &Record{
 		Type:  t,
 		Value: value,
@@ -174,7 +174,7 @@ func (d *Deck) Append(t RecordType, value []byte) error {
 		return err
 	}
 
-	d.inventory.Add(r.Type, d.Pointer())
+	d.inventory.Add(r.Type, d.pointer())
 
 	// Run compaction _after_ adding the new entry so that
 	// the compaction handler has an up-to-date view of the Deck.
@@ -185,11 +185,11 @@ func (d *Deck) Append(t RecordType, value []byte) error {
 	return nil
 }
 
-func (d *Deck) Sync() error {
+func (d *DB) Sync() error {
 	return syscall.Fdatasync(int(d.activeLog().File.Fd()))
 }
 
-func (d *Deck) Get(t RecordType, i int) ([]byte, error) {
+func (d *DB) Get(t RecordType, i int) ([]byte, error) {
 	ptr, err := d.inventory.Get(t, i)
 	if err != nil {
 		return nil, err
@@ -198,11 +198,11 @@ func (d *Deck) Get(t RecordType, i int) ([]byte, error) {
 	return d.valueAt(ptr)
 }
 
-func (d *Deck) Count(t RecordType) int {
+func (d *DB) Count(t RecordType) int {
 	return d.inventory.Count(t)
 }
 
-func (d *Deck) First(t RecordType) ([]byte, error) {
+func (d *DB) First(t RecordType) ([]byte, error) {
 	ptr, err := d.inventory.Get(t, 0)
 	if err != nil {
 		return nil, err
@@ -211,7 +211,7 @@ func (d *Deck) First(t RecordType) ([]byte, error) {
 	return d.valueAt(ptr)
 }
 
-func (d *Deck) Last(t RecordType) ([]byte, error) {
+func (d *DB) Last(t RecordType) ([]byte, error) {
 	ptr, err := d.inventory.Get(t, d.inventory.Count(t)-1)
 	if err != nil {
 		return nil, err
@@ -220,7 +220,7 @@ func (d *Deck) Last(t RecordType) ([]byte, error) {
 	return d.valueAt(ptr)
 }
 
-func (d *Deck) Range(t RecordType, lo, hi int) iter.Seq2[[]byte, error] {
+func (d *DB) Range(t RecordType, lo, hi int) iter.Seq2[[]byte, error] {
 	return func(yield func([]byte, error) bool) {
 		pointers, err := d.inventory.Range(t, lo, hi)
 		if err != nil {
@@ -237,15 +237,13 @@ func (d *Deck) Range(t RecordType, lo, hi int) iter.Seq2[[]byte, error] {
 	}
 }
 
-// This allocates, after all the hard work of making sure that nothing does.
-// What to do? Maybe use a buffer pool?
-func (d *Deck) valueAt(p Pointer) ([]byte, error) {
+func (d *DB) valueAt(p Pointer) ([]byte, error) {
 	value := make([]byte, p.Size)
 	err := d.logs[p.Log-d.offset].ValueAt(value, p.Offset)
 	return value, err
 }
 
-func (d *Deck) ReadAll() {
+func (d *DB) ReadAll() {
 	for _, log := range d.logs {
 		for record := range log.All() {
 			offset, size := log.Pointer()
@@ -259,15 +257,15 @@ func (d *Deck) ReadAll() {
 	}
 }
 
-func (d *Deck) CutHandler(h CutHandler) {
+func (d *DB) CutHook(h CutHookFunc) {
 	d.cutHandler = h
 }
 
-func (d *Deck) CompactionHandler(h CompactionHandler) {
+func (d *DB) CompactionHook(h CompactionHookFunc) {
 	d.compactHandler = h
 }
 
-func (d *Deck) newLog() ManagedLog {
+func (d *DB) newLog() ManagedLog {
 	logFile := filepath.Join(d.dir, fmt.Sprintf("%020d.log", d.sequence))
 
 	w, err := os.OpenFile(logFile, os.O_CREATE|os.O_WRONLY, 0644)
@@ -303,7 +301,7 @@ func (d *Deck) newLog() ManagedLog {
 	return log
 }
 
-func (d *Deck) activeLog() ManagedLog {
+func (d *DB) activeLog() ManagedLog {
 	if len(d.logs) == 0 {
 		return d.newLog()
 	}
@@ -311,7 +309,7 @@ func (d *Deck) activeLog() ManagedLog {
 }
 
 // TODO: Should close Log's file descriptors here...?
-func (d *Deck) compact() {
+func (d *DB) compact() {
 	log := d.logs[0]
 	id := log.ID
 
@@ -339,8 +337,8 @@ func (d *Deck) compact() {
 	d.offset++
 }
 
-// Pointer returns the location of the Record last written to the Deck.
-func (d *Deck) Pointer() Pointer {
+// pointer returns the location of the Record last written to the Deck.
+func (d *DB) pointer() Pointer {
 	log := d.activeLog()
 	offset, size := log.Pointer()
 

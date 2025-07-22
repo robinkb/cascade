@@ -7,7 +7,7 @@ import (
 	"os"
 
 	"github.com/robinkb/cascade-registry/cluster/raft"
-	"github.com/robinkb/cascade-registry/cluster/raft/storage"
+	"github.com/robinkb/cascade-registry/cluster/raft/logdeck"
 	"go.etcd.io/raft/v3/raftpb"
 )
 
@@ -29,7 +29,7 @@ func main() {
 		}
 	}()
 
-	l := storage.NewLog(f, nil)
+	l := logdeck.NewLog(f, nil)
 
 	for r := range l.All() {
 		switch r.Type {

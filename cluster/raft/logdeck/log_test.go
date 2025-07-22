@@ -1,4 +1,4 @@
-package storage_test
+package logdeck_test
 
 import (
 	"io"
@@ -7,7 +7,7 @@ import (
 	"syscall"
 	"testing"
 
-	"github.com/robinkb/cascade-registry/cluster/raft/storage"
+	"github.com/robinkb/cascade-registry/cluster/raft/logdeck"
 	. "github.com/robinkb/cascade-registry/testing"
 	"golang.org/x/exp/mmap"
 )
@@ -37,7 +37,7 @@ func tempLog(t *testing.T) (io.ReaderAt, io.Writer) {
 func TestLogReadAll(t *testing.T) {
 	want := randomRecordsN(10, 16, 32)
 
-	l := storage.NewLog(tempLog(t))
+	l := logdeck.NewLog(tempLog(t))
 
 	for i := range want {
 		err := l.Append(want[i])
@@ -66,7 +66,7 @@ func TestLogReadAllPreallocated(t *testing.T) {
 	r, err := mmap.Open(name)
 	AssertNoError(t, err).Require()
 
-	log := storage.NewLog(r, w)
+	log := logdeck.NewLog(r, w)
 
 	want := randomRecordsN(10, 16, 32)
 	for i := range want {
