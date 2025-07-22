@@ -16,18 +16,20 @@ func NewLog(r io.ReaderAt, w io.Writer) *Log {
 }
 
 type Log struct {
+	// enc is the Encoder used to append Records to the Log.
 	enc Encoder
+	// dec is the Decoder used to read Records or values from the Log.
 	dec Decoder
-	// cursor tracks the position of writes to the log.
-	// The log is only ever appended to, and cursor only ever increases.
+	// counters tracks how many records of each type are in the Log.
+	counters Counters
+	// cursor tracks the position of writes to the Log.
+	// The Log is only ever appended to, and cursor only ever increases.
 	cursor int64
 	// pointer contains the starting position of the last record
-	// written to the log.
+	// written to the Log.
 	pointer int64
-	// lastValueSize is the size of the last Record's Value written to the log.
+	// lastValueSize is the size of the last Record's Value written to the Log.
 	lastValueSize int64
-	// counters tracks how many records of each type is in the Log.
-	counters Counters
 }
 
 func (l *Log) Append(r *Record) error {
@@ -65,6 +67,7 @@ func (l *Log) Counters() Counters {
 	return l.counters
 }
 
+// I want to get rid of this. It's awkward. Just return it from Append.
 func (l *Log) Pointer() (int64, int64) {
 	return l.pointer + RecordHeaderLength, l.lastValueSize
 }
@@ -79,4 +82,34 @@ func (l *Log) advance(n int64, t RecordType) {
 	l.cursor += n
 	l.lastValueSize = n - RecordHeaderLength
 	l.counters.Add(t)
+}
+
+// NewCounters returns an empty Counters.
+func NewCounters() Counters {
+	return Counters{
+		counters: make(map[RecordType]uint64),
+	}
+}
+
+// Counters tracks how many records of each type are in a single Log.
+// It is used to update the Inventory in the LogDeck when a Log is compacted.
+type Counters struct {
+	counters map[RecordType]uint64
+}
+
+// Add increments the counter for the given RecordType by 1.
+func (c *Counters) Add(t RecordType) {
+	c.counters[t]++
+}
+
+// All iterates over all of the counters, returning the RecordType
+// and how many Records of this type are in the Log.
+func (c *Counters) All() iter.Seq2[RecordType, uint64] {
+	return func(yield func(RecordType, uint64) bool) {
+		for t, count := range c.counters {
+			if !yield(t, count) {
+				return
+			}
+		}
+	}
 }

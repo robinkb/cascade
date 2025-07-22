@@ -13,10 +13,12 @@ func TestCounters(t *testing.T) {
 	want := logdeck.RecordType(rand.Uint64())
 
 	c.Add(want)
+	c.Add(want)
+	c.Add(want)
 
 	for got, count := range c.All() {
 		AssertEqual(t, got, want)
-		AssertEqual(t, count, 1)
+		AssertEqual(t, count, 3)
 	}
 }
 
@@ -52,12 +54,12 @@ func TestInventory(t *testing.T) {
 		AssertErrorIs(t, err, logdeck.ErrRecordTypeUnknown)
 	})
 
-	t.Run("getting pointer with invalid index returns ErrPointerNotFound", func(t *testing.T) {
+	t.Run("getting pointer with index out of bounds returns ErrPointerOutOfBounds", func(t *testing.T) {
 		_, err := inv.Get(rtype1, len(pointers1))
-		AssertErrorIs(t, err, logdeck.ErrPointerNotFound)
+		AssertErrorIs(t, err, logdeck.ErrIndexOutOfBounds)
 
 		_, err = inv.Get(rtype1, -1)
-		AssertErrorIs(t, err, logdeck.ErrPointerNotFound)
+		AssertErrorIs(t, err, logdeck.ErrIndexOutOfBounds)
 	})
 
 	t.Run("Range returns all pointers for a given type", func(t *testing.T) {
@@ -71,21 +73,22 @@ func TestInventory(t *testing.T) {
 		AssertErrorIs(t, err, logdeck.ErrRecordTypeUnknown)
 	})
 
-	t.Run("Range with invalid ranges returns ErrRangeInvalid", func(t *testing.T) {
+	t.Run("Range with invalid ranges returns an error", func(t *testing.T) {
 		tc := []struct {
 			name   string
 			lo, hi int
+			want   error
 		}{
-			{"lo equal to hi", 1, 1},
-			{"hi lower than lo", 1, 0},
-			{"negative lo", -1, 1},
-			{"hi higher than number of pointers", 0, 100},
+			{"lo equal to hi", 1, 1, logdeck.ErrRangeInvalid},
+			{"hi lower than lo", 1, 0, logdeck.ErrRangeInvalid},
+			{"negative lo", -1, 1, logdeck.ErrIndexOutOfBounds},
+			{"hi higher than number of pointers", 0, 100, logdeck.ErrIndexOutOfBounds},
 		}
 
 		for _, tt := range tc {
 			t.Run(tt.name, func(t *testing.T) {
 				_, err := inv.Range(rtype1, tt.lo, tt.hi)
-				AssertErrorIs(t, err, logdeck.ErrRangeInvalid)
+				AssertErrorIs(t, err, tt.want)
 			})
 		}
 	})
@@ -140,7 +143,7 @@ func TestInventory(t *testing.T) {
 
 		// THere is no sixth pointer.
 		_, err = inv.Get(rtype, 5)
-		AssertErrorIs(t, err, logdeck.ErrPointerNotFound)
+		AssertErrorIs(t, err, logdeck.ErrIndexOutOfBounds)
 	})
 
 	t.Run("removing record of unknown type panics", func(t *testing.T) {

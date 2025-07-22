@@ -51,7 +51,7 @@ var defaultOptions = Options{
 	MaxLogCount: 16,
 }
 
-func Open(dir string, opts *Options) DB {
+func Open(dir string, opts *Options) (DB, error) {
 	db := db{
 		logs: make([]managedLog, 0),
 
@@ -132,7 +132,7 @@ func Open(dir string, opts *Options) DB {
 		db.sequence++
 	}
 
-	return &db
+	return &db, nil
 }
 
 // db implements the DB interface.
@@ -198,7 +198,7 @@ func (d *db) Sync() error {
 func (d *db) Get(t RecordType, i int) ([]byte, error) {
 	ptr, err := d.inventory.Get(t, i)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("could not get pointer to record: %w", err)
 	}
 
 	return d.valueAt(ptr)

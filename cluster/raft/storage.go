@@ -17,8 +17,13 @@ const (
 )
 
 func NewDiskStorage(dir string, snap Snapshotter, c *logdeck.Options) (*DiskStorage, error) {
+	deck, err := logdeck.Open(dir, c)
+	if err != nil {
+		return nil, err
+	}
+
 	s := &DiskStorage{
-		deck: logdeck.Open(dir, c),
+		deck: deck,
 		snap: snap,
 	}
 
