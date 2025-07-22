@@ -10,6 +10,7 @@ import (
 	"github.com/robinkb/cascade-registry/repository"
 	"github.com/robinkb/cascade-registry/server"
 	. "github.com/robinkb/cascade-registry/testing"
+	testclient "github.com/robinkb/cascade-registry/testing/client"
 	"github.com/robinkb/cascade-registry/testing/mock"
 )
 
@@ -28,7 +29,7 @@ func TestListReferrers(t *testing.T) {
 			ListReferrers(wantName, wantDigest.String(), mock.Anything).
 			Return(&wantReferrers, nil)
 
-		client := NewTestClientForRepository(t, wantName, repo)
+		client := testclient.NewTestClientForRepository(t, wantName, repo)
 
 		resp := client.ListReferrers(wantName, wantDigest, nil)
 
@@ -55,9 +56,9 @@ func TestListReferrers(t *testing.T) {
 			ListReferrers(wantName, wantDigest.String(), &wantOpts).
 			Return(&wantReferrers, nil)
 
-		client := NewTestClientForRepository(t, wantName, repo)
+		client := testclient.NewTestClientForRepository(t, wantName, repo)
 
-		resp := client.ListReferrers(wantName, wantDigest, &ListReferrersOptions{
+		resp := client.ListReferrers(wantName, wantDigest, &testclient.ListReferrersOptions{
 			ArtifactType: wantArtifactType,
 		})
 
@@ -77,7 +78,7 @@ func TestListReferrers(t *testing.T) {
 			ListReferrers(wantName, wantDigest, mock.Anything).
 			Return(nil, wantErr)
 
-		client := NewTestClientForRepository(t, wantName, repo)
+		client := testclient.NewTestClientForRepository(t, wantName, repo)
 
 		resp := client.ListReferrers(wantName, digest.Digest(wantDigest), nil)
 
@@ -90,7 +91,7 @@ func TestListReferrers(t *testing.T) {
 			ListReferrers(wantName, wantDigest.String(), mock.Anything).
 			Return(nil, errors.New("unknown"))
 
-		client := NewTestClientForRepository(t, wantName, repo)
+		client := testclient.NewTestClientForRepository(t, wantName, repo)
 
 		resp := client.ListReferrers(wantName, wantDigest, nil)
 

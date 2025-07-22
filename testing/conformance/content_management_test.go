@@ -8,6 +8,7 @@ import (
 	"github.com/robinkb/cascade-registry/server"
 	"github.com/robinkb/cascade-registry/store/inmemory"
 	. "github.com/robinkb/cascade-registry/testing"
+	testclient "github.com/robinkb/cascade-registry/testing/client"
 )
 
 func TestContentManagement(t *testing.T) {
@@ -21,7 +22,7 @@ func TestContentManagement(t *testing.T) {
 		_, _, manifest := RandomManifest()
 		tag := RandomVersion()
 
-		client := NewTestClientForHandler(t, srv)
+		client := testclient.NewTestClientForHandler(t, srv)
 
 		resp := client.PutManifest(repository, tag, manifest)
 		AssertResponseCode(t, resp, http.StatusCreated)
@@ -41,7 +42,7 @@ func TestContentManagement(t *testing.T) {
 		repository := RandomName()
 		digest, _, content := RandomManifest()
 
-		client := NewTestClientForHandler(t, srv)
+		client := testclient.NewTestClientForHandler(t, srv)
 
 		resp := client.PutManifest(repository, digest.String(), content)
 		AssertResponseCode(t, resp, http.StatusCreated)
@@ -67,7 +68,7 @@ func TestContentManagement(t *testing.T) {
 		name := RandomName()
 		digest, content := RandomBlob(64)
 
-		client := NewTestClientForHandler(t, srv)
+		client := testclient.NewTestClientForHandler(t, srv)
 
 		resp := client.InitUpload(name)
 		AssertResponseCode(t, resp, http.StatusAccepted)

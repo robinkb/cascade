@@ -9,6 +9,7 @@ import (
 	"github.com/opencontainers/go-digest"
 	"github.com/robinkb/cascade-registry/repository"
 	. "github.com/robinkb/cascade-registry/testing"
+	testclient "github.com/robinkb/cascade-registry/testing/client"
 	"github.com/robinkb/cascade-registry/testing/mock"
 )
 
@@ -25,7 +26,7 @@ func TestBlobUploadsMonolithic(t *testing.T) {
 			CloseUpload(name, sessionID, digest.String()).
 			Return(nil)
 
-		client := NewTestClientForRepository(t, name, repo)
+		client := testclient.NewTestClientForRepository(t, name, repo)
 
 		location := newLocation(name, sessionID)
 		resp := client.CloseUploadWithContent(location, digest, content, 0)
@@ -43,7 +44,7 @@ func TestBlobUploadsMonolithic(t *testing.T) {
 			CloseUpload(name, sessionID, digest.String()).
 			Return(repository.ErrBlobUploadUnknown)
 
-		client := NewTestClientForRepository(t, name, repo)
+		client := testclient.NewTestClientForRepository(t, name, repo)
 
 		location := newLocation(name, sessionID)
 		resp := client.CloseUpload(location, digest)
@@ -61,7 +62,7 @@ func TestBlobUploadsMonolithic(t *testing.T) {
 		query.Add("digest", digest.String())
 		location.RawQuery = query.Encode()
 
-		client := NewTestClientForRepository(t, name, mock.NewRepositoryService(t))
+		client := testclient.NewTestClientForRepository(t, name, mock.NewRepositoryService(t))
 
 		resp := client.Do(
 			http.MethodPut,
@@ -78,7 +79,7 @@ func TestBlobUploadsMonolithic(t *testing.T) {
 		sessionID, _ := uuid.NewV7()
 		location := newLocation(name, sessionID.String())
 
-		client := NewTestClientForRepository(t, name, mock.NewRepositoryService(t))
+		client := testclient.NewTestClientForRepository(t, name, mock.NewRepositoryService(t))
 
 		resp := client.Do(
 			http.MethodPut,
@@ -100,7 +101,7 @@ func TestBlobUploadsMonolithic(t *testing.T) {
 			CloseUpload(name, sessionID.String(), id).
 			Return(repository.ErrDigestInvalid)
 
-		client := NewTestClientForRepository(t, name, repo)
+		client := testclient.NewTestClientForRepository(t, name, repo)
 
 		resp := client.CloseUpload(location, digest.Digest(id))
 
@@ -118,7 +119,7 @@ func TestBlobUploadsMonolithic(t *testing.T) {
 			CloseUpload(name, sessionID.String(), id.String()).
 			Return(repository.ErrBlobUploadInvalid)
 
-		client := NewTestClientForRepository(t, name, repo)
+		client := testclient.NewTestClientForRepository(t, name, repo)
 
 		resp := client.CloseUpload(location, id)
 
@@ -138,7 +139,7 @@ func TestBlobUploadsChunked(t *testing.T) {
 			Return(nil)
 
 		location := newLocation(name, sessionID)
-		client := NewTestClientForRepository(t, name, repo)
+		client := testclient.NewTestClientForRepository(t, name, repo)
 
 		resp := client.UploadBlobChunk(location, content, 0)
 		AssertResponseCode(t, resp, http.StatusAccepted)
@@ -157,7 +158,7 @@ func TestBlobUploadsStreamed(t *testing.T) {
 			AppendUpload(name, sessionID, mock.AnythingOfType("io.nopCloserWriterTo"), int64(0)).
 			Return(nil)
 
-		client := NewTestClientForRepository(t, name, repository)
+		client := testclient.NewTestClientForRepository(t, name, repository)
 
 		location := newLocation(name, sessionID)
 		resp := client.UploadBlobStream(location, bytes.NewBuffer(content))

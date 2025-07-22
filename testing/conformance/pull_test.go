@@ -9,6 +9,7 @@ import (
 	"github.com/robinkb/cascade-registry/server"
 	"github.com/robinkb/cascade-registry/store/inmemory"
 	. "github.com/robinkb/cascade-registry/testing"
+	testclient "github.com/robinkb/cascade-registry/testing/client"
 )
 
 func TestPull(t *testing.T) {
@@ -19,7 +20,7 @@ func TestPull(t *testing.T) {
 
 	t.Run("Pulling manifests", func(t *testing.T) {
 		t.Run("GET request to a known manifest", func(t *testing.T) {
-			client := NewTestClientForHandler(t, srv)
+			client := testclient.NewTestClientForHandler(t, srv)
 
 			name := RandomName()
 			digest, manifest, content := RandomManifest()
@@ -39,7 +40,7 @@ func TestPull(t *testing.T) {
 		})
 
 		t.Run("GET request to an unknown manifest", func(t *testing.T) {
-			client := NewTestClientForHandler(t, srv)
+			client := testclient.NewTestClientForHandler(t, srv)
 
 			name, digest := RandomName(), RandomDigest()
 			resp := client.GetManifestByDigest(name, digest)
@@ -53,7 +54,7 @@ func TestPull(t *testing.T) {
 		name := RandomName()
 		digest, blob := RandomBlob(32)
 
-		client := NewTestClientForHandler(t, srv)
+		client := testclient.NewTestClientForHandler(t, srv)
 		resp := client.InitUpload(name)
 		AssertResponseCode(t, resp, http.StatusAccepted)
 		location, err := resp.Location()
@@ -62,7 +63,7 @@ func TestPull(t *testing.T) {
 		AssertResponseCode(t, resp, http.StatusCreated)
 
 		t.Run("GET request to an existing blob", func(t *testing.T) {
-			client := NewTestClientForHandler(t, srv)
+			client := testclient.NewTestClientForHandler(t, srv)
 
 			resp := client.GetBlob(name, digest)
 
@@ -72,7 +73,7 @@ func TestPull(t *testing.T) {
 		})
 
 		t.Run("GET request to an unknown blob", func(t *testing.T) {
-			client := NewTestClientForHandler(t, srv)
+			client := testclient.NewTestClientForHandler(t, srv)
 
 			name, digest := RandomName(), RandomDigest()
 			resp := client.GetBlob(name, digest)
@@ -84,7 +85,7 @@ func TestPull(t *testing.T) {
 
 	t.Run("Checking if content exists in the registry", func(t *testing.T) {
 		t.Run("HEAD request to an existing blob", func(t *testing.T) {
-			client := NewTestClientForHandler(t, srv)
+			client := testclient.NewTestClientForHandler(t, srv)
 
 			name := RandomName()
 			digest, blob := RandomBlob(32)
@@ -105,7 +106,7 @@ func TestPull(t *testing.T) {
 		})
 
 		t.Run("HEAD request to an unknown blob", func(t *testing.T) {
-			client := NewTestClientForHandler(t, srv)
+			client := testclient.NewTestClientForHandler(t, srv)
 
 			name, digest := RandomName(), RandomDigest()
 			resp := client.CheckBlob(name, digest)
@@ -115,7 +116,7 @@ func TestPull(t *testing.T) {
 		})
 
 		t.Run("HEAD request to an existing manifest", func(t *testing.T) {
-			client := NewTestClientForHandler(t, srv)
+			client := testclient.NewTestClientForHandler(t, srv)
 
 			name := RandomName()
 			digest, _, content := RandomManifest()
@@ -134,7 +135,7 @@ func TestPull(t *testing.T) {
 		})
 
 		t.Run("HEAD request to an unknown manifest", func(t *testing.T) {
-			client := NewTestClientForHandler(t, srv)
+			client := testclient.NewTestClientForHandler(t, srv)
 
 			name, digest := RandomName(), RandomDigest()
 

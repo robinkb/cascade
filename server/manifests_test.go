@@ -11,6 +11,7 @@ import (
 	"github.com/robinkb/cascade-registry/server"
 	"github.com/robinkb/cascade-registry/store"
 	. "github.com/robinkb/cascade-registry/testing"
+	testclient "github.com/robinkb/cascade-registry/testing/client"
 	"github.com/robinkb/cascade-registry/testing/mock"
 )
 
@@ -26,7 +27,7 @@ func TestStatManifests(t *testing.T) {
 			StatManifest(name, digest.String()).
 			Return(&store.BlobInfo{Size: int64(length)}, nil)
 
-		client := NewTestClientForRepository(t, name, repo)
+		client := testclient.NewTestClientForRepository(t, name, repo)
 
 		resp := client.CheckManifestByDigest(name, digest)
 
@@ -44,7 +45,7 @@ func TestStatManifests(t *testing.T) {
 			StatManifest(name, digest.String()).
 			Return(&store.BlobInfo{Size: int64(length)}, nil)
 
-		client := NewTestClientForRepository(t, name, repo)
+		client := testclient.NewTestClientForRepository(t, name, repo)
 
 		resp := client.CheckManifestByTag(name, tag)
 
@@ -59,7 +60,7 @@ func TestStatManifests(t *testing.T) {
 			StatManifest(name, digest.String()).
 			Return(nil, repository.ErrManifestUnknown)
 
-		client := NewTestClientForRepository(t, name, repo)
+		client := testclient.NewTestClientForRepository(t, name, repo)
 
 		resp := client.CheckManifestByDigest(name, digest)
 
@@ -72,7 +73,7 @@ func TestStatManifests(t *testing.T) {
 			GetTag(name, tag).
 			Return("", repository.ErrManifestUnknown)
 
-		client := NewTestClientForRepository(t, name, repo)
+		client := testclient.NewTestClientForRepository(t, name, repo)
 
 		resp := client.CheckManifestByTag(name, tag)
 
@@ -94,7 +95,7 @@ func TestGetManifests(t *testing.T) {
 			GetManifest(name, digest.String()).
 			Return(meta, content, nil)
 
-		client := NewTestClientForRepository(t, name, repo)
+		client := testclient.NewTestClientForRepository(t, name, repo)
 
 		resp := client.GetManifestByDigest(name, digest)
 
@@ -112,7 +113,7 @@ func TestGetManifests(t *testing.T) {
 			GetManifest(name, digest.String()).
 			Return(meta, content, nil)
 
-		client := NewTestClientForRepository(t, name, repo)
+		client := testclient.NewTestClientForRepository(t, name, repo)
 
 		resp := client.GetManifestByTag(name, tag)
 
@@ -126,7 +127,7 @@ func TestGetManifests(t *testing.T) {
 			GetManifest(name, digest.String()).
 			Return(nil, nil, repository.ErrManifestUnknown)
 
-		client := NewTestClientForRepository(t, name, repo)
+		client := testclient.NewTestClientForRepository(t, name, repo)
 
 		resp := client.GetManifestByDigest(name, digest)
 
@@ -146,7 +147,7 @@ func TestPutManifest(t *testing.T) {
 			PutManifest(name, digest.String(), content).
 			Return("", nil)
 
-		client := NewTestClientForRepository(t, name, repo)
+		client := testclient.NewTestClientForRepository(t, name, repo)
 
 		resp := client.PutManifest(name, digest.String(), content)
 
@@ -164,7 +165,7 @@ func TestPutManifest(t *testing.T) {
 			PutManifest(name, digest.String(), content).
 			Return("", nil)
 
-		client := NewTestClientForRepository(t, name, repo)
+		client := testclient.NewTestClientForRepository(t, name, repo)
 
 		resp := client.PutManifest(name, tag, content)
 
@@ -182,7 +183,7 @@ func TestPutManifest(t *testing.T) {
 			PutManifest(name, digest.String(), content).
 			Return(subjectDigest, nil)
 
-		client := NewTestClientForRepository(t, name, repo)
+		client := testclient.NewTestClientForRepository(t, name, repo)
 
 		resp := client.PutManifest(name, digest.String(), content)
 
@@ -198,7 +199,7 @@ func TestPutManifest(t *testing.T) {
 			PutManifest(name, digest.String(), content).
 			Return("", repository.ErrManifestInvalid)
 
-		client := NewTestClientForRepository(t, name, repo)
+		client := testclient.NewTestClientForRepository(t, name, repo)
 
 		resp := client.PutManifest(name, tag, content)
 
@@ -212,7 +213,7 @@ func TestPutManifest(t *testing.T) {
 			PutManifest(name, digest.String(), content).
 			Return("", errors.New("unknown"))
 
-		client := NewTestClientForRepository(t, name, repo)
+		client := testclient.NewTestClientForRepository(t, name, repo)
 
 		resp := client.PutManifest(name, digest.String(), content)
 
@@ -231,7 +232,7 @@ func TestDeleteManifest(t *testing.T) {
 			DeleteManifest(name, digest.String()).
 			Return(nil)
 
-		client := NewTestClientForRepository(t, name, repo)
+		client := testclient.NewTestClientForRepository(t, name, repo)
 
 		resp := client.DeleteManifest(name, digest)
 
@@ -244,7 +245,7 @@ func TestDeleteManifest(t *testing.T) {
 			DeleteTag(name, tag).
 			Return(nil)
 
-		client := NewTestClientForRepository(t, name, repo)
+		client := testclient.NewTestClientForRepository(t, name, repo)
 
 		resp := client.DeleteTag(name, tag)
 
@@ -257,7 +258,7 @@ func TestDeleteManifest(t *testing.T) {
 			DeleteManifest(name, digest.String()).
 			Return(repository.ErrManifestUnknown)
 
-		client := NewTestClientForRepository(t, name, repo)
+		client := testclient.NewTestClientForRepository(t, name, repo)
 
 		resp := client.DeleteManifest(name, digest)
 
@@ -268,7 +269,7 @@ func TestDeleteManifest(t *testing.T) {
 
 func TestManifestsOthers(t *testing.T) {
 	t.Run("Other methods are not allowed", func(t *testing.T) {
-		client := NewTestClientForHandler(t, server.New(nil))
+		client := testclient.NewTestClientForHandler(t, server.New(nil))
 
 		resp := client.Do(
 			http.MethodTrace,

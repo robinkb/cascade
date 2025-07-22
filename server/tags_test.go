@@ -6,6 +6,7 @@ import (
 
 	"github.com/robinkb/cascade-registry/server"
 	. "github.com/robinkb/cascade-registry/testing"
+	testclient "github.com/robinkb/cascade-registry/testing/client"
 	"github.com/robinkb/cascade-registry/testing/mock"
 )
 
@@ -19,7 +20,7 @@ func TestListTags(t *testing.T) {
 			ListTags(name, -1, "").
 			Return(tags, nil)
 
-		client := NewTestClientForRepository(t, name, repo)
+		client := testclient.NewTestClientForRepository(t, name, repo)
 
 		resp := client.ListTags(name, nil)
 
@@ -38,10 +39,10 @@ func TestListTags(t *testing.T) {
 			ListTags(name, count, last).
 			Return(tags[10:13], nil)
 
-		client := NewTestClientForRepository(t, name, repo)
+		client := testclient.NewTestClientForRepository(t, name, repo)
 
-		resp := client.ListTags(name, &ListTagsOptions{
-			N:    Pointer(count),
+		resp := client.ListTags(name, &testclient.ListTagsOptions{
+			N:    testclient.Pointer(count),
 			Last: last,
 		})
 

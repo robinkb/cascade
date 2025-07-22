@@ -1,4 +1,4 @@
-package testing
+package client
 
 import (
 	"bytes"
@@ -15,6 +15,7 @@ import (
 	v1 "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/robinkb/cascade-registry/repository"
 	"github.com/robinkb/cascade-registry/server"
+	. "github.com/robinkb/cascade-registry/testing"
 	"github.com/robinkb/cascade-registry/testing/mock"
 )
 

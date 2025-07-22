@@ -9,6 +9,7 @@ import (
 	"github.com/robinkb/cascade-registry/server"
 	"github.com/robinkb/cascade-registry/store"
 	. "github.com/robinkb/cascade-registry/testing"
+	testclient "github.com/robinkb/cascade-registry/testing/client"
 	"github.com/robinkb/cascade-registry/testing/mock"
 )
 
@@ -24,7 +25,7 @@ func TestBlobUploadSession(t *testing.T) {
 			InitUpload(name).
 			Return(&store.UploadSession{ID: uuid}, nil)
 
-		client := NewTestClientForRepository(t, name, repo)
+		client := testclient.NewTestClientForRepository(t, name, repo)
 
 		resp := client.InitUpload(name)
 
@@ -38,7 +39,7 @@ func TestBlobUploadSession(t *testing.T) {
 			StatUpload(name, sessionID.String()).
 			Return(&store.BlobInfo{}, nil)
 
-		client := NewTestClientForRepository(t, name, repo)
+		client := testclient.NewTestClientForRepository(t, name, repo)
 
 		resp := client.CheckUpload(location)
 
@@ -53,7 +54,7 @@ func TestBlobUploadSession(t *testing.T) {
 			StatUpload(name, sessionID.String()).
 			Return(nil, repository.ErrBlobUploadUnknown)
 
-		client := NewTestClientForRepository(t, name, repo)
+		client := testclient.NewTestClientForRepository(t, name, repo)
 
 		resp := client.CheckUpload(location)
 
@@ -62,7 +63,7 @@ func TestBlobUploadSession(t *testing.T) {
 	})
 
 	t.Run("Other methods are not allowed", func(t *testing.T) {
-		client := NewTestClientForHandler(t, server.New(nil))
+		client := testclient.NewTestClientForHandler(t, server.New(nil))
 		resp := client.Do(http.MethodConnect, "/v2/my/repo/blobs/uploads/", nil, nil)
 		AssertResponseCode(t, resp, http.StatusMethodNotAllowed)
 	})
