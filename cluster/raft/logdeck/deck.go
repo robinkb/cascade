@@ -14,31 +14,46 @@ import (
 	"golang.org/x/exp/mmap"
 )
 
-type Options struct {
-	// MaxLogSize determines the maximum size that a single Log in the Deck can have.
-	// When appending a Record to a Log would make it grow larger than MaxLogSize,
-	// a new Log is provisioned, and the Record is appended there.
-	// The total maximum Deck size on disk is MaxLogSize * MaxLogCount.
-	MaxLogSize int64
-	// MaxLogCount determines how many Logs can be contained in the Deck.
-	// Once exceeded, the oldest Log in the Deck is compacted.
-	// The total maximum Deck size on disk is MaxLogSize * MaxLogCount.
-	MaxLogCount int
-}
+type (
+	// DB represents the LogDeck interface.
+	DB interface {
+		Append(t RecordType, value []byte) error
+		Sync() error
+		Get(t RecordType, i int) ([]byte, error)
+		Count(t RecordType) int
+		First(t RecordType) ([]byte, error)
+		Last(t RecordType) ([]byte, error)
+		Range(t RecordType, lo, hi int) iter.Seq2[[]byte, error]
+		ReadAll()
+		CutHook(f CutHookFunc)
+		CompactionHook(f CompactionHookFunc)
+	}
 
-type CompactionHookFunc func(c Counters) error
-type CutHookFunc func(seq int64) error
+	CutHookFunc func(seq int64) error
+
+	CompactionHookFunc func(c Counters) error
+
+	Options struct {
+		// MaxLogSize determines the maximum size that a single Log in the Deck can have.
+		// When appending a Record to a Log would make it grow larger than MaxLogSize,
+		// a new Log is provisioned, and the Record is appended there.
+		// The total maximum Deck size on disk is MaxLogSize * MaxLogCount.
+		MaxLogSize int64
+		// MaxLogCount determines how many Logs can be contained in the Deck.
+		// Once exceeded, the oldest Log in the Deck is compacted.
+		// The total maximum Deck size on disk is MaxLogSize * MaxLogCount.
+		MaxLogCount int
+	}
+)
 
 var defaultOptions = Options{
 	MaxLogSize:  64 << 20,
 	MaxLogCount: 16,
 }
 
-var logNameRe = regexp.MustCompile(`(\d{20}).log`)
-
-func Open(dir string, c *Options) DB {
-	d := DB{
-		logs: make([]ManagedLog, 0),
+func Open(dir string, opts *Options) DB {
+	db := db{
+		logs: make([]managedLog, 0),
 
 		dir:         dir,
 		maxLogSize:  defaultOptions.MaxLogSize,
@@ -47,20 +62,20 @@ func Open(dir string, c *Options) DB {
 		inventory: NewInventory(),
 	}
 
-	if c != nil {
-		if c.MaxLogSize != 0 {
-			d.maxLogSize = c.MaxLogSize
+	if opts != nil {
+		if opts.MaxLogSize != 0 {
+			db.maxLogSize = opts.MaxLogSize
 		}
 
-		if c.MaxLogCount != 0 {
-			d.maxLogCount = c.MaxLogCount
+		if opts.MaxLogCount != 0 {
+			db.maxLogCount = opts.MaxLogCount
 		}
 	}
 
 	info, err := os.Stat(dir)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
-			err := os.Mkdir(d.dir, 0755)
+			err := os.Mkdir(db.dir, 0755)
 			if err != nil {
 				panic(err)
 			}
@@ -98,7 +113,7 @@ func Open(dir string, c *Options) DB {
 			panic(err)
 		}
 
-		name := filepath.Join(d.dir, name)
+		name := filepath.Join(db.dir, name)
 		w, err := os.OpenFile(name, os.O_WRONLY, 0644)
 		if err != nil {
 			panic(err)
@@ -109,29 +124,20 @@ func Open(dir string, c *Options) DB {
 			panic(err)
 		}
 
-		d.logs = append(d.logs, ManagedLog{
+		db.logs = append(db.logs, managedLog{
 			ID:   id,
 			File: w,
 			Log:  NewLog(r, w),
 		})
-		d.sequence++
+		db.sequence++
 	}
 
-	return d
+	return &db
 }
 
-// ManagedLog represents a Log that is managed by a Deck.
-// It wraps the basic Log and adds an ID for tracking unique Logs,
-// and the handle of the underlying file.
-type ManagedLog struct {
-	*Log
-	ID   int64
-	File *os.File
-}
-
-// DB is an organized collection of Logs.
-type DB struct {
-	logs []ManagedLog
+// db implements the DB interface.
+type db struct {
+	logs []managedLog
 	// dir is the directory where the Logs are stored on-disk.
 	dir string
 	// sequence holds the ID of the last log created.
@@ -158,7 +164,7 @@ type DB struct {
 	compactHandler CompactionHookFunc
 }
 
-func (d *DB) Append(t RecordType, value []byte) error {
+func (d *db) Append(t RecordType, value []byte) error {
 	r := &Record{
 		Type:  t,
 		Value: value,
@@ -185,11 +191,11 @@ func (d *DB) Append(t RecordType, value []byte) error {
 	return nil
 }
 
-func (d *DB) Sync() error {
+func (d *db) Sync() error {
 	return syscall.Fdatasync(int(d.activeLog().File.Fd()))
 }
 
-func (d *DB) Get(t RecordType, i int) ([]byte, error) {
+func (d *db) Get(t RecordType, i int) ([]byte, error) {
 	ptr, err := d.inventory.Get(t, i)
 	if err != nil {
 		return nil, err
@@ -198,11 +204,11 @@ func (d *DB) Get(t RecordType, i int) ([]byte, error) {
 	return d.valueAt(ptr)
 }
 
-func (d *DB) Count(t RecordType) int {
+func (d *db) Count(t RecordType) int {
 	return d.inventory.Count(t)
 }
 
-func (d *DB) First(t RecordType) ([]byte, error) {
+func (d *db) First(t RecordType) ([]byte, error) {
 	ptr, err := d.inventory.Get(t, 0)
 	if err != nil {
 		return nil, err
@@ -211,7 +217,7 @@ func (d *DB) First(t RecordType) ([]byte, error) {
 	return d.valueAt(ptr)
 }
 
-func (d *DB) Last(t RecordType) ([]byte, error) {
+func (d *db) Last(t RecordType) ([]byte, error) {
 	ptr, err := d.inventory.Get(t, d.inventory.Count(t)-1)
 	if err != nil {
 		return nil, err
@@ -220,7 +226,7 @@ func (d *DB) Last(t RecordType) ([]byte, error) {
 	return d.valueAt(ptr)
 }
 
-func (d *DB) Range(t RecordType, lo, hi int) iter.Seq2[[]byte, error] {
+func (d *db) Range(t RecordType, lo, hi int) iter.Seq2[[]byte, error] {
 	return func(yield func([]byte, error) bool) {
 		pointers, err := d.inventory.Range(t, lo, hi)
 		if err != nil {
@@ -237,13 +243,13 @@ func (d *DB) Range(t RecordType, lo, hi int) iter.Seq2[[]byte, error] {
 	}
 }
 
-func (d *DB) valueAt(p Pointer) ([]byte, error) {
+func (d *db) valueAt(p Pointer) ([]byte, error) {
 	value := make([]byte, p.Size)
 	err := d.logs[p.Log-d.offset].ValueAt(value, p.Offset)
 	return value, err
 }
 
-func (d *DB) ReadAll() {
+func (d *db) ReadAll() {
 	for _, log := range d.logs {
 		for record := range log.All() {
 			offset, size := log.Pointer()
@@ -257,15 +263,15 @@ func (d *DB) ReadAll() {
 	}
 }
 
-func (d *DB) CutHook(h CutHookFunc) {
+func (d *db) CutHook(h CutHookFunc) {
 	d.cutHandler = h
 }
 
-func (d *DB) CompactionHook(h CompactionHookFunc) {
+func (d *db) CompactionHook(h CompactionHookFunc) {
 	d.compactHandler = h
 }
 
-func (d *DB) newLog() ManagedLog {
+func (d *db) newLog() managedLog {
 	logFile := filepath.Join(d.dir, fmt.Sprintf("%020d.log", d.sequence))
 
 	w, err := os.OpenFile(logFile, os.O_CREATE|os.O_WRONLY, 0644)
@@ -282,7 +288,7 @@ func (d *DB) newLog() ManagedLog {
 		panic(err)
 	}
 
-	log := ManagedLog{
+	log := managedLog{
 		Log:  NewLog(r, w),
 		ID:   int64(d.sequence),
 		File: w,
@@ -301,7 +307,7 @@ func (d *DB) newLog() ManagedLog {
 	return log
 }
 
-func (d *DB) activeLog() ManagedLog {
+func (d *db) activeLog() managedLog {
 	if len(d.logs) == 0 {
 		return d.newLog()
 	}
@@ -309,7 +315,7 @@ func (d *DB) activeLog() ManagedLog {
 }
 
 // TODO: Should close Log's file descriptors here...?
-func (d *DB) compact() {
+func (d *db) compact() {
 	log := d.logs[0]
 	id := log.ID
 
@@ -338,7 +344,7 @@ func (d *DB) compact() {
 }
 
 // pointer returns the location of the Record last written to the Deck.
-func (d *DB) pointer() Pointer {
+func (d *db) pointer() Pointer {
 	log := d.activeLog()
 	offset, size := log.Pointer()
 
@@ -349,12 +355,13 @@ func (d *DB) pointer() Pointer {
 	}
 }
 
-// Pointer points to the location and size of a Record's Value in a Log.
-type Pointer struct {
-	// Log is the ID of the Log within the Deck that Value resides in.
-	Log int64
-	// Offset is the position within the Log that the Value starts at.
-	Offset int64
-	// Size is the length of the Value in bytes.
-	Size int64
+var logNameRe = regexp.MustCompile(`(\d{20}).log`)
+
+// managedLog represents a Log that is managed by a Deck.
+// It wraps the basic Log and adds an ID for tracking unique Logs,
+// and the handle of the underlying file.
+type managedLog struct {
+	*Log
+	ID   int64
+	File *os.File
 }

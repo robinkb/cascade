@@ -105,6 +105,16 @@ func (inv *Inventory) Remove(c Counters) {
 	}
 }
 
+// Pointer points to the location and size of a Record's Value in a Log.
+type Pointer struct {
+	// Log is the ID of the Log within the Deck that Value resides in.
+	Log int64
+	// Offset is the position within the Log that the Value starts at.
+	Offset int64
+	// Size is the length of the Value in bytes.
+	Size int64
+}
+
 // NewCounters returns an empty Counters.
 func NewCounters() Counters {
 	return Counters{
@@ -113,7 +123,7 @@ func NewCounters() Counters {
 }
 
 // Counters tracks how many records of each type are in a single Log.
-// It is used to update the Inventory in the Deck when a Log is compacted.
+// It is used to update the Inventory in the LogDeck when a Log is compacted.
 type Counters struct {
 	counters map[RecordType]uint64
 }
