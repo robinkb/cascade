@@ -3,10 +3,15 @@ package logdeck
 import "errors"
 
 var (
-	ErrShortRead         = errors.New("unable to read full record")
-	ErrChecksumMismatch  = errors.New("CRC checksums did not match")
-	ErrInvalidCompaction = errors.New("invalid compaction")
+	// Codec errors
+	ErrShortRead        = errors.New("unable to read full record")
+	ErrChecksumMismatch = errors.New("CRC checksums did not match")
+
+	// Inventory errors
 	ErrIndexOutOfBounds  = errors.New("index out of bounds")
 	ErrRecordTypeUnknown = errors.New("record type unknown")
 	ErrRangeInvalid      = errors.New("range invalid")
+
+	// LogDeck errors
+	ErrInvalidCompaction = errors.New("invalid compaction")
 )

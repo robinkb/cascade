@@ -30,6 +30,11 @@ type Log struct {
 	pointer int64
 	// lastValueSize is the size of the last Record's Value written to the Log.
 	lastValueSize int64
+
+	// TODO: Implement this. Provide a Lock() function that sets this to true.
+	// Counters cannot be retrieved until the Log is locked.
+	// Append cannot be called on a locked Log.
+	locked bool
 }
 
 func (l *Log) Append(r *Record) error {
@@ -72,6 +77,7 @@ func (l *Log) Pointer() (int64, int64) {
 	return l.pointer + RecordHeaderLength, l.lastValueSize
 }
 
+// Also get rid of this. It's only used in a test, and never intended to be used in production.
 func (l *Log) Rewind() {
 	l.cursor = 0
 	l.pointer = 0
