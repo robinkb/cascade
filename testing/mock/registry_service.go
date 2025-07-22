@@ -59,14 +59,20 @@ type RegistryService_CreateRepository_Call struct {
 }
 
 // CreateRepository is a helper method to define mock.On call
-//   - name
+//   - name string
 func (_e *RegistryService_Expecter) CreateRepository(name interface{}) *RegistryService_CreateRepository_Call {
 	return &RegistryService_CreateRepository_Call{Call: _e.mock.On("CreateRepository", name)}
 }
 
 func (_c *RegistryService_CreateRepository_Call) Run(run func(name string)) *RegistryService_CreateRepository_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(string))
+		var arg0 string
+		if args[0] != nil {
+			arg0 = args[0].(string)
+		}
+		run(
+			arg0,
+		)
 	})
 	return _c
 }
@@ -104,14 +110,20 @@ type RegistryService_DeleteRepository_Call struct {
 }
 
 // DeleteRepository is a helper method to define mock.On call
-//   - name
+//   - name string
 func (_e *RegistryService_Expecter) DeleteRepository(name interface{}) *RegistryService_DeleteRepository_Call {
 	return &RegistryService_DeleteRepository_Call{Call: _e.mock.On("DeleteRepository", name)}
 }
 
 func (_c *RegistryService_DeleteRepository_Call) Run(run func(name string)) *RegistryService_DeleteRepository_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(string))
+		var arg0 string
+		if args[0] != nil {
+			arg0 = args[0].(string)
+		}
+		run(
+			arg0,
+		)
 	})
 	return _c
 }
@@ -160,14 +172,20 @@ type RegistryService_GetRepository_Call struct {
 }
 
 // GetRepository is a helper method to define mock.On call
-//   - name
+//   - name string
 func (_e *RegistryService_Expecter) GetRepository(name interface{}) *RegistryService_GetRepository_Call {
 	return &RegistryService_GetRepository_Call{Call: _e.mock.On("GetRepository", name)}
 }
 
 func (_c *RegistryService_GetRepository_Call) Run(run func(name string)) *RegistryService_GetRepository_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(string))
+		var arg0 string
+		if args[0] != nil {
+			arg0 = args[0].(string)
+		}
+		run(
+			arg0,
+		)
 	})
 	return _c
 }

@@ -1,16 +1,15 @@
-package storage_test
+package storage
 
 import (
 	"math/rand/v2"
 	"testing"
 
-	"github.com/robinkb/cascade-registry/cluster/raft/storage"
 	. "github.com/robinkb/cascade-registry/testing"
 )
 
 func TestCounters(t *testing.T) {
-	c := storage.NewCounters()
-	want := storage.RecordType(rand.Uint64())
+	c := NewCounters()
+	want := RecordType(rand.Uint64())
 
 	c.Add(want)
 
@@ -21,7 +20,7 @@ func TestCounters(t *testing.T) {
 }
 
 func TestInventory(t *testing.T) {
-	inv := storage.NewInventory()
+	inv := NewInventory()
 
 	rtype1, pointers1 := randomRecordType(), randomPointers(15)
 	for _, ptr := range pointers1 {
@@ -49,15 +48,15 @@ func TestInventory(t *testing.T) {
 
 	t.Run("getting pointer with unknown record type returns ErrRecordTypeUnknown", func(t *testing.T) {
 		_, err := inv.Get(randomRecordType(), 0)
-		AssertErrorIs(t, err, storage.ErrRecordTypeUnknown)
+		AssertErrorIs(t, err, ErrRecordTypeUnknown)
 	})
 
 	t.Run("getting pointer with invalid index returns ErrPointerNotFound", func(t *testing.T) {
 		_, err := inv.Get(rtype1, len(pointers1))
-		AssertErrorIs(t, err, storage.ErrPointerNotFound)
+		AssertErrorIs(t, err, ErrPointerNotFound)
 
 		_, err = inv.Get(rtype1, -1)
-		AssertErrorIs(t, err, storage.ErrPointerNotFound)
+		AssertErrorIs(t, err, ErrPointerNotFound)
 	})
 
 	t.Run("Range returns all pointers for a given type", func(t *testing.T) {
@@ -68,7 +67,7 @@ func TestInventory(t *testing.T) {
 
 	t.Run("Range for an unknown record type returns ErrRecordTypeUnknown", func(t *testing.T) {
 		_, err := inv.Range(randomRecordType(), 0, 1)
-		AssertErrorIs(t, err, storage.ErrRecordTypeUnknown)
+		AssertErrorIs(t, err, ErrRecordTypeUnknown)
 	})
 
 	t.Run("Range with invalid ranges returns ErrRangeInvalid", func(t *testing.T) {
@@ -85,7 +84,7 @@ func TestInventory(t *testing.T) {
 		for _, tt := range tc {
 			t.Run(tt.name, func(t *testing.T) {
 				_, err := inv.Range(rtype1, tt.lo, tt.hi)
-				AssertErrorIs(t, err, storage.ErrRangeInvalid)
+				AssertErrorIs(t, err, ErrRangeInvalid)
 			})
 		}
 	})
@@ -123,7 +122,7 @@ func TestInventory(t *testing.T) {
 		wantRemoved := 5 // Don't change or comments won't make sense ;-;
 
 		// Simulate a Log that has five records of this type.
-		c := storage.NewCounters()
+		c := NewCounters()
 		for range wantRemoved {
 			c.Add(rtype)
 		}
@@ -140,20 +139,20 @@ func TestInventory(t *testing.T) {
 
 		// THere is no sixth pointer.
 		_, err = inv.Get(rtype, 5)
-		AssertErrorIs(t, err, storage.ErrPointerNotFound)
+		AssertErrorIs(t, err, ErrPointerNotFound)
 	})
 
 	t.Run("removing record of unknown type panics", func(t *testing.T) {
-		defer AssertPanics(t, storage.ErrRecordTypeUnknown)
-		c := storage.NewCounters()
+		defer AssertPanics(t, ErrRecordTypeUnknown)
+		c := NewCounters()
 		c.Add(randomRecordType())
 
 		inv.Remove(c)
 	})
 
 	t.Run("removing more records than are available panics", func(t *testing.T) {
-		defer AssertPanics(t, storage.ErrInvalidCompaction)
-		c := storage.NewCounters()
+		defer AssertPanics(t, ErrInvalidCompaction)
+		c := NewCounters()
 		for range len(pointers1) + 1 {
 			c.Add(rtype1)
 		}
@@ -162,20 +161,20 @@ func TestInventory(t *testing.T) {
 	})
 }
 
-func randomPointers(n int) []storage.Pointer {
-	pointers := make([]storage.Pointer, n)
+func randomPointers(n int) []Pointer {
+	pointers := make([]Pointer, n)
 	for i := range n {
 		pointers[i] = randomPointer()
 	}
 	return pointers
 }
 
-func randomRecordType() storage.RecordType {
-	return storage.RecordType(rand.Uint64())
+func randomRecordType() RecordType {
+	return RecordType(rand.Uint64())
 }
 
-func randomPointer() storage.Pointer {
-	return storage.Pointer{
+func randomPointer() Pointer {
+	return Pointer{
 		Log:    rand.Int64(),
 		Offset: rand.Int64(),
 		Size:   rand.Int64(),

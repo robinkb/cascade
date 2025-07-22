@@ -93,14 +93,20 @@ type RaftNode_Commit_Call struct {
 }
 
 // Commit is a helper method to define mock.On call
-//   - data
+//   - data []byte
 func (_e *RaftNode_Expecter) Commit(data interface{}) *RaftNode_Commit_Call {
 	return &RaftNode_Commit_Call{Call: _e.mock.On("Commit", data)}
 }
 
 func (_c *RaftNode_Commit_Call) Run(run func(data []byte)) *RaftNode_Commit_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].([]byte))
+		var arg0 []byte
+		if args[0] != nil {
+			arg0 = args[0].([]byte)
+		}
+		run(
+			arg0,
+		)
 	})
 	return _c
 }
@@ -127,15 +133,26 @@ type RaftNode_Handle_Call struct {
 }
 
 // Handle is a helper method to define mock.On call
-//   - p
-//   - f
+//   - p raft.Proposal
+//   - f raft.HandlerFunc
 func (_e *RaftNode_Expecter) Handle(p interface{}, f interface{}) *RaftNode_Handle_Call {
 	return &RaftNode_Handle_Call{Call: _e.mock.On("Handle", p, f)}
 }
 
 func (_c *RaftNode_Handle_Call) Run(run func(p raft.Proposal, f raft.HandlerFunc)) *RaftNode_Handle_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(raft.Proposal), args[1].(raft.HandlerFunc))
+		var arg0 raft.Proposal
+		if args[0] != nil {
+			arg0 = args[0].(raft.Proposal)
+		}
+		var arg1 raft.HandlerFunc
+		if args[1] != nil {
+			arg1 = args[1].(raft.HandlerFunc)
+		}
+		run(
+			arg0,
+			arg1,
+		)
 	})
 	return _c
 }
@@ -173,14 +190,20 @@ type RaftNode_Propose_Call struct {
 }
 
 // Propose is a helper method to define mock.On call
-//   - p
+//   - p raft.Proposal
 func (_e *RaftNode_Expecter) Propose(p interface{}) *RaftNode_Propose_Call {
 	return &RaftNode_Propose_Call{Call: _e.mock.On("Propose", p)}
 }
 
 func (_c *RaftNode_Propose_Call) Run(run func(p raft.Proposal)) *RaftNode_Propose_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(raft.Proposal))
+		var arg0 raft.Proposal
+		if args[0] != nil {
+			arg0 = args[0].(raft.Proposal)
+		}
+		run(
+			arg0,
+		)
 	})
 	return _c
 }
@@ -218,14 +241,20 @@ type RaftNode_Receive_Call struct {
 }
 
 // Receive is a helper method to define mock.On call
-//   - m
+//   - m *raftpb.Message
 func (_e *RaftNode_Expecter) Receive(m interface{}) *RaftNode_Receive_Call {
 	return &RaftNode_Receive_Call{Call: _e.mock.On("Receive", m)}
 }
 
 func (_c *RaftNode_Receive_Call) Run(run func(m *raftpb.Message)) *RaftNode_Receive_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(*raftpb.Message))
+		var arg0 *raftpb.Message
+		if args[0] != nil {
+			arg0 = args[0].(*raftpb.Message)
+		}
+		run(
+			arg0,
+		)
 	})
 	return _c
 }
