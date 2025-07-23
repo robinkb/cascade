@@ -1,4 +1,4 @@
-package server_test
+package server
 
 import (
 	"errors"
@@ -8,8 +8,8 @@ import (
 	"github.com/opencontainers/go-digest"
 	v1 "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/robinkb/cascade-registry/repository"
-	"github.com/robinkb/cascade-registry/server"
 	. "github.com/robinkb/cascade-registry/testing"
+	testclient "github.com/robinkb/cascade-registry/testing/client"
 	"github.com/robinkb/cascade-registry/testing/mock"
 )
 
@@ -33,8 +33,8 @@ func TestListReferrers(t *testing.T) {
 		resp := client.ListReferrers(wantName, wantDigest, nil)
 
 		AssertResponseCode(t, resp, http.StatusOK)
-		AssertResponseHeader(t, resp, server.HeaderContentType, v1.MediaTypeImageIndex)
-		AssertResponseHeaderUnset(t, resp, server.HeaderOCIFiltersApplied)
+		AssertResponseHeader(t, resp, HeaderContentType, v1.MediaTypeImageIndex)
+		AssertResponseHeaderUnset(t, resp, HeaderOCIFiltersApplied)
 
 		var gotIndex v1.Index
 		AssertResponseBodyUnmarshals(t, resp, &gotIndex)
@@ -57,12 +57,12 @@ func TestListReferrers(t *testing.T) {
 
 		client := NewTestClientForRepository(t, wantName, repo)
 
-		resp := client.ListReferrers(wantName, wantDigest, &ListReferrersOptions{
+		resp := client.ListReferrers(wantName, wantDigest, &testclient.ListReferrersOptions{
 			ArtifactType: wantArtifactType,
 		})
 
 		AssertResponseCode(t, resp, http.StatusOK)
-		AssertResponseHeader(t, resp, server.HeaderOCIFiltersApplied, "artifactType")
+		AssertResponseHeader(t, resp, HeaderOCIFiltersApplied, "artifactType")
 
 		var gotIndex v1.Index
 		AssertResponseBodyUnmarshals(t, resp, &gotIndex)

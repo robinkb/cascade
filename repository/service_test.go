@@ -1,10 +1,9 @@
-package repository_test
+package repository
 
 import (
 	"os"
 	"testing"
 
-	"github.com/robinkb/cascade-registry/repository"
 	"github.com/robinkb/cascade-registry/store"
 	"github.com/robinkb/cascade-registry/store/boltdb"
 	"github.com/robinkb/cascade-registry/store/fs"
@@ -13,15 +12,20 @@ import (
 	"github.com/stretchr/testify/suite"
 )
 
+// StoreConstructor is a function that returns a Metadata and Blobs store
+// for use in the testing suite. It is only called once during setup.
 type StoreConstructor func() (store.Metadata, store.Blobs)
 
+// Suite runs the testing suite for the Repository service.
+// It is used to easily validate the RepositoryService with different
+// store backends.
 type Suite struct {
 	suite.Suite
 
 	StoreConstructor StoreConstructor
 	Tests            Tests
 
-	repository repository.RepositoryService
+	repository Service
 	metadata   store.Metadata
 	blobs      store.Blobs
 }
@@ -39,7 +43,7 @@ type Tests struct {
 
 func (s *Suite) SetupSuite() {
 	s.metadata, s.blobs = s.StoreConstructor()
-	s.repository = repository.NewRepositoryService(s.metadata, s.blobs)
+	s.repository = NewRepositoryService(s.metadata, s.blobs)
 }
 
 func (s *Suite) RandomRepository() string {

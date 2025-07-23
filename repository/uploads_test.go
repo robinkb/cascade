@@ -1,11 +1,10 @@
-package repository_test
+package repository
 
 import (
 	"bytes"
 	"io"
 	"testing"
 
-	"github.com/robinkb/cascade-registry/repository"
 	. "github.com/robinkb/cascade-registry/testing"
 )
 
@@ -17,7 +16,7 @@ func (s *Suite) TestStatUpload() {
 	name := s.RandomRepository()
 
 	s.T().Run("stat upload returns correct FileInfo", func(t *testing.T) {
-		content := RandomContents(32)
+		content := RandomBytes(32)
 
 		session, err := s.repository.InitUpload(name)
 		RequireNoError(t, err)
@@ -37,7 +36,7 @@ func (s *Suite) TestStatUpload() {
 
 	s.T().Run("stat upload on unknown upload returns ErrBlobUploadUnknown", func(t *testing.T) {
 		_, err := s.repository.StatUpload(name, "i-dont-exist")
-		AssertErrorIs(t, err, repository.ErrBlobUploadUnknown)
+		AssertErrorIs(t, err, ErrBlobUploadUnknown)
 	})
 
 	// TODO: Write test to ensure that uploads are scoped to a repository.
@@ -63,7 +62,7 @@ func (s *Suite) TestBlobUploadsMonolithic() {
 		AssertNoError(t, err)
 
 		_, err = s.repository.StatUpload(name, session.ID.String())
-		AssertErrorIs(t, err, repository.ErrBlobUploadUnknown)
+		AssertErrorIs(t, err, ErrBlobUploadUnknown)
 
 		r, err := s.repository.GetBlob(name, digest.String())
 		RequireNoError(t, err)
@@ -75,11 +74,11 @@ func (s *Suite) TestBlobUploadsMonolithic() {
 
 	s.T().Run("Uploading without a session returns ErrBlobUploadUknown", func(t *testing.T) {
 		err := s.repository.AppendUpload(name, "abc", nil, 0)
-		AssertErrorIs(t, err, repository.ErrBlobUploadUnknown)
+		AssertErrorIs(t, err, ErrBlobUploadUnknown)
 	})
 
 	s.T().Run("Closing upload with invalid digest returns ErrDigestInvalid", func(t *testing.T) {
-		content := RandomContents(32)
+		content := RandomBytes(32)
 		digest := "blablabla"
 
 		session, err := s.repository.InitUpload(name)
@@ -89,12 +88,12 @@ func (s *Suite) TestBlobUploadsMonolithic() {
 		RequireNoError(t, err)
 
 		err = s.repository.CloseUpload(name, session.ID.String(), digest)
-		AssertErrorIs(t, err, repository.ErrDigestInvalid)
+		AssertErrorIs(t, err, ErrDigestInvalid)
 	})
 
 	s.T().Run("Closing upload with wrong digest returns ErrBlobUploadInvalid", func(t *testing.T) {
 		digest := RandomDigest()
-		otherContent := RandomContents(32)
+		otherContent := RandomBytes(32)
 
 		session, err := s.repository.InitUpload(name)
 		RequireNoError(t, err)
@@ -103,7 +102,7 @@ func (s *Suite) TestBlobUploadsMonolithic() {
 		RequireNoError(t, err)
 
 		err = s.repository.CloseUpload(name, session.ID.String(), digest.String())
-		AssertErrorIs(t, err, repository.ErrBlobUploadInvalid)
+		AssertErrorIs(t, err, ErrBlobUploadInvalid)
 	})
 }
 
@@ -116,13 +115,13 @@ func (s *Suite) TestUploadOthers() {
 		name := RandomName()
 
 		_, err := s.repository.InitUpload(name)
-		AssertErrorIs(t, err, repository.ErrNameUnknown)
+		AssertErrorIs(t, err, ErrNameUnknown)
 	})
 
 	s.T().Run("Checking an upload on unknown repository returns ErrNameUnknown", func(t *testing.T) {
 		name := RandomName()
 		_, err := s.repository.StatUpload(name, "")
-		AssertErrorIs(t, err, repository.ErrNameUnknown)
+		AssertErrorIs(t, err, ErrNameUnknown)
 	})
 }
 
@@ -154,7 +153,7 @@ func (s *Suite) TestServiceUpload() {
 	})
 
 	s.T().Run("writing multiple times to same upload appends", func(t *testing.T) {
-		content := RandomContents(32)
+		content := RandomBytes(32)
 
 		session, err := s.repository.InitUpload(name)
 		RequireNoError(t, err)
@@ -178,6 +177,6 @@ func (s *Suite) TestServiceUpload() {
 
 	s.T().Run("writing to unknown upload returns ErrBlobUploadUnknown", func(t *testing.T) {
 		err := s.repository.AppendUpload(name, "i-dont-exist", nil, 0)
-		AssertErrorIs(t, err, repository.ErrBlobUploadUnknown)
+		AssertErrorIs(t, err, ErrBlobUploadUnknown)
 	})
 }

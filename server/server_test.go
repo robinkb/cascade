@@ -1,19 +1,23 @@
-package server_test
+package server
 
 import (
+	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"testing"
 
 	"github.com/robinkb/cascade-registry"
-	"github.com/robinkb/cascade-registry/server"
+	"github.com/robinkb/cascade-registry/repository"
 	"github.com/robinkb/cascade-registry/store/inmemory"
 	. "github.com/robinkb/cascade-registry/testing"
+	testclient "github.com/robinkb/cascade-registry/testing/client"
+	"github.com/robinkb/cascade-registry/testing/mock"
 )
 
 func TestRoot(t *testing.T) {
-	server := server.New(
+	server := New(
 		cascade.NewRegistryService(
 			inmemory.NewMetadataStore(),
 			inmemory.NewBlobStore(),
@@ -31,5 +35,39 @@ func TestRoot(t *testing.T) {
 }
 
 func newLocation(name, sessionID string) *url.URL {
-	return &url.URL{Path: server.Location(name, sessionID)}
+	return &url.URL{Path: Location(name, sessionID)}
+}
+
+// NewTestClientForRepository wraps around NewTestClientForHandler to provide a test client
+// for a registry that only returns the given RepositoryService under the specified name.
+// Attempting to create, read, update, or delete objects in any other repository will panic.
+func NewTestClientForRepository(t *testing.T, name string, service repository.Service) *testclient.Client {
+	registry := mock.NewRegistryService(t)
+	registry.EXPECT().
+		GetRepository(name).
+		Return(service, nil)
+
+	return testclient.NewTestClientForHandler(t, New(registry))
+}
+
+func AssertResponseBodyContainsError(t *testing.T, got *http.Response, want repository.Error) *Result {
+	t.Helper()
+
+	if got.Body == nil || got.Body == http.NoBody {
+		t.Errorf("response body is empty while expecting error")
+		return &Result{T: t, Success: false}
+	}
+
+	var errs ErrorResponse
+	err := json.NewDecoder(got.Body).Decode(&errs)
+	RequireNoError(t, err)
+
+	for _, err := range errs.Errors {
+		if errors.Is(err, want) {
+			return &Result{T: t, Success: true}
+		}
+	}
+
+	t.Errorf("could not find error in response body; got %q, want %q", errs, want)
+	return &Result{T: t, Success: false}
 }

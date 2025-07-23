@@ -8,7 +8,7 @@ import (
 )
 
 type (
-	RepositoryService interface {
+	Service interface {
 		StatBlob(repository, digest string) (*store.BlobInfo, error)
 		GetBlob(repository, digest string) (io.Reader, error)
 		DeleteBlob(repository, digest string) error

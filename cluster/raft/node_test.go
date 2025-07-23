@@ -1,4 +1,4 @@
-package raft_test
+package raft
 
 import (
 	"bytes"
@@ -11,21 +11,20 @@ import (
 	"time"
 
 	"github.com/gofrs/uuid/v5"
-	"github.com/robinkb/cascade-registry/cluster/raft"
 	"github.com/robinkb/cascade-registry/store"
 	storecluster "github.com/robinkb/cascade-registry/store/cluster"
 	"github.com/robinkb/cascade-registry/store/inmemory"
 	. "github.com/robinkb/cascade-registry/testing"
 )
 
-func newTestCluster(t *testing.T, n int) ([]raft.Node, []store.Blobs, []store.Metadata) {
-	peers := make([]raft.Peer, n)
-	nodes := make([]raft.Node, n)
+func newTestCluster(t *testing.T, n int) ([]Node, []store.Blobs, []store.Metadata) {
+	peers := make([]Peer, n)
+	nodes := make([]Node, n)
 	blobs := make([]store.Blobs, n)
 	metadata := make([]store.Metadata, n)
 
 	for i := range n {
-		peers[i] = raft.Peer{
+		peers[i] = Peer{
 			ID: rand.Uint64(),
 			AddrPort: netip.MustParseAddrPort(
 				fmt.Sprintf("127.0.0.1:%d", RandomPort()),
@@ -34,12 +33,12 @@ func newTestCluster(t *testing.T, n int) ([]raft.Node, []store.Blobs, []store.Me
 	}
 
 	for i := range n {
-		nodes[i] = raft.NewNode(
+		nodes[i] = NewNode(
 			peers[i].ID,
 			peers[i].AddrPort,
 			peers,
 			t.TempDir(),
-			new(raft.SpySnapshotter),
+			new(SpySnapshotter),
 		)
 		blobs[i] = storecluster.NewBlobStore(nodes[i], inmemory.NewBlobStore())
 		metadata[i] = storecluster.NewMetadataStore(nodes[i], inmemory.NewMetadataStore())
@@ -48,7 +47,7 @@ func newTestCluster(t *testing.T, n int) ([]raft.Node, []store.Blobs, []store.Me
 	return nodes, blobs, metadata
 }
 
-func snapElections(nodes []raft.Node) {
+func snapElections(nodes []Node) {
 	var wg sync.WaitGroup
 	wg.Add(len(nodes))
 	for _, n := range nodes {
@@ -87,7 +86,7 @@ func TestBlobReplication(t *testing.T) {
 	snapElections(nodes)
 
 	t.Run("Ensure blobs are replicated", func(t *testing.T) {
-		id, content := RandomDigest(), RandomContents(32)
+		id, content := RandomDigest(), RandomBytes(32)
 		err := blobs[0].PutBlob(id, content)
 		RequireNoError(t, err)
 
@@ -113,7 +112,7 @@ func TestBlobReplication(t *testing.T) {
 	})
 
 	t.Run("Ensure uploads are replicated", func(t *testing.T) {
-		id, digest, content := RandomUUID(), RandomDigest(), RandomContents(32)
+		id, digest, content := RandomUUID(), RandomDigest(), RandomBytes(32)
 		err := blobs[0].InitUpload(id)
 		RequireNoError(t, err)
 
@@ -245,7 +244,7 @@ func TestMetadataReplication(t *testing.T) {
 		for _, s := range metadata {
 			got, err := s.GetManifest(name, digest)
 			AssertNoError(t, err)
-			AssertStructsEqual(t, got, meta)
+			AssertDeepEqual(t, got, meta)
 		}
 
 		err = metadata[0].DeleteManifest(name, digest)
@@ -302,7 +301,7 @@ func TestMetadataReplication(t *testing.T) {
 		for _, s := range metadata {
 			got, err := s.GetUploadSession(name, id.String())
 			AssertNoError(t, err)
-			AssertStructsEqual(t, got, session)
+			AssertDeepEqual(t, got, session)
 		}
 
 		err = metadata[0].DeleteUploadSession(name, id.String())

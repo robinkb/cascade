@@ -14,17 +14,16 @@ import (
 	"testing"
 
 	v1 "github.com/opencontainers/image-spec/specs-go/v1"
-	"github.com/robinkb/cascade-registry/repository"
 )
 
 type Result struct {
-	t       *testing.T
-	success bool
+	T       *testing.T
+	Success bool
 }
 
 func (r *Result) Require() {
-	if !r.success {
-		r.t.FailNow()
+	if !r.Success {
+		r.T.FailNow()
 	}
 }
 
@@ -149,28 +148,6 @@ func AssertResponseBodyUnmarshals[T any](t *testing.T, got *http.Response, obj T
 	return &Result{t, true}
 }
 
-func AssertResponseBodyContainsError(t *testing.T, got *http.Response, want repository.Error) *Result {
-	t.Helper()
-
-	if got.Body == nil || got.Body == http.NoBody {
-		t.Errorf("response body is empty while expecting error")
-		return &Result{t, false}
-	}
-
-	var errs repository.ErrorResponse
-	err := json.NewDecoder(got.Body).Decode(&errs)
-	RequireNoError(t, err)
-
-	for _, err := range errs.Errors {
-		if errors.Is(err, want) {
-			return &Result{t, true}
-		}
-	}
-
-	t.Errorf("could not find error in response body; got %q, want %q", errs, want)
-	return &Result{t, false}
-}
-
 func AssertIndex(t *testing.T, got, want *v1.Index) *Result {
 	t.Helper()
 
@@ -186,7 +163,7 @@ func AssertIndex(t *testing.T, got, want *v1.Index) *Result {
 		gotDescriptor := got.Manifests[i]
 		wantDescriptor := want.Manifests[i]
 
-		if !AssertStructsEqual(t, gotDescriptor, wantDescriptor).success {
+		if !AssertDeepEqual(t, gotDescriptor, wantDescriptor).Success {
 			return &Result{t, false}
 		}
 	}
@@ -231,7 +208,7 @@ func AssertMapsEqual[M1, M2 ~map[K]V, K, V comparable](t *testing.T, got M1, wan
 	return &Result{t, true}
 }
 
-func AssertStructsEqual(t *testing.T, got, want any) *Result {
+func AssertDeepEqual(t *testing.T, got, want any) *Result {
 	t.Helper()
 
 	if !reflect.DeepEqual(got, want) {

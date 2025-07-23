@@ -10,7 +10,7 @@ import (
 type (
 	RegistryService interface {
 		CreateRepository(name string) error
-		GetRepository(name string) (repository.RepositoryService, error)
+		GetRepository(name string) (repository.Service, error)
 		DeleteRepository(name string) error
 	}
 )
@@ -31,7 +31,7 @@ func (r *registryService) CreateRepository(name string) error {
 	return r.metadata.CreateRepository(name)
 }
 
-func (r *registryService) GetRepository(name string) (repository.RepositoryService, error) {
+func (r *registryService) GetRepository(name string) (repository.Service, error) {
 	if err := r.metadata.GetRepository(name); err != nil {
 		if !errors.Is(err, store.ErrRepositoryNotFound) {
 			return nil, err

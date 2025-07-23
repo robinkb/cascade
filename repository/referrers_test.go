@@ -1,10 +1,9 @@
-package repository_test
+package repository
 
 import (
 	"testing"
 
 	v1 "github.com/opencontainers/image-spec/specs-go/v1"
-	"github.com/robinkb/cascade-registry/repository"
 	. "github.com/robinkb/cascade-registry/testing"
 )
 
@@ -39,7 +38,7 @@ func (s *Suite) TestListReferrers() {
 	})
 
 	s.T().Run("Fetch filtered list of referrers", func(t *testing.T) {
-		got, err := s.repository.ListReferrers(name, digest.String(), &repository.ListReferrersOptions{
+		got, err := s.repository.ListReferrers(name, digest.String(), &ListReferrersOptions{
 			ArtifactType: "application/vnd.example+type",
 		})
 		RequireNoError(t, err)
@@ -90,6 +89,6 @@ func (s *Suite) TestListReferrers() {
 		name, digest := RandomName(), RandomDigest()
 
 		_, err := s.repository.ListReferrers(name, digest.String(), nil)
-		AssertErrorIs(t, err, repository.ErrNameUnknown)
+		AssertErrorIs(t, err, ErrNameUnknown)
 	})
 }

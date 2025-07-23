@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 
+	"github.com/robinkb/cascade-registry/cluster"
 	"github.com/robinkb/cascade-registry/cluster/raft/storage"
 	"go.etcd.io/raft/v3"
 	"go.etcd.io/raft/v3/raftpb"
@@ -20,7 +21,7 @@ const (
 	TypeSnapshot
 )
 
-func NewDiskStorage(dir string, snap Snapshotter, c *storage.DeckConfig) (*DiskStorage, error) {
+func NewDiskStorage(dir string, snap cluster.Snapshotter, c *storage.DeckConfig) (*DiskStorage, error) {
 	s := &DiskStorage{
 		deck: storage.NewDeck(dir, c),
 		snap: snap,
@@ -97,7 +98,7 @@ func NewDiskStorage(dir string, snap Snapshotter, c *storage.DeckConfig) (*DiskS
 // TODO: Sync. And hope performance doesn't tank.
 type DiskStorage struct {
 	deck storage.Deck
-	snap Snapshotter
+	snap cluster.Snapshotter
 
 	hardState raftpb.HardState
 	snapshot  raftpb.Snapshot
