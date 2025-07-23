@@ -25,7 +25,7 @@ func TestStatBlob(t *testing.T) {
 			StatBlob(name, digest.String()).
 			Return(&store.BlobInfo{Size: size}, nil)
 
-		client := testclient.NewTestClientForRepository(t, name, repo)
+		client := NewTestClientForRepository(t, name, repo)
 
 		resp := client.CheckBlob(name, digest)
 
@@ -40,7 +40,7 @@ func TestStatBlob(t *testing.T) {
 			StatBlob(name, digest.String()).
 			Return(nil, repository.ErrBlobUnknown)
 
-		client := testclient.NewTestClientForRepository(t, name, repo)
+		client := NewTestClientForRepository(t, name, repo)
 
 		resp := client.CheckBlob(name, digest)
 
@@ -69,7 +69,7 @@ func TestGetBlob(t *testing.T) {
 			GetBlob(name, digest.String()).
 			Return(bytes.NewBuffer(content), nil)
 
-		client := testclient.NewTestClientForRepository(t, name, repo)
+		client := NewTestClientForRepository(t, name, repo)
 
 		resp := client.GetBlob(name, digest)
 
@@ -83,7 +83,7 @@ func TestGetBlob(t *testing.T) {
 			GetBlob(name, digest.String()).
 			Return(nil, repository.ErrBlobUnknown)
 
-		client := testclient.NewTestClientForRepository(t, name, repo)
+		client := NewTestClientForRepository(t, name, repo)
 
 		resp := client.GetBlob(name, digest)
 
@@ -112,7 +112,7 @@ func TestDeleteBlob(t *testing.T) {
 			DeleteBlob(name, digest.String()).
 			Return(nil)
 
-		client := testclient.NewTestClientForRepository(t, name, repo)
+		client := NewTestClientForRepository(t, name, repo)
 
 		resp := client.DeleteBlob(name, digest)
 

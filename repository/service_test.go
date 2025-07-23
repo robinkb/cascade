@@ -12,15 +12,20 @@ import (
 	"github.com/stretchr/testify/suite"
 )
 
+// StoreConstructor is a function that returns a Metadata and Blobs store
+// for use in the testing suite. It is only called once during setup.
 type StoreConstructor func() (store.Metadata, store.Blobs)
 
+// Suite runs the testing suite for the Repository service.
+// It is used to easily validate the RepositoryService with different
+// store backends.
 type Suite struct {
 	suite.Suite
 
 	StoreConstructor StoreConstructor
 	Tests            Tests
 
-	repository RepositoryService
+	repository Service
 	metadata   store.Metadata
 	blobs      store.Blobs
 }

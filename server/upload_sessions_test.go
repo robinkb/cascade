@@ -25,7 +25,7 @@ func TestBlobUploadSession(t *testing.T) {
 			InitUpload(name).
 			Return(&store.UploadSession{ID: uuid}, nil)
 
-		client := testclient.NewTestClientForRepository(t, name, repo)
+		client := NewTestClientForRepository(t, name, repo)
 
 		resp := client.InitUpload(name)
 
@@ -39,7 +39,7 @@ func TestBlobUploadSession(t *testing.T) {
 			StatUpload(name, sessionID.String()).
 			Return(&store.BlobInfo{}, nil)
 
-		client := testclient.NewTestClientForRepository(t, name, repo)
+		client := NewTestClientForRepository(t, name, repo)
 
 		resp := client.CheckUpload(location)
 
@@ -54,7 +54,7 @@ func TestBlobUploadSession(t *testing.T) {
 			StatUpload(name, sessionID.String()).
 			Return(nil, repository.ErrBlobUploadUnknown)
 
-		client := testclient.NewTestClientForRepository(t, name, repo)
+		client := NewTestClientForRepository(t, name, repo)
 
 		resp := client.CheckUpload(location)
 

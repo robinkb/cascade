@@ -20,7 +20,7 @@ func TestListTags(t *testing.T) {
 			ListTags(name, -1, "").
 			Return(tags, nil)
 
-		client := testclient.NewTestClientForRepository(t, name, repo)
+		client := NewTestClientForRepository(t, name, repo)
 
 		resp := client.ListTags(name, nil)
 
@@ -39,7 +39,7 @@ func TestListTags(t *testing.T) {
 			ListTags(name, count, last).
 			Return(tags[10:13], nil)
 
-		client := testclient.NewTestClientForRepository(t, name, repo)
+		client := NewTestClientForRepository(t, name, repo)
 
 		resp := client.ListTags(name, &testclient.ListTagsOptions{
 			N:    testclient.Pointer(count),

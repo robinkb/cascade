@@ -29,7 +29,7 @@ func TestListReferrers(t *testing.T) {
 			ListReferrers(wantName, wantDigest.String(), mock.Anything).
 			Return(&wantReferrers, nil)
 
-		client := testclient.NewTestClientForRepository(t, wantName, repo)
+		client := NewTestClientForRepository(t, wantName, repo)
 
 		resp := client.ListReferrers(wantName, wantDigest, nil)
 
@@ -56,7 +56,7 @@ func TestListReferrers(t *testing.T) {
 			ListReferrers(wantName, wantDigest.String(), &wantOpts).
 			Return(&wantReferrers, nil)
 
-		client := testclient.NewTestClientForRepository(t, wantName, repo)
+		client := NewTestClientForRepository(t, wantName, repo)
 
 		resp := client.ListReferrers(wantName, wantDigest, &testclient.ListReferrersOptions{
 			ArtifactType: wantArtifactType,
@@ -78,7 +78,7 @@ func TestListReferrers(t *testing.T) {
 			ListReferrers(wantName, wantDigest, mock.Anything).
 			Return(nil, wantErr)
 
-		client := testclient.NewTestClientForRepository(t, wantName, repo)
+		client := NewTestClientForRepository(t, wantName, repo)
 
 		resp := client.ListReferrers(wantName, digest.Digest(wantDigest), nil)
 
@@ -91,7 +91,7 @@ func TestListReferrers(t *testing.T) {
 			ListReferrers(wantName, wantDigest.String(), mock.Anything).
 			Return(nil, errors.New("unknown"))
 
-		client := testclient.NewTestClientForRepository(t, wantName, repo)
+		client := NewTestClientForRepository(t, wantName, repo)
 
 		resp := client.ListReferrers(wantName, wantDigest, nil)
 

@@ -139,23 +139,23 @@ func (_c *RegistryService_DeleteRepository_Call) RunAndReturn(run func(name stri
 }
 
 // GetRepository provides a mock function for the type RegistryService
-func (_mock *RegistryService) GetRepository(name string) (repository.RepositoryService, error) {
+func (_mock *RegistryService) GetRepository(name string) (repository.Service, error) {
 	ret := _mock.Called(name)
 
 	if len(ret) == 0 {
 		panic("no return value specified for GetRepository")
 	}
 
-	var r0 repository.RepositoryService
+	var r0 repository.Service
 	var r1 error
-	if returnFunc, ok := ret.Get(0).(func(string) (repository.RepositoryService, error)); ok {
+	if returnFunc, ok := ret.Get(0).(func(string) (repository.Service, error)); ok {
 		return returnFunc(name)
 	}
-	if returnFunc, ok := ret.Get(0).(func(string) repository.RepositoryService); ok {
+	if returnFunc, ok := ret.Get(0).(func(string) repository.Service); ok {
 		r0 = returnFunc(name)
 	} else {
 		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(repository.RepositoryService)
+			r0 = ret.Get(0).(repository.Service)
 		}
 	}
 	if returnFunc, ok := ret.Get(1).(func(string) error); ok {
@@ -190,12 +190,12 @@ func (_c *RegistryService_GetRepository_Call) Run(run func(name string)) *Regist
 	return _c
 }
 
-func (_c *RegistryService_GetRepository_Call) Return(repositoryService repository.RepositoryService, err error) *RegistryService_GetRepository_Call {
-	_c.Call.Return(repositoryService, err)
+func (_c *RegistryService_GetRepository_Call) Return(service repository.Service, err error) *RegistryService_GetRepository_Call {
+	_c.Call.Return(service, err)
 	return _c
 }
 
-func (_c *RegistryService_GetRepository_Call) RunAndReturn(run func(name string) (repository.RepositoryService, error)) *RegistryService_GetRepository_Call {
+func (_c *RegistryService_GetRepository_Call) RunAndReturn(run func(name string) (repository.Service, error)) *RegistryService_GetRepository_Call {
 	_c.Call.Return(run)
 	return _c
 }

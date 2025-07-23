@@ -16,7 +16,10 @@ packages:
       RegistryService: {}
   github.com/robinkb/cascade-registry/repository:
     interfaces:
-      RepositoryService: {}
+      Service:
+        config:
+          fileName: repository_service.go
+          structName: RepositoryService
   github.com/robinkb/cascade-registry/cluster/raft:
     interfaces:
       Node:
