@@ -1,4 +1,4 @@
-package server_test
+package server
 
 import (
 	"bytes"
@@ -14,7 +14,7 @@ import (
 
 func TestBlobUploadsMonolithic(t *testing.T) {
 	t.Run("Performing a monolithic upload", func(t *testing.T) {
-		name, digest, content := RandomName(), RandomDigest(), RandomContents(32)
+		name, digest, content := RandomName(), RandomDigest(), RandomBytes(32)
 		sessionID := RandomString(8)
 
 		repo := mock.NewRepositoryService(t)
@@ -67,7 +67,7 @@ func TestBlobUploadsMonolithic(t *testing.T) {
 			http.MethodPut,
 			location.RequestURI(),
 			nil,
-			bytes.NewBuffer(RandomContents(32)),
+			bytes.NewBuffer(RandomBytes(32)),
 		)
 
 		AssertResponseCode(t, resp, http.StatusBadRequest)
@@ -129,7 +129,7 @@ func TestBlobUploadsMonolithic(t *testing.T) {
 
 func TestBlobUploadsChunked(t *testing.T) {
 	t.Run("Performing a chunked upload", func(t *testing.T) {
-		name, _, content := RandomName(), RandomDigest(), RandomContents(32)
+		name, _, content := RandomName(), RandomDigest(), RandomBytes(32)
 		sessionID := RandomString(8)
 
 		repo := mock.NewRepositoryService(t)
@@ -149,7 +149,7 @@ func TestBlobUploadsStreamed(t *testing.T) {
 	// TODO: This used to have integration-style tests that have been moved
 	// to the conformance test. There should be more basic handler unit tests here.
 	t.Run("Performing a streamed upload", func(t *testing.T) {
-		name, content := RandomName(), RandomContents(32)
+		name, content := RandomName(), RandomBytes(32)
 		sessionID := RandomString(6)
 
 		repository := mock.NewRepositoryService(t)

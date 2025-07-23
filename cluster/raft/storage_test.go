@@ -1,4 +1,4 @@
-package raft_test
+package raft
 
 import (
 	"math"
@@ -10,7 +10,6 @@ import (
 	"go.etcd.io/raft/v3"
 	"go.etcd.io/raft/v3/raftpb"
 
-	craft "github.com/robinkb/cascade-registry/cluster/raft"
 	"github.com/robinkb/cascade-registry/cluster/raft/logdeck"
 	. "github.com/robinkb/cascade-registry/testing"
 )
@@ -21,7 +20,7 @@ var (
 
 func TestStorageEntries(t *testing.T) {
 	entries := index(3).terms(3, 4, 5, 5, 6, 7, 7, 7, 7, 8)
-	l, err := craft.NewDiskStorage(t.TempDir(), new(craft.SpySnapshotter), nil)
+	l, err := NewDiskStorage(t.TempDir(), new(SpySnapshotter), nil)
 	AssertNoError(t, err).Require()
 	err = l.Save(entries, emptyHardState, false)
 	AssertNoError(t, err)
@@ -51,14 +50,14 @@ func TestStorageEntries(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			got, err := l.Entries(tt.lo, tt.hi, math.MaxUint64)
 			AssertErrorIs(t, err, tt.wantErr)
-			AssertStructsEqual(t, got, tt.wantEntries)
+			AssertDeepEqual(t, got, tt.wantEntries)
 		})
 	}
 }
 
 func TestStorageTerm(t *testing.T) {
 	t.Run("for empty storage", func(t *testing.T) {
-		l, err := craft.NewDiskStorage(t.TempDir(), nil, nil)
+		l, err := NewDiskStorage(t.TempDir(), nil, nil)
 		AssertNoError(t, err).Require()
 
 		fi, _ := l.FirstIndex()
@@ -76,7 +75,7 @@ func TestStorageTerm(t *testing.T) {
 	t.Run("for storage with entries", func(t *testing.T) {
 		ents := index(3).terms(3, 4, 4, 5)
 
-		l, err := craft.NewDiskStorage(t.TempDir(), nil, nil)
+		l, err := NewDiskStorage(t.TempDir(), nil, nil)
 		AssertNoError(t, err).Require()
 		err = l.Save(ents, emptyHardState, false)
 		AssertNoError(t, err)
@@ -142,7 +141,7 @@ func TestStorageEntries2(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run("", func(t *testing.T) {
-			l, err := craft.NewDiskStorage(t.TempDir(), nil, nil)
+			l, err := NewDiskStorage(t.TempDir(), nil, nil)
 			AssertNoError(t, err).Require()
 			err = l.Save(ents, emptyHardState, false)
 			AssertNoError(t, err)
@@ -155,7 +154,7 @@ func TestStorageEntries2(t *testing.T) {
 }
 
 func TestStorageLastIndex(t *testing.T) {
-	l, err := craft.NewDiskStorage(t.TempDir(), nil, nil)
+	l, err := NewDiskStorage(t.TempDir(), nil, nil)
 	AssertNoError(t, err).Require()
 
 	var want uint64
@@ -174,7 +173,7 @@ func TestStorageLastIndex(t *testing.T) {
 }
 
 func TestStorageFirstIndex(t *testing.T) {
-	l, err := craft.NewDiskStorage(t.TempDir(), nil, nil)
+	l, err := NewDiskStorage(t.TempDir(), nil, nil)
 	AssertNoError(t, err).Require()
 	var want uint64
 
@@ -201,7 +200,7 @@ func TestStorageFirstIndex(t *testing.T) {
 }
 
 func TestSetHardState(t *testing.T) {
-	l, err := craft.NewDiskStorage(t.TempDir(), nil, nil)
+	l, err := NewDiskStorage(t.TempDir(), nil, nil)
 	AssertNoError(t, err).Require()
 
 	want := raftpb.HardState{
@@ -215,11 +214,11 @@ func TestSetHardState(t *testing.T) {
 
 	got, _, err := l.InitialState()
 	AssertNoError(t, err)
-	AssertStructsEqual(t, got, want)
+	AssertDeepEqual(t, got, want)
 }
 
 func TestApplySnapshot(t *testing.T) {
-	l, err := craft.NewDiskStorage(t.TempDir(), nil, nil)
+	l, err := NewDiskStorage(t.TempDir(), nil, nil)
 	AssertNoError(t, err).Require()
 
 	want := raftpb.Snapshot{
@@ -234,13 +233,13 @@ func TestApplySnapshot(t *testing.T) {
 
 	got, err := l.Snapshot()
 	AssertNoError(t, err)
-	AssertStructsEqual(t, got, want)
+	AssertDeepEqual(t, got, want)
 }
 
 func TestPersistence(t *testing.T) {
 	dir := t.TempDir()
 
-	oldLog, err := craft.NewDiskStorage(dir, nil, nil)
+	oldLog, err := NewDiskStorage(dir, nil, nil)
 	AssertNoError(t, err).Require()
 
 	want := struct {
@@ -258,13 +257,13 @@ func TestPersistence(t *testing.T) {
 	err = oldLog.SaveSnapshot(want.snapshot)
 	AssertNoError(t, err).Require()
 
-	newLog, err := craft.NewDiskStorage(dir, nil, nil)
+	newLog, err := NewDiskStorage(dir, nil, nil)
 	AssertNoError(t, err).Require()
 
 	gotHardState, gotConfState, err := newLog.InitialState()
 	AssertNoError(t, err).Require()
-	AssertStructsEqual(t, gotHardState, want.hardState)
-	AssertStructsEqual(t, gotConfState, want.snapshot.Metadata.ConfState)
+	AssertDeepEqual(t, gotHardState, want.hardState)
+	AssertDeepEqual(t, gotConfState, want.snapshot.Metadata.ConfState)
 
 	lo, err := newLog.FirstIndex()
 	AssertNoError(t, err)
@@ -276,7 +275,7 @@ func TestPersistence(t *testing.T) {
 
 	gotEntries, err := newLog.Entries(lo, hi+1, math.MaxUint64)
 	AssertNoError(t, err)
-	AssertStructsEqual(t, gotEntries, want.entries)
+	AssertDeepEqual(t, gotEntries, want.entries)
 }
 
 // TestCompaction is probably a bit too big, and asserts a little too much.
@@ -286,7 +285,7 @@ func TestCompaction(t *testing.T) {
 	t.SkipNow()
 	// Prepare a store with a ridiculously low limit
 	// to immediately trigger compactions.
-	store, err := craft.NewDiskStorage(t.TempDir(), new(craft.SpySnapshotter), &logdeck.Options{
+	store, err := NewDiskStorage(t.TempDir(), new(SpySnapshotter), &logdeck.Options{
 		MaxLogSize:  64,
 		MaxLogCount: 1,
 	})
@@ -310,7 +309,7 @@ func TestCompaction(t *testing.T) {
 	// We should be able to retrieve our Entry.
 	got1, err := store.Entries(1, 2, math.MaxUint64)
 	AssertNoError(t, err)
-	AssertStructsEqual(t, got1[0], want1[0])
+	AssertDeepEqual(t, got1[0], want1[0])
 
 	// This second Entry should push our little store over its limit
 	// and cause the first Log containing the first Entry to be compacted.
@@ -330,7 +329,7 @@ func TestCompaction(t *testing.T) {
 	// The new Entry should also be available.
 	got2, err := store.Entries(2, 3, math.MaxUint64)
 	AssertNoError(t, err)
-	AssertStructsEqual(t, got2[0], want2[0])
+	AssertDeepEqual(t, got2[0], want2[0])
 	// Term of the last compacted entry should still be available as well.
 	// TODO: This is only correct when compacting out one entry. So in reality, never.
 	term, err := store.Term(fi - 1)

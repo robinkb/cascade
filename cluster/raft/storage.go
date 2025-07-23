@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 
+	"github.com/robinkb/cascade-registry/cluster"
 	"github.com/robinkb/cascade-registry/cluster/raft/logdeck"
 	"go.etcd.io/raft/v3"
 	"go.etcd.io/raft/v3/raftpb"
@@ -16,7 +17,7 @@ const (
 	TypeSnapshot
 )
 
-func NewDiskStorage(dir string, snap Snapshotter, c *logdeck.Options) (*DiskStorage, error) {
+func NewDiskStorage(dir string, snap cluster.Snapshotter, c *logdeck.Options) (*DiskStorage, error) {
 	deck, err := logdeck.Open(dir, c)
 	if err != nil {
 		return nil, err
@@ -97,7 +98,7 @@ func NewDiskStorage(dir string, snap Snapshotter, c *logdeck.Options) (*DiskStor
 
 type DiskStorage struct {
 	deck logdeck.DB
-	snap Snapshotter
+	snap cluster.Snapshotter
 
 	hardState raftpb.HardState
 	snapshot  raftpb.Snapshot

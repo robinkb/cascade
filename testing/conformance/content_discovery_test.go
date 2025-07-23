@@ -10,6 +10,7 @@ import (
 	"github.com/robinkb/cascade-registry/server"
 	"github.com/robinkb/cascade-registry/store/inmemory"
 	. "github.com/robinkb/cascade-registry/testing"
+	testclient "github.com/robinkb/cascade-registry/testing/client"
 )
 
 func TestContentDiscovery(t *testing.T) {
@@ -23,7 +24,7 @@ func TestContentDiscovery(t *testing.T) {
 		_, _, content := RandomManifest()
 		tags := RandomTags(50)
 
-		client := NewTestClientForHandler(t, srv)
+		client := testclient.NewTestClientForHandler(t, srv)
 		for _, tag := range tags {
 			resp := client.PutManifest(repository, tag, content)
 			AssertResponseCode(t, resp, http.StatusCreated)
@@ -34,7 +35,7 @@ func TestContentDiscovery(t *testing.T) {
 		slices.Sort(tags)
 
 		t.Run("Fetching the whole list of tags", func(t *testing.T) {
-			client := NewTestClientForHandler(t, srv)
+			client := testclient.NewTestClientForHandler(t, srv)
 
 			resp := client.ListTags(repository, nil)
 			// Assuming a repository is found, this request MUST return a 200 OK response code.
@@ -55,11 +56,11 @@ func TestContentDiscovery(t *testing.T) {
 		})
 
 		t.Run("Fetching a subset of tags", func(t *testing.T) {
-			client := NewTestClientForHandler(t, srv)
+			client := testclient.NewTestClientForHandler(t, srv)
 
 			// In addition to fetching the whole list of tags, a subset of the tags can be fetched by providing the n query parameter.
-			resp := client.ListTags(repository, &ListTagsOptions{
-				N: Pointer(10),
+			resp := client.ListTags(repository, &testclient.ListTagsOptions{
+				N: testclient.Pointer(10),
 			})
 			AssertResponseCode(t, resp, http.StatusOK)
 			var tagsList server.TagsListResponse
@@ -70,11 +71,11 @@ func TestContentDiscovery(t *testing.T) {
 		})
 
 		t.Run("Fetching more tags than are available", func(t *testing.T) {
-			client := NewTestClientForHandler(t, srv)
+			client := testclient.NewTestClientForHandler(t, srv)
 
 			// The response to such a request MAY return fewer than <int> results, but only when the total number of tags attached to the repository is less than <int> or a Link header is provided.
-			resp := client.ListTags(repository, &ListTagsOptions{
-				N: Pointer(len(tags) + 10),
+			resp := client.ListTags(repository, &testclient.ListTagsOptions{
+				N: testclient.Pointer(len(tags) + 10),
 			})
 			AssertResponseCode(t, resp, http.StatusOK)
 			var tagsList server.TagsListResponse
@@ -84,10 +85,10 @@ func TestContentDiscovery(t *testing.T) {
 		})
 
 		t.Run("Fetching 0 tags must return an empty list", func(t *testing.T) {
-			client := NewTestClientForHandler(t, srv)
+			client := testclient.NewTestClientForHandler(t, srv)
 
-			resp := client.ListTags(repository, &ListTagsOptions{
-				N: Pointer(0),
+			resp := client.ListTags(repository, &testclient.ListTagsOptions{
+				N: testclient.Pointer(0),
 			})
 
 			AssertResponseCode(t, resp, http.StatusOK)
@@ -100,15 +101,15 @@ func TestContentDiscovery(t *testing.T) {
 		})
 
 		t.Run("Fetch tags with the 'last' query parameter", func(t *testing.T) {
-			client := NewTestClientForHandler(t, srv)
+			client := testclient.NewTestClientForHandler(t, srv)
 
 			n := 10
 			lastIndex := 10
 			lastTag := tags[lastIndex]
 
-			resp := client.ListTags(repository, &ListTagsOptions{
+			resp := client.ListTags(repository, &testclient.ListTagsOptions{
 				Last: lastTag,
-				N:    Pointer(n),
+				N:    testclient.Pointer(n),
 			})
 
 			AssertResponseCode(t, resp, http.StatusOK)
@@ -122,7 +123,7 @@ func TestContentDiscovery(t *testing.T) {
 			lastTag = tags[lastIndex]
 
 			// When using the last query parameter, the n parameter is OPTIONAL.
-			resp = client.ListTags(repository, &ListTagsOptions{
+			resp = client.ListTags(repository, &testclient.ListTagsOptions{
 				Last: lastTag,
 			})
 			AssertResponseCode(t, resp, http.StatusOK)
@@ -143,7 +144,7 @@ func TestContentDiscovery(t *testing.T) {
 			},
 		}
 
-		client := NewTestClientForHandler(t, srv)
+		client := testclient.NewTestClientForHandler(t, srv)
 
 		resp := client.PutManifest(repository, subjectDigest.String(), subjectContent)
 		AssertResponseCode(t, resp, http.StatusCreated)
@@ -154,7 +155,7 @@ func TestContentDiscovery(t *testing.T) {
 		}
 
 		t.Run("Fetching the full list of referrers", func(t *testing.T) {
-			client := NewTestClientForHandler(t, srv)
+			client := testclient.NewTestClientForHandler(t, srv)
 
 			resp := client.ListReferrers(repository, subjectDigest, nil)
 			// Assuming a repository is found, this request MUST return a 200 OK response code.
@@ -171,10 +172,10 @@ func TestContentDiscovery(t *testing.T) {
 		})
 
 		t.Run("Fetching a filtered list of referrers", func(t *testing.T) {
-			client := NewTestClientForHandler(t, srv)
+			client := testclient.NewTestClientForHandler(t, srv)
 
 			// The registry SHOULD support filtering on artifactType.
-			resp := client.ListReferrers(repository, subjectDigest, &ListReferrersOptions{
+			resp := client.ListReferrers(repository, subjectDigest, &testclient.ListReferrersOptions{
 				ArtifactType: "application/vnd.example+type",
 			})
 
@@ -196,7 +197,7 @@ func TestContentDiscovery(t *testing.T) {
 		})
 
 		t.Run("List referrers on existing repository without referrers", func(t *testing.T) {
-			client := NewTestClientForHandler(t, srv)
+			client := testclient.NewTestClientForHandler(t, srv)
 
 			digest := RandomDigest()
 
@@ -206,7 +207,7 @@ func TestContentDiscovery(t *testing.T) {
 		})
 
 		t.Run("List referrers with an invalid request", func(t *testing.T) {
-			client := NewTestClientForHandler(t, srv)
+			client := testclient.NewTestClientForHandler(t, srv)
 
 			resp := client.ListReferrers(repository, "12345", nil)
 			// If the request is invalid, such as a <digest> with an invalid syntax, a 400 Bad Request MUST be returned.

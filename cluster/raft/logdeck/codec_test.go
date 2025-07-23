@@ -1,4 +1,4 @@
-package logdeck_test
+package logdeck
 
 import (
 	"bytes"
@@ -6,31 +6,30 @@ import (
 	"math/rand/v2"
 	"testing"
 
-	"github.com/robinkb/cascade-registry/cluster/raft/logdeck"
 	. "github.com/robinkb/cascade-registry/testing"
 )
 
 func TestEncodeDecode(t *testing.T) {
-	got := new(logdeck.Record)
+	got := new(Record)
 	want := randomRecord(128)
 
 	w := new(bytes.Buffer)
-	written, err := logdeck.NewEncoder(w).Encode(want)
+	written, err := NewEncoder(w).Encode(want)
 	AssertNoError(t, err)
 
 	r := bytes.NewReader(w.Bytes())
-	read, err := logdeck.NewDecoder(r).RecordAt(got, 0)
+	read, err := NewDecoder(r).RecordAt(got, 0)
 	AssertNoError(t, err).Require()
 
-	AssertEqual(t, written, int64(logdeck.RecordHeaderLength+len(want.Value)))
+	AssertEqual(t, written, int64(RecordHeaderLength+len(want.Value)))
 	AssertEqual(t, written, read)
-	AssertStructsEqual(t, got, want)
+	AssertDeepEqual(t, got, want)
 }
 
 func TestDecodeAllRecords(t *testing.T) {
 	w := new(bytes.Buffer)
-	enc := logdeck.NewEncoder(w)
-	want := make([]*logdeck.Record, 10)
+	enc := NewEncoder(w)
+	want := make([]*Record, 10)
 
 	for i := range want {
 		want[i] = randomRecord(rand.Int64N(16) + 16)
@@ -39,27 +38,27 @@ func TestDecodeAllRecords(t *testing.T) {
 	}
 
 	r := bytes.NewReader(w.Bytes())
-	dec := logdeck.NewDecoder(r)
-	got := make([]*logdeck.Record, len(want))
+	dec := NewDecoder(r)
+	got := make([]*Record, len(want))
 
 	pos := make([]int64, len(want))
 	cursor := int64(0)
 	for i := range want {
-		got[i] = new(logdeck.Record)
+		got[i] = new(Record)
 		n, err := dec.RecordAt(got[i], cursor)
 		AssertNoError(t, err).Require()
-		AssertEqual(t, n, int64(logdeck.RecordHeaderLength+len(want[i].Value)))
-		AssertStructsEqual(t, got[i], want[i])
+		AssertEqual(t, n, int64(RecordHeaderLength+len(want[i].Value)))
+		AssertDeepEqual(t, got[i], want[i])
 		pos = append(pos, cursor)
 		cursor += n
 	}
 
 	// Now try to read them out again in reverse.
 	for i := len(pos) - 1; i <= 0; i-- {
-		rec := new(logdeck.Record)
+		rec := new(Record)
 		_, err := dec.RecordAt(got[i], pos[i])
 		AssertNoError(t, err).Require()
-		AssertStructsEqual(t, rec, got[i])
+		AssertDeepEqual(t, rec, got[i])
 	}
 }
 
@@ -67,12 +66,12 @@ func TestDecodeValue(t *testing.T) {
 	want := randomRecord(rand.Int64N(128) + 128)
 
 	w := new(bytes.Buffer)
-	_, err := logdeck.NewEncoder(w).Encode(want)
+	_, err := NewEncoder(w).Encode(want)
 	AssertNoError(t, err)
 
 	got := make([]byte, len(want.Value))
 	r := bytes.NewReader(w.Bytes())
-	_, err = logdeck.NewDecoder(r).ValueAt(got, logdeck.RecordHeaderLength)
+	_, err = NewDecoder(r).ValueAt(got, RecordHeaderLength)
 	AssertNoError(t, err)
 	AssertSlicesEqual(t, got, want.Value)
 }
@@ -97,7 +96,7 @@ BenchmarkDecode/RecordSize:_131088,_ValueAt-16       	  618614	      1795 ns/op	
 */
 func BenchmarkDecode(b *testing.B) {
 	tc := []struct {
-		record *logdeck.Record
+		record *Record
 	}{
 		{randomRecord(256)},
 		{randomRecord(1 << 10)},
@@ -108,13 +107,13 @@ func BenchmarkDecode(b *testing.B) {
 
 	for _, tt := range tc {
 		w := new(bytes.Buffer)
-		logdeck.NewEncoder(w).Encode(tt.record) // nolint: errcheck
+		NewEncoder(w).Encode(tt.record) // nolint: errcheck
 
 		r := bytes.NewReader(w.Bytes())
-		dec := logdeck.NewDecoder(r)
+		dec := NewDecoder(r)
 
 		b.Run(fmt.Sprintf("RecordSize: %d, RecordAt", tt.record.Size()), func(b *testing.B) {
-			record := new(logdeck.Record)
+			record := new(Record)
 			for b.Loop() {
 				b.SetBytes(record.Size())
 				dec.RecordAt(record, 0) // nolint: errcheck
@@ -126,7 +125,7 @@ func BenchmarkDecode(b *testing.B) {
 			size := int64(len(p))
 			for b.Loop() {
 				b.SetBytes(size)
-				dec.ValueAt(p, logdeck.RecordHeaderLength) // nolint: errcheck
+				dec.ValueAt(p, RecordHeaderLength) // nolint: errcheck
 			}
 		})
 	}
@@ -134,24 +133,24 @@ func BenchmarkDecode(b *testing.B) {
 
 func TestEncodeDecodeErrorDetection(t *testing.T) {
 	t.Run("truncated record leads to CRC mismatch", func(t *testing.T) {
-		got := new(logdeck.Record)
+		got := new(Record)
 		w := new(bytes.Buffer)
 
-		_, err := logdeck.NewEncoder(w).Encode(randomRecord(128))
+		_, err := NewEncoder(w).Encode(randomRecord(128))
 		AssertNoError(t, err)
 
 		w.Truncate(100)
 
 		r := bytes.NewReader(w.Bytes())
-		_, err = logdeck.NewDecoder(r).RecordAt(got, 0)
-		AssertErrorIs(t, err, logdeck.ErrShortRead)
+		_, err = NewDecoder(r).RecordAt(got, 0)
+		AssertErrorIs(t, err, ErrShortRead)
 	})
 
 	t.Run("corrupt record leads to CRC mismatch", func(t *testing.T) {
-		got := new(logdeck.Record)
+		got := new(Record)
 		w := new(bytes.Buffer)
 
-		_, err := logdeck.NewEncoder(w).Encode(randomRecord(128))
+		_, err := NewEncoder(w).Encode(randomRecord(128))
 		AssertNoError(t, err).Require()
 
 		b := w.Bytes()
@@ -160,18 +159,18 @@ func TestEncodeDecodeErrorDetection(t *testing.T) {
 		w.Write(b)
 
 		r := bytes.NewReader(w.Bytes())
-		_, err = logdeck.NewDecoder(r).RecordAt(got, 0)
-		AssertErrorIs(t, err, logdeck.ErrChecksumMismatch)
+		_, err = NewDecoder(r).RecordAt(got, 0)
+		AssertErrorIs(t, err, ErrChecksumMismatch)
 	})
 }
 
 func TestEncodeDecodeDoesNotAllocate(t *testing.T) {
 	r, w := tempLog(t)
-	encoder := logdeck.NewEncoder(w)
-	decoder := logdeck.NewDecoder(r)
+	encoder := NewEncoder(w)
+	decoder := NewDecoder(r)
 
 	src := randomRecord(128)
-	dst := new(logdeck.Record)
+	dst := new(Record)
 
 	allocs := testing.AllocsPerRun(10, func() {
 		_, err := encoder.Encode(src)
@@ -187,9 +186,9 @@ func TestEncodeDecodeDoesNotAllocate(t *testing.T) {
 	AssertEqual(t, allocs, 0)
 }
 
-func randomRecord(n int64) *logdeck.Record {
-	return &logdeck.Record{
-		Type:  logdeck.RecordType(rand.Uint32()),
-		Value: RandomContents(n),
+func randomRecord(n int64) *Record {
+	return &Record{
+		Type:  RecordType(rand.Uint32()),
+		Value: RandomBytes(n),
 	}
 }

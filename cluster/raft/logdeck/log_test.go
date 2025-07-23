@@ -1,4 +1,4 @@
-package logdeck_test
+package logdeck
 
 import (
 	"io"
@@ -7,7 +7,6 @@ import (
 	"syscall"
 	"testing"
 
-	"github.com/robinkb/cascade-registry/cluster/raft/logdeck"
 	. "github.com/robinkb/cascade-registry/testing"
 	"golang.org/x/exp/mmap"
 )
@@ -37,7 +36,7 @@ func tempLog(t *testing.T) (io.ReaderAt, io.Writer) {
 func TestLogReadAll(t *testing.T) {
 	want := randomRecordsN(10, 16, 32)
 
-	l := logdeck.NewLog(tempLog(t))
+	l := NewLog(tempLog(t))
 
 	for i := range want {
 		err := l.Append(want[i])
@@ -48,7 +47,7 @@ func TestLogReadAll(t *testing.T) {
 
 	i := 0
 	for got := range l.All() {
-		AssertStructsEqual(t, got, want[i])
+		AssertDeepEqual(t, got, want[i])
 		i++
 	}
 }
@@ -66,7 +65,7 @@ func TestLogReadAllPreallocated(t *testing.T) {
 	r, err := mmap.Open(name)
 	AssertNoError(t, err).Require()
 
-	log := logdeck.NewLog(r, w)
+	log := NewLog(r, w)
 
 	want := randomRecordsN(10, 16, 32)
 	for i := range want {

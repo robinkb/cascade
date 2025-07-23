@@ -6,6 +6,9 @@ import (
 	"github.com/robinkb/cascade-registry/store"
 )
 
+// These types implement the cluster.Proposal interface.
+// There is one for every method in store.Metadata and store.Blobs.
+
 // Blob operations
 type putBlob struct {
 	Id      uint64

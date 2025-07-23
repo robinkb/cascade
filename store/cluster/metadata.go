@@ -4,11 +4,11 @@ import (
 	"math/rand/v2"
 
 	"github.com/opencontainers/go-digest"
-	"github.com/robinkb/cascade-registry/cluster/raft"
+	"github.com/robinkb/cascade-registry/cluster"
 	"github.com/robinkb/cascade-registry/store"
 )
 
-func NewMetadataStore(proposer raft.Proposer, metadata store.Metadata) store.Metadata {
+func NewMetadataStore(proposer cluster.Proposer, metadata store.Metadata) store.Metadata {
 	s := &metadataStore{
 		Metadata: metadata,
 		proposer: proposer,
@@ -30,7 +30,7 @@ func NewMetadataStore(proposer raft.Proposer, metadata store.Metadata) store.Met
 
 type metadataStore struct {
 	store.Metadata
-	proposer raft.Proposer
+	proposer cluster.Proposer
 }
 
 func (s *metadataStore) CreateRepository(name string) error {
@@ -41,7 +41,7 @@ func (s *metadataStore) CreateRepository(name string) error {
 	return s.proposer.Propose(p)
 }
 
-func (s *metadataStore) createRepository(p raft.Proposal) error {
+func (s *metadataStore) createRepository(p cluster.Proposal) error {
 	v := p.(*createRepository)
 	return s.Metadata.CreateRepository(v.Name)
 }
@@ -54,7 +54,7 @@ func (s *metadataStore) DeleteRepository(name string) error {
 	return s.proposer.Propose(p)
 }
 
-func (s *metadataStore) deleteRepository(p raft.Proposal) error {
+func (s *metadataStore) deleteRepository(p cluster.Proposal) error {
 	v := p.(*deleteRepository)
 	return s.Metadata.DeleteRepository(v.Name)
 }
@@ -67,7 +67,7 @@ func (s *metadataStore) PutBlob(name string, digest digest.Digest) error {
 	return s.proposer.Propose(p)
 }
 
-func (s *metadataStore) putBlob(p raft.Proposal) error {
+func (s *metadataStore) putBlob(p cluster.Proposal) error {
 	v := p.(*putBlobMeta)
 	return s.Metadata.PutBlob(v.Name, v.Digest)
 }
@@ -80,7 +80,7 @@ func (s *metadataStore) DeleteBlob(name string, digest digest.Digest) error {
 	return s.proposer.Propose(p)
 }
 
-func (s *metadataStore) deleteBlob(p raft.Proposal) error {
+func (s *metadataStore) deleteBlob(p cluster.Proposal) error {
 	v := p.(*deleteBlobMeta)
 	return s.Metadata.DeleteBlob(v.Name, v.Digest)
 }
@@ -93,7 +93,7 @@ func (s *metadataStore) PutManifest(name string, digest digest.Digest, meta *sto
 	return s.proposer.Propose(p)
 }
 
-func (s *metadataStore) putManifest(p raft.Proposal) error {
+func (s *metadataStore) putManifest(p cluster.Proposal) error {
 	v := p.(*putManifest)
 	return s.Metadata.PutManifest(v.Name, v.Digest, v.Meta)
 }
@@ -106,7 +106,7 @@ func (s *metadataStore) DeleteManifest(name string, digest digest.Digest) error 
 	return s.proposer.Propose(p)
 }
 
-func (s *metadataStore) deleteManifest(p raft.Proposal) error {
+func (s *metadataStore) deleteManifest(p cluster.Proposal) error {
 	v := p.(*deleteManifest)
 	return s.Metadata.DeleteManifest(v.Name, v.Digest)
 }
@@ -119,7 +119,7 @@ func (s *metadataStore) PutTag(name, tag string, digest digest.Digest) error {
 	return s.proposer.Propose(p)
 }
 
-func (s *metadataStore) putTag(p raft.Proposal) error {
+func (s *metadataStore) putTag(p cluster.Proposal) error {
 	v := p.(*putTag)
 	return s.Metadata.PutTag(v.Name, v.Tag, v.Digest)
 }
@@ -132,7 +132,7 @@ func (s *metadataStore) DeleteTag(name, tag string) error {
 	return s.proposer.Propose(p)
 }
 
-func (s *metadataStore) deleteTag(p raft.Proposal) error {
+func (s *metadataStore) deleteTag(p cluster.Proposal) error {
 	v := p.(*deleteTag)
 	return s.Metadata.DeleteTag(v.Name, v.Tag)
 }
@@ -145,7 +145,7 @@ func (s *metadataStore) PutUploadSession(name string, session *store.UploadSessi
 	return s.proposer.Propose(p)
 }
 
-func (s *metadataStore) putUploadSession(p raft.Proposal) error {
+func (s *metadataStore) putUploadSession(p cluster.Proposal) error {
 	v := p.(*putUploadSession)
 	return s.Metadata.PutUploadSession(v.Name, v.Session)
 }
@@ -158,7 +158,7 @@ func (s *metadataStore) DeleteUploadSession(name string, id string) error {
 	return s.proposer.Propose(p)
 }
 
-func (s *metadataStore) deleteUploadSession(p raft.Proposal) error {
+func (s *metadataStore) deleteUploadSession(p cluster.Proposal) error {
 	v := p.(*deleteUploadSession)
 	return s.Metadata.DeleteUploadSession(v.Name, v.SessionID)
 }
