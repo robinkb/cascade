@@ -16,7 +16,7 @@ func (s *Suite) TestStatUpload() {
 	name := s.RandomRepository()
 
 	s.T().Run("stat upload returns correct FileInfo", func(t *testing.T) {
-		content := RandomContents(32)
+		content := RandomBytes(32)
 
 		session, err := s.repository.InitUpload(name)
 		RequireNoError(t, err)
@@ -78,7 +78,7 @@ func (s *Suite) TestBlobUploadsMonolithic() {
 	})
 
 	s.T().Run("Closing upload with invalid digest returns ErrDigestInvalid", func(t *testing.T) {
-		content := RandomContents(32)
+		content := RandomBytes(32)
 		digest := "blablabla"
 
 		session, err := s.repository.InitUpload(name)
@@ -93,7 +93,7 @@ func (s *Suite) TestBlobUploadsMonolithic() {
 
 	s.T().Run("Closing upload with wrong digest returns ErrBlobUploadInvalid", func(t *testing.T) {
 		digest := RandomDigest()
-		otherContent := RandomContents(32)
+		otherContent := RandomBytes(32)
 
 		session, err := s.repository.InitUpload(name)
 		RequireNoError(t, err)
@@ -153,7 +153,7 @@ func (s *Suite) TestServiceUpload() {
 	})
 
 	s.T().Run("writing multiple times to same upload appends", func(t *testing.T) {
-		content := RandomContents(32)
+		content := RandomBytes(32)
 
 		session, err := s.repository.InitUpload(name)
 		RequireNoError(t, err)

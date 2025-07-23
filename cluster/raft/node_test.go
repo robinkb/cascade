@@ -86,7 +86,7 @@ func TestBlobReplication(t *testing.T) {
 	snapElections(nodes)
 
 	t.Run("Ensure blobs are replicated", func(t *testing.T) {
-		id, content := RandomDigest(), RandomContents(32)
+		id, content := RandomDigest(), RandomBytes(32)
 		err := blobs[0].PutBlob(id, content)
 		RequireNoError(t, err)
 
@@ -112,7 +112,7 @@ func TestBlobReplication(t *testing.T) {
 	})
 
 	t.Run("Ensure uploads are replicated", func(t *testing.T) {
-		id, digest, content := RandomUUID(), RandomDigest(), RandomContents(32)
+		id, digest, content := RandomUUID(), RandomDigest(), RandomBytes(32)
 		err := blobs[0].InitUpload(id)
 		RequireNoError(t, err)
 

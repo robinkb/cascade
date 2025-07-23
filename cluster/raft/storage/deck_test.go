@@ -11,7 +11,7 @@ import (
 )
 
 func TestNoSé(t *testing.T) {
-	want := RandomContentsN(10, 150, 200)
+	want := RandomBytesN(10, 150, 200)
 	d := NewDeck(t.TempDir(), &DeckConfig{
 		MaxLogSize:  256,
 		MaxLogCount: 5,
@@ -28,7 +28,7 @@ func TestDeckInNewDirectory(t *testing.T) {
 	d := NewDeck(path, nil)
 
 	// Write whatever to force Deck to create a file.
-	err := d.Append(randomRecordType(), RandomContents(128))
+	err := d.Append(randomRecordType(), RandomBytes(128))
 	AssertNoError(t, err)
 }
 

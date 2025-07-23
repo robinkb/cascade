@@ -28,17 +28,17 @@ func RandomName() string {
 	return b.String()
 }
 
-func RandomContents(length int64) []byte {
+func RandomBytes(length int64) []byte {
 	data := make([]byte, length)
 	// nolint: errcheck
 	crand.Read(data)
 	return data
 }
 
-func RandomContentsN(n int, minSize, maxSize int64) [][]byte {
+func RandomBytesN(n int, minSize, maxSize int64) [][]byte {
 	values := make([][]byte, n)
 	for i := range values {
-		values[i] = RandomContents(rand.Int64N(maxSize-minSize) + minSize)
+		values[i] = RandomBytes(rand.Int64N(maxSize-minSize) + minSize)
 	}
 	return values
 }
@@ -64,7 +64,7 @@ func RandomPort() int {
 }
 
 func RandomDigest() digest.Digest {
-	return digest.FromBytes(RandomContents(32))
+	return digest.FromBytes(RandomBytes(32))
 }
 
 func RandomManifest() (id digest.Digest, manifest *v1.Manifest, content []byte) {
@@ -100,7 +100,7 @@ func RandomManifestWithSubject(subjDigest digest.Digest, subject *v1.Manifest) (
 }
 
 func RandomBlob(length int64) (id digest.Digest, content []byte) {
-	content = RandomContents(length)
+	content = RandomBytes(length)
 	id = digest.FromBytes(content)
 	return
 }

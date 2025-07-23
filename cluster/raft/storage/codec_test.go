@@ -189,6 +189,6 @@ func TestEncodeDecodeDoesNotAllocate(t *testing.T) {
 func randomRecord(n int64) *Record {
 	return &Record{
 		Type:  RecordType(rand.Uint32()),
-		Value: RandomContents(n),
+		Value: RandomBytes(n),
 	}
 }
