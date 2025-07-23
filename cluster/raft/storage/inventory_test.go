@@ -36,13 +36,13 @@ func TestInventory(t *testing.T) {
 		for i, want := range pointers1 {
 			got, err := inv.Get(rtype1, i)
 			AssertNoError(t, err)
-			AssertStructsEqual(t, got, want)
+			AssertDeepEqual(t, got, want)
 		}
 
 		for i, want := range pointers2 {
 			got, err := inv.Get(rtype2, i)
 			AssertNoError(t, err)
-			AssertStructsEqual(t, got, want)
+			AssertDeepEqual(t, got, want)
 		}
 	})
 
@@ -62,7 +62,7 @@ func TestInventory(t *testing.T) {
 	t.Run("Range returns all pointers for a given type", func(t *testing.T) {
 		got, err := inv.Range(rtype1, 0, len(pointers1))
 		AssertNoError(t, err)
-		AssertStructsEqual(t, got, pointers1)
+		AssertDeepEqual(t, got, pointers1)
 	})
 
 	t.Run("Range for an unknown record type returns ErrRecordTypeUnknown", func(t *testing.T) {
@@ -113,11 +113,11 @@ func TestInventory(t *testing.T) {
 		// Make sure that all of our pointers are available.
 		got, err := inv.Get(rtype, 0)
 		AssertNoError(t, err)
-		AssertStructsEqual(t, got, pointers[0])
+		AssertDeepEqual(t, got, pointers[0])
 
 		got, err = inv.Get(rtype, 9)
 		AssertNoError(t, err)
-		AssertStructsEqual(t, got, pointers[9])
+		AssertDeepEqual(t, got, pointers[9])
 
 		wantRemoved := 5 // Don't change or comments won't make sense ;-;
 
@@ -134,7 +134,7 @@ func TestInventory(t *testing.T) {
 		for i := range len(pointers) - wantRemoved {
 			got, err := inv.Get(rtype, i)
 			AssertNoError(t, err)
-			AssertStructsEqual(t, got, pointers[i+wantRemoved])
+			AssertDeepEqual(t, got, pointers[i+wantRemoved])
 		}
 
 		// THere is no sixth pointer.

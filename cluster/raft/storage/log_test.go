@@ -47,7 +47,7 @@ func TestLogReadAll(t *testing.T) {
 
 	i := 0
 	for got := range l.All() {
-		AssertStructsEqual(t, got, want[i])
+		AssertDeepEqual(t, got, want[i])
 		i++
 	}
 }

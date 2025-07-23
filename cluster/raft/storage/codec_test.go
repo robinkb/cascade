@@ -23,7 +23,7 @@ func TestEncodeDecode(t *testing.T) {
 
 	AssertEqual(t, written, int64(RecordHeaderLength+len(want.Value)))
 	AssertEqual(t, written, read)
-	AssertStructsEqual(t, got, want)
+	AssertDeepEqual(t, got, want)
 }
 
 func TestDecodeAllRecords(t *testing.T) {
@@ -48,7 +48,7 @@ func TestDecodeAllRecords(t *testing.T) {
 		n, err := dec.RecordAt(got[i], cursor)
 		AssertNoError(t, err).Require()
 		AssertEqual(t, n, int64(RecordHeaderLength+len(want[i].Value)))
-		AssertStructsEqual(t, got[i], want[i])
+		AssertDeepEqual(t, got[i], want[i])
 		pos = append(pos, cursor)
 		cursor += n
 	}
@@ -58,7 +58,7 @@ func TestDecodeAllRecords(t *testing.T) {
 		rec := new(Record)
 		_, err := dec.RecordAt(got[i], pos[i])
 		AssertNoError(t, err).Require()
-		AssertStructsEqual(t, rec, got[i])
+		AssertDeepEqual(t, rec, got[i])
 	}
 }
 

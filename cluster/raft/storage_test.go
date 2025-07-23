@@ -51,7 +51,7 @@ func TestStorageEntries(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			got, err := l.Entries(tt.lo, tt.hi, math.MaxUint64)
 			AssertErrorIs(t, err, tt.wantErr)
-			AssertStructsEqual(t, got, tt.wantEntries)
+			AssertDeepEqual(t, got, tt.wantEntries)
 		})
 	}
 }
@@ -215,7 +215,7 @@ func TestSetHardState(t *testing.T) {
 
 	got, _, err := l.InitialState()
 	AssertNoError(t, err)
-	AssertStructsEqual(t, got, want)
+	AssertDeepEqual(t, got, want)
 }
 
 func TestApplySnapshot(t *testing.T) {
@@ -234,7 +234,7 @@ func TestApplySnapshot(t *testing.T) {
 
 	got, err := l.Snapshot()
 	AssertNoError(t, err)
-	AssertStructsEqual(t, got, want)
+	AssertDeepEqual(t, got, want)
 }
 
 func TestPersistence(t *testing.T) {
@@ -263,8 +263,8 @@ func TestPersistence(t *testing.T) {
 
 	gotHardState, gotConfState, err := newLog.InitialState()
 	AssertNoError(t, err).Require()
-	AssertStructsEqual(t, gotHardState, want.hardState)
-	AssertStructsEqual(t, gotConfState, want.snapshot.Metadata.ConfState)
+	AssertDeepEqual(t, gotHardState, want.hardState)
+	AssertDeepEqual(t, gotConfState, want.snapshot.Metadata.ConfState)
 
 	lo, err := newLog.FirstIndex()
 	AssertNoError(t, err)
@@ -276,7 +276,7 @@ func TestPersistence(t *testing.T) {
 
 	gotEntries, err := newLog.Entries(lo, hi+1, math.MaxUint64)
 	AssertNoError(t, err)
-	AssertStructsEqual(t, gotEntries, want.entries)
+	AssertDeepEqual(t, gotEntries, want.entries)
 }
 
 // TestCompaction is probably a bit too big, and asserts a little too much.
@@ -310,7 +310,7 @@ func TestCompaction(t *testing.T) {
 	// We should be able to retrieve our Entry.
 	got1, err := store.Entries(1, 2, math.MaxUint64)
 	AssertNoError(t, err)
-	AssertStructsEqual(t, got1[0], want1[0])
+	AssertDeepEqual(t, got1[0], want1[0])
 
 	// This second Entry should push our little store over its limit
 	// and cause the first Log containing the first Entry to be compacted.
@@ -330,7 +330,7 @@ func TestCompaction(t *testing.T) {
 	// The new Entry should also be available.
 	got2, err := store.Entries(2, 3, math.MaxUint64)
 	AssertNoError(t, err)
-	AssertStructsEqual(t, got2[0], want2[0])
+	AssertDeepEqual(t, got2[0], want2[0])
 	// Term of the last compacted entry should still be available as well.
 	// TODO: This is only correct when compacting out one entry. So in reality, never.
 	term, err := store.Term(fi - 1)

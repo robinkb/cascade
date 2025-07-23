@@ -245,7 +245,7 @@ func TestMetadataReplication(t *testing.T) {
 		for _, s := range metadata {
 			got, err := s.GetManifest(name, digest)
 			AssertNoError(t, err)
-			AssertStructsEqual(t, got, meta)
+			AssertDeepEqual(t, got, meta)
 		}
 
 		err = metadata[0].DeleteManifest(name, digest)
@@ -302,7 +302,7 @@ func TestMetadataReplication(t *testing.T) {
 		for _, s := range metadata {
 			got, err := s.GetUploadSession(name, id.String())
 			AssertNoError(t, err)
-			AssertStructsEqual(t, got, session)
+			AssertDeepEqual(t, got, session)
 		}
 
 		err = metadata[0].DeleteUploadSession(name, id.String())

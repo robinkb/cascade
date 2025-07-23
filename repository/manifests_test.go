@@ -88,7 +88,7 @@ func (s *Suite) TestGetManifest() {
 
 		got, _, err := s.repository.GetManifest(name, digest.String())
 		AssertNoError(t, err)
-		AssertStructsEqual(t, got, &want)
+		AssertDeepEqual(t, got, &want)
 	})
 
 	s.T().Run("Returns ErrManifestUnknown on unknown manifest", func(t *testing.T) {
