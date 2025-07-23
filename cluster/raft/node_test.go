@@ -1,4 +1,4 @@
-package raft_test
+package raft
 
 import (
 	"bytes"
@@ -11,21 +11,20 @@ import (
 	"time"
 
 	"github.com/gofrs/uuid/v5"
-	"github.com/robinkb/cascade-registry/cluster/raft"
 	"github.com/robinkb/cascade-registry/store"
 	storecluster "github.com/robinkb/cascade-registry/store/cluster"
 	"github.com/robinkb/cascade-registry/store/inmemory"
 	. "github.com/robinkb/cascade-registry/testing"
 )
 
-func newTestCluster(t *testing.T, n int) ([]raft.Node, []store.Blobs, []store.Metadata) {
-	peers := make([]raft.Peer, n)
-	nodes := make([]raft.Node, n)
+func newTestCluster(t *testing.T, n int) ([]Node, []store.Blobs, []store.Metadata) {
+	peers := make([]Peer, n)
+	nodes := make([]Node, n)
 	blobs := make([]store.Blobs, n)
 	metadata := make([]store.Metadata, n)
 
 	for i := range n {
-		peers[i] = raft.Peer{
+		peers[i] = Peer{
 			ID: rand.Uint64(),
 			AddrPort: netip.MustParseAddrPort(
 				fmt.Sprintf("127.0.0.1:%d", RandomPort()),
@@ -34,12 +33,12 @@ func newTestCluster(t *testing.T, n int) ([]raft.Node, []store.Blobs, []store.Me
 	}
 
 	for i := range n {
-		nodes[i] = raft.NewNode(
+		nodes[i] = NewNode(
 			peers[i].ID,
 			peers[i].AddrPort,
 			peers,
 			t.TempDir(),
-			new(raft.SpySnapshotter),
+			new(SpySnapshotter),
 		)
 		blobs[i] = storecluster.NewBlobStore(nodes[i], inmemory.NewBlobStore())
 		metadata[i] = storecluster.NewMetadataStore(nodes[i], inmemory.NewMetadataStore())
@@ -48,7 +47,7 @@ func newTestCluster(t *testing.T, n int) ([]raft.Node, []store.Blobs, []store.Me
 	return nodes, blobs, metadata
 }
 
-func snapElections(nodes []raft.Node) {
+func snapElections(nodes []Node) {
 	var wg sync.WaitGroup
 	wg.Add(len(nodes))
 	for _, n := range nodes {

@@ -7,6 +7,7 @@ import (
 	"net/netip"
 	"time"
 
+	"github.com/robinkb/cascade-registry/cluster"
 	"go.etcd.io/raft/v3"
 	"go.etcd.io/raft/v3/raftpb"
 )
@@ -22,7 +23,7 @@ type (
 		// Messaging
 		Receive(m *raftpb.Message) error
 
-		Proposer
+		cluster.Proposer
 	}
 
 	Status struct {
@@ -33,7 +34,7 @@ type (
 // TODO: NewNode should return an error instead of panicking? Probably?
 // Also, I should probably decompose this more and allow passing dependencies
 // like a Mesh and DiskStorage directly.
-func NewNode(id uint64, addr netip.AddrPort, peers []Peer, workDir string, snap SnapshotRestorer) Node {
+func NewNode(id uint64, addr netip.AddrPort, peers []Peer, workDir string, snap cluster.SnapshotRestorer) Node {
 	storage, err := NewDiskStorage(workDir, snap, nil)
 	if err != nil {
 		panic(err)
@@ -88,7 +89,7 @@ type node struct {
 	*proposer
 	mesh     Mesh
 	storage  *DiskStorage
-	restorer Restorer
+	restorer cluster.Restorer
 }
 
 func (n *node) Start() {

@@ -9,54 +9,28 @@ import (
 	"sync"
 	"time"
 
+	"github.com/robinkb/cascade-registry/cluster"
 	"go.etcd.io/raft/v3"
-)
-
-type (
-	// Proposal defines an interface for creating proposal types.
-	// Implementers must return a stored random ID, but can include additional attributes.
-	// These attributes can be retrieved by asserting the Proposal back to its concrete type.
-	Proposal interface {
-		ID() uint64
-	}
-
-	// HandlerFunc is a function that handles committing a proposal type.
-	// They typically type assert the given proposal into its concrete type,
-	// and process the payload by committing it to the state machine.
-	// HandlerFuncs can assume that they are never passed a Proposal of the wrong concrete type.
-	HandlerFunc func(p Proposal) error
-
-	// Proposer encapsulates making proposals to the cluster,
-	// and handling those proposals once they are accepted.
-	Proposer interface {
-		// Consumers must call Handle() to register a function that commits
-		// proposals of a certain concrete type.
-		Handle(p Proposal, f HandlerFunc)
-		// Propose makes a proposal to the Raft log.
-		//
-		// Propose panics if a HandlerFunc has not been registered
-		// for the given proposal type using Handle.
-		Propose(p Proposal) error
-	}
 )
 
 func newProposer(node raft.Node) *proposer {
 	return &proposer{
 		raft:         node,
-		handlerFuncs: make(map[reflect.Type]HandlerFunc),
+		handlerFuncs: make(map[reflect.Type]cluster.HandlerFunc),
 		errs: errMap{
 			errs: make(map[uint64]chan error),
 		},
 	}
 }
 
+// proposer implements cluster.Proposer
 type proposer struct {
 	raft         raft.Node
-	handlerFuncs map[reflect.Type]HandlerFunc
+	handlerFuncs map[reflect.Type]cluster.HandlerFunc
 	errs         errMap
 }
 
-func (p *proposer) Handle(proposal Proposal, f HandlerFunc) {
+func (p *proposer) Handle(proposal cluster.Proposal, f cluster.HandlerFunc) {
 	t := reflect.TypeOf(proposal)
 	if _, ok := p.handlerFuncs[t]; ok {
 		log.Fatalf("proposal type already registered: %T", proposal)
@@ -65,7 +39,7 @@ func (p *proposer) Handle(proposal Proposal, f HandlerFunc) {
 	gob.Register(proposal)
 }
 
-func (p *proposer) Propose(proposal Proposal) error {
+func (p *proposer) Propose(proposal cluster.Proposal) error {
 	var buf bytes.Buffer
 	if err := gob.NewEncoder(&buf).Encode(&proposal); err != nil {
 		log.Panicf("failed to encode proposal: %s\n", err)
@@ -95,7 +69,7 @@ func (p *proposer) Propose(proposal Proposal) error {
 func (p *proposer) commit(data []byte) {
 	buf := bytes.NewBuffer(data)
 
-	var proposal Proposal
+	var proposal cluster.Proposal
 	err := gob.NewDecoder(buf).Decode(&proposal)
 	if err != nil {
 		log.Panicf("unable to decode as proposal: %s", err)

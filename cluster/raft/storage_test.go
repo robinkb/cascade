@@ -1,4 +1,4 @@
-package raft_test
+package raft
 
 import (
 	"math"
@@ -10,7 +10,6 @@ import (
 	"go.etcd.io/raft/v3"
 	"go.etcd.io/raft/v3/raftpb"
 
-	craft "github.com/robinkb/cascade-registry/cluster/raft"
 	"github.com/robinkb/cascade-registry/cluster/raft/storage"
 	. "github.com/robinkb/cascade-registry/testing"
 )
@@ -21,7 +20,7 @@ var (
 
 func TestStorageEntries(t *testing.T) {
 	entries := index(3).terms(3, 4, 5, 5, 6, 7, 7, 7, 7, 8)
-	l, err := craft.NewDiskStorage(t.TempDir(), new(craft.SpySnapshotter), nil)
+	l, err := NewDiskStorage(t.TempDir(), new(SpySnapshotter), nil)
 	AssertNoError(t, err).Require()
 	err = l.Save(entries, emptyHardState, false)
 	AssertNoError(t, err)
@@ -58,7 +57,7 @@ func TestStorageEntries(t *testing.T) {
 
 func TestStorageTerm(t *testing.T) {
 	t.Run("for empty storage", func(t *testing.T) {
-		l, err := craft.NewDiskStorage(t.TempDir(), nil, nil)
+		l, err := NewDiskStorage(t.TempDir(), nil, nil)
 		AssertNoError(t, err).Require()
 
 		fi, _ := l.FirstIndex()
@@ -76,7 +75,7 @@ func TestStorageTerm(t *testing.T) {
 	t.Run("for storage with entries", func(t *testing.T) {
 		ents := index(3).terms(3, 4, 4, 5)
 
-		l, err := craft.NewDiskStorage(t.TempDir(), nil, nil)
+		l, err := NewDiskStorage(t.TempDir(), nil, nil)
 		AssertNoError(t, err).Require()
 		err = l.Save(ents, emptyHardState, false)
 		AssertNoError(t, err)
@@ -142,7 +141,7 @@ func TestStorageEntries2(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run("", func(t *testing.T) {
-			l, err := craft.NewDiskStorage(t.TempDir(), nil, nil)
+			l, err := NewDiskStorage(t.TempDir(), nil, nil)
 			AssertNoError(t, err).Require()
 			err = l.Save(ents, emptyHardState, false)
 			AssertNoError(t, err)
@@ -155,7 +154,7 @@ func TestStorageEntries2(t *testing.T) {
 }
 
 func TestStorageLastIndex(t *testing.T) {
-	l, err := craft.NewDiskStorage(t.TempDir(), nil, nil)
+	l, err := NewDiskStorage(t.TempDir(), nil, nil)
 	AssertNoError(t, err).Require()
 
 	var want uint64
@@ -174,7 +173,7 @@ func TestStorageLastIndex(t *testing.T) {
 }
 
 func TestStorageFirstIndex(t *testing.T) {
-	l, err := craft.NewDiskStorage(t.TempDir(), nil, nil)
+	l, err := NewDiskStorage(t.TempDir(), nil, nil)
 	AssertNoError(t, err).Require()
 	var want uint64
 
@@ -201,7 +200,7 @@ func TestStorageFirstIndex(t *testing.T) {
 }
 
 func TestSetHardState(t *testing.T) {
-	l, err := craft.NewDiskStorage(t.TempDir(), nil, nil)
+	l, err := NewDiskStorage(t.TempDir(), nil, nil)
 	AssertNoError(t, err).Require()
 
 	want := raftpb.HardState{
@@ -219,7 +218,7 @@ func TestSetHardState(t *testing.T) {
 }
 
 func TestApplySnapshot(t *testing.T) {
-	l, err := craft.NewDiskStorage(t.TempDir(), nil, nil)
+	l, err := NewDiskStorage(t.TempDir(), nil, nil)
 	AssertNoError(t, err).Require()
 
 	want := raftpb.Snapshot{
@@ -240,7 +239,7 @@ func TestApplySnapshot(t *testing.T) {
 func TestPersistence(t *testing.T) {
 	dir := t.TempDir()
 
-	oldLog, err := craft.NewDiskStorage(dir, nil, nil)
+	oldLog, err := NewDiskStorage(dir, nil, nil)
 	AssertNoError(t, err).Require()
 
 	want := struct {
@@ -258,7 +257,7 @@ func TestPersistence(t *testing.T) {
 	err = oldLog.SaveSnapshot(want.snapshot)
 	AssertNoError(t, err).Require()
 
-	newLog, err := craft.NewDiskStorage(dir, nil, nil)
+	newLog, err := NewDiskStorage(dir, nil, nil)
 	AssertNoError(t, err).Require()
 
 	gotHardState, gotConfState, err := newLog.InitialState()
@@ -286,7 +285,7 @@ func TestCompaction(t *testing.T) {
 	t.SkipNow()
 	// Prepare a store with a ridiculously low limit
 	// to immediately trigger compactions.
-	store, err := craft.NewDiskStorage(t.TempDir(), new(craft.SpySnapshotter), &storage.DeckConfig{
+	store, err := NewDiskStorage(t.TempDir(), new(SpySnapshotter), &storage.DeckConfig{
 		MaxLogSize:  64,
 		MaxLogCount: 1,
 	})

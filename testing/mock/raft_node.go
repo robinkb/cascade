@@ -5,6 +5,7 @@
 package mock
 
 import (
+	"github.com/robinkb/cascade-registry/cluster"
 	"github.com/robinkb/cascade-registry/cluster/raft"
 	mock "github.com/stretchr/testify/mock"
 	"go.etcd.io/raft/v3/raftpb"
@@ -81,48 +82,8 @@ func (_c *RaftNode_ClusterStatus_Call) RunAndReturn(run func() raft.Status) *Raf
 	return _c
 }
 
-// Commit provides a mock function for the type RaftNode
-func (_mock *RaftNode) Commit(data []byte) {
-	_mock.Called(data)
-	return
-}
-
-// RaftNode_Commit_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'Commit'
-type RaftNode_Commit_Call struct {
-	*mock.Call
-}
-
-// Commit is a helper method to define mock.On call
-//   - data []byte
-func (_e *RaftNode_Expecter) Commit(data interface{}) *RaftNode_Commit_Call {
-	return &RaftNode_Commit_Call{Call: _e.mock.On("Commit", data)}
-}
-
-func (_c *RaftNode_Commit_Call) Run(run func(data []byte)) *RaftNode_Commit_Call {
-	_c.Call.Run(func(args mock.Arguments) {
-		var arg0 []byte
-		if args[0] != nil {
-			arg0 = args[0].([]byte)
-		}
-		run(
-			arg0,
-		)
-	})
-	return _c
-}
-
-func (_c *RaftNode_Commit_Call) Return() *RaftNode_Commit_Call {
-	_c.Call.Return()
-	return _c
-}
-
-func (_c *RaftNode_Commit_Call) RunAndReturn(run func(data []byte)) *RaftNode_Commit_Call {
-	_c.Run(run)
-	return _c
-}
-
 // Handle provides a mock function for the type RaftNode
-func (_mock *RaftNode) Handle(p raft.Proposal, f raft.HandlerFunc) {
+func (_mock *RaftNode) Handle(p cluster.Proposal, f cluster.HandlerFunc) {
 	_mock.Called(p, f)
 	return
 }
@@ -133,21 +94,21 @@ type RaftNode_Handle_Call struct {
 }
 
 // Handle is a helper method to define mock.On call
-//   - p raft.Proposal
-//   - f raft.HandlerFunc
+//   - p cluster.Proposal
+//   - f cluster.HandlerFunc
 func (_e *RaftNode_Expecter) Handle(p interface{}, f interface{}) *RaftNode_Handle_Call {
 	return &RaftNode_Handle_Call{Call: _e.mock.On("Handle", p, f)}
 }
 
-func (_c *RaftNode_Handle_Call) Run(run func(p raft.Proposal, f raft.HandlerFunc)) *RaftNode_Handle_Call {
+func (_c *RaftNode_Handle_Call) Run(run func(p cluster.Proposal, f cluster.HandlerFunc)) *RaftNode_Handle_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		var arg0 raft.Proposal
+		var arg0 cluster.Proposal
 		if args[0] != nil {
-			arg0 = args[0].(raft.Proposal)
+			arg0 = args[0].(cluster.Proposal)
 		}
-		var arg1 raft.HandlerFunc
+		var arg1 cluster.HandlerFunc
 		if args[1] != nil {
-			arg1 = args[1].(raft.HandlerFunc)
+			arg1 = args[1].(cluster.HandlerFunc)
 		}
 		run(
 			arg0,
@@ -162,13 +123,13 @@ func (_c *RaftNode_Handle_Call) Return() *RaftNode_Handle_Call {
 	return _c
 }
 
-func (_c *RaftNode_Handle_Call) RunAndReturn(run func(p raft.Proposal, f raft.HandlerFunc)) *RaftNode_Handle_Call {
+func (_c *RaftNode_Handle_Call) RunAndReturn(run func(p cluster.Proposal, f cluster.HandlerFunc)) *RaftNode_Handle_Call {
 	_c.Run(run)
 	return _c
 }
 
 // Propose provides a mock function for the type RaftNode
-func (_mock *RaftNode) Propose(p raft.Proposal) error {
+func (_mock *RaftNode) Propose(p cluster.Proposal) error {
 	ret := _mock.Called(p)
 
 	if len(ret) == 0 {
@@ -176,7 +137,7 @@ func (_mock *RaftNode) Propose(p raft.Proposal) error {
 	}
 
 	var r0 error
-	if returnFunc, ok := ret.Get(0).(func(raft.Proposal) error); ok {
+	if returnFunc, ok := ret.Get(0).(func(cluster.Proposal) error); ok {
 		r0 = returnFunc(p)
 	} else {
 		r0 = ret.Error(0)
@@ -190,16 +151,16 @@ type RaftNode_Propose_Call struct {
 }
 
 // Propose is a helper method to define mock.On call
-//   - p raft.Proposal
+//   - p cluster.Proposal
 func (_e *RaftNode_Expecter) Propose(p interface{}) *RaftNode_Propose_Call {
 	return &RaftNode_Propose_Call{Call: _e.mock.On("Propose", p)}
 }
 
-func (_c *RaftNode_Propose_Call) Run(run func(p raft.Proposal)) *RaftNode_Propose_Call {
+func (_c *RaftNode_Propose_Call) Run(run func(p cluster.Proposal)) *RaftNode_Propose_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		var arg0 raft.Proposal
+		var arg0 cluster.Proposal
 		if args[0] != nil {
-			arg0 = args[0].(raft.Proposal)
+			arg0 = args[0].(cluster.Proposal)
 		}
 		run(
 			arg0,
@@ -213,7 +174,7 @@ func (_c *RaftNode_Propose_Call) Return(err error) *RaftNode_Propose_Call {
 	return _c
 }
 
-func (_c *RaftNode_Propose_Call) RunAndReturn(run func(p raft.Proposal) error) *RaftNode_Propose_Call {
+func (_c *RaftNode_Propose_Call) RunAndReturn(run func(p cluster.Proposal) error) *RaftNode_Propose_Call {
 	_c.Call.Return(run)
 	return _c
 }

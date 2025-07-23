@@ -8,11 +8,11 @@ import (
 	"github.com/gofrs/uuid/v5"
 	"github.com/opencontainers/go-digest"
 
-	"github.com/robinkb/cascade-registry/cluster/raft"
+	"github.com/robinkb/cascade-registry/cluster"
 	"github.com/robinkb/cascade-registry/store"
 )
 
-func NewBlobStore(proposer raft.Proposer, blobs store.Blobs) store.Blobs {
+func NewBlobStore(proposer cluster.Proposer, blobs store.Blobs) store.Blobs {
 	s := &blobStore{
 		Blobs:    blobs,
 		proposer: proposer,
@@ -30,7 +30,7 @@ func NewBlobStore(proposer raft.Proposer, blobs store.Blobs) store.Blobs {
 
 type blobStore struct {
 	store.Blobs
-	proposer raft.Proposer
+	proposer cluster.Proposer
 }
 
 func (s *blobStore) PutBlob(id digest.Digest, content []byte) error {
@@ -41,7 +41,7 @@ func (s *blobStore) PutBlob(id digest.Digest, content []byte) error {
 	return s.proposer.Propose(p)
 }
 
-func (s *blobStore) putBlob(p raft.Proposal) error {
+func (s *blobStore) putBlob(p cluster.Proposal) error {
 	v := p.(*putBlob)
 	return s.Blobs.PutBlob(v.Digest, v.Content)
 }
@@ -54,7 +54,7 @@ func (s *blobStore) DeleteBlob(id digest.Digest) error {
 	return s.proposer.Propose(p)
 }
 
-func (s *blobStore) deleteBlob(p raft.Proposal) error {
+func (s *blobStore) deleteBlob(p cluster.Proposal) error {
 	v := p.(*deleteBlob)
 	return s.Blobs.DeleteBlob(v.Digest)
 }
@@ -67,7 +67,7 @@ func (s *blobStore) InitUpload(id uuid.UUID) error {
 	return s.proposer.Propose(p)
 }
 
-func (s *blobStore) initUpload(p raft.Proposal) error {
+func (s *blobStore) initUpload(p cluster.Proposal) error {
 	v := p.(*initUpload)
 	return s.Blobs.InitUpload(v.SessionID)
 }
@@ -80,7 +80,7 @@ func (s *blobStore) UploadWriter(id uuid.UUID) (io.WriteCloser, error) {
 	}, nil
 }
 
-func (s *blobStore) appendUpload(p raft.Proposal) error {
+func (s *blobStore) appendUpload(p cluster.Proposal) error {
 	v := p.(*appendUpload)
 	w, err := s.Blobs.UploadWriter(v.SessionID)
 	if err != nil {
@@ -100,7 +100,7 @@ func (s *blobStore) CloseUpload(id uuid.UUID, digest digest.Digest) error {
 	return s.proposer.Propose(p)
 }
 
-func (s *blobStore) closeUpload(p raft.Proposal) error {
+func (s *blobStore) closeUpload(p cluster.Proposal) error {
 	v := p.(*closeUpload)
 	return s.Blobs.CloseUpload(v.SessionID, v.Digest)
 }
@@ -113,7 +113,7 @@ func (s *blobStore) DeleteUpload(id uuid.UUID) error {
 	return s.proposer.Propose(p)
 }
 
-func (s *blobStore) deleteUpload(p raft.Proposal) error {
+func (s *blobStore) deleteUpload(p cluster.Proposal) error {
 	v := p.(*deleteUpload)
 	return s.Blobs.DeleteUpload(v.SessionID)
 }
@@ -124,7 +124,7 @@ const (
 )
 
 type writer struct {
-	proposer  raft.Proposer
+	proposer  cluster.Proposer
 	sessionId uuid.UUID
 	buf       *bytes.Buffer
 }
