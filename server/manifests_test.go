@@ -1,4 +1,4 @@
-package server_test
+package server
 
 import (
 	"errors"
@@ -8,7 +8,6 @@ import (
 
 	v1 "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/robinkb/cascade-registry/repository"
-	"github.com/robinkb/cascade-registry/server"
 	"github.com/robinkb/cascade-registry/store"
 	. "github.com/robinkb/cascade-registry/testing"
 	testclient "github.com/robinkb/cascade-registry/testing/client"
@@ -32,7 +31,7 @@ func TestStatManifests(t *testing.T) {
 		resp := client.CheckManifestByDigest(name, digest)
 
 		AssertResponseCode(t, resp, http.StatusOK)
-		AssertResponseHeader(t, resp, server.HeaderContentLength, strconv.Itoa(len(content)))
+		AssertResponseHeader(t, resp, HeaderContentLength, strconv.Itoa(len(content)))
 		AssertResponseBodyEquals(t, resp, nil)
 	})
 
@@ -50,7 +49,7 @@ func TestStatManifests(t *testing.T) {
 		resp := client.CheckManifestByTag(name, tag)
 
 		AssertResponseCode(t, resp, http.StatusOK)
-		AssertResponseHeader(t, resp, server.HeaderContentLength, strconv.Itoa(len(content)))
+		AssertResponseHeader(t, resp, HeaderContentLength, strconv.Itoa(len(content)))
 		AssertResponseBodyEquals(t, resp, nil)
 	})
 
@@ -100,7 +99,7 @@ func TestGetManifests(t *testing.T) {
 		resp := client.GetManifestByDigest(name, digest)
 
 		AssertResponseCode(t, resp, http.StatusOK)
-		AssertResponseHeader(t, resp, server.HeaderContentType, v1.MediaTypeImageManifest)
+		AssertResponseHeader(t, resp, HeaderContentType, v1.MediaTypeImageManifest)
 		AssertResponseBodyEquals(t, resp, content)
 	})
 
@@ -152,7 +151,7 @@ func TestPutManifest(t *testing.T) {
 		resp := client.PutManifest(name, digest.String(), content)
 
 		AssertResponseCode(t, resp, http.StatusCreated)
-		AssertResponseHeaderSet(t, resp, server.HeaderLocation)
+		AssertResponseHeaderSet(t, resp, HeaderLocation)
 		AssertResponseBodyEquals(t, resp, nil)
 	})
 
@@ -170,7 +169,7 @@ func TestPutManifest(t *testing.T) {
 		resp := client.PutManifest(name, tag, content)
 
 		AssertResponseCode(t, resp, http.StatusCreated)
-		AssertResponseHeaderSet(t, resp, server.HeaderLocation)
+		AssertResponseHeaderSet(t, resp, HeaderLocation)
 		AssertResponseBodyEquals(t, resp, nil)
 	})
 
@@ -188,8 +187,8 @@ func TestPutManifest(t *testing.T) {
 		resp := client.PutManifest(name, digest.String(), content)
 
 		AssertResponseCode(t, resp, http.StatusCreated)
-		AssertResponseHeaderSet(t, resp, server.HeaderLocation)
-		AssertResponseHeader(t, resp, server.HeaderOCISubject, subjectDigest.String())
+		AssertResponseHeaderSet(t, resp, HeaderLocation)
+		AssertResponseHeader(t, resp, HeaderOCISubject, subjectDigest.String())
 		AssertResponseBodyEquals(t, resp, nil)
 	})
 
@@ -269,7 +268,7 @@ func TestDeleteManifest(t *testing.T) {
 
 func TestManifestsOthers(t *testing.T) {
 	t.Run("Other methods are not allowed", func(t *testing.T) {
-		client := testclient.NewTestClientForHandler(t, server.New(nil))
+		client := testclient.NewTestClientForHandler(t, New(nil))
 
 		resp := client.Do(
 			http.MethodTrace,

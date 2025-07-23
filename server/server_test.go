@@ -1,4 +1,4 @@
-package server_test
+package server
 
 import (
 	"encoding/json"
@@ -10,7 +10,6 @@ import (
 
 	"github.com/robinkb/cascade-registry"
 	"github.com/robinkb/cascade-registry/repository"
-	"github.com/robinkb/cascade-registry/server"
 	"github.com/robinkb/cascade-registry/store/inmemory"
 	. "github.com/robinkb/cascade-registry/testing"
 	testclient "github.com/robinkb/cascade-registry/testing/client"
@@ -18,7 +17,7 @@ import (
 )
 
 func TestRoot(t *testing.T) {
-	server := server.New(
+	server := New(
 		cascade.NewRegistryService(
 			inmemory.NewMetadataStore(),
 			inmemory.NewBlobStore(),
@@ -36,7 +35,7 @@ func TestRoot(t *testing.T) {
 }
 
 func newLocation(name, sessionID string) *url.URL {
-	return &url.URL{Path: server.Location(name, sessionID)}
+	return &url.URL{Path: Location(name, sessionID)}
 }
 
 // NewTestClientForRepository wraps around NewTestClientForHandler to provide a test client
@@ -48,7 +47,7 @@ func NewTestClientForRepository(t *testing.T, name string, service repository.Se
 		GetRepository(name).
 		Return(service, nil)
 
-	return testclient.NewTestClientForHandler(t, server.New(registry))
+	return testclient.NewTestClientForHandler(t, New(registry))
 }
 
 func AssertResponseBodyContainsError(t *testing.T, got *http.Response, want repository.Error) *Result {
@@ -59,7 +58,7 @@ func AssertResponseBodyContainsError(t *testing.T, got *http.Response, want repo
 		return &Result{T: t, Success: false}
 	}
 
-	var errs server.ErrorResponse
+	var errs ErrorResponse
 	err := json.NewDecoder(got.Body).Decode(&errs)
 	RequireNoError(t, err)
 

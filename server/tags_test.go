@@ -1,10 +1,9 @@
-package server_test
+package server
 
 import (
 	"net/http"
 	"testing"
 
-	"github.com/robinkb/cascade-registry/server"
 	. "github.com/robinkb/cascade-registry/testing"
 	testclient "github.com/robinkb/cascade-registry/testing/client"
 	"github.com/robinkb/cascade-registry/testing/mock"
@@ -25,7 +24,7 @@ func TestListTags(t *testing.T) {
 		resp := client.ListTags(name, nil)
 
 		AssertResponseCode(t, resp, http.StatusOK)
-		var tagsList server.TagsListResponse
+		var tagsList TagsListResponse
 		AssertResponseBodyUnmarshals(t, resp, &tagsList)
 		AssertSlicesEqual(t, tagsList.Tags, tags)
 	})
@@ -47,7 +46,7 @@ func TestListTags(t *testing.T) {
 		})
 
 		AssertResponseCode(t, resp, http.StatusOK)
-		var tagsList server.TagsListResponse
+		var tagsList TagsListResponse
 		AssertResponseBodyUnmarshals(t, resp, &tagsList)
 		AssertSlicesEqual(t, tagsList.Tags, tags[10:13])
 	})

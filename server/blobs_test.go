@@ -1,4 +1,4 @@
-package server_test
+package server
 
 import (
 	"bytes"
@@ -7,7 +7,6 @@ import (
 	"testing"
 
 	"github.com/robinkb/cascade-registry/repository"
-	"github.com/robinkb/cascade-registry/server"
 	"github.com/robinkb/cascade-registry/store"
 	. "github.com/robinkb/cascade-registry/testing"
 	testclient "github.com/robinkb/cascade-registry/testing/client"
@@ -30,7 +29,7 @@ func TestStatBlob(t *testing.T) {
 		resp := client.CheckBlob(name, digest)
 
 		AssertResponseCode(t, resp, http.StatusOK)
-		AssertResponseHeader(t, resp, server.HeaderContentLength, strconv.FormatInt(size, 10))
+		AssertResponseHeader(t, resp, HeaderContentLength, strconv.FormatInt(size, 10))
 		AssertResponseBodyEquals(t, resp, nil)
 	})
 
@@ -53,7 +52,7 @@ func TestStatBlob(t *testing.T) {
 			GetRepository(name).
 			Return(nil, repository.ErrNameUnknown)
 
-		client := testclient.NewTestClientForHandler(t, server.New(registry))
+		client := testclient.NewTestClientForHandler(t, New(registry))
 		resp := client.CheckBlob(name, digest)
 		AssertResponseCode(t, resp, http.StatusNotFound)
 	})
@@ -97,7 +96,7 @@ func TestGetBlob(t *testing.T) {
 			GetRepository(name).
 			Return(nil, repository.ErrNameUnknown)
 
-		client := testclient.NewTestClientForHandler(t, server.New(registry))
+		client := testclient.NewTestClientForHandler(t, New(registry))
 		resp := client.GetBlob(name, digest)
 		AssertResponseCode(t, resp, http.StatusNotFound)
 	})
@@ -125,7 +124,7 @@ func TestDeleteBlob(t *testing.T) {
 			GetRepository(name).
 			Return(nil, repository.ErrNameUnknown)
 
-		client := testclient.NewTestClientForHandler(t, server.New(registry))
+		client := testclient.NewTestClientForHandler(t, New(registry))
 		resp := client.DeleteBlob(name, digest)
 		AssertResponseCode(t, resp, http.StatusNotFound)
 	})
@@ -133,7 +132,7 @@ func TestDeleteBlob(t *testing.T) {
 
 func TestBlobsOthers(t *testing.T) {
 	t.Run("other methods return 405", func(t *testing.T) {
-		client := testclient.NewTestClientForHandler(t, server.New(nil))
+		client := testclient.NewTestClientForHandler(t, New(nil))
 
 		resp := client.Do(http.MethodConnect, "/v2/library/fedora/blobs/123", nil, nil)
 
