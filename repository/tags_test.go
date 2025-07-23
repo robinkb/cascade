@@ -1,10 +1,9 @@
-package repository_test
+package repository
 
 import (
 	"slices"
 	"testing"
 
-	"github.com/robinkb/cascade-registry/repository"
 	. "github.com/robinkb/cascade-registry/testing"
 )
 
@@ -32,7 +31,7 @@ func (s *Suite) TestGetTag() {
 
 	s.T().Run("Unknown tag returns ErrManifestUnknown", func(t *testing.T) {
 		_, err := s.repository.GetTag("non/existent", "v1.2.3")
-		AssertErrorIs(t, err, repository.ErrManifestUnknown)
+		AssertErrorIs(t, err, ErrManifestUnknown)
 	})
 }
 
@@ -68,7 +67,7 @@ func (s *Suite) TestPutTag() {
 		tag := RandomVersion()
 
 		err := s.repository.PutTag(name, tag, digest.String())
-		AssertErrorIs(t, err, repository.ErrNameUnknown)
+		AssertErrorIs(t, err, ErrNameUnknown)
 	})
 }
 
@@ -93,7 +92,7 @@ func (s *Suite) TestDeleteTag() {
 		AssertNoError(t, err)
 
 		_, err = s.repository.GetTag(name, tag)
-		AssertErrorIs(t, err, repository.ErrManifestUnknown)
+		AssertErrorIs(t, err, ErrManifestUnknown)
 	})
 }
 

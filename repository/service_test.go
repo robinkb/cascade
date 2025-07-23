@@ -1,10 +1,9 @@
-package repository_test
+package repository
 
 import (
 	"os"
 	"testing"
 
-	"github.com/robinkb/cascade-registry/repository"
 	"github.com/robinkb/cascade-registry/store"
 	"github.com/robinkb/cascade-registry/store/boltdb"
 	"github.com/robinkb/cascade-registry/store/fs"
@@ -21,7 +20,7 @@ type Suite struct {
 	StoreConstructor StoreConstructor
 	Tests            Tests
 
-	repository repository.RepositoryService
+	repository RepositoryService
 	metadata   store.Metadata
 	blobs      store.Blobs
 }
@@ -39,7 +38,7 @@ type Tests struct {
 
 func (s *Suite) SetupSuite() {
 	s.metadata, s.blobs = s.StoreConstructor()
-	s.repository = repository.NewRepositoryService(s.metadata, s.blobs)
+	s.repository = NewRepositoryService(s.metadata, s.blobs)
 }
 
 func (s *Suite) RandomRepository() string {
