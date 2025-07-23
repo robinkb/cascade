@@ -167,7 +167,7 @@ func (n *node) processEntries(entries []raftpb.Entry) {
 		switch entry.Type {
 		case raftpb.EntryNormal:
 			if entry.Data != nil {
-				n.proposer.commit(entry.Data)
+				n.commit(entry.Data)
 			}
 		case raftpb.EntryConfChange:
 			var cc raftpb.ConfChange
