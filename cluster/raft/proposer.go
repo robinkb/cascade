@@ -15,6 +15,7 @@ import (
 type (
 	// Proposal defines an interface for creating proposal types.
 	// Implementers must return a stored random ID, but can include additional attributes.
+	// These attributes can be retrieved by asserting the Proposal back to its concrete type.
 	Proposal interface {
 		ID() uint64
 	}
@@ -22,12 +23,11 @@ type (
 	// HandlerFunc is a function that handles committing a proposal type.
 	// They typically type assert the given proposal into its concrete type,
 	// and process the payload by committing it to the state machine.
+	// HandlerFuncs can assume that they are never passed a Proposal of the wrong concrete type.
 	HandlerFunc func(p Proposal) error
 
-	// Proposer encapsulates making proposals to the Raft log,
-	// and handles committing proposals once they are accepted.
-	// TODO: Could probably split this into Proposer and Committer interfaces.
-	// Proposer is the consumer side, and Committer is the server side.
+	// Proposer encapsulates making proposals to the cluster,
+	// and handling those proposals once they are accepted.
 	Proposer interface {
 		// Consumers must call Handle() to register a function that commits
 		// proposals of a certain concrete type.
@@ -37,16 +37,10 @@ type (
 		// Propose panics if a HandlerFunc has not been registered
 		// for the given proposal type using Handle.
 		Propose(p Proposal) error
-		// Commit decodes the payload into a registered proposal type,
-		// and calls its HandlerFunc.
-		//
-		// Commit panics if a HandlerFunc has not been registered
-		// for the given proposal type using Handle.
-		Commit(data []byte)
 	}
 )
 
-func NewProposer(node raft.Node) *proposer {
+func newProposer(node raft.Node) *proposer {
 	return &proposer{
 		raft:         node,
 		handlerFuncs: make(map[reflect.Type]HandlerFunc),
@@ -93,7 +87,12 @@ func (p *proposer) Propose(proposal Proposal) error {
 	}
 }
 
-func (p *proposer) Commit(data []byte) {
+// commit decodes the payload into a registered proposal type,
+// and calls its HandlerFunc.
+//
+// commit panics if a HandlerFunc has not been registered
+// for the given proposal type using Handle.
+func (p *proposer) commit(data []byte) {
 	buf := bytes.NewBuffer(data)
 
 	var proposal Proposal

@@ -68,7 +68,7 @@ func NewNode(id uint64, addr netip.AddrPort, peers []Peer, workDir string, snap 
 		done:       make(chan struct{}),
 	}
 
-	node.Proposer = NewProposer(node.raft)
+	node.proposer = newProposer(node.raft)
 	node.mesh = NewMesh(node, addr)
 	for _, peer := range peers {
 		node.mesh.SetPeer(peer.ID, peer.AddrPort)
@@ -85,7 +85,7 @@ type node struct {
 	manualTick chan time.Time
 	done       chan struct{}
 
-	Proposer
+	*proposer
 	mesh     Mesh
 	storage  *DiskStorage
 	restorer Restorer
@@ -166,7 +166,7 @@ func (n *node) processEntries(entries []raftpb.Entry) {
 		switch entry.Type {
 		case raftpb.EntryNormal:
 			if entry.Data != nil {
-				n.Commit(entry.Data)
+				n.proposer.commit(entry.Data)
 			}
 		case raftpb.EntryConfChange:
 			var cc raftpb.ConfChange
