@@ -1,10 +1,9 @@
-package cascade_test
+package cascade
 
 import (
 	"sync"
 	"testing"
 
-	"github.com/robinkb/cascade-registry"
 	"github.com/robinkb/cascade-registry/repository"
 	"github.com/robinkb/cascade-registry/store"
 	"github.com/robinkb/cascade-registry/store/boltdb"
@@ -36,7 +35,7 @@ func TestRepository(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		service := cascade.NewRegistryService(tt.constructor())
+		service := NewRegistryService(tt.constructor())
 
 		t.Run(tt.description, func(t *testing.T) {
 			t.Run("Create a repository, do something with it, and delete it", func(t *testing.T) {
