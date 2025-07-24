@@ -7,19 +7,18 @@ import (
 	"hash/crc64"
 	"io"
 	"log"
+	"math"
 )
 
 const (
-	// The NVME polynomial (reversed, as used by Go).
-	// Apparently differences exist in performance (and other attributes)
-	// between polynomials. I should do some benchmarks.
-	NVME = 0x9A6C9329AC4BC9B5
-	// Length of the header of a Record in bytes.
+	// RecordHeaderLength is the length of a Record header in bytes.
 	RecordHeaderLength = 16
+	// MaximumValueSize is the maximum length of a value, in bytes.
+	MaximumValueSize = math.MaxUint32
 )
 
 var (
-	crc64Table = crc64.MakeTable(NVME)
+	crc64Table = crc64.MakeTable(crc64.ECMA)
 )
 
 type (
@@ -29,45 +28,47 @@ type (
 		// Encode writes a Record to the output stream.
 		// It returns the amount of bytes written and an error, if any.
 		// The written amount can be used to track positions of records.
-		Encode(r *Record) (int64, error)
+		Encode(r *record) (int64, error)
 	}
 
 	// Decoder reads decoded Records from the input stream.
 	Decoder interface {
 		// RecordAt is a wrapper around an io.ReaderAt for decoding Records.
 		// It returns the amount of bytes read and an error, if any.
-		RecordAt(r *Record, off int64) (int64, error)
+		RecordAt(r *record, off int64) (int64, error)
 		// ValueAt is a wrapper around an io.ReaderAt for reading Record values.
 		// Its behavior is the same as io.ReaderAt.
 		ValueAt(p []byte, off int64) (int, error)
 	}
 )
 
-type RecordType uint32
+// Type represents the T
+type Type uint32
 
-type Record struct {
-	Type  RecordType
+type record struct {
+	Type  Type
 	Value []byte
 }
 
-func (r *Record) Size() int64 {
+func (r *record) size() int64 {
 	return int64(RecordHeaderLength + len(r.Value))
 }
 
-// NewEncoder returns an Encoder that writes encoded Records to the io.Writer.
-func NewEncoder(w io.Writer) Encoder {
+// newEncoder returns an Encoder that writes encoded Records to the io.Writer.
+func newEncoder(w io.Writer) Encoder {
 	return &encoder{
 		dst: w,
 		buf: new(bytes.Buffer),
 	}
 }
 
+// encoder implements the Encoder interface.
 type encoder struct {
 	dst io.Writer
 	buf *bytes.Buffer
 }
 
-func (e *encoder) Encode(r *Record) (int64, error) {
+func (e *encoder) Encode(r *record) (int64, error) {
 	e.buf.Reset()
 	e.buf.Grow(RecordHeaderLength + len(r.Value))
 
@@ -87,8 +88,8 @@ func (e *encoder) Encode(r *Record) (int64, error) {
 	return int64(n), err
 }
 
-// NewDecoder returns a Decoder that reads decoded Records from the io.ReaderAt.
-func NewDecoder(r io.ReaderAt) Decoder {
+// newDecoder returns a Decoder that reads decoded Records from the io.ReaderAt.
+func newDecoder(r io.ReaderAt) Decoder {
 	return &decoder{
 		src: r,
 		buf: new(bytes.Buffer),
@@ -100,7 +101,7 @@ type decoder struct {
 	buf *bytes.Buffer
 }
 
-func (d *decoder) RecordAt(r *Record, off int64) (int64, error) {
+func (d *decoder) RecordAt(r *record, off int64) (int64, error) {
 	d.buf.Reset()
 	var read int64
 
@@ -147,7 +148,7 @@ func (d *decoder) RecordAt(r *Record, off int64) (int64, error) {
 	}
 
 	// Placing values into the Record.
-	r.Type = RecordType(header.rtype)
+	r.Type = Type(header.rtype)
 	r.Value = d.buf.Bytes()[RecordHeaderLength : RecordHeaderLength+header.size]
 
 	return read, nil

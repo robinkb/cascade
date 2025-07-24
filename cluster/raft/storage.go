@@ -12,7 +12,7 @@ import (
 
 const (
 	// Types of Records being saved to storage.
-	TypeEntry logdeck.RecordType = iota
+	TypeEntry logdeck.Type = iota
 	TypeHardState
 	TypeSnapshot
 )
@@ -91,7 +91,7 @@ func NewDiskStorage(dir string, snap cluster.Snapshotter, c *logdeck.Options) (*
 
 	// TODO: cutHook is broken.
 	s.deck.CutHook(s.cutHook())
-	s.deck.CompactionHook(s.compactionHook())
+	s.deck.CompactHook(s.compactionHook())
 
 	return s, nil
 }
@@ -370,7 +370,7 @@ func (s *DiskStorage) cutHook() logdeck.CutHookFunc {
 	}
 }
 
-func (s *DiskStorage) compactionHook() logdeck.CompactionHookFunc {
+func (s *DiskStorage) compactionHook() logdeck.CompactHookFunc {
 	var entry raftpb.Entry
 
 	return func(c logdeck.Counters) error {

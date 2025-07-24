@@ -9,7 +9,7 @@ import (
 
 func TestCounters(t *testing.T) {
 	c := NewCounters()
-	want := RecordType(rand.Uint64())
+	want := Type(rand.Uint64())
 
 	c.Add(want)
 	c.Add(want)
@@ -172,8 +172,8 @@ func randomPointers(n int) []Pointer {
 	return pointers
 }
 
-func randomRecordType() RecordType {
-	return RecordType(rand.Uint64())
+func randomRecordType() Type {
+	return Type(rand.Uint64())
 }
 
 func randomPointer() Pointer {

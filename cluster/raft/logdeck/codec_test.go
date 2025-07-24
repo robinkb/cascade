@@ -10,15 +10,15 @@ import (
 )
 
 func TestEncodeDecode(t *testing.T) {
-	got := new(Record)
+	got := new(record)
 	want := randomRecord(128)
 
 	w := new(bytes.Buffer)
-	written, err := NewEncoder(w).Encode(want)
+	written, err := newEncoder(w).Encode(want)
 	AssertNoError(t, err)
 
 	r := bytes.NewReader(w.Bytes())
-	read, err := NewDecoder(r).RecordAt(got, 0)
+	read, err := newDecoder(r).RecordAt(got, 0)
 	AssertNoError(t, err).Require()
 
 	AssertEqual(t, written, int64(RecordHeaderLength+len(want.Value)))
@@ -28,8 +28,8 @@ func TestEncodeDecode(t *testing.T) {
 
 func TestDecodeAllRecords(t *testing.T) {
 	w := new(bytes.Buffer)
-	enc := NewEncoder(w)
-	want := make([]*Record, 10)
+	enc := newEncoder(w)
+	want := make([]*record, 10)
 
 	for i := range want {
 		want[i] = randomRecord(rand.Int64N(16) + 16)
@@ -38,13 +38,13 @@ func TestDecodeAllRecords(t *testing.T) {
 	}
 
 	r := bytes.NewReader(w.Bytes())
-	dec := NewDecoder(r)
-	got := make([]*Record, len(want))
+	dec := newDecoder(r)
+	got := make([]*record, len(want))
 
 	pos := make([]int64, len(want))
 	cursor := int64(0)
 	for i := range want {
-		got[i] = new(Record)
+		got[i] = new(record)
 		n, err := dec.RecordAt(got[i], cursor)
 		AssertNoError(t, err).Require()
 		AssertEqual(t, n, int64(RecordHeaderLength+len(want[i].Value)))
@@ -55,7 +55,7 @@ func TestDecodeAllRecords(t *testing.T) {
 
 	// Now try to read them out again in reverse.
 	for i := len(pos) - 1; i <= 0; i-- {
-		rec := new(Record)
+		rec := new(record)
 		_, err := dec.RecordAt(got[i], pos[i])
 		AssertNoError(t, err).Require()
 		AssertDeepEqual(t, rec, got[i])
@@ -66,12 +66,12 @@ func TestDecodeValue(t *testing.T) {
 	want := randomRecord(rand.Int64N(128) + 128)
 
 	w := new(bytes.Buffer)
-	_, err := NewEncoder(w).Encode(want)
+	_, err := newEncoder(w).Encode(want)
 	AssertNoError(t, err)
 
 	got := make([]byte, len(want.Value))
 	r := bytes.NewReader(w.Bytes())
-	_, err = NewDecoder(r).ValueAt(got, RecordHeaderLength)
+	_, err = newDecoder(r).ValueAt(got, RecordHeaderLength)
 	AssertNoError(t, err)
 	AssertSlicesEqual(t, got, want.Value)
 }
@@ -96,7 +96,7 @@ BenchmarkDecode/RecordSize:_131088,_ValueAt-16       	  618614	      1795 ns/op	
 */
 func BenchmarkDecode(b *testing.B) {
 	tc := []struct {
-		record *Record
+		record *record
 	}{
 		{randomRecord(256)},
 		{randomRecord(1 << 10)},
@@ -107,20 +107,20 @@ func BenchmarkDecode(b *testing.B) {
 
 	for _, tt := range tc {
 		w := new(bytes.Buffer)
-		NewEncoder(w).Encode(tt.record) // nolint: errcheck
+		newEncoder(w).Encode(tt.record) // nolint: errcheck
 
 		r := bytes.NewReader(w.Bytes())
-		dec := NewDecoder(r)
+		dec := newDecoder(r)
 
-		b.Run(fmt.Sprintf("RecordSize: %d, RecordAt", tt.record.Size()), func(b *testing.B) {
-			record := new(Record)
+		b.Run(fmt.Sprintf("RecordSize: %d, RecordAt", tt.record.size()), func(b *testing.B) {
+			record := new(record)
 			for b.Loop() {
-				b.SetBytes(record.Size())
+				b.SetBytes(record.size())
 				dec.RecordAt(record, 0) // nolint: errcheck
 			}
 		})
 
-		b.Run(fmt.Sprintf("RecordSize: %d, ValueAt", tt.record.Size()), func(b *testing.B) {
+		b.Run(fmt.Sprintf("RecordSize: %d, ValueAt", tt.record.size()), func(b *testing.B) {
 			p := make([]byte, len(tt.record.Value))
 			size := int64(len(p))
 			for b.Loop() {
@@ -133,24 +133,24 @@ func BenchmarkDecode(b *testing.B) {
 
 func TestEncodeDecodeErrorDetection(t *testing.T) {
 	t.Run("truncated record leads to CRC mismatch", func(t *testing.T) {
-		got := new(Record)
+		got := new(record)
 		w := new(bytes.Buffer)
 
-		_, err := NewEncoder(w).Encode(randomRecord(128))
+		_, err := newEncoder(w).Encode(randomRecord(128))
 		AssertNoError(t, err)
 
 		w.Truncate(100)
 
 		r := bytes.NewReader(w.Bytes())
-		_, err = NewDecoder(r).RecordAt(got, 0)
+		_, err = newDecoder(r).RecordAt(got, 0)
 		AssertErrorIs(t, err, ErrShortRead)
 	})
 
 	t.Run("corrupt record leads to CRC mismatch", func(t *testing.T) {
-		got := new(Record)
+		got := new(record)
 		w := new(bytes.Buffer)
 
-		_, err := NewEncoder(w).Encode(randomRecord(128))
+		_, err := newEncoder(w).Encode(randomRecord(128))
 		AssertNoError(t, err).Require()
 
 		b := w.Bytes()
@@ -159,18 +159,18 @@ func TestEncodeDecodeErrorDetection(t *testing.T) {
 		w.Write(b)
 
 		r := bytes.NewReader(w.Bytes())
-		_, err = NewDecoder(r).RecordAt(got, 0)
+		_, err = newDecoder(r).RecordAt(got, 0)
 		AssertErrorIs(t, err, ErrChecksumMismatch)
 	})
 }
 
 func TestEncodeDecodeDoesNotAllocate(t *testing.T) {
 	r, w := tempLog(t)
-	encoder := NewEncoder(w)
-	decoder := NewDecoder(r)
+	encoder := newEncoder(w)
+	decoder := newDecoder(r)
 
 	src := randomRecord(128)
-	dst := new(Record)
+	dst := new(record)
 
 	allocs := testing.AllocsPerRun(10, func() {
 		_, err := encoder.Encode(src)
@@ -186,9 +186,9 @@ func TestEncodeDecodeDoesNotAllocate(t *testing.T) {
 	AssertEqual(t, allocs, 0)
 }
 
-func randomRecord(n int64) *Record {
-	return &Record{
-		Type:  RecordType(rand.Uint32()),
+func randomRecord(n int64) *record {
+	return &record{
+		Type:  Type(rand.Uint32()),
 		Value: RandomBytes(n),
 	}
 }

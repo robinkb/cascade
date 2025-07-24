@@ -9,8 +9,8 @@ import (
 
 func NewLog(r io.ReaderAt, w io.Writer) *Log {
 	return &Log{
-		enc:      NewEncoder(w),
-		dec:      NewDecoder(r),
+		enc:      newEncoder(w),
+		dec:      newDecoder(r),
 		counters: NewCounters(),
 	}
 }
@@ -37,7 +37,7 @@ type Log struct {
 	locked bool
 }
 
-func (l *Log) Append(r *Record) error {
+func (l *Log) Append(r *record) error {
 	n, err := l.enc.Encode(r)
 	l.advance(n, r.Type)
 	return err
@@ -48,9 +48,9 @@ func (l *Log) ValueAt(p []byte, offset int64) error {
 	return err
 }
 
-func (l *Log) All() iter.Seq[*Record] {
-	return func(yield func(*Record) bool) {
-		r := new(Record)
+func (l *Log) All() iter.Seq[*record] {
+	return func(yield func(*record) bool) {
+		r := new(record)
 		for {
 			n, err := l.dec.RecordAt(r, l.cursor)
 			if err != nil {
@@ -83,7 +83,7 @@ func (l *Log) Rewind() {
 	l.pointer = 0
 }
 
-func (l *Log) advance(n int64, t RecordType) {
+func (l *Log) advance(n int64, t Type) {
 	l.pointer = l.cursor
 	l.cursor += n
 	l.lastValueSize = n - RecordHeaderLength
@@ -93,25 +93,25 @@ func (l *Log) advance(n int64, t RecordType) {
 // NewCounters returns an empty Counters.
 func NewCounters() Counters {
 	return Counters{
-		counters: make(map[RecordType]uint64),
+		counters: make(map[Type]uint64),
 	}
 }
 
 // Counters tracks how many records of each type are in a single Log.
-// It is used to update the Inventory in the LogDeck when a Log is compacted.
+// It is used to update the Inventory in the DB when a Log is compacted.
 type Counters struct {
-	counters map[RecordType]uint64
+	counters map[Type]uint64
 }
 
 // Add increments the counter for the given RecordType by 1.
-func (c *Counters) Add(t RecordType) {
+func (c *Counters) Add(t Type) {
 	c.counters[t]++
 }
 
 // All iterates over all of the counters, returning the RecordType
 // and how many Records of this type are in the Log.
-func (c *Counters) All() iter.Seq2[RecordType, uint64] {
-	return func(yield func(RecordType, uint64) bool) {
+func (c *Counters) All() iter.Seq2[Type, uint64] {
+	return func(yield func(Type, uint64) bool) {
 		for t, count := range c.counters {
 			if !yield(t, count) {
 				return

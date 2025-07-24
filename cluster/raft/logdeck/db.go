@@ -15,23 +15,32 @@ import (
 )
 
 type (
-	// DB represents the LogDeck interface.
+	// DB represents a collection of values, indexed by type and sequence.
 	DB interface {
-		Append(t RecordType, value []byte) error
+		Append(t Type, value []byte) error
 		Sync() error
-		Get(t RecordType, i int) ([]byte, error)
-		Count(t RecordType) int
-		First(t RecordType) ([]byte, error)
-		Last(t RecordType) ([]byte, error)
-		Range(t RecordType, lo, hi int) iter.Seq2[[]byte, error]
+		Get(t Type, i int) ([]byte, error)
+		Count(t Type) int
+		First(t Type) ([]byte, error)
+		Last(t Type) ([]byte, error)
+		Range(t Type, lo, hi int) iter.Seq2[[]byte, error]
 		ReadAll()
 		CutHook(f CutHookFunc)
-		CompactionHook(f CompactionHookFunc)
+		CompactHook(f CompactHookFunc)
 	}
 
+	// CutHookFunc is executed whenever a Log is cut. A Log is cut when it reaches
+	//its maximum size and is moved into read-only mode. A new Log is then
+	// provisioned to receive new writes. CutHookFunc is executed right after
+	// the new Log is provisioned. If Append is called on the LogDeck in
+	// CutHookFunc, it is guaranteed to be the first record in the new Log.
 	CutHookFunc func(seq int64) error
 
-	CompactionHookFunc func(c Counters) error
+	// CompactHookFunc is executed whenever a Log is compacted. Compaction is
+	// triggered when a newly provisioned Log causes MaxLogCount to be exceeded.
+	// CompactionHookFunc is executed right before the oldest Log is actually
+	// removed from LogDeck, meaning that its data can still be queried.
+	CompactHookFunc func(c Counters) error
 
 	Options struct {
 		// MaxLogSize determines the maximum size that a single Log in the Deck can have.
@@ -46,7 +55,7 @@ type (
 	}
 )
 
-var defaultOptions = Options{
+var DefaultOptions = &Options{
 	MaxLogSize:  64 << 20,
 	MaxLogCount: 16,
 }
@@ -56,8 +65,8 @@ func Open(dir string, opts *Options) (DB, error) {
 		logs: make([]managedLog, 0),
 
 		dir:         dir,
-		maxLogSize:  defaultOptions.MaxLogSize,
-		maxLogCount: defaultOptions.MaxLogCount,
+		maxLogSize:  DefaultOptions.MaxLogSize,
+		maxLogCount: DefaultOptions.MaxLogCount,
 
 		inventory: NewInventory(),
 	}
@@ -161,17 +170,17 @@ type db struct {
 	// compactHandler is provided by the Deck consumer. If provided,
 	// it is called by Deck after every compaction, allowing the consumer
 	// to update its internal bookkeeping.
-	compactHandler CompactionHookFunc
+	compactHandler CompactHookFunc
 }
 
-func (d *db) Append(t RecordType, value []byte) error {
-	r := &Record{
+func (d *db) Append(t Type, value []byte) error {
+	r := &record{
 		Type:  t,
 		Value: value,
 	}
 
 	log := d.activeLog()
-	if log.cursor+r.Size() > d.maxLogSize {
+	if log.cursor+r.size() > d.maxLogSize {
 		log = d.newLog()
 	}
 
@@ -195,7 +204,7 @@ func (d *db) Sync() error {
 	return syscall.Fdatasync(int(d.activeLog().File.Fd()))
 }
 
-func (d *db) Get(t RecordType, i int) ([]byte, error) {
+func (d *db) Get(t Type, i int) ([]byte, error) {
 	ptr, err := d.inventory.Get(t, i)
 	if err != nil {
 		return nil, fmt.Errorf("could not get pointer to record: %w", err)
@@ -204,11 +213,11 @@ func (d *db) Get(t RecordType, i int) ([]byte, error) {
 	return d.valueAt(ptr)
 }
 
-func (d *db) Count(t RecordType) int {
+func (d *db) Count(t Type) int {
 	return d.inventory.Count(t)
 }
 
-func (d *db) First(t RecordType) ([]byte, error) {
+func (d *db) First(t Type) ([]byte, error) {
 	ptr, err := d.inventory.Get(t, 0)
 	if err != nil {
 		return nil, err
@@ -217,7 +226,7 @@ func (d *db) First(t RecordType) ([]byte, error) {
 	return d.valueAt(ptr)
 }
 
-func (d *db) Last(t RecordType) ([]byte, error) {
+func (d *db) Last(t Type) ([]byte, error) {
 	ptr, err := d.inventory.Get(t, d.inventory.Count(t)-1)
 	if err != nil {
 		return nil, err
@@ -226,7 +235,7 @@ func (d *db) Last(t RecordType) ([]byte, error) {
 	return d.valueAt(ptr)
 }
 
-func (d *db) Range(t RecordType, lo, hi int) iter.Seq2[[]byte, error] {
+func (d *db) Range(t Type, lo, hi int) iter.Seq2[[]byte, error] {
 	return func(yield func([]byte, error) bool) {
 		pointers, err := d.inventory.Range(t, lo, hi)
 		if err != nil {
@@ -267,7 +276,7 @@ func (d *db) CutHook(h CutHookFunc) {
 	d.cutHandler = h
 }
 
-func (d *db) CompactionHook(h CompactionHookFunc) {
+func (d *db) CompactHook(h CompactHookFunc) {
 	d.compactHandler = h
 }
 
@@ -364,4 +373,5 @@ type managedLog struct {
 	*Log
 	ID   int64
 	File *os.File
+	mmap.ReaderAt
 }

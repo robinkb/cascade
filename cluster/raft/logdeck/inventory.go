@@ -8,7 +8,7 @@ import (
 // NewInventory returns an empty Inventory.
 func NewInventory() *Inventory {
 	return &Inventory{
-		records: make(map[RecordType][]Pointer),
+		records: make(map[Type][]Pointer),
 	}
 }
 
@@ -16,11 +16,11 @@ func NewInventory() *Inventory {
 // in a Deck, organized by RecordType.
 type Inventory struct {
 	mu      sync.RWMutex
-	records map[RecordType][]Pointer
+	records map[Type][]Pointer
 }
 
 // Get returns the Pointer to a Record of type t at index i.
-func (inv *Inventory) Get(t RecordType, i int) (Pointer, error) {
+func (inv *Inventory) Get(t Type, i int) (Pointer, error) {
 	inv.mu.RLock()
 	defer inv.mu.RUnlock()
 
@@ -36,7 +36,7 @@ func (inv *Inventory) Get(t RecordType, i int) (Pointer, error) {
 	return pointers[i], nil
 }
 
-func (inv *Inventory) Range(t RecordType, lo, hi int) ([]Pointer, error) {
+func (inv *Inventory) Range(t Type, lo, hi int) ([]Pointer, error) {
 	inv.mu.RLock()
 	defer inv.mu.RUnlock()
 
@@ -63,7 +63,7 @@ func (inv *Inventory) Range(t RecordType, lo, hi int) ([]Pointer, error) {
 // Count returns the number of Pointers of the given RecordType.
 // If the Inventory contains no Pointers of a RecordType,
 // it returns 0 instead of panicking.
-func (inv *Inventory) Count(t RecordType) int {
+func (inv *Inventory) Count(t Type) int {
 	inv.mu.RLock()
 	defer inv.mu.RUnlock()
 
@@ -71,7 +71,7 @@ func (inv *Inventory) Count(t RecordType) int {
 }
 
 // Add appends a Pointer of a given RecordType to the Inventory.
-func (inv *Inventory) Add(t RecordType, p Pointer) {
+func (inv *Inventory) Add(t Type, p Pointer) {
 	inv.mu.Lock()
 	defer inv.mu.Unlock()
 

@@ -20,8 +20,8 @@ func testDB(t *testing.T, opts *Options) DB {
 	return deck
 }
 
-func randomRecordsN(n int, minSize, maxSize int64) []*Record {
-	records := make([]*Record, n)
+func randomRecordsN(n int, minSize, maxSize int64) []*record {
+	records := make([]*record, n)
 	for i := range records {
 		records[i] = randomRecord(rand.Int64N(maxSize-minSize) + minSize)
 	}
