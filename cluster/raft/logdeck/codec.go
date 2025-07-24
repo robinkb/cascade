@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"hash/crc64"
 	"io"
-	"log"
 	"math"
 )
 
@@ -19,27 +18,6 @@ const (
 
 var (
 	crc64Table = crc64.MakeTable(crc64.ECMA)
-)
-
-type (
-	// Encoder writes encoded Records to the output stream.
-	// It is not threadsafe.
-	Encoder interface {
-		// Encode writes a Record to the output stream.
-		// It returns the amount of bytes written and an error, if any.
-		// The written amount can be used to track positions of records.
-		Encode(r *record) (int64, error)
-	}
-
-	// Decoder reads decoded Records from the input stream.
-	Decoder interface {
-		// RecordAt is a wrapper around an io.ReaderAt for decoding Records.
-		// It returns the amount of bytes read and an error, if any.
-		RecordAt(r *record, off int64) (int64, error)
-		// ValueAt is a wrapper around an io.ReaderAt for reading Record values.
-		// Its behavior is the same as io.ReaderAt.
-		ValueAt(p []byte, off int64) (int, error)
-	}
 )
 
 // Type represents the T
@@ -55,19 +33,23 @@ func (r *record) size() int64 {
 }
 
 // newEncoder returns an Encoder that writes encoded Records to the io.Writer.
-func newEncoder(w io.Writer) Encoder {
+func newEncoder(w io.Writer) *encoder {
 	return &encoder{
 		dst: w,
 		buf: new(bytes.Buffer),
 	}
 }
 
-// encoder implements the Encoder interface.
+// encoder writes encoded Records to the output stream.
+// It is not threadsafe.
 type encoder struct {
 	dst io.Writer
 	buf *bytes.Buffer
 }
 
+// Encode writes a Record to the output stream.
+// It returns the amount of bytes written and an error, if any.
+// The written amount can be used to track positions of records.
 func (e *encoder) Encode(r *record) (int64, error) {
 	e.buf.Reset()
 	e.buf.Grow(RecordHeaderLength + len(r.Value))
@@ -89,18 +71,21 @@ func (e *encoder) Encode(r *record) (int64, error) {
 }
 
 // newDecoder returns a Decoder that reads decoded Records from the io.ReaderAt.
-func newDecoder(r io.ReaderAt) Decoder {
+func newDecoder(r io.ReaderAt) *decoder {
 	return &decoder{
 		src: r,
 		buf: new(bytes.Buffer),
 	}
 }
 
+// decoder reads decoded Records from the input stream.
 type decoder struct {
 	src io.ReaderAt
 	buf *bytes.Buffer
 }
 
+// RecordAt is a wrapper around an io.ReaderAt for decoding Records.
+// It returns the amount of bytes read and an error, if any.
 func (d *decoder) RecordAt(r *record, off int64) (int64, error) {
 	d.buf.Reset()
 	var read int64
@@ -154,13 +139,15 @@ func (d *decoder) RecordAt(r *record, off int64) (int64, error) {
 	return read, nil
 }
 
+// ValueAt is a wrapper around an io.ReaderAt for reading Record values.
+// Its behavior is the same as io.ReaderAt.
 func (d *decoder) ValueAt(p []byte, off int64) (int, error) {
 	return d.src.ReadAt(p, off)
 }
 
 func parseHeader(b []byte) header {
 	if len(b) != RecordHeaderLength {
-		log.Panicf("invalid header length; got %d while expecting %d", len(b), RecordHeaderLength)
+		panic(fmt.Sprintf("invalid header length; got %d while expecting %d", len(b), RecordHeaderLength))
 	}
 
 	return header{

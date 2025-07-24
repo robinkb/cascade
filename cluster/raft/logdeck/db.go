@@ -39,16 +39,19 @@ type (
 	// CompactHookFunc is executed whenever a Log is compacted. Compaction is
 	// triggered when a newly provisioned Log causes MaxLogCount to be exceeded.
 	// CompactionHookFunc is executed right before the oldest Log is actually
-	// removed from LogDeck, meaning that its data can still be queried.
+	// removed from LogDeck, meaning that its data can still be queried for the
+	// duration of CompactHookFunc.
+	// TODO: Instead of Counters, maybe have it be an iter.Seq2[Type, uint64],
+	// the signature of Counters.All(). That way we can make Counters private.
 	CompactHookFunc func(c Counters) error
 
 	Options struct {
-		// MaxLogSize determines the maximum size that a single Log in the Deck can have.
-		// When appending a Record to a Log would make it grow larger than MaxLogSize,
-		// a new Log is provisioned, and the Record is appended there.
-		// The total maximum Deck size on disk is MaxLogSize * MaxLogCount.
+		// MaxLogSize determines the maximum size that a single Log in the LogDeck
+		// can have. When appending a value to a Log would make it grow larger
+		// than MaxLogSize, a new Log is provisioned, and the value is appended
+		// there. The total maximum Deck size on disk is MaxLogSize * MaxLogCount.
 		MaxLogSize int64
-		// MaxLogCount determines how many Logs can be contained in the Deck.
+		// MaxLogCount determines how many Logs can be contained in the LogDeck.
 		// Once exceeded, the oldest Log in the Deck is compacted.
 		// The total maximum Deck size on disk is MaxLogSize * MaxLogCount.
 		MaxLogCount int
@@ -68,7 +71,7 @@ func Open(dir string, opts *Options) (DB, error) {
 		maxLogSize:  DefaultOptions.MaxLogSize,
 		maxLogCount: DefaultOptions.MaxLogCount,
 
-		inventory: NewInventory(),
+		inventory: newInventory(),
 	}
 
 	if opts != nil {
@@ -136,7 +139,7 @@ func Open(dir string, opts *Options) (DB, error) {
 		db.logs = append(db.logs, managedLog{
 			ID:   id,
 			File: w,
-			Log:  NewLog(r, w),
+			log:  newLog(r, w),
 		})
 		db.sequence++
 	}
@@ -163,7 +166,7 @@ type db struct {
 	// Inventory holds pointers to all known Records in the Deck,
 	// organized by type. It grows when appending Records to the Deck,
 	// and shrinks when Logs in the Deck are compacted.
-	inventory *Inventory
+	inventory *inventory
 	// cutHandler is provided by the Deck consumer. If provided,
 	// it is called by Deck after every Log is cut.
 	cutHandler CutHookFunc
@@ -252,7 +255,7 @@ func (d *db) Range(t Type, lo, hi int) iter.Seq2[[]byte, error] {
 	}
 }
 
-func (d *db) valueAt(p Pointer) ([]byte, error) {
+func (d *db) valueAt(p pointer) ([]byte, error) {
 	value := make([]byte, p.Size)
 	err := d.logs[p.Log-d.offset].ValueAt(value, p.Offset)
 	return value, err
@@ -263,7 +266,7 @@ func (d *db) ReadAll() {
 		for record := range log.All() {
 			offset, size := log.Pointer()
 
-			d.inventory.Add(record.Type, Pointer{
+			d.inventory.Add(record.Type, pointer{
 				Log:    log.ID,
 				Offset: offset,
 				Size:   size,
@@ -298,7 +301,7 @@ func (d *db) newLog() managedLog {
 	}
 
 	log := managedLog{
-		Log:  NewLog(r, w),
+		log:  newLog(r, w),
 		ID:   int64(d.sequence),
 		File: w,
 	}
@@ -353,11 +356,11 @@ func (d *db) compact() {
 }
 
 // pointer returns the location of the Record last written to the Deck.
-func (d *db) pointer() Pointer {
+func (d *db) pointer() pointer {
 	log := d.activeLog()
 	offset, size := log.Pointer()
 
-	return Pointer{
+	return pointer{
 		Log:    log.ID,
 		Offset: offset,
 		Size:   size,
@@ -370,7 +373,7 @@ var logNameRe = regexp.MustCompile(`(\d{20}).log`)
 // It wraps the basic Log and adds an ID for tracking unique Logs,
 // and the handle of the underlying file.
 type managedLog struct {
-	*Log
+	*log
 	ID   int64
 	File *os.File
 	mmap.ReaderAt
