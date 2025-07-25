@@ -15,54 +15,78 @@ import (
 )
 
 type (
-	// DB represents a collection of values, indexed by type and sequence.
+	// DB represents a sequential collection of values, organized into Logs,
+	// and indexed by type and sequence. New values are appended to the active Log.
+	// Once the active Log reaches MaxLogSize, a new Log is provisioned to
+	// receive new appends. The old Log becomes read-only. Once DB exceeds
+	// MaxLogCount, compaction removes the oldest Log and its values.
 	DB interface {
+		// Append writes a value to the DB.
 		Append(t Type, value []byte) error
-		Sync() error
+		// Get retrieves a value with Type t at index i.
 		Get(t Type, i int) ([]byte, error)
+		// Count returns how many values with Type t are in DB.
 		Count(t Type) int
+		// First returns the first value of Type t in the DB. The value returned
+		// by this method changes after a compaction.
 		First(t Type) ([]byte, error)
+		// Last returns the last value of Type t that was written to the DB.
 		Last(t Type) ([]byte, error)
+		// Range returns an iterator that ranges over all values of Type t
+		// in the range [lo, hi[.
 		Range(t Type, lo, hi int) iter.Seq2[[]byte, error]
-		ReadAll()
+		// CutHook registers CutHookFunc f, which is run whenever a Log is cut.
+		// To clear the CutHook, call CutHook with a nil argument.
 		CutHook(f CutHookFunc)
+		// CompactHook registers CompactHook f, which is run whenever DB compacts a Log.
+		// To clear the CompactHook, call CompactHook with a nil argument.
 		CompactHook(f CompactHookFunc)
+		ReadAll()
+		Sync() error
 	}
+
+	// Type represents the type of a value appended to the DB. Consumers of DB
+	// are expected to define their own types as constants of Type.
+	Type uint32
 
 	// CutHookFunc is executed whenever a Log is cut. A Log is cut when it reaches
 	//its maximum size and is moved into read-only mode. A new Log is then
 	// provisioned to receive new writes. CutHookFunc is executed right after
 	// the new Log is provisioned. If Append is called on the LogDeck in
-	// CutHookFunc, it is guaranteed to be the first record in the new Log.
+	// CutHookFunc, the appended value is guaranteed to be the first in the new Log.
 	CutHookFunc func(seq int64) error
 
 	// CompactHookFunc is executed whenever a Log is compacted. Compaction is
 	// triggered when a newly provisioned Log causes MaxLogCount to be exceeded.
 	// CompactionHookFunc is executed right before the oldest Log is actually
-	// removed from LogDeck, meaning that its data can still be queried for the
+	// removed from DB, meaning that its data can still be queried for the
 	// duration of CompactHookFunc.
 	// TODO: Instead of Counters, maybe have it be an iter.Seq2[Type, uint64],
 	// the signature of Counters.All(). That way we can make Counters private.
 	CompactHookFunc func(c Counters) error
 
+	// Options defines the configurable options of the DB.
 	Options struct {
-		// MaxLogSize determines the maximum size that a single Log in the LogDeck
+		// MaxLogSize determines the maximum size that a single Log in the DB
 		// can have. When appending a value to a Log would make it grow larger
 		// than MaxLogSize, a new Log is provisioned, and the value is appended
-		// there. The total maximum Deck size on disk is MaxLogSize * MaxLogCount.
+		// there. The total maximum DB size on disk is MaxLogSize * MaxLogCount.
 		MaxLogSize int64
-		// MaxLogCount determines how many Logs can be contained in the LogDeck.
-		// Once exceeded, the oldest Log in the Deck is compacted.
-		// The total maximum Deck size on disk is MaxLogSize * MaxLogCount.
+		// MaxLogCount determines how many Logs can be contained in the DB.
+		// Once exceeded, the oldest Log in the DB is compacted.
+		// The total maximum DB size on disk is MaxLogSize * MaxLogCount.
 		MaxLogCount int
 	}
 )
 
+// DefaultOptions defines the default Options values.
 var DefaultOptions = &Options{
 	MaxLogSize:  64 << 20,
 	MaxLogCount: 16,
 }
 
+// Open intializes a DB in directory dir. If the directory already contains
+// Logs belonging to a DB, the DB reads the Logs to restore its in-memory state.
 func Open(dir string, opts *Options) (DB, error) {
 	db := db{
 		logs: make([]managedLog, 0),

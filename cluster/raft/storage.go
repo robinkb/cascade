@@ -190,6 +190,9 @@ func (s *DiskStorage) Entries(lo, hi, maxSize uint64) ([]raftpb.Entry, error) {
 // FirstIndex is retained for matching purposes even though the
 // rest of that entry may not be available.
 func (s *DiskStorage) Term(i uint64) (uint64, error) {
+	// TODO: Should refactor this again so that it doesn't read from disk.
+	// Term() is called really often, and some of our Entries are really big now.
+	// It's silly to read 1 MiB into memory when we only need 8 bytes.
 	s.callStats.term++
 	if i == 0 && s.deck.Count(TypeEntry) == 0 {
 		return 0, nil

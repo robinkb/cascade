@@ -20,9 +20,6 @@ var (
 	crc64Table = crc64.MakeTable(crc64.ECMA)
 )
 
-// Type represents the T
-type Type uint32
-
 type record struct {
 	Type  Type
 	Value []byte
