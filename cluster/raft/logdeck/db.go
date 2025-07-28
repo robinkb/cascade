@@ -67,10 +67,10 @@ type (
 
 	// Options defines the configurable options of the DB.
 	Options struct {
-		// MaxLogSize determines the maximum size that a single Log in the DB
-		// can have. When appending a value to a Log would make it grow larger
-		// than MaxLogSize, a new Log is provisioned, and the value is appended
-		// there. The total maximum DB size on disk is MaxLogSize * MaxLogCount.
+		// MaxLogSize determines the maximum size that a single Log in the DB can have.
+		// When appending a value to a Log would make it grow larger than MaxLogSize,
+		// a new Log is provisioned, and the value is appended to the new Log.
+		// The total maximum DB size on disk is MaxLogSize * MaxLogCount.
 		MaxLogSize int64
 		// MaxLogCount determines how many Logs can be contained in the DB.
 		// Once exceeded, the oldest Log in the DB is compacted.

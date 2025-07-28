@@ -24,12 +24,12 @@ func TestCounters(t *testing.T) {
 func TestInventory(t *testing.T) {
 	inv := newInventory()
 
-	rtype1, pointers1 := randomRecordType(), randomPointers(15)
+	rtype1, pointers1 := randomType(), randomPointers(15)
 	for _, ptr := range pointers1 {
 		inv.Add(rtype1, ptr)
 	}
 
-	rtype2, pointers2 := randomRecordType(), randomPointers(10)
+	rtype2, pointers2 := randomType(), randomPointers(10)
 	for _, ptr := range pointers2 {
 		inv.Add(rtype2, ptr)
 	}
@@ -49,7 +49,7 @@ func TestInventory(t *testing.T) {
 	})
 
 	t.Run("getting pointer with unknown record type returns ErrRecordTypeUnknown", func(t *testing.T) {
-		_, err := inv.Get(randomRecordType(), 0)
+		_, err := inv.Get(randomType(), 0)
 		AssertErrorIs(t, err, ErrTypeUnknown)
 	})
 
@@ -68,7 +68,7 @@ func TestInventory(t *testing.T) {
 	})
 
 	t.Run("Range for an unknown record type returns ErrRecordTypeUnknown", func(t *testing.T) {
-		_, err := inv.Range(randomRecordType(), 0, 1)
+		_, err := inv.Range(randomType(), 0, 1)
 		AssertErrorIs(t, err, ErrTypeUnknown)
 	})
 
@@ -101,13 +101,13 @@ func TestInventory(t *testing.T) {
 	})
 
 	t.Run("Count of an unknown RecordType returns 0", func(t *testing.T) {
-		got := inv.Count(randomRecordType())
+		got := inv.Count(randomType())
 		AssertEqual(t, got, 0)
 	})
 
 	t.Run("remove purges pointers according to given Counters", func(t *testing.T) {
 		// Populate Inventory with some pointers for this test.
-		rtype := randomRecordType()
+		rtype := randomType()
 		pointers := randomPointers(10)
 		for _, ptr := range pointers {
 			inv.Add(rtype, ptr)
@@ -148,7 +148,7 @@ func TestInventory(t *testing.T) {
 	t.Run("removing record of unknown type panics", func(t *testing.T) {
 		defer AssertPanics(t, ErrTypeUnknown)
 		c := newCounters()
-		c.add(randomRecordType())
+		c.add(randomType())
 
 		inv.Remove(c)
 	})
@@ -172,7 +172,7 @@ func randomPointers(n int) []pointer {
 	return pointers
 }
 
-func randomRecordType() Type {
+func randomType() Type {
 	return Type(rand.Uint64())
 }
 
