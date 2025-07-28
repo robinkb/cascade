@@ -113,21 +113,21 @@ func Open(dir string, opts *Options) (DB, error) {
 		if errors.Is(err, os.ErrNotExist) {
 			err := os.Mkdir(db.dir, 0755)
 			if err != nil {
-				panic(err)
+				return nil, err
 			}
 		} else {
-			panic(err)
+			return nil, err
 		}
 	} else {
 		// TODO: Write test for this case.
 		if !info.IsDir() {
-			panic("not a directory")
+			return nil, errors.New("not a directory")
 		}
 	}
 
 	entries, err := os.ReadDir(dir)
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
 
 	logFiles := make([]string, 0)
@@ -146,18 +146,18 @@ func Open(dir string, opts *Options) (DB, error) {
 	for _, name := range logFiles {
 		id, err := strconv.ParseInt(name[:len(name)-4], 10, 64)
 		if err != nil {
-			panic(err)
+			return nil, err
 		}
 
 		name := filepath.Join(db.dir, name)
 		w, err := os.OpenFile(name, os.O_WRONLY, 0644)
 		if err != nil {
-			panic(err)
+			return nil, err
 		}
 
 		r, err := mmap.Open(name)
 		if err != nil {
-			panic(err)
+			return nil, err
 		}
 
 		db.logs = append(db.logs, &managedLog{
@@ -166,6 +166,13 @@ func Open(dir string, opts *Options) (DB, error) {
 			log:  newLog(r, w),
 		})
 		db.sequence++
+	}
+
+	if len(db.logs) == 0 {
+		_, err := db.newLog()
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	return &db, nil
@@ -201,6 +208,7 @@ type db struct {
 }
 
 func (d *db) Append(t Type, value []byte) error {
+	var err error
 	r := &record{
 		Type:  t,
 		Value: value,
@@ -208,10 +216,13 @@ func (d *db) Append(t Type, value []byte) error {
 
 	log := d.activeLog()
 	if log.cursor+r.size() > d.maxLogSize {
-		log = d.cut()
+		log, err = d.cut()
+		if err != nil {
+			return err
+		}
 	}
 
-	err := log.Append(r)
+	err = log.Append(r)
 	if err != nil {
 		return err
 	}
@@ -221,7 +232,9 @@ func (d *db) Append(t Type, value []byte) error {
 	// Run compaction _after_ adding the new entry so that
 	// the compaction handler has an up-to-date view of the Deck.
 	if len(d.logs) > d.maxLogCount {
-		d.compact()
+		if err := d.compact(); err != nil {
+			return err
+		}
 	}
 
 	return nil
@@ -307,23 +320,25 @@ func (d *db) CompactHook(h CompactHookFunc) {
 	d.compactHandler = h
 }
 
-func (d *db) cut() *managedLog {
-	d.activeLog().sync()
+func (d *db) activeLog() *managedLog {
+	return d.logs[len(d.logs)-1]
+}
 
+func (d *db) newLog() (*managedLog, error) {
 	logFile := filepath.Join(d.dir, fmt.Sprintf("%020d.log", d.sequence))
 
 	w, err := os.OpenFile(logFile, os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
 	err = syscall.Fallocate(int(w.Fd()), 0, 0, d.maxLogSize)
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
 
 	r, err := mmap.Open(logFile)
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
 
 	log := &managedLog{
@@ -334,27 +349,34 @@ func (d *db) cut() *managedLog {
 	}
 	d.logs = append(d.logs, log)
 
+	d.sequence++
+
+	return log, nil
+}
+
+func (d *db) cut() (*managedLog, error) {
+	err := d.activeLog().sync()
+	if err != nil {
+		return nil, err
+	}
+
+	log, err := d.newLog()
+	if err != nil {
+		return nil, err
+	}
+
 	if d.cutHandler != nil && d.sequence != 0 {
 		err := d.cutHandler(log.ID)
 		if err != nil {
-			panic(err)
+			return nil, err
 		}
 	}
 
-	d.sequence++
-
-	return log
-}
-
-func (d *db) activeLog() *managedLog {
-	if len(d.logs) == 0 {
-		return d.cut()
-	}
-	return d.logs[len(d.logs)-1]
+	return log, nil
 }
 
 // TODO: Should close Log's file descriptors here...?
-func (d *db) compact() {
+func (d *db) compact() error {
 	log := d.logs[0]
 	id := log.ID
 
@@ -366,23 +388,25 @@ func (d *db) compact() {
 	if d.compactHandler != nil {
 		err := d.compactHandler(log.Counters())
 		if err != nil {
-			panic(err)
+			return err
 		}
 	}
 
 	logFile := filepath.Join(d.dir, fmt.Sprintf("%020d.log", id))
 	err := os.Remove(logFile)
 	if err != nil {
-		panic(err)
+		return err
 	}
 
 	d.inventory.Remove(log.Counters())
 
 	d.logs = d.logs[1:len(d.logs)]
 	d.offset++
+
+	return nil
 }
 
-// pointer returns the location of the Record last written to the Deck.
+// pointer returns the location of the Record last written to the DB.
 func (d *db) pointer() pointer {
 	log := d.activeLog()
 	offset, size := log.Pointer()
@@ -396,9 +420,9 @@ func (d *db) pointer() pointer {
 
 var logNameRe = regexp.MustCompile(`(\d{20}).log`)
 
-// managedLog represents a Log that is managed by a Deck.
+// managedLog represents a Log that is managed by DB.
 // It wraps the basic Log and adds an ID for tracking unique Logs,
-// and the handle of the underlying file.
+// and the handles of the underlying file.
 type managedLog struct {
 	*log
 	ID   int64
