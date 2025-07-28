@@ -89,7 +89,7 @@ var DefaultOptions = &Options{
 // Logs belonging to a DB, the DB reads the Logs to restore its in-memory state.
 func Open(dir string, opts *Options) (DB, error) {
 	db := db{
-		logs: make([]managedLog, 0),
+		logs: make([]*managedLog, 0),
 
 		dir:         dir,
 		maxLogSize:  DefaultOptions.MaxLogSize,
@@ -160,7 +160,7 @@ func Open(dir string, opts *Options) (DB, error) {
 			panic(err)
 		}
 
-		db.logs = append(db.logs, managedLog{
+		db.logs = append(db.logs, &managedLog{
 			ID:   id,
 			File: w,
 			log:  newLog(r, w),
@@ -173,7 +173,7 @@ func Open(dir string, opts *Options) (DB, error) {
 
 // db implements the DB interface.
 type db struct {
-	logs []managedLog
+	logs []*managedLog
 	// dir is the directory where the Logs are stored on-disk.
 	dir string
 	// sequence holds the ID of the last log created.
@@ -208,7 +208,7 @@ func (d *db) Append(t Type, value []byte) error {
 
 	log := d.activeLog()
 	if log.cursor+r.size() > d.maxLogSize {
-		log = d.newLog()
+		log = d.cut()
 	}
 
 	err := log.Append(r)
@@ -228,7 +228,7 @@ func (d *db) Append(t Type, value []byte) error {
 }
 
 func (d *db) Sync() error {
-	return syscall.Fdatasync(int(d.activeLog().File.Fd()))
+	return d.activeLog().sync()
 }
 
 func (d *db) Get(t Type, i int) ([]byte, error) {
@@ -307,7 +307,9 @@ func (d *db) CompactHook(h CompactHookFunc) {
 	d.compactHandler = h
 }
 
-func (d *db) newLog() managedLog {
+func (d *db) cut() *managedLog {
+	d.activeLog().sync()
+
 	logFile := filepath.Join(d.dir, fmt.Sprintf("%020d.log", d.sequence))
 
 	w, err := os.OpenFile(logFile, os.O_CREATE|os.O_WRONLY, 0644)
@@ -324,10 +326,11 @@ func (d *db) newLog() managedLog {
 		panic(err)
 	}
 
-	log := managedLog{
+	log := &managedLog{
 		log:  newLog(r, w),
 		ID:   int64(d.sequence),
 		File: w,
+		Mmap: r,
 	}
 	d.logs = append(d.logs, log)
 
@@ -343,9 +346,9 @@ func (d *db) newLog() managedLog {
 	return log
 }
 
-func (d *db) activeLog() managedLog {
+func (d *db) activeLog() *managedLog {
 	if len(d.logs) == 0 {
-		return d.newLog()
+		return d.cut()
 	}
 	return d.logs[len(d.logs)-1]
 }
@@ -400,5 +403,9 @@ type managedLog struct {
 	*log
 	ID   int64
 	File *os.File
-	mmap.ReaderAt
+	Mmap *mmap.ReaderAt
+}
+
+func (l *managedLog) sync() error {
+	return syscall.Fdatasync(int(l.File.Fd()))
 }
