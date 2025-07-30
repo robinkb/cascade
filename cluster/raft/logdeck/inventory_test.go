@@ -1,4 +1,4 @@
-package storage
+package logdeck
 
 import (
 	"math/rand/v2"
@@ -8,26 +8,28 @@ import (
 )
 
 func TestCounters(t *testing.T) {
-	c := NewCounters()
-	want := RecordType(rand.Uint64())
+	c := newCounters()
+	want := Type(rand.Uint64())
 
-	c.Add(want)
+	c.add(want)
+	c.add(want)
+	c.add(want)
 
 	for got, count := range c.All() {
 		AssertEqual(t, got, want)
-		AssertEqual(t, count, 1)
+		AssertEqual(t, count, 3)
 	}
 }
 
 func TestInventory(t *testing.T) {
-	inv := NewInventory()
+	inv := newInventory()
 
-	rtype1, pointers1 := randomRecordType(), randomPointers(15)
+	rtype1, pointers1 := randomType(), randomPointers(15)
 	for _, ptr := range pointers1 {
 		inv.Add(rtype1, ptr)
 	}
 
-	rtype2, pointers2 := randomRecordType(), randomPointers(10)
+	rtype2, pointers2 := randomType(), randomPointers(10)
 	for _, ptr := range pointers2 {
 		inv.Add(rtype2, ptr)
 	}
@@ -47,16 +49,16 @@ func TestInventory(t *testing.T) {
 	})
 
 	t.Run("getting pointer with unknown record type returns ErrRecordTypeUnknown", func(t *testing.T) {
-		_, err := inv.Get(randomRecordType(), 0)
-		AssertErrorIs(t, err, ErrRecordTypeUnknown)
+		_, err := inv.Get(randomType(), 0)
+		AssertErrorIs(t, err, ErrTypeUnknown)
 	})
 
-	t.Run("getting pointer with invalid index returns ErrPointerNotFound", func(t *testing.T) {
+	t.Run("getting pointer with index out of bounds returns ErrIndexOutOfBounds", func(t *testing.T) {
 		_, err := inv.Get(rtype1, len(pointers1))
-		AssertErrorIs(t, err, ErrPointerNotFound)
+		AssertErrorIs(t, err, ErrIndexOutOfBounds)
 
 		_, err = inv.Get(rtype1, -1)
-		AssertErrorIs(t, err, ErrPointerNotFound)
+		AssertErrorIs(t, err, ErrIndexOutOfBounds)
 	})
 
 	t.Run("Range returns all pointers for a given type", func(t *testing.T) {
@@ -66,25 +68,26 @@ func TestInventory(t *testing.T) {
 	})
 
 	t.Run("Range for an unknown record type returns ErrRecordTypeUnknown", func(t *testing.T) {
-		_, err := inv.Range(randomRecordType(), 0, 1)
-		AssertErrorIs(t, err, ErrRecordTypeUnknown)
+		_, err := inv.Range(randomType(), 0, 1)
+		AssertErrorIs(t, err, ErrTypeUnknown)
 	})
 
-	t.Run("Range with invalid ranges returns ErrRangeInvalid", func(t *testing.T) {
+	t.Run("Range with invalid ranges returns an error", func(t *testing.T) {
 		tc := []struct {
 			name   string
 			lo, hi int
+			want   error
 		}{
-			{"lo equal to hi", 1, 1},
-			{"hi lower than lo", 1, 0},
-			{"negative lo", -1, 1},
-			{"hi higher than number of pointers", 0, 100},
+			{"lo equal to hi", 1, 1, ErrRangeInvalid},
+			{"hi lower than lo", 1, 0, ErrRangeInvalid},
+			{"negative lo", -1, 1, ErrIndexOutOfBounds},
+			{"hi higher than number of pointers", 0, 100, ErrIndexOutOfBounds},
 		}
 
 		for _, tt := range tc {
 			t.Run(tt.name, func(t *testing.T) {
 				_, err := inv.Range(rtype1, tt.lo, tt.hi)
-				AssertErrorIs(t, err, ErrRangeInvalid)
+				AssertErrorIs(t, err, tt.want)
 			})
 		}
 	})
@@ -98,13 +101,13 @@ func TestInventory(t *testing.T) {
 	})
 
 	t.Run("Count of an unknown RecordType returns 0", func(t *testing.T) {
-		got := inv.Count(randomRecordType())
+		got := inv.Count(randomType())
 		AssertEqual(t, got, 0)
 	})
 
 	t.Run("remove purges pointers according to given Counters", func(t *testing.T) {
 		// Populate Inventory with some pointers for this test.
-		rtype := randomRecordType()
+		rtype := randomType()
 		pointers := randomPointers(10)
 		for _, ptr := range pointers {
 			inv.Add(rtype, ptr)
@@ -122,9 +125,9 @@ func TestInventory(t *testing.T) {
 		wantRemoved := 5 // Don't change or comments won't make sense ;-;
 
 		// Simulate a Log that has five records of this type.
-		c := NewCounters()
+		c := newCounters()
 		for range wantRemoved {
-			c.Add(rtype)
+			c.add(rtype)
 		}
 
 		// Now "remove" the Log from the Deck.
@@ -139,43 +142,43 @@ func TestInventory(t *testing.T) {
 
 		// THere is no sixth pointer.
 		_, err = inv.Get(rtype, 5)
-		AssertErrorIs(t, err, ErrPointerNotFound)
+		AssertErrorIs(t, err, ErrIndexOutOfBounds)
 	})
 
 	t.Run("removing record of unknown type panics", func(t *testing.T) {
-		defer AssertPanics(t, ErrRecordTypeUnknown)
-		c := NewCounters()
-		c.Add(randomRecordType())
+		defer AssertPanics(t, ErrTypeUnknown)
+		c := newCounters()
+		c.add(randomType())
 
 		inv.Remove(c)
 	})
 
 	t.Run("removing more records than are available panics", func(t *testing.T) {
 		defer AssertPanics(t, ErrInvalidCompaction)
-		c := NewCounters()
+		c := newCounters()
 		for range len(pointers1) + 1 {
-			c.Add(rtype1)
+			c.add(rtype1)
 		}
 
 		inv.Remove(c)
 	})
 }
 
-func randomPointers(n int) []Pointer {
-	pointers := make([]Pointer, n)
+func randomPointers(n int) []pointer {
+	pointers := make([]pointer, n)
 	for i := range n {
 		pointers[i] = randomPointer()
 	}
 	return pointers
 }
 
-func randomRecordType() RecordType {
-	return RecordType(rand.Uint64())
+func randomType() Type {
+	return Type(rand.Uint64())
 }
 
-func randomPointer() Pointer {
-	return Pointer{
-		Log:    rand.Int64(),
+func randomPointer() pointer {
+	return pointer{
+		Log:    LogID(rand.Uint64()),
 		Offset: rand.Int64(),
 		Size:   rand.Int64(),
 	}

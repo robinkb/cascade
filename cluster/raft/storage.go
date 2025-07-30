@@ -5,25 +5,26 @@ import (
 	"fmt"
 
 	"github.com/robinkb/cascade-registry/cluster"
-	"github.com/robinkb/cascade-registry/cluster/raft/storage"
+	"github.com/robinkb/cascade-registry/cluster/raft/logdeck"
 	"go.etcd.io/raft/v3"
 	"go.etcd.io/raft/v3/raftpb"
 )
 
 const (
-	// TODO: Types of Records being saved to the log.
-	// Any changes to the values of these will break storage compatibility.
-	// So maybe I should use strings instead. My budget for entry types is uint32.
-	// 32 characters should be plenty. Type casting strings straight from
-	// bytes should not be any more expensive than unsigned integers.
-	TypeEntry storage.RecordType = iota
+	// Types of Records being saved to storage.
+	TypeEntry logdeck.Type = iota
 	TypeHardState
 	TypeSnapshot
 )
 
-func NewDiskStorage(dir string, snap cluster.Snapshotter, c *storage.DeckConfig) (*DiskStorage, error) {
+func NewDiskStorage(dir string, snap cluster.Snapshotter, c *logdeck.Options) (*DiskStorage, error) {
+	deck, err := logdeck.Open(dir, c)
+	if err != nil {
+		return nil, err
+	}
+
 	s := &DiskStorage{
-		deck: storage.NewDeck(dir, c),
+		deck: deck,
 		snap: snap,
 	}
 
@@ -88,16 +89,15 @@ func NewDiskStorage(dir string, snap cluster.Snapshotter, c *storage.DeckConfig)
 	// 	}
 	// }()
 
-	// TODO: cutHandler is broken.
-	s.deck.CutHandler(s.cutHandler())
-	s.deck.CompactionHandler(s.compactionHandler())
+	// TODO: cutHook is broken.
+	s.deck.CutHook(s.cutHook())
+	s.deck.CompactHook(s.compactionHook())
 
 	return s, nil
 }
 
-// TODO: Sync. And hope performance doesn't tank.
 type DiskStorage struct {
-	deck storage.Deck
+	deck logdeck.DB
 	snap cluster.Snapshotter
 
 	hardState raftpb.HardState
@@ -190,6 +190,9 @@ func (s *DiskStorage) Entries(lo, hi, maxSize uint64) ([]raftpb.Entry, error) {
 // FirstIndex is retained for matching purposes even though the
 // rest of that entry may not be available.
 func (s *DiskStorage) Term(i uint64) (uint64, error) {
+	// TODO: Should refactor this again so that it doesn't read from disk.
+	// Term() is called really often, and some of our Entries are really big now.
+	// It's silly to read 1 MiB into memory when we only need 8 bytes.
 	s.callStats.term++
 	if i == 0 && s.deck.Count(TypeEntry) == 0 {
 		return 0, nil
@@ -265,10 +268,6 @@ func (s *DiskStorage) Snapshot() (raftpb.Snapshot, error) {
 }
 
 func (s *DiskStorage) Save(entries []raftpb.Entry, hardState raftpb.HardState, sync bool) error {
-	if len(entries) == 0 && raft.IsEmptyHardState(hardState) {
-		return nil
-	}
-
 	if len(entries) != 0 {
 		if s.deck.Count(TypeEntry) == 0 {
 			s.firstEntry = raftpb.Entry{
@@ -336,11 +335,11 @@ func (s *DiskStorage) SaveConfState(cs raftpb.ConfState) {
 	s.confState = cs
 }
 
-func (s *DiskStorage) cutHandler() storage.CutHandler {
+func (s *DiskStorage) cutHook() logdeck.CutHookFunc {
 	var entry raftpb.Entry
 	buf := new(bytes.Buffer)
 
-	return func(seq int64) error {
+	return func(id logdeck.LogID) error {
 		buf.Reset()
 
 		value, err := s.deck.Get(TypeEntry, int(s.appliedIndex))
@@ -374,10 +373,10 @@ func (s *DiskStorage) cutHandler() storage.CutHandler {
 	}
 }
 
-func (s *DiskStorage) compactionHandler() storage.CompactionHandler {
+func (s *DiskStorage) compactionHook() logdeck.CompactHookFunc {
 	var entry raftpb.Entry
 
-	return func(c storage.Counters) error {
+	return func(c logdeck.Counters) error {
 		for t, count := range c.All() {
 			// We only do something with Entries atm.
 			if t != TypeEntry {

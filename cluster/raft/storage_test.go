@@ -10,7 +10,7 @@ import (
 	"go.etcd.io/raft/v3"
 	"go.etcd.io/raft/v3/raftpb"
 
-	"github.com/robinkb/cascade-registry/cluster/raft/storage"
+	"github.com/robinkb/cascade-registry/cluster/raft/logdeck"
 	. "github.com/robinkb/cascade-registry/testing"
 )
 
@@ -285,7 +285,7 @@ func TestCompaction(t *testing.T) {
 	t.SkipNow()
 	// Prepare a store with a ridiculously low limit
 	// to immediately trigger compactions.
-	store, err := NewDiskStorage(t.TempDir(), new(SpySnapshotter), &storage.DeckConfig{
+	store, err := NewDiskStorage(t.TempDir(), new(SpySnapshotter), &logdeck.Options{
 		MaxLogSize:  64,
 		MaxLogCount: 1,
 	})
@@ -297,7 +297,7 @@ func TestCompaction(t *testing.T) {
 	// With MaxLogSize of 64, only one entry can fit in a log.
 	// And with MaxLogCount of 1, a second entry will immediately trigger a compaction,
 	// and push the first entry out.
-	AssertEqual(t, storage.RecordHeaderLength+want1[0].Size(), 22)
+	AssertEqual(t, logdeck.RecordHeaderLength+want1[0].Size(), 22)
 	err = store.Save(want1, emptyHardState, false)
 	AssertNoError(t, err)
 
