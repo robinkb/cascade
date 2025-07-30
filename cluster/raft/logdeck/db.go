@@ -201,13 +201,13 @@ type db struct {
 	// organized by type. It grows when appending Records to the Deck,
 	// and shrinks when Logs in the Deck are compacted.
 	inventory *inventory
-	// cutHandler is provided by the Deck consumer. If provided,
+	// cutHook is provided by the Deck consumer. If provided,
 	// it is called by Deck after every Log is cut.
-	cutHandler CutHookFunc
-	// compactHandler is provided by the Deck consumer. If provided,
+	cutHook CutHookFunc
+	// compactHook is provided by the Deck consumer. If provided,
 	// it is called by Deck after every compaction, allowing the consumer
 	// to update its internal bookkeeping.
-	compactHandler CompactHookFunc
+	compactHook CompactHookFunc
 }
 
 func (d *db) Append(t Type, value []byte) error {
@@ -316,11 +316,11 @@ func (d *db) ReadAll() {
 }
 
 func (d *db) CutHook(h CutHookFunc) {
-	d.cutHandler = h
+	d.cutHook = h
 }
 
 func (d *db) CompactHook(h CompactHookFunc) {
-	d.compactHandler = h
+	d.compactHook = h
 }
 
 func (d *db) activeLog() *managedLog {
@@ -358,24 +358,25 @@ func (d *db) newLog() (*managedLog, error) {
 }
 
 func (d *db) cut() (*managedLog, error) {
-	err := d.activeLog().sync()
+	oldLog := d.activeLog()
+	err := oldLog.sync()
 	if err != nil {
 		return nil, err
 	}
 
-	log, err := d.newLog()
+	newLog, err := d.newLog()
 	if err != nil {
 		return nil, err
 	}
 
-	if d.cutHandler != nil && d.sequence != 0 {
-		err := d.cutHandler(log.ID)
+	if d.cutHook != nil {
+		err := d.cutHook(oldLog.ID)
 		if err != nil {
 			return nil, err
 		}
 	}
 
-	return log, nil
+	return newLog, nil
 }
 
 // TODO: Should close Log's file descriptors here...?
@@ -388,8 +389,8 @@ func (d *db) compact() error {
 	// what is being removed. Technically compaction may fail afterwards
 	// without the application knowing about it, but we're talking
 	// about removing a file and in-memory operations that are well-tested.
-	if d.compactHandler != nil {
-		err := d.compactHandler(log.Counters())
+	if d.compactHook != nil {
+		err := d.compactHook(log.Counters())
 		if err != nil {
 			return err
 		}

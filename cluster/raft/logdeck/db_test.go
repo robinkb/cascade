@@ -61,6 +61,24 @@ func TestDBGet(t *testing.T) {
 	})
 }
 
+func TestDBCutHook(t *testing.T) {
+	t.Run("Verify that LogID is passed and incremented correctly", func(t *testing.T) {
+		// Need access to internal methods.
+		db := testDB(t, nil).(*db)
+
+		var got LogID
+		db.CutHook(func(id LogID) error {
+			got = id
+			return nil
+		})
+
+		for want := range 5 {
+			db.cut()
+			AssertEqual(t, got, LogID(want))
+		}
+	})
+}
+
 func testDB(t *testing.T, opts *Options) DB {
 	dir := t.TempDir()
 	t.Cleanup(func() {
