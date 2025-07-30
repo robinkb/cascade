@@ -20,9 +20,9 @@ func Example() {
 	}
 
 	// Write some values.
-	db.Append(TypeSetup, []byte("Why did the chicken cross the road?"))
-	db.Append(TypePunchline, []byte("To get to the other side."))
-	db.Append(TypePunchline, []byte("This is a lame joke."))
+	db.Append(TypeSetup, []byte("Why did the chicken cross the road?")) // nolint: errcheck
+	db.Append(TypePunchline, []byte("To get to the other side."))       // nolint: errcheck
+	db.Append(TypePunchline, []byte("This is a lame joke."))            // nolint: errcheck
 
 	// Use some of the available methods for reading.
 	val, _ := db.Get(TypeSetup, 0)

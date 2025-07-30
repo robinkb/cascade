@@ -30,8 +30,10 @@ func TestDBAppend(t *testing.T) {
 		count := db.Count(wantType)
 		AssertEqual(t, count, i+1)
 		got, err := db.First(wantType)
+		AssertNoError(t, err)
 		AssertSlicesEqual(t, got, wantValues[0])
 		got, err = db.Last(wantType)
+		AssertNoError(t, err)
 		AssertSlicesEqual(t, got, val)
 	}
 }
@@ -73,7 +75,8 @@ func TestDBCutHook(t *testing.T) {
 		})
 
 		for want := range 5 {
-			db.cut()
+			_, err := db.cut()
+			AssertNoError(t, err)
 			AssertEqual(t, got, LogID(want))
 		}
 	})

@@ -13,7 +13,7 @@ const (
 func ExampleDumpLog() {
 	// Open a Log created by LogDeckDB.
 	f, _ := os.Open("00000000000000000012.log")
-	defer f.Close()
+	defer f.Close() // nolint: errcheck
 
 	for t, val := range DumpLog(f) {
 		switch t {

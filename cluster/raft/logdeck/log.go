@@ -30,11 +30,6 @@ type log struct {
 	pointer int64
 	// lastValueSize is the size of the last Record's Value written to the Log.
 	lastValueSize int64
-
-	// TODO: Implement this. Provide a Lock() function that sets this to true.
-	// Counters cannot be retrieved until the Log is locked.
-	// Append cannot be called on a locked Log.
-	locked bool
 }
 
 func (l *log) Append(r *record) error {
