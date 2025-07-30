@@ -178,7 +178,7 @@ func randomType() Type {
 
 func randomPointer() pointer {
 	return pointer{
-		Log:    rand.Int64(),
+		Log:    LogID(rand.Uint64()),
 		Offset: rand.Int64(),
 		Size:   rand.Int64(),
 	}

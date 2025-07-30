@@ -107,7 +107,7 @@ func (inv *inventory) Remove(c Counters) {
 // pointer points to the location and size of a record's Value in a log.
 type pointer struct {
 	// Log is the ID of the log within the DB that the value resides in.
-	Log int64
+	Log LogID
 	// Offset is the position within the log that the value starts at.
 	Offset int64
 	// Size is the length of the value in bytes.

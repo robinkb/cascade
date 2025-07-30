@@ -339,7 +339,7 @@ func (s *DiskStorage) cutHook() logdeck.CutHookFunc {
 	var entry raftpb.Entry
 	buf := new(bytes.Buffer)
 
-	return func(seq int64) error {
+	return func(id logdeck.LogID) error {
 		buf.Reset()
 
 		value, err := s.deck.Get(TypeEntry, int(s.appliedIndex))

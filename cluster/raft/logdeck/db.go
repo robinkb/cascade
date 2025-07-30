@@ -49,12 +49,15 @@ type (
 	// are expected to define their own types as constants of Type.
 	Type uint32
 
+	// LogID represents the sequential ID of a Log in the DB.
+	LogID uint64
+
 	// CutHookFunc is executed whenever a Log is cut. A Log is cut when it reaches
-	//its maximum size and is moved into read-only mode. A new Log is then
+	// its maximum size and is moved into read-only mode. A new Log is then
 	// provisioned to receive new writes. CutHookFunc is executed right after
 	// the new Log is provisioned. If Append is called on the LogDeck in
 	// CutHookFunc, the appended value is guaranteed to be the first in the new Log.
-	CutHookFunc func(seq int64) error
+	CutHookFunc func(id LogID) error
 
 	// CompactHookFunc is executed whenever a Log is compacted. Compaction is
 	// triggered when a newly provisioned Log causes MaxLogCount to be exceeded.
@@ -144,7 +147,7 @@ func Open(dir string, opts *Options) (DB, error) {
 	slices.Sort(logFiles)
 
 	for _, name := range logFiles {
-		id, err := strconv.ParseInt(name[:len(name)-4], 10, 64)
+		id, err := strconv.ParseUint(name[:len(name)-4], 10, 64)
 		if err != nil {
 			return nil, err
 		}
@@ -161,7 +164,7 @@ func Open(dir string, opts *Options) (DB, error) {
 		}
 
 		db.logs = append(db.logs, &managedLog{
-			ID:   id,
+			ID:   LogID(id),
 			File: w,
 			log:  newLog(r, w),
 		})
@@ -186,7 +189,7 @@ type db struct {
 	// sequence holds the ID of the last log created.
 	sequence uint64
 	// offset translates on-disk Log indices to their in-memory equivalent.
-	offset int64
+	offset uint64
 	// maxLogSize determines the maximum size that a log can have.
 	// If a Record will cause a Log to exceed its maximum allowed size,
 	// a new Log will be provisioned and the Record will be appended there.
@@ -294,7 +297,7 @@ func (d *db) Range(t Type, lo, hi int) iter.Seq2[[]byte, error] {
 
 func (d *db) valueAt(p pointer) ([]byte, error) {
 	value := make([]byte, p.Size)
-	err := d.logs[p.Log-d.offset].ValueAt(value, p.Offset)
+	err := d.logs[uint64(p.Log)-d.offset].ValueAt(value, p.Offset)
 	return value, err
 }
 
@@ -343,7 +346,7 @@ func (d *db) newLog() (*managedLog, error) {
 
 	log := &managedLog{
 		log:  newLog(r, w),
-		ID:   int64(d.sequence),
+		ID:   LogID(d.sequence),
 		File: w,
 		Mmap: r,
 	}
@@ -425,7 +428,7 @@ var logNameRe = regexp.MustCompile(`(\d{20}).log`)
 // and the handles of the underlying file.
 type managedLog struct {
 	*log
-	ID   int64
+	ID   LogID
 	File *os.File
 	Mmap *mmap.ReaderAt
 }
