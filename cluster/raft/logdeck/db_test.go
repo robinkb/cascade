@@ -63,10 +63,39 @@ func TestDBGet(t *testing.T) {
 	})
 }
 
-func TestDBCutHook(t *testing.T) {
-	t.Run("Verify that LogID is passed and incremented correctly", func(t *testing.T) {
-		// Need access to internal methods.
+func TestDBCut(t *testing.T) {
+	t.Run("Cut provisions a new Log every time it is called", func(t *testing.T) {
 		db := testDB(t, nil).(*db)
+
+		target := 5
+
+		// Start at 2 because a DB starts with 1 Log.
+		for want := 2; want < target; want++ {
+			err := db.Cut()
+			AssertNoError(t, err)
+
+			got := len(db.logs)
+			AssertEqual(t, got, want)
+		}
+	})
+
+	t.Run("Cut calls CutHook", func(t *testing.T) {
+		db := testDB(t, nil)
+
+		want := true
+		got := false
+		db.CutHook(func(id LogID) error {
+			got = true
+			return nil
+		})
+
+		err := db.Cut()
+		AssertNoError(t, err)
+		AssertEqual(t, got, want)
+	})
+
+	t.Run("LogID is passed to CutHook and incremented correctly", func(t *testing.T) {
+		db := testDB(t, nil)
 
 		var got LogID
 		db.CutHook(func(id LogID) error {
@@ -75,7 +104,7 @@ func TestDBCutHook(t *testing.T) {
 		})
 
 		for want := range 5 {
-			_, err := db.cut()
+			err := db.Cut()
 			AssertNoError(t, err)
 			AssertEqual(t, got, LogID(want))
 		}
