@@ -154,23 +154,10 @@ func Open(dir string, opts *Options) (DB, error) {
 		}
 	}
 
-	entries, err := os.ReadDir(dir)
+	logFiles, err := discoverLogFiles(dir)
 	if err != nil {
 		return nil, err
 	}
-
-	logFiles := make([]string, 0)
-	for _, e := range entries {
-		if e.IsDir() {
-			continue
-		}
-
-		if logNameRe.MatchString(e.Name()) {
-			logFiles = append(logFiles, e.Name())
-		}
-	}
-
-	slices.Sort(logFiles)
 
 	for _, name := range logFiles {
 		id, err := strconv.ParseUint(name[:len(name)-4], 10, 64)
@@ -248,7 +235,7 @@ func (d *db) Append(t Type, value []byte) error {
 	}
 
 	log := d.activeLog()
-	if log.cursor+r.size() > d.maxLogSize || log.counters.total() >= uint64(d.maxLogRecordCount) {
+	if d.appendWouldExceedLimits(log, r) {
 		log, err = d.cut()
 		if err != nil {
 			return err
@@ -265,12 +252,15 @@ func (d *db) Append(t Type, value []byte) error {
 	// Run compaction _after_ adding the new entry so that
 	// the compaction handler has an up-to-date view of the Deck.
 	if len(d.logs) > d.maxLogCount {
-		if err := d.compact(); err != nil {
-			return err
-		}
+		return d.compact()
 	}
 
 	return nil
+}
+
+func (d *db) appendWouldExceedLimits(log *managedLog, r *record) bool {
+	return d.maxLogSize < log.cursor+r.size() ||
+		uint64(d.maxLogRecordCount) <= log.counters.total()
 }
 
 func (d *db) Sync() error {
@@ -478,4 +468,25 @@ type managedLog struct {
 
 func (l *managedLog) sync() error {
 	return syscall.Fdatasync(int(l.File.Fd()))
+}
+
+func discoverLogFiles(dir string) ([]string, error) {
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return nil, err
+	}
+
+	logFiles := make([]string, 0)
+	for _, e := range entries {
+		if e.IsDir() {
+			continue
+		}
+
+		if logNameRe.MatchString(e.Name()) {
+			logFiles = append(logFiles, e.Name())
+		}
+	}
+
+	slices.Sort(logFiles)
+	return logFiles, nil
 }
