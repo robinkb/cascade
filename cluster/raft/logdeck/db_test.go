@@ -10,31 +10,91 @@ import (
 )
 
 func TestDBAppend(t *testing.T) {
-	db := testDB(t, nil)
+	t.Run("Appended values are retrievable", func(t *testing.T) {
+		db := testDB(t, nil)
 
-	wantType := randomType()
-	wantValues := RandomBytesN(5, 16, 32)
+		wantType := randomType()
+		wantValues := RandomBytesN(5, 16, 32)
 
-	count := db.Count(wantType)
-	AssertEqual(t, count, 0)
-	_, err := db.First(wantType)
-	AssertErrorIs(t, err, ErrTypeUnknown)
-	_, err = db.Last(wantType)
-	AssertErrorIs(t, err, ErrTypeUnknown)
+		count := db.Count(wantType)
+		AssertEqual(t, count, 0)
+		_, err := db.First(wantType)
+		AssertErrorIs(t, err, ErrTypeUnknown)
+		_, err = db.Last(wantType)
+		AssertErrorIs(t, err, ErrTypeUnknown)
 
-	for _, val := range wantValues {
-		err := db.Append(wantType, val)
-		AssertNoError(t, err).Require()
-	}
+		for _, val := range wantValues {
+			err := db.Append(wantType, val)
+			AssertNoError(t, err).Require()
+		}
 
-	count = db.Count(wantType)
-	AssertEqual(t, count, len(wantValues))
-	got, err := db.First(wantType)
-	AssertNoError(t, err)
-	AssertSlicesEqual(t, got, wantValues[0])
-	got, err = db.Last(wantType)
-	AssertNoError(t, err)
-	AssertSlicesEqual(t, got, wantValues[len(wantValues)-1])
+		count = db.Count(wantType)
+		AssertEqual(t, count, len(wantValues))
+		got, err := db.First(wantType)
+		AssertNoError(t, err)
+		AssertSlicesEqual(t, got, wantValues[0])
+		got, err = db.Last(wantType)
+		AssertNoError(t, err)
+		AssertSlicesEqual(t, got, wantValues[len(wantValues)-1])
+	})
+
+	t.Run("Append triggers Cut when MaxLogSize exceeded", func(t *testing.T) {
+		db := testDB(t, &Options{
+			MaxLogSize: 64,
+		})
+
+		cuts := 0
+		db.CutHook(func(id LogID) error {
+			cuts++
+			return nil
+		})
+
+		err := db.Append(randomType(), RandomBytes(32))
+		AssertNoError(t, err)
+		err = db.Append(randomType(), RandomBytes(32))
+		AssertNoError(t, err)
+
+		AssertEqual(t, cuts, 1)
+	})
+
+	t.Run("Append triggers Cut when MaxLogRecordCount exceeded", func(t *testing.T) {
+		db := testDB(t, &Options{
+			MaxLogRecordCount: 1,
+		})
+
+		cuts := 0
+		db.CutHook(func(id LogID) error {
+			cuts++
+			return nil
+		})
+
+		err := db.Append(randomType(), RandomBytes(32))
+		AssertNoError(t, err)
+		err = db.Append(randomType(), RandomBytes(32))
+		AssertNoError(t, err)
+
+		AssertEqual(t, cuts, 1)
+	})
+
+	t.Run("Append triggers Compact when MaxLogCount exceeded", func(t *testing.T) {
+		db := testDB(t, &Options{
+			MaxLogRecordCount: 1,
+			MaxLogCount:       1,
+		})
+
+		compacts := 0
+		db.CompactHook(func(c Counters) error {
+			compacts++
+			return nil
+		})
+
+		err := db.Append(randomType(), RandomBytes(32))
+		AssertNoError(t, err)
+		err = db.Append(randomType(), RandomBytes(32))
+		AssertNoError(t, err)
+
+		AssertEqual(t, compacts, 1)
+	})
 }
 
 func TestDBGet(t *testing.T) {

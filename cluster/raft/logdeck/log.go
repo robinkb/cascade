@@ -96,14 +96,21 @@ func newCounters() Counters {
 // It is used to update the inventory in the DB when a log is compacted.
 type Counters struct {
 	counters map[Type]uint64
+	records  uint64
 }
 
-// add increments the counter for the given RecordType by 1.
+// add increments the counter for the given Type by 1.
 func (c *Counters) add(t Type) {
 	c.counters[t]++
+	c.records++
 }
 
-// All iterates over all of the counters, returning the RecordType
+// total returns the total amount of records counted.
+func (c *Counters) total() uint64 {
+	return c.records
+}
+
+// All iterates over all of the counters, returning the Type
 // and how many Records of this type are in the log.
 func (c *Counters) All() iter.Seq2[Type, uint64] {
 	return func(yield func(Type, uint64) bool) {
