@@ -39,13 +39,15 @@ type (
 		// Cut manually cuts a new Log in the DB. Cutting a Log is normally
 		// triggered automatically when MaxLogSize or MaxLogRecordCount is
 		// exceeded. Instead, Cut may be used to trigger them manually when more
-		// control is required, like for tests.
+		// control is required, like for tests. As such, Cut does not consider
+		// MaxLogSize and MaxLogRecordCount.
 		Cut() error
 		// Compact manually triggers a compaction. Compactions are normally
 		// triggered automatically when MaxLogCount is exceeded. Instead,
 		// Compact may be used to trigger them manually when more control
-		// is required, like for tests.
-		// Compact() error
+		// is required, like for tests. As such, Compact does not consider MaxLogCount.
+		// Attempting to Compact when the DB only contains one Log returns ErrInvalidCompaction.
+		Compact() error
 		// CutHook registers CutHookFunc f, which is run whenever a Log is cut.
 		// To clear the CutHook, call CutHook with a nil argument.
 		CutHook(f CutHookFunc)
@@ -340,6 +342,10 @@ func (d *db) CutHook(h CutHookFunc) {
 	d.cutHook = h
 }
 
+func (d *db) Compact() error {
+	return d.compact()
+}
+
 func (d *db) CompactHook(h CompactHookFunc) {
 	d.compactHook = h
 }
@@ -402,6 +408,10 @@ func (d *db) cut() (*managedLog, error) {
 
 // TODO: Should close Log's file descriptors here...?
 func (d *db) compact() error {
+	if len(d.logs) <= 1 {
+		return fmt.Errorf("%w: only one Log in DB", ErrInvalidCompaction)
+	}
+
 	log := d.logs[0]
 	id := log.ID
 
