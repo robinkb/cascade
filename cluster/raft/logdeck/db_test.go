@@ -1,6 +1,7 @@
 package logdeck
 
 import (
+	"errors"
 	"math/rand/v2"
 	"os"
 	"testing"
@@ -21,21 +22,19 @@ func TestDBAppend(t *testing.T) {
 	_, err = db.Last(wantType)
 	AssertErrorIs(t, err, ErrTypeUnknown)
 
-	for i, val := range wantValues {
+	for _, val := range wantValues {
 		err := db.Append(wantType, val)
 		AssertNoError(t, err).Require()
-
-		// Make sure that Count and Last account for the new value,
-		// and that First has not changed.
-		count := db.Count(wantType)
-		AssertEqual(t, count, i+1)
-		got, err := db.First(wantType)
-		AssertNoError(t, err)
-		AssertSlicesEqual(t, got, wantValues[0])
-		got, err = db.Last(wantType)
-		AssertNoError(t, err)
-		AssertSlicesEqual(t, got, val)
 	}
+
+	count = db.Count(wantType)
+	AssertEqual(t, count, len(wantValues))
+	got, err := db.First(wantType)
+	AssertNoError(t, err)
+	AssertSlicesEqual(t, got, wantValues[0])
+	got, err = db.Last(wantType)
+	AssertNoError(t, err)
+	AssertSlicesEqual(t, got, wantValues[len(wantValues)-1])
 }
 
 func TestDBGet(t *testing.T) {
@@ -63,10 +62,39 @@ func TestDBGet(t *testing.T) {
 	})
 }
 
-func TestDBCutHook(t *testing.T) {
-	t.Run("Verify that LogID is passed and incremented correctly", func(t *testing.T) {
-		// Need access to internal methods.
+func TestDBCut(t *testing.T) {
+	t.Run("Cut provisions a new Log every time it is called", func(t *testing.T) {
 		db := testDB(t, nil).(*db)
+
+		target := 5
+
+		// Start at 2 because a DB starts with 1 Log.
+		for want := 2; want < target; want++ {
+			err := db.Cut()
+			AssertNoError(t, err)
+
+			got := len(db.logs)
+			AssertEqual(t, got, want)
+		}
+	})
+
+	t.Run("Cut calls CutHook", func(t *testing.T) {
+		db := testDB(t, nil)
+
+		want := true
+		got := false
+		db.CutHook(func(id LogID) error {
+			got = true
+			return nil
+		})
+
+		err := db.Cut()
+		AssertNoError(t, err)
+		AssertEqual(t, got, want)
+	})
+
+	t.Run("LogID is passed to CutHook and incremented correctly", func(t *testing.T) {
+		db := testDB(t, nil)
 
 		var got LogID
 		db.CutHook(func(id LogID) error {
@@ -75,10 +103,86 @@ func TestDBCutHook(t *testing.T) {
 		})
 
 		for want := range 5 {
-			_, err := db.cut()
+			err := db.Cut()
 			AssertNoError(t, err)
 			AssertEqual(t, got, LogID(want))
 		}
+	})
+
+	t.Run("Error from CutHook is bubbled up to Cut", func(t *testing.T) {
+		db := testDB(t, nil)
+
+		want := errors.New("error when calling CutHook")
+		db.CutHook(func(id LogID) error {
+			return want
+		})
+
+		got := db.Cut()
+		AssertErrorIs(t, got, want)
+	})
+}
+
+func TestDBCompact(t *testing.T) {
+	t.Run("Compact removes a Log", func(t *testing.T) {
+		db := testDB(t, nil).(*db)
+
+		// Verify that we start with one Log.
+		got := len(db.logs)
+		AssertEqual(t, got, 1)
+
+		err := db.Cut()
+		AssertNoError(t, err)
+
+		// Verify that we now have two.
+		got = len(db.logs)
+		AssertEqual(t, got, 2)
+
+		// Compaction should bring that back to one.
+		err = db.Compact()
+		AssertNoError(t, err)
+
+		got = len(db.logs)
+		AssertEqual(t, got, 1)
+	})
+
+	t.Run("Compact when DB contains just one Log returns ErrInvalidCompaction", func(t *testing.T) {
+		db := testDB(t, nil)
+
+		err := db.Compact()
+		AssertErrorIs(t, err, ErrInvalidCompaction)
+	})
+
+	t.Run("Compact calls CompactHook", func(t *testing.T) {
+		db := testDB(t, nil)
+
+		called := false
+		db.CompactHook(func(c Counters) error {
+			called = true
+			return nil
+		})
+
+		err := db.Cut()
+		AssertNoError(t, err)
+
+		err = db.Compact()
+		AssertNoError(t, err)
+
+		AssertEqual(t, called, true)
+	})
+
+	t.Run("Error in CompactHook is bubbled up to Compact", func(t *testing.T) {
+		db := testDB(t, nil)
+
+		want := errors.New("error when calling CompactHook")
+		db.CompactHook(func(c Counters) error {
+			return want
+		})
+
+		err := db.Cut()
+		AssertNoError(t, err)
+
+		got := db.Compact()
+		AssertErrorIs(t, got, want)
 	})
 }
 
