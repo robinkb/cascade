@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"iter"
-	"math"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -55,6 +54,9 @@ type (
 		// To clear the CompactHook, call CompactHook with a nil argument.
 		CompactHook(f CompactHookFunc)
 		ReadAll()
+		// Sync calls syscall.Fdatasync on the active Log, ensuring that buffered
+		// writes to it are flushed to disk. DB only syncs automatically when a Log
+		// is cut and becomes read-noly. Any more syncs are the application's responsibility.
 		Sync() error
 	}
 
@@ -101,8 +103,8 @@ type (
 
 // DefaultOptions defines the default Options values.
 var DefaultOptions = &Options{
-	MaxLogRecordCount: math.MaxInt64,
 	MaxLogSize:        64 << 20,
+	MaxLogRecordCount: 5000,
 	MaxLogCount:       16,
 }
 
@@ -112,9 +114,11 @@ func Open(dir string, opts *Options) (DB, error) {
 	db := db{
 		logs: make([]*managedLog, 0),
 
-		dir:         dir,
-		maxLogSize:  DefaultOptions.MaxLogSize,
-		maxLogCount: DefaultOptions.MaxLogCount,
+		dir: dir,
+
+		maxLogSize:        DefaultOptions.MaxLogSize,
+		maxLogRecordCount: DefaultOptions.MaxLogRecordCount,
+		maxLogCount:       DefaultOptions.MaxLogCount,
 
 		inventory: newInventory(),
 	}
@@ -122,6 +126,10 @@ func Open(dir string, opts *Options) (DB, error) {
 	if opts != nil {
 		if opts.MaxLogSize != 0 {
 			db.maxLogSize = opts.MaxLogSize
+		}
+
+		if opts.MaxLogRecordCount != 0 {
+			db.maxLogRecordCount = opts.MaxLogRecordCount
 		}
 
 		if opts.MaxLogCount != 0 {
@@ -208,10 +216,14 @@ type db struct {
 	sequence uint64
 	// offset translates on-disk Log indices to their in-memory equivalent.
 	offset uint64
-	// maxLogSize determines the maximum size that a log can have.
+	// maxLogSize determines the maximum size that a Log can have.
 	// If a Record will cause a Log to exceed its maximum allowed size,
 	// a new Log will be provisioned and the Record will be appended there.
 	maxLogSize int64
+	// maxLogRecordCount determines the maximum amount of records that a Log can have.
+	// If a Record will cause a Log to exceed its maximum allowed size,
+	// a new Log will be provisioned and the Record will be appended there.
+	maxLogRecordCount int64
 	// maxLogCount determines the maximum amount of logs stored in the Deck.
 	// When the number of logs exceeds this number, the oldest log will be compacted.
 	maxLogCount int
@@ -236,7 +248,7 @@ func (d *db) Append(t Type, value []byte) error {
 	}
 
 	log := d.activeLog()
-	if log.cursor+r.size() > d.maxLogSize {
+	if log.cursor+r.size() > d.maxLogSize || log.counters.total() >= uint64(d.maxLogRecordCount) {
 		log, err = d.cut()
 		if err != nil {
 			return err

@@ -8,17 +8,32 @@ import (
 )
 
 func TestCounters(t *testing.T) {
-	c := newCounters()
-	want := Type(rand.Uint64())
+	t.Run("calling add increments counter for that type", func(t *testing.T) {
+		c := newCounters()
+		want := Type(rand.Uint64())
 
-	c.add(want)
-	c.add(want)
-	c.add(want)
+		c.add(want)
+		c.add(want)
+		c.add(want)
 
-	for got, count := range c.All() {
+		for got, count := range c.All() {
+			AssertEqual(t, got, want)
+			AssertEqual(t, count, 3)
+		}
+	})
+
+	t.Run("calling add increments the total", func(t *testing.T) {
+		c := newCounters()
+
+		want := uint64(10)
+
+		for range want {
+			c.add(Type(rand.Uint64()))
+		}
+
+		got := c.total()
 		AssertEqual(t, got, want)
-		AssertEqual(t, count, 3)
-	}
+	})
 }
 
 func TestInventory(t *testing.T) {
