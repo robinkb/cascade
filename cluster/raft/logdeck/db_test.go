@@ -179,6 +179,7 @@ func TestDBCut(t *testing.T) {
 
 		got := db.Cut()
 		AssertErrorIs(t, got, want)
+		AssertErrorIs(t, got, ErrCutHookFailed)
 	})
 }
 
@@ -243,6 +244,7 @@ func TestDBCompact(t *testing.T) {
 
 		got := db.Compact()
 		AssertErrorIs(t, got, want)
+		AssertErrorIs(t, got, ErrCompactHookFailed)
 	})
 }
 

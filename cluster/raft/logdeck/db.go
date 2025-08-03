@@ -401,7 +401,7 @@ func (d *db) cut() (*managedLog, error) {
 	if d.cutHook != nil {
 		err := d.cutHook(oldLog.ID)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("%w: %w", ErrCutHookFailed, err)
 		}
 	}
 
@@ -424,7 +424,7 @@ func (d *db) compact() error {
 	if d.compactHook != nil {
 		err := d.compactHook(log.Counters())
 		if err != nil {
-			return err
+			return fmt.Errorf("%w: %w", ErrCompactHookFailed, err)
 		}
 	}
 

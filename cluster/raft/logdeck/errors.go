@@ -14,4 +14,6 @@ var (
 
 	// LogDeck errors
 	ErrInvalidCompaction = errors.New("invalid compaction")
+	ErrCutHookFailed     = errors.New("cut hook failed")
+	ErrCompactHookFailed = errors.New("compact hook failed")
 )
