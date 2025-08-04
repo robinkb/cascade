@@ -3,8 +3,8 @@ package raft
 import (
 	"math"
 	"math/rand/v2"
+	"os"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/require"
 	"go.etcd.io/raft/v3"
@@ -20,9 +20,8 @@ var (
 
 func TestStorageEntries(t *testing.T) {
 	entries := index(3).terms(3, 4, 5, 5, 6, 7, 7, 7, 7, 8)
-	l, err := NewDiskStorage(t.TempDir(), new(SpySnapshotter), nil)
-	AssertNoError(t, err).Require()
-	err = l.Save(entries, emptyHardState, false)
+	store := testStore(t)
+	err := store.Save(entries, emptyHardState, false)
 	AssertNoError(t, err)
 
 	tc := []struct {
@@ -48,7 +47,7 @@ func TestStorageEntries(t *testing.T) {
 
 	for _, tt := range tc {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := l.Entries(tt.lo, tt.hi, math.MaxUint64)
+			got, err := store.Entries(tt.lo, tt.hi, math.MaxUint64)
 			AssertErrorIs(t, err, tt.wantErr)
 			AssertDeepEqual(t, got, tt.wantEntries)
 		})
@@ -57,27 +56,25 @@ func TestStorageEntries(t *testing.T) {
 
 func TestStorageTerm(t *testing.T) {
 	t.Run("for empty storage", func(t *testing.T) {
-		l, err := NewDiskStorage(t.TempDir(), nil, nil)
-		AssertNoError(t, err).Require()
+		store := testStore(t)
 
-		fi, _ := l.FirstIndex()
-		_, err = l.Term(fi)
+		fi, _ := store.FirstIndex()
+		_, err := store.Term(fi)
 		AssertErrorIs(t, err, raft.ErrUnavailable)
 
-		li, _ := l.LastIndex()
-		_, err = l.Term(li)
+		li, _ := store.LastIndex()
+		_, err = store.Term(li)
 		AssertNoError(t, err)
 
-		_, err = l.Term(li + 1)
+		_, err = store.Term(li + 1)
 		AssertErrorIs(t, err, raft.ErrUnavailable)
 	})
 
 	t.Run("for storage with entries", func(t *testing.T) {
 		ents := index(3).terms(3, 4, 4, 5)
+		store := testStore(t)
 
-		l, err := NewDiskStorage(t.TempDir(), nil, nil)
-		AssertNoError(t, err).Require()
-		err = l.Save(ents, emptyHardState, false)
+		err := store.Save(ents, emptyHardState, false)
 		AssertNoError(t, err)
 
 		tests := []struct {
@@ -104,7 +101,7 @@ func TestStorageTerm(t *testing.T) {
 
 		for _, tt := range tests {
 			t.Run(tt.name, func(t *testing.T) {
-				term, err := l.Term(tt.i)
+				term, err := store.Term(tt.i)
 				AssertErrorIs(t, err, tt.werr).Require()
 				AssertEqual(t, term, tt.wterm).Require()
 			})
@@ -141,12 +138,11 @@ func TestStorageEntries2(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run("", func(t *testing.T) {
-			l, err := NewDiskStorage(t.TempDir(), nil, nil)
-			AssertNoError(t, err).Require()
-			err = l.Save(ents, emptyHardState, false)
+			store := testStore(t)
+			err := store.Save(ents, emptyHardState, false)
 			AssertNoError(t, err)
 
-			entries, err := l.Entries(tt.lo, tt.hi, tt.maxsize)
+			entries, err := store.Entries(tt.lo, tt.hi, tt.maxsize)
 			AssertErrorIs(t, err, tt.werr)
 			require.Equal(t, tt.wentries, entries)
 		})
@@ -154,35 +150,33 @@ func TestStorageEntries2(t *testing.T) {
 }
 
 func TestStorageLastIndex(t *testing.T) {
-	l, err := NewDiskStorage(t.TempDir(), nil, nil)
-	AssertNoError(t, err).Require()
+	store := testStore(t)
 
 	var want uint64
-	got, err := l.LastIndex()
+	got, err := store.LastIndex()
 	AssertNoError(t, err).Require()
 	AssertEqual(t, got, want)
 
 	entries := index(3).terms(3, 4, want)
 	want = entries[len(entries)-1].Index
-	err = l.Save(entries, emptyHardState, false)
+	err = store.Save(entries, emptyHardState, false)
 	AssertNoError(t, err)
 
-	got, err = l.LastIndex()
+	got, err = store.LastIndex()
 	AssertNoError(t, err).Require()
 	AssertEqual(t, got, want)
 }
 
 func TestStorageFirstIndex(t *testing.T) {
-	l, err := NewDiskStorage(t.TempDir(), nil, nil)
-	AssertNoError(t, err).Require()
-	var want uint64
+	store := testStore(t)
 
+	var want uint64
 	t.Run("first index of an empty storage is 1", func(t *testing.T) {
 		// This reeks like an implementation that had a bug in it.
 		// Then the rest of Raft worked around the bug, and now
 		// it's here to stay.
 		want = 1
-		got, err := l.FirstIndex()
+		got, err := store.FirstIndex()
 		AssertNoError(t, err).Require()
 		AssertEqual(t, got, want)
 	})
@@ -190,18 +184,17 @@ func TestStorageFirstIndex(t *testing.T) {
 	t.Run("first index of a storage with entries is the index of the first entry", func(t *testing.T) {
 		entries := index(want).terms(5, 5, 6, 6, 7, 8)
 		want = entries[0].Index
-		err := l.Save(entries, emptyHardState, false)
+		err := store.Save(entries, emptyHardState, false)
 		AssertNoError(t, err)
 
-		got, err := l.FirstIndex()
+		got, err := store.FirstIndex()
 		AssertNoError(t, err).Require()
 		AssertEqual(t, got, want)
 	})
 }
 
 func TestSetHardState(t *testing.T) {
-	l, err := NewDiskStorage(t.TempDir(), nil, nil)
-	AssertNoError(t, err).Require()
+	store := testStore(t)
 
 	want := raftpb.HardState{
 		Term:   rand.Uint64(),
@@ -209,17 +202,16 @@ func TestSetHardState(t *testing.T) {
 		Commit: rand.Uint64(),
 	}
 
-	err = l.Save(nil, want, false)
+	err := store.Save(nil, want, false)
 	AssertNoError(t, err)
 
-	got, _, err := l.InitialState()
+	got, _, err := store.InitialState()
 	AssertNoError(t, err)
 	AssertDeepEqual(t, got, want)
 }
 
 func TestApplySnapshot(t *testing.T) {
-	l, err := NewDiskStorage(t.TempDir(), nil, nil)
-	AssertNoError(t, err).Require()
+	store := testStore(t)
 
 	want := raftpb.Snapshot{
 		Metadata: raftpb.SnapshotMetadata{
@@ -228,10 +220,10 @@ func TestApplySnapshot(t *testing.T) {
 		},
 	}
 
-	err = l.SaveSnapshot(want)
+	err := store.SaveSnapshot(want)
 	AssertNoError(t, err)
 
-	got, err := l.Snapshot()
+	got, err := store.Snapshot()
 	AssertNoError(t, err)
 	AssertDeepEqual(t, got, want)
 }
@@ -239,7 +231,9 @@ func TestApplySnapshot(t *testing.T) {
 func TestPersistence(t *testing.T) {
 	dir := t.TempDir()
 
-	oldLog, err := NewDiskStorage(dir, nil, nil)
+	oldDb, err := logdeck.Open(dir, nil)
+	AssertNoError(t, err).Require()
+	oldStore, err := NewDiskStorage(oldDb, new(SpySnapshotter))
 	AssertNoError(t, err).Require()
 
 	want := struct {
@@ -252,52 +246,40 @@ func TestPersistence(t *testing.T) {
 		entries:   index(3).terms(3, 4, 5, 6, 7),
 	}
 
-	err = oldLog.Save(want.entries, want.hardState, false)
+	err = oldStore.Save(want.entries, want.hardState, false)
 	AssertNoError(t, err).Require()
-	err = oldLog.SaveSnapshot(want.snapshot)
-	AssertNoError(t, err).Require()
-
-	newLog, err := NewDiskStorage(dir, nil, nil)
+	err = oldStore.SaveSnapshot(want.snapshot)
 	AssertNoError(t, err).Require()
 
-	gotHardState, gotConfState, err := newLog.InitialState()
+	newDb, err := logdeck.Open(dir, nil)
+	AssertNoError(t, err).Require()
+	newStore, err := NewDiskStorage(newDb, new(SpySnapshotter))
+	AssertNoError(t, err).Require()
+
+	gotHardState, gotConfState, err := newStore.InitialState()
 	AssertNoError(t, err).Require()
 	AssertDeepEqual(t, gotHardState, want.hardState)
 	AssertDeepEqual(t, gotConfState, want.snapshot.Metadata.ConfState)
 
-	lo, err := newLog.FirstIndex()
+	lo, err := newStore.FirstIndex()
 	AssertNoError(t, err)
 	AssertEqual(t, lo, want.entries[0].Index)
 
-	hi, err := newLog.LastIndex()
+	hi, err := newStore.LastIndex()
 	AssertNoError(t, err)
 	AssertEqual(t, hi, want.entries[len(want.entries)-1].Index)
 
-	gotEntries, err := newLog.Entries(lo, hi+1, math.MaxUint64)
+	gotEntries, err := newStore.Entries(lo, hi+1, math.MaxUint64)
 	AssertNoError(t, err)
 	AssertDeepEqual(t, gotEntries, want.entries)
 }
 
-// TestCompaction is probably a bit too big, and asserts a little too much.
-// Basically everything to do with compaction.
-// And it broke after adding the CutHandler. Definitely needs to be reworked.
 func TestCompaction(t *testing.T) {
-	t.SkipNow()
-	// Prepare a store with a ridiculously low limit
-	// to immediately trigger compactions.
-	store, err := NewDiskStorage(t.TempDir(), new(SpySnapshotter), &logdeck.Options{
-		MaxLogSize:  64,
-		MaxLogCount: 1,
-	})
+	db := testDB(t, nil)
+	store, err := NewDiskStorage(db, new(SpySnapshotter))
 	AssertNoError(t, err).Require()
 
-	// This entry will "fill up" the first Log.
 	want1 := index(1).terms(1)
-	// Not really for testing, but to ensure that the size is as expected.
-	// With MaxLogSize of 64, only one entry can fit in a log.
-	// And with MaxLogCount of 1, a second entry will immediately trigger a compaction,
-	// and push the first entry out.
-	AssertEqual(t, logdeck.RecordHeaderLength+want1[0].Size(), 22)
 	err = store.Save(want1, emptyHardState, false)
 	AssertNoError(t, err)
 
@@ -311,27 +293,34 @@ func TestCompaction(t *testing.T) {
 	AssertNoError(t, err)
 	AssertDeepEqual(t, got1[0], want1[0])
 
-	// This second Entry should push our little store over its limit
-	// and cause the first Log containing the first Entry to be compacted.
+	// Cut a new Log.
+	err = db.Cut()
+	AssertNoError(t, err).Require()
+
+	// Save a new Entry.
 	want2 := index(2).terms(2)
 	err = store.Save(want2, emptyHardState, false)
-	AssertNoError(t, err)
+	AssertNoError(t, err).Require()
 
-	time.Sleep(10 * time.Millisecond)
+	// Compact, which should remove the first Log containing the first Entry.
+	err = db.Compact()
+	AssertNoError(t, err).Require()
 
 	// FirstIndex should now return the Index of our new Entry.
 	fi, err = store.FirstIndex()
 	AssertNoError(t, err)
 	AssertEqual(t, fi, want2[0].Index)
+
 	// The Entry that was pushed earlier should be unavailable.
 	_, err = store.Entries(1, 2, math.MaxUint64)
 	AssertErrorIs(t, err, raft.ErrCompacted)
+
 	// The new Entry should also be available.
 	got2, err := store.Entries(2, 3, math.MaxUint64)
 	AssertNoError(t, err)
 	AssertDeepEqual(t, got2[0], want2[0])
+
 	// Term of the last compacted entry should still be available as well.
-	// TODO: This is only correct when compacting out one entry. So in reality, never.
 	term, err := store.Term(fi - 1)
 	AssertNoError(t, err)
 	AssertEqual(t, term, want1[0].Index)
@@ -351,4 +340,22 @@ func (i index) terms(terms ...uint64) []raftpb.Entry {
 		index++
 	}
 	return entries
+}
+
+func testDB(t *testing.T, opts *logdeck.Options) logdeck.DB {
+	dir := t.TempDir()
+	t.Cleanup(func() {
+		os.RemoveAll(dir) // nolint: errcheck
+	})
+
+	db, err := logdeck.Open(dir, opts)
+	AssertNoError(t, err).Require()
+
+	return db
+}
+
+func testStore(t *testing.T) *DiskStorage {
+	store, err := NewDiskStorage(testDB(t, nil), new(SpySnapshotter))
+	AssertNoError(t, err).Require()
+	return store
 }

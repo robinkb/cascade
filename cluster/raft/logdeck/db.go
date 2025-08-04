@@ -90,10 +90,10 @@ type (
 		// a new Log is provisioned, and the value is appended to the new Log.
 		// The total maximum DB size on disk is MaxLogSize * (MaxLogCount + 1).
 		MaxLogSize int64
-		// MaxLogRecordCount determines the maximum amount of records that a single Log in the DB can have.
-		// When appnding a value to a Log would make it exceed MaxLogRecordCount,
+		// MaxLogValueCount determines the maximum amount of values that a single Log in the DB can have.
+		// When appending a value to a Log would make it exceed MaxLogValueCount,
 		// a new Log is provisioned, and the value is appended to the new Log.
-		MaxLogRecordCount int64
+		MaxLogValueCount int64
 		// MaxLogCount determines how many Logs can be contained in the DB.
 		// Once exceeded, the oldest Log in the DB is compacted.
 		// The total maximum DB size on disk is MaxLogSize * (MaxLogCount + 1).
@@ -103,9 +103,9 @@ type (
 
 // DefaultOptions defines the default Options values.
 var DefaultOptions = &Options{
-	MaxLogSize:        64 << 20,
-	MaxLogRecordCount: 5000,
-	MaxLogCount:       16,
+	MaxLogSize:       64 << 20,
+	MaxLogValueCount: 10000,
+	MaxLogCount:      16,
 }
 
 // Open intializes a DB in directory dir. If the directory already contains
@@ -117,7 +117,7 @@ func Open(dir string, opts *Options) (DB, error) {
 		dir: dir,
 
 		maxLogSize:        DefaultOptions.MaxLogSize,
-		maxLogRecordCount: DefaultOptions.MaxLogRecordCount,
+		maxLogRecordCount: DefaultOptions.MaxLogValueCount,
 		maxLogCount:       DefaultOptions.MaxLogCount,
 
 		inventory: newInventory(),
@@ -128,8 +128,8 @@ func Open(dir string, opts *Options) (DB, error) {
 			db.maxLogSize = opts.MaxLogSize
 		}
 
-		if opts.MaxLogRecordCount != 0 {
-			db.maxLogRecordCount = opts.MaxLogRecordCount
+		if opts.MaxLogValueCount != 0 {
+			db.maxLogRecordCount = opts.MaxLogValueCount
 		}
 
 		if opts.MaxLogCount != 0 {

@@ -17,12 +17,7 @@ const (
 	TypeSnapshot
 )
 
-func NewDiskStorage(dir string, snap cluster.Snapshotter, c *logdeck.Options) (*DiskStorage, error) {
-	deck, err := logdeck.Open(dir, c)
-	if err != nil {
-		return nil, err
-	}
-
+func NewDiskStorage(deck logdeck.DB, snap cluster.Snapshotter) (*DiskStorage, error) {
 	s := &DiskStorage{
 		deck: deck,
 		snap: snap,
