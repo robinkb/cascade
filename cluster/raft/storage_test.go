@@ -274,14 +274,48 @@ func TestPersistence(t *testing.T) {
 	AssertDeepEqual(t, gotEntries, want.entries)
 }
 
+func TestSnapshot(t *testing.T) {
+	db := testDB(t, nil)
+	snap := new(SpySnapshotter)
+	store, err := NewDiskStorage(db, snap)
+	AssertNoError(t, err).Require()
+
+	snapshot, err := store.Snapshot()
+	AssertNoError(t, err).Require()
+	AssertEqual(t, raft.IsEmptySnap(snapshot), true)
+
+	entries := index(1).terms(1, 1, 1)
+	lastApplied := entries[len(entries)-1]
+	err = store.Save(entries, emptyHardState, false)
+	// Set the index of the last applied entry. Normally this happens after
+	// the entry is applied to the state machine.
+	store.AppliedIndex(lastApplied.Index)
+
+	// Cut triggers a snapshot.
+	err = db.Cut()
+	AssertNoError(t, err).Require()
+
+	// Retrieve the snapshot and do some basic checks to ensure correctness.
+	snapshot, err = store.Snapshot()
+	AssertNoError(t, err).Require()
+	AssertEqual(t, snapshot.Metadata.Index, lastApplied.Index)
+	AssertEqual(t, snapshot.Metadata.Term, lastApplied.Term)
+	AssertEqual(t, snap.CallStats.Snapshot, 1)
+
+	// Compact throws away the first log.
+	err = db.Compact()
+	AssertNoError(t, err).Require()
+}
+
 func TestCompaction(t *testing.T) {
 	db := testDB(t, nil)
 	store, err := NewDiskStorage(db, new(SpySnapshotter))
 	AssertNoError(t, err).Require()
 
-	want1 := index(1).terms(1)
+	want1 := index(1).terms(1, 1)
 	err = store.Save(want1, emptyHardState, false)
 	AssertNoError(t, err)
+	store.AppliedIndex(want1[1].Index)
 
 	// Ensure that FirstIndex returns the Index of the Entry that we just put in.
 	fi, err := store.FirstIndex()
@@ -298,9 +332,10 @@ func TestCompaction(t *testing.T) {
 	AssertNoError(t, err).Require()
 
 	// Save a new Entry.
-	want2 := index(2).terms(2)
+	want2 := index(2).terms(2, 2)
 	err = store.Save(want2, emptyHardState, false)
 	AssertNoError(t, err).Require()
+	store.AppliedIndex(want2[1].Index)
 
 	// Compact, which should remove the first Log containing the first Entry.
 	err = db.Compact()

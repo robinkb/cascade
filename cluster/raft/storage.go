@@ -337,7 +337,7 @@ func (s *DiskStorage) cutHook() logdeck.CutHookFunc {
 	return func(id logdeck.LogID) error {
 		buf.Reset()
 
-		value, err := s.deck.Get(TypeEntry, int(s.appliedIndex))
+		value, err := s.deck.Get(TypeEntry, int(s.appliedIndex-s.firstIndex()))
 		if err != nil {
 			return err
 		}
@@ -364,7 +364,14 @@ func (s *DiskStorage) cutHook() logdeck.CutHookFunc {
 			return err
 		}
 
-		return s.deck.Append(TypeSnapshot, data)
+		err = s.deck.Append(TypeSnapshot, data)
+		if err != nil {
+			return err
+		}
+
+		s.snapshot = snap
+
+		return nil
 	}
 }
 
@@ -378,7 +385,7 @@ func (s *DiskStorage) compactionHook() logdeck.CompactHookFunc {
 				continue
 			}
 
-			value, err := s.deck.Get(TypeEntry, int(count)-1)
+			value, err := s.deck.Get(TypeEntry, int(count-s.firstIndex()-1))
 			if err != nil {
 				return err
 			}
@@ -393,7 +400,7 @@ func (s *DiskStorage) compactionHook() logdeck.CompactHookFunc {
 				Term:  entry.Term,
 			}
 
-			value, err = s.deck.Get(TypeEntry, int(count))
+			value, err = s.deck.Get(TypeEntry, int(count-s.firstIndex()))
 			if err != nil {
 				return err
 			}
