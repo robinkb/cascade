@@ -305,6 +305,8 @@ func TestSnapshot(t *testing.T) {
 	// Compact throws away the first log.
 	err = db.Compact()
 	AssertNoError(t, err).Require()
+
+	// TODO: Test Snapshot after Compact.
 }
 
 func TestCompaction(t *testing.T) {
@@ -312,30 +314,30 @@ func TestCompaction(t *testing.T) {
 	store, err := NewDiskStorage(db, new(SpySnapshotter))
 	AssertNoError(t, err).Require()
 
-	want1 := index(1).terms(1, 1)
-	err = store.Save(want1, emptyHardState, false)
+	oldEntries := index(1).terms(1, 1)
+	err = store.Save(oldEntries, emptyHardState, false)
 	AssertNoError(t, err)
-	store.AppliedIndex(want1[1].Index)
+	store.AppliedIndex(oldEntries[1].Index)
 
 	// Ensure that FirstIndex returns the Index of the Entry that we just put in.
 	fi, err := store.FirstIndex()
 	AssertNoError(t, err)
-	AssertEqual(t, fi, want1[0].Index)
+	AssertEqual(t, fi, oldEntries[0].Index)
 
 	// We should be able to retrieve our Entry.
 	got1, err := store.Entries(1, 2, math.MaxUint64)
 	AssertNoError(t, err)
-	AssertDeepEqual(t, got1[0], want1[0])
+	AssertDeepEqual(t, got1[0], oldEntries[0])
 
 	// Cut a new Log.
 	err = db.Cut()
 	AssertNoError(t, err).Require()
 
 	// Save a new Entry.
-	want2 := index(2).terms(2, 2)
-	err = store.Save(want2, emptyHardState, false)
+	newEntries := index(3).terms(2, 2, 2)
+	err = store.Save(newEntries, emptyHardState, false)
 	AssertNoError(t, err).Require()
-	store.AppliedIndex(want2[1].Index)
+	store.AppliedIndex(newEntries[2].Index)
 
 	// Compact, which should remove the first Log containing the first Entry.
 	err = db.Compact()
@@ -344,21 +346,26 @@ func TestCompaction(t *testing.T) {
 	// FirstIndex should now return the Index of our new Entry.
 	fi, err = store.FirstIndex()
 	AssertNoError(t, err)
-	AssertEqual(t, fi, want2[0].Index)
+	AssertEqual(t, fi, newEntries[0].Index)
+
+	// LastIndex returns the index of the second new entry.
+	li, err := store.LastIndex()
+	AssertNoError(t, err)
+	AssertEqual(t, li, newEntries[len(newEntries)-1].Index)
 
 	// The Entry that was pushed earlier should be unavailable.
 	_, err = store.Entries(1, 2, math.MaxUint64)
 	AssertErrorIs(t, err, raft.ErrCompacted)
 
 	// The new Entry should also be available.
-	got2, err := store.Entries(2, 3, math.MaxUint64)
-	AssertNoError(t, err)
-	AssertDeepEqual(t, got2[0], want2[0])
+	got2, err := store.Entries(3, 4, math.MaxUint64)
+	AssertNoError(t, err).Require()
+	AssertDeepEqual(t, got2[0], newEntries[0])
 
 	// Term of the last compacted entry should still be available as well.
 	term, err := store.Term(fi - 1)
 	AssertNoError(t, err)
-	AssertEqual(t, term, want1[0].Index)
+	AssertEqual(t, term, oldEntries[0].Index)
 }
 
 // index is a helper type for generating slices of raftpb.Entry. The value of index
