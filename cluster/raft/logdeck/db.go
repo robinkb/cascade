@@ -90,10 +90,10 @@ type (
 		// a new Log is provisioned, and the value is appended to the new Log.
 		// The total maximum DB size on disk is MaxLogSize * (MaxLogCount + 1).
 		MaxLogSize int64
-		// MaxLogRecordCount determines the maximum amount of records that a single Log in the DB can have.
-		// When appnding a value to a Log would make it exceed MaxLogRecordCount,
+		// MaxLogValueCount determines the maximum amount of values that a single Log in the DB can have.
+		// When appending a value to a Log would make it exceed MaxLogValueCount,
 		// a new Log is provisioned, and the value is appended to the new Log.
-		MaxLogRecordCount int64
+		MaxLogValueCount int64
 		// MaxLogCount determines how many Logs can be contained in the DB.
 		// Once exceeded, the oldest Log in the DB is compacted.
 		// The total maximum DB size on disk is MaxLogSize * (MaxLogCount + 1).
@@ -103,9 +103,9 @@ type (
 
 // DefaultOptions defines the default Options values.
 var DefaultOptions = &Options{
-	MaxLogSize:        64 << 20,
-	MaxLogRecordCount: 5000,
-	MaxLogCount:       16,
+	MaxLogSize:       64 << 20,
+	MaxLogValueCount: 10000,
+	MaxLogCount:      16,
 }
 
 // Open intializes a DB in directory dir. If the directory already contains
@@ -117,7 +117,7 @@ func Open(dir string, opts *Options) (DB, error) {
 		dir: dir,
 
 		maxLogSize:        DefaultOptions.MaxLogSize,
-		maxLogRecordCount: DefaultOptions.MaxLogRecordCount,
+		maxLogRecordCount: DefaultOptions.MaxLogValueCount,
 		maxLogCount:       DefaultOptions.MaxLogCount,
 
 		inventory: newInventory(),
@@ -128,8 +128,8 @@ func Open(dir string, opts *Options) (DB, error) {
 			db.maxLogSize = opts.MaxLogSize
 		}
 
-		if opts.MaxLogRecordCount != 0 {
-			db.maxLogRecordCount = opts.MaxLogRecordCount
+		if opts.MaxLogValueCount != 0 {
+			db.maxLogRecordCount = opts.MaxLogValueCount
 		}
 
 		if opts.MaxLogCount != 0 {
@@ -154,23 +154,10 @@ func Open(dir string, opts *Options) (DB, error) {
 		}
 	}
 
-	entries, err := os.ReadDir(dir)
+	logFiles, err := discoverLogFiles(dir)
 	if err != nil {
 		return nil, err
 	}
-
-	logFiles := make([]string, 0)
-	for _, e := range entries {
-		if e.IsDir() {
-			continue
-		}
-
-		if logNameRe.MatchString(e.Name()) {
-			logFiles = append(logFiles, e.Name())
-		}
-	}
-
-	slices.Sort(logFiles)
 
 	for _, name := range logFiles {
 		id, err := strconv.ParseUint(name[:len(name)-4], 10, 64)
@@ -248,7 +235,7 @@ func (d *db) Append(t Type, value []byte) error {
 	}
 
 	log := d.activeLog()
-	if log.cursor+r.size() > d.maxLogSize || log.counters.total() >= uint64(d.maxLogRecordCount) {
+	if d.appendWouldExceedLimits(log, r) {
 		log, err = d.cut()
 		if err != nil {
 			return err
@@ -265,12 +252,15 @@ func (d *db) Append(t Type, value []byte) error {
 	// Run compaction _after_ adding the new entry so that
 	// the compaction handler has an up-to-date view of the Deck.
 	if len(d.logs) > d.maxLogCount {
-		if err := d.compact(); err != nil {
-			return err
-		}
+		return d.compact()
 	}
 
 	return nil
+}
+
+func (d *db) appendWouldExceedLimits(log *managedLog, r *record) bool {
+	return d.maxLogSize < log.cursor+r.size() ||
+		uint64(d.maxLogRecordCount) <= log.counters.total()
 }
 
 func (d *db) Sync() error {
@@ -411,7 +401,7 @@ func (d *db) cut() (*managedLog, error) {
 	if d.cutHook != nil {
 		err := d.cutHook(oldLog.ID)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("%w: %w", ErrCutHookFailed, err)
 		}
 	}
 
@@ -434,7 +424,7 @@ func (d *db) compact() error {
 	if d.compactHook != nil {
 		err := d.compactHook(log.Counters())
 		if err != nil {
-			return err
+			return fmt.Errorf("%w: %w", ErrCompactHookFailed, err)
 		}
 	}
 
@@ -478,4 +468,25 @@ type managedLog struct {
 
 func (l *managedLog) sync() error {
 	return syscall.Fdatasync(int(l.File.Fd()))
+}
+
+func discoverLogFiles(dir string) ([]string, error) {
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return nil, err
+	}
+
+	logFiles := make([]string, 0)
+	for _, e := range entries {
+		if e.IsDir() {
+			continue
+		}
+
+		if logNameRe.MatchString(e.Name()) {
+			logFiles = append(logFiles, e.Name())
+		}
+	}
+
+	slices.Sort(logFiles)
+	return logFiles, nil
 }

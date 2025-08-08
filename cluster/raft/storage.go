@@ -17,12 +17,7 @@ const (
 	TypeSnapshot
 )
 
-func NewDiskStorage(dir string, snap cluster.Snapshotter, c *logdeck.Options) (*DiskStorage, error) {
-	deck, err := logdeck.Open(dir, c)
-	if err != nil {
-		return nil, err
-	}
-
+func NewDiskStorage(deck logdeck.DB, snap cluster.Snapshotter) (*DiskStorage, error) {
 	s := &DiskStorage{
 		deck: deck,
 		snap: snap,
@@ -342,7 +337,7 @@ func (s *DiskStorage) cutHook() logdeck.CutHookFunc {
 	return func(id logdeck.LogID) error {
 		buf.Reset()
 
-		value, err := s.deck.Get(TypeEntry, int(s.appliedIndex))
+		value, err := s.deck.Get(TypeEntry, int(s.appliedIndex-s.firstIndex()))
 		if err != nil {
 			return err
 		}
@@ -369,7 +364,14 @@ func (s *DiskStorage) cutHook() logdeck.CutHookFunc {
 			return err
 		}
 
-		return s.deck.Append(TypeSnapshot, data)
+		err = s.deck.Append(TypeSnapshot, data)
+		if err != nil {
+			return err
+		}
+
+		s.snapshot = snap
+
+		return nil
 	}
 }
 
@@ -383,7 +385,7 @@ func (s *DiskStorage) compactionHook() logdeck.CompactHookFunc {
 				continue
 			}
 
-			value, err := s.deck.Get(TypeEntry, int(count)-1)
+			value, err := s.deck.Get(TypeEntry, int(count-1))
 			if err != nil {
 				return err
 			}

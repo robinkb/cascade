@@ -59,7 +59,7 @@ func TestDBAppend(t *testing.T) {
 
 	t.Run("Append triggers Cut when MaxLogRecordCount exceeded", func(t *testing.T) {
 		db := testDB(t, &Options{
-			MaxLogRecordCount: 1,
+			MaxLogValueCount: 1,
 		})
 
 		cuts := 0
@@ -78,8 +78,8 @@ func TestDBAppend(t *testing.T) {
 
 	t.Run("Append triggers Compact when MaxLogCount exceeded", func(t *testing.T) {
 		db := testDB(t, &Options{
-			MaxLogRecordCount: 1,
-			MaxLogCount:       1,
+			MaxLogValueCount: 1,
+			MaxLogCount:      1,
 		})
 
 		compacts := 0
@@ -179,6 +179,7 @@ func TestDBCut(t *testing.T) {
 
 		got := db.Cut()
 		AssertErrorIs(t, got, want)
+		AssertErrorIs(t, got, ErrCutHookFailed)
 	})
 }
 
@@ -243,6 +244,7 @@ func TestDBCompact(t *testing.T) {
 
 		got := db.Compact()
 		AssertErrorIs(t, got, want)
+		AssertErrorIs(t, got, ErrCompactHookFailed)
 	})
 }
 

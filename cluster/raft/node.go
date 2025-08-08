@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/robinkb/cascade-registry/cluster"
+	"github.com/robinkb/cascade-registry/cluster/raft/logdeck"
 	"go.etcd.io/raft/v3"
 	"go.etcd.io/raft/v3/raftpb"
 )
@@ -35,7 +36,11 @@ type (
 // Also, I should probably decompose this more and allow passing dependencies
 // like a Mesh and DiskStorage directly.
 func NewNode(id uint64, addr netip.AddrPort, peers []Peer, workDir string, snap cluster.SnapshotRestorer) Node {
-	storage, err := NewDiskStorage(workDir, snap, nil)
+	db, err := logdeck.Open(workDir, nil)
+	if err != nil {
+		panic(err)
+	}
+	storage, err := NewDiskStorage(db, snap)
 	if err != nil {
 		panic(err)
 	}

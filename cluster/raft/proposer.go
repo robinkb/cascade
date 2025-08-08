@@ -47,7 +47,6 @@ func (p *proposer) Propose(proposal cluster.Proposal) error {
 
 	errC := p.errs.create(proposal.ID())
 	// Propose blocks until accepted by the cluster.
-	// TODO: Find out how to retry proposals.
 	err := p.raft.Propose(context.TODO(), buf.Bytes())
 	if err != nil {
 		return err
