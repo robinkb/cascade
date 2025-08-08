@@ -385,7 +385,7 @@ func (s *DiskStorage) compactionHook() logdeck.CompactHookFunc {
 				continue
 			}
 
-			value, err := s.deck.Get(TypeEntry, int(count-2))
+			value, err := s.deck.Get(TypeEntry, int(count-1))
 			if err != nil {
 				return err
 			}
@@ -400,7 +400,7 @@ func (s *DiskStorage) compactionHook() logdeck.CompactHookFunc {
 				Term:  entry.Term,
 			}
 
-			value, err = s.deck.Get(TypeEntry, int(count-1))
+			value, err = s.deck.Get(TypeEntry, int(count))
 			if err != nil {
 				return err
 			}

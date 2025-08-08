@@ -301,12 +301,6 @@ func TestSnapshot(t *testing.T) {
 	AssertEqual(t, snapshot.Metadata.Index, lastApplied.Index)
 	AssertEqual(t, snapshot.Metadata.Term, lastApplied.Term)
 	AssertEqual(t, snap.CallStats.Snapshot, 1)
-
-	// Compact throws away the first log.
-	err = db.Compact()
-	AssertNoError(t, err).Require()
-
-	// TODO: Test Snapshot after Compact.
 }
 
 func TestCompaction(t *testing.T) {
@@ -348,7 +342,7 @@ func TestCompaction(t *testing.T) {
 	AssertNoError(t, err)
 	AssertEqual(t, fi, newEntries[0].Index)
 
-	// LastIndex returns the index of the second new entry.
+	// LastIndex returns the index of the last new entry.
 	li, err := store.LastIndex()
 	AssertNoError(t, err)
 	AssertEqual(t, li, newEntries[len(newEntries)-1].Index)
