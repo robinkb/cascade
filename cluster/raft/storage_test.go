@@ -287,6 +287,7 @@ func TestSnapshot(t *testing.T) {
 	entries := index(1).terms(1, 1, 1)
 	lastApplied := entries[len(entries)-1]
 	err = store.Save(entries, emptyHardState, false)
+	AssertNoError(t, err).Require()
 	// Set the index of the last applied entry. Normally this happens after
 	// the entry is applied to the state machine.
 	store.AppliedIndex(lastApplied.Index)
