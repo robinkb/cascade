@@ -58,6 +58,8 @@ type (
 		// writes to it are flushed to disk. DB only syncs automatically when a Log
 		// is cut and becomes read-noly. Any more syncs are the application's responsibility.
 		Sync() error
+		// Close closes the DB, flushing any pending writes to disk.
+		Close() error
 	}
 
 	// Type represents the type of a value appended to the DB. Consumers of DB
@@ -112,7 +114,7 @@ var DefaultOptions = &Options{
 // Logs belonging to a DB, the DB reads the Logs to restore its in-memory state.
 func Open(dir string, opts *Options) (DB, error) {
 	db := db{
-		logs: make([]*managedLog, 0),
+		logs: make([]*logFile, 0),
 
 		dir: dir,
 
@@ -176,7 +178,7 @@ func Open(dir string, opts *Options) (DB, error) {
 			return nil, err
 		}
 
-		db.logs = append(db.logs, &managedLog{
+		db.logs = append(db.logs, &logFile{
 			ID:   LogID(id),
 			File: w,
 			log:  newLog(r, w),
@@ -196,7 +198,7 @@ func Open(dir string, opts *Options) (DB, error) {
 
 // db implements the DB interface.
 type db struct {
-	logs []*managedLog
+	logs []*logFile
 	// dir is the directory where the Logs are stored on-disk.
 	dir string
 	// sequence holds the ID of the last log created.
@@ -258,13 +260,13 @@ func (d *db) Append(t Type, value []byte) error {
 	return nil
 }
 
-func (d *db) appendWouldExceedLimits(log *managedLog, r *record) bool {
+func (d *db) appendWouldExceedLimits(log *logFile, r *record) bool {
 	return d.maxLogSize < log.cursor+r.size() ||
 		uint64(d.maxLogRecordCount) <= log.counters.total()
 }
 
 func (d *db) Sync() error {
-	return d.activeLog().sync()
+	return d.activeLog().Sync()
 }
 
 func (d *db) Get(t Type, i int) ([]byte, error) {
@@ -352,14 +354,19 @@ func (d *db) CompactHook(h CompactHookFunc) {
 	d.compactHook = h
 }
 
-func (d *db) activeLog() *managedLog {
+func (d *db) Close() error {
+	// TODO: Should also close other logs.
+	return d.activeLog().Close()
+}
+
+func (d *db) activeLog() *logFile {
 	return d.logs[len(d.logs)-1]
 }
 
-func (d *db) newLog() (*managedLog, error) {
-	logFile := filepath.Join(d.dir, fmt.Sprintf("%020d.log", d.sequence))
+func (d *db) newLog() (*logFile, error) {
+	filename := filepath.Join(d.dir, fmt.Sprintf("%020d.log", d.sequence))
 
-	w, err := os.OpenFile(logFile, os.O_CREATE|os.O_WRONLY, 0644)
+	w, err := os.OpenFile(filename, os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
 		return nil, err
 	}
@@ -368,12 +375,12 @@ func (d *db) newLog() (*managedLog, error) {
 		return nil, err
 	}
 
-	r, err := mmap.Open(logFile)
+	r, err := mmap.Open(filename)
 	if err != nil {
 		return nil, err
 	}
 
-	log := &managedLog{
+	log := &logFile{
 		log:  newLog(r, w),
 		ID:   LogID(d.sequence),
 		File: w,
@@ -386,9 +393,9 @@ func (d *db) newLog() (*managedLog, error) {
 	return log, nil
 }
 
-func (d *db) cut() (*managedLog, error) {
+func (d *db) cut() (*logFile, error) {
 	oldLog := d.activeLog()
-	err := oldLog.sync()
+	err := oldLog.Sync()
 	if err != nil {
 		return nil, err
 	}
@@ -408,14 +415,12 @@ func (d *db) cut() (*managedLog, error) {
 	return newLog, nil
 }
 
-// TODO: Should close Log's file descriptors here...?
 func (d *db) compact() error {
 	if len(d.logs) <= 1 {
 		return fmt.Errorf("%w: only one Log in DB", ErrInvalidCompaction)
 	}
 
 	log := d.logs[0]
-	id := log.ID
 
 	// The CompactHook is run _before_ compaction actually occurs
 	// so that the Deck consumer has a full view of the data, including
@@ -428,9 +433,11 @@ func (d *db) compact() error {
 		}
 	}
 
-	logFile := filepath.Join(d.dir, fmt.Sprintf("%020d.log", id))
-	err := os.Remove(logFile)
-	if err != nil {
+	if err := log.Close(); err != nil {
+		return err
+	}
+
+	if err := os.Remove(log.File.Name()); err != nil {
 		return err
 	}
 
@@ -456,18 +463,32 @@ func (d *db) pointer() pointer {
 
 var logNameRe = regexp.MustCompile(`(\d{20}).log`)
 
-// managedLog represents a Log that is managed by DB.
+// logFile represents a Log that is backed by a file.
 // It wraps the basic Log and adds an ID for tracking unique Logs,
 // and the handles of the underlying file.
-type managedLog struct {
+type logFile struct {
 	*log
 	ID   LogID
 	File *os.File
 	Mmap *mmap.ReaderAt
 }
 
-func (l *managedLog) sync() error {
+func (l *logFile) Sync() error {
 	return syscall.Fdatasync(int(l.File.Fd()))
+}
+
+func (l *logFile) Close() error {
+	err := l.Sync()
+	if err != nil {
+		return err
+	}
+
+	err = l.File.Close()
+	if err != nil {
+		return err
+	}
+
+	return l.Mmap.Close()
 }
 
 func discoverLogFiles(dir string) ([]string, error) {

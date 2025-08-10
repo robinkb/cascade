@@ -17,7 +17,7 @@ type (
 	Node interface { // Represents everything that a Raft node has to do for Raft to work
 		// Lifecycle
 		Start()
-		Stop()
+		Stop() error
 		Tick()
 		ClusterStatus() Status
 
@@ -102,7 +102,9 @@ func (n *node) Start() {
 	go n.mesh.Start()
 }
 
-func (n *node) Stop() {}
+func (n *node) Stop() error {
+	return n.storage.deck.Close()
+}
 
 func (n *node) Tick() {
 	n.manualTick <- time.Now()

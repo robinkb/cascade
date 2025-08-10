@@ -63,6 +63,7 @@ func main() {
 		metadata = cluster.NewMetadataStore(node, metadata)
 		blobs = cluster.NewBlobStore(node, blobs)
 		node.Start()
+		defer node.Stop()
 	}
 
 	service := cascade.NewRegistryService(metadata, blobs)

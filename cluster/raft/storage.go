@@ -28,13 +28,13 @@ func NewDiskStorage(deck logdeck.DB, snap cluster.Snapshotter) (*DiskStorage, er
 	if s.deck.Count(TypeEntry) > 0 {
 		value, err := s.deck.First(TypeEntry)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("failed to read first entry: %w", err)
 		}
 
 		var entry raftpb.Entry
 		err = entry.Unmarshal(value)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("failed to unmarshal first entry: %w", err)
 		}
 
 		s.firstEntry = raftpb.Entry{
