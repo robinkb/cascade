@@ -35,21 +35,23 @@ func tempLog(t *testing.T) (io.ReaderAt, io.Writer) {
 
 func TestLogReadAll(t *testing.T) {
 	want := randomRecordsN(10, 16, 32)
+	r, w := tempLog(t)
 
-	l := newLog(tempLog(t))
+	l := newLog(r, w)
 
 	for i := range want {
 		err := l.Append(want[i])
 		AssertNoError(t, err).Require()
 	}
 
-	l.Rewind()
+	l = newLog(r, w)
 
 	i := 0
 	for got := range l.All() {
 		AssertDeepEqual(t, got, want[i])
 		i++
 	}
+	AssertEqual(t, i, len(want))
 }
 
 // The decoder normally keeps reading until EOF.

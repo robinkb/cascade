@@ -72,12 +72,6 @@ func (l *log) Pointer() (int64, int64) {
 	return l.pointer + RecordHeaderLength, l.lastValueSize
 }
 
-// Also get rid of this. It's only used in a test, and never intended to be used in production.
-func (l *log) Rewind() {
-	l.cursor = 0
-	l.pointer = 0
-}
-
 func (l *log) advance(n int64, t Type) {
 	l.pointer = l.cursor
 	l.cursor += n
