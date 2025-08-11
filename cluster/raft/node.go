@@ -46,6 +46,11 @@ func NewNode(id uint64, addr netip.AddrPort, peers []Peer, workDir string, snap 
 	}
 
 	conf := raft.Config{
+		// TODO: This may need to be set when restarting a node.
+		// But I'm not sure of how to persist it. It can only be saved _after_
+		// applying entries to the state machine. And etcd doesn't seem to set this either.
+		Applied: 0,
+
 		ID:                id,
 		ElectionTick:      10,
 		HeartbeatTick:     1,

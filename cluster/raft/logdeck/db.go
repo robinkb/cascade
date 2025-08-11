@@ -193,6 +193,8 @@ func Open(dir string, opts *Options) (DB, error) {
 		}
 	}
 
+	db.offset = uint64(db.logs[0].ID)
+
 	return &db, nil
 }
 

@@ -11,7 +11,7 @@ import (
 
 func TestDBAppend(t *testing.T) {
 	t.Run("Appended values are retrievable", func(t *testing.T) {
-		db := testDB(t, nil)
+		db := testDB(t, t.TempDir(), nil)
 
 		wantType := randomType()
 		wantValues := RandomBytesN(5, 16, 32)
@@ -39,7 +39,7 @@ func TestDBAppend(t *testing.T) {
 	})
 
 	t.Run("Append triggers Cut when MaxLogSize exceeded", func(t *testing.T) {
-		db := testDB(t, &Options{
+		db := testDB(t, t.TempDir(), &Options{
 			MaxLogSize: 64,
 		})
 
@@ -58,7 +58,7 @@ func TestDBAppend(t *testing.T) {
 	})
 
 	t.Run("Append triggers Cut when MaxLogRecordCount exceeded", func(t *testing.T) {
-		db := testDB(t, &Options{
+		db := testDB(t, t.TempDir(), &Options{
 			MaxLogValueCount: 1,
 		})
 
@@ -77,7 +77,7 @@ func TestDBAppend(t *testing.T) {
 	})
 
 	t.Run("Append triggers Compact when MaxLogCount exceeded", func(t *testing.T) {
-		db := testDB(t, &Options{
+		db := testDB(t, t.TempDir(), &Options{
 			MaxLogValueCount: 1,
 			MaxLogCount:      1,
 		})
@@ -98,7 +98,7 @@ func TestDBAppend(t *testing.T) {
 }
 
 func TestDBGet(t *testing.T) {
-	db := testDB(t, nil)
+	db := testDB(t, t.TempDir(), nil)
 
 	wantType, wantValue := randomType(), RandomBytes(32)
 
@@ -124,7 +124,7 @@ func TestDBGet(t *testing.T) {
 
 func TestDBCut(t *testing.T) {
 	t.Run("Cut provisions a new Log every time it is called", func(t *testing.T) {
-		db := testDB(t, nil).(*db)
+		db := testDB(t, t.TempDir(), nil).(*db)
 
 		target := 5
 
@@ -139,7 +139,7 @@ func TestDBCut(t *testing.T) {
 	})
 
 	t.Run("Cut calls CutHook", func(t *testing.T) {
-		db := testDB(t, nil)
+		db := testDB(t, t.TempDir(), nil)
 
 		want := true
 		got := false
@@ -154,7 +154,7 @@ func TestDBCut(t *testing.T) {
 	})
 
 	t.Run("LogID is passed to CutHook and incremented correctly", func(t *testing.T) {
-		db := testDB(t, nil)
+		db := testDB(t, t.TempDir(), nil)
 
 		var got LogID
 		db.CutHook(func(id LogID) error {
@@ -170,7 +170,7 @@ func TestDBCut(t *testing.T) {
 	})
 
 	t.Run("Error from CutHook is bubbled up to Cut", func(t *testing.T) {
-		db := testDB(t, nil)
+		db := testDB(t, t.TempDir(), nil)
 
 		want := errors.New("error when calling CutHook")
 		db.CutHook(func(id LogID) error {
@@ -185,7 +185,7 @@ func TestDBCut(t *testing.T) {
 
 func TestDBCompact(t *testing.T) {
 	t.Run("Compact removes a Log", func(t *testing.T) {
-		db := testDB(t, nil).(*db)
+		db := testDB(t, t.TempDir(), nil).(*db)
 
 		// Verify that we start with one Log.
 		got := len(db.logs)
@@ -207,14 +207,14 @@ func TestDBCompact(t *testing.T) {
 	})
 
 	t.Run("Compact when DB contains just one Log returns ErrInvalidCompaction", func(t *testing.T) {
-		db := testDB(t, nil)
+		db := testDB(t, t.TempDir(), nil)
 
 		err := db.Compact()
 		AssertErrorIs(t, err, ErrInvalidCompaction)
 	})
 
 	t.Run("Compact calls CompactHook", func(t *testing.T) {
-		db := testDB(t, nil)
+		db := testDB(t, t.TempDir(), nil)
 
 		called := false
 		db.CompactHook(func(c Counters) error {
@@ -232,7 +232,7 @@ func TestDBCompact(t *testing.T) {
 	})
 
 	t.Run("Error in CompactHook is bubbled up to Compact", func(t *testing.T) {
-		db := testDB(t, nil)
+		db := testDB(t, t.TempDir(), nil)
 
 		want := errors.New("error when calling CompactHook")
 		db.CompactHook(func(c Counters) error {
@@ -248,8 +248,40 @@ func TestDBCompact(t *testing.T) {
 	})
 }
 
-func testDB(t *testing.T, opts *Options) DB {
+func TestDBOpenExisting(t *testing.T) {
 	dir := t.TempDir()
+	db := testDB(t, dir, &Options{
+		MaxLogCount: 8,
+	})
+
+	// Generate a bunch of random values, appending each to the DB.
+	// We call Cut after every Append, because we want to create
+	// a lot of Log files. We also need to trigger at least a few
+	// compactions, so we should append more values than MaxLogCount.
+	wantType := randomType()
+	wantValues := RandomBytesN(16, 1<<10, 10<<10)
+	for _, value := range wantValues {
+		err := db.Append(wantType, value)
+		AssertNoError(t, err).Require()
+		err = db.Cut()
+		AssertNoError(t, err).Require()
+	}
+
+	err := db.Close()
+	AssertNoError(t, err).Require()
+
+	// Open a new DB in the same directory.
+	db = testDB(t, dir, nil)
+
+	// Read all log files.
+	db.ReadAll()
+
+	got, err := db.Last(wantType)
+	AssertNoError(t, err).Require()
+	AssertSlicesEqual(t, got, wantValues[len(wantValues)-1])
+}
+
+func testDB(t *testing.T, dir string, opts *Options) DB {
 	t.Cleanup(func() {
 		os.RemoveAll(dir) // nolint: errcheck
 	})
