@@ -511,7 +511,7 @@ func (l *logFile) Lock() error {
 		return err
 	}
 
-	if err := os.Truncate(l.File.Name(), l.log.cursor); err != nil {
+	if err := os.Truncate(l.File.Name(), l.cursor); err != nil {
 		return err
 	}
 
