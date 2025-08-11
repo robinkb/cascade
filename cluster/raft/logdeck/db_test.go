@@ -273,9 +273,6 @@ func TestDBOpenExisting(t *testing.T) {
 	// Open a new DB in the same directory.
 	db = testDB(t, dir, nil)
 
-	// Read all log files.
-	db.ReadAll()
-
 	got, err := db.Last(wantType)
 	AssertNoError(t, err).Require()
 	AssertSlicesEqual(t, got, wantValues[len(wantValues)-1])

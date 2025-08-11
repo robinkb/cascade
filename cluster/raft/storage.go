@@ -3,7 +3,6 @@ package raft
 import (
 	"bytes"
 	"fmt"
-	"log"
 
 	"github.com/robinkb/cascade-registry/cluster"
 	"github.com/robinkb/cascade-registry/cluster/raft/logdeck"
@@ -24,10 +23,7 @@ func NewDiskStorage(deck logdeck.DB, snap cluster.Snapshotter) (*DiskStorage, er
 		snap: snap,
 	}
 
-	s.deck.ReadAll()
-
 	if s.deck.Count(TypeEntry) > 0 {
-		log.Println("count", s.deck.Count(TypeEntry))
 		value, err := s.deck.First(TypeEntry)
 		if err != nil {
 			return nil, fmt.Errorf("failed to read first entry: %w", err)

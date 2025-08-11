@@ -53,7 +53,6 @@ type (
 		// CompactHook registers CompactHook f, which is run whenever DB compacts a Log.
 		// To clear the CompactHook, call CompactHook with a nil argument.
 		CompactHook(f CompactHookFunc)
-		ReadAll()
 		// Sync calls syscall.Fdatasync on the active Log, ensuring that buffered
 		// writes to it are flushed to disk. DB only syncs automatically when a Log
 		// is cut and becomes read-noly. Any more syncs are the application's responsibility.
@@ -166,6 +165,17 @@ func Open(dir string, opts *Options) (DB, error) {
 		log, err := openLogFile(name)
 		if err != nil {
 			return nil, err
+		}
+
+		// Read the entire log to rebuild our in-memory inventory of records.
+		for record := range log.All() {
+			offset, size := log.Pointer()
+
+			db.inventory.Add(record.Type, pointer{
+				Log:    log.ID,
+				Offset: offset,
+				Size:   size,
+			})
 		}
 
 		db.logs = append(db.logs, log)
@@ -311,20 +321,6 @@ func (d *db) valueAt(p pointer) ([]byte, error) {
 	return value, err
 }
 
-func (d *db) ReadAll() {
-	for _, log := range d.logs {
-		for record := range log.All() {
-			offset, size := log.Pointer()
-
-			d.inventory.Add(record.Type, pointer{
-				Log:    log.ID,
-				Offset: offset,
-				Size:   size,
-			})
-		}
-	}
-}
-
 func (d *db) Cut() error {
 	_, err := d.cut()
 	return err
@@ -431,8 +427,6 @@ func (d *db) pointer() pointer {
 	}
 }
 
-var logNameRe = regexp.MustCompile(`(\d{20}).log`)
-
 func createLogFile(dir string, id LogID, size int64) (*logFile, error) {
 	filename := filepath.Join(dir, fmt.Sprintf("%020d.log", id))
 
@@ -511,6 +505,10 @@ func (l *logFile) Close() error {
 	return l.Mmap.Close()
 }
 
+var logNameRe = regexp.MustCompile(`(\d{20}).log`)
+
+// discoverLogFiles searches for files with names matching logNameRe in directory dir,
+// returning a sorted list of filenames.
 func discoverLogFiles(dir string) ([]string, error) {
 	entries, err := os.ReadDir(dir)
 	if err != nil {
