@@ -352,30 +352,12 @@ func (d *db) activeLog() *logFile {
 }
 
 func (d *db) newLog() (*logFile, error) {
-	filename := filepath.Join(d.dir, fmt.Sprintf("%020d.log", d.sequence))
-
-	w, err := os.OpenFile(filename, os.O_CREATE|os.O_WRONLY, 0644)
-	if err != nil {
-		return nil, err
-	}
-	err = syscall.Fallocate(int(w.Fd()), 0, 0, d.maxLogSize)
+	log, err := createLogFile(d.dir, LogID(d.sequence), d.maxLogSize)
 	if err != nil {
 		return nil, err
 	}
 
-	r, err := mmap.Open(filename)
-	if err != nil {
-		return nil, err
-	}
-
-	log := &logFile{
-		log:  newLog(r, w),
-		ID:   LogID(d.sequence),
-		File: w,
-		Mmap: r,
-	}
 	d.logs = append(d.logs, log)
-
 	d.sequence++
 
 	return log, nil
@@ -451,6 +433,31 @@ func (d *db) pointer() pointer {
 
 var logNameRe = regexp.MustCompile(`(\d{20}).log`)
 
+func createLogFile(dir string, id LogID, size int64) (*logFile, error) {
+	filename := filepath.Join(dir, fmt.Sprintf("%020d.log", id))
+
+	w, err := os.OpenFile(filename, os.O_CREATE|os.O_WRONLY, 0644)
+	if err != nil {
+		return nil, err
+	}
+	err = syscall.Fallocate(int(w.Fd()), 0, 0, size)
+	if err != nil {
+		return nil, err
+	}
+
+	r, err := mmap.Open(filename)
+	if err != nil {
+		return nil, err
+	}
+
+	return &logFile{
+		ID:   id,
+		File: w,
+		Mmap: r,
+		log:  newLog(r, w),
+	}, nil
+}
+
 func openLogFile(filename string) (*logFile, error) {
 	basename := filepath.Base(filename)
 	id, err := strconv.ParseUint(basename[:len(basename)-4], 10, 64)
@@ -471,8 +478,8 @@ func openLogFile(filename string) (*logFile, error) {
 	return &logFile{
 		ID:   LogID(id),
 		File: w,
-		// Mmap: r,
-		log: newLog(r, w),
+		Mmap: r,
+		log:  newLog(r, w),
 	}, nil
 }
 
