@@ -13,11 +13,14 @@ const (
 
 func Example() {
 	// Open the DB.
-	dir := os.TempDir()
+	dir, _ := os.MkdirTemp(os.TempDir(), "db")
+	defer os.RemoveAll(dir) // nolint: errcheck
+
 	db, err := Open(dir, nil)
 	if err != nil {
 		panic(err)
 	}
+	defer db.Close() // nolint: errcheck
 
 	// Write some values.
 	db.Append(TypeSetup, []byte("Why did the chicken cross the road?")) // nolint: errcheck

@@ -79,8 +79,8 @@ func (inv *inventory) Add(t Type, p pointer) {
 }
 
 // Remove purges Records from the Inventory based on the given Counters.
-// It is called when a Log is compacted from LogDeck, with the Counters
-// kept by the Log being compacted. The oldest Logs in the Deck are always
+// It is called when a Log is compacted from DB, with the Counters
+// kept by the Log being compacted. The oldest Logs in the DB are always
 // compacted first, so we can assume that the Records belonging to that Log
 // are at the very beginning of the Inventory.
 //

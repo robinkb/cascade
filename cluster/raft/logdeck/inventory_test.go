@@ -145,7 +145,7 @@ func TestInventory(t *testing.T) {
 			c.add(rtype)
 		}
 
-		// Now "remove" the Log from the Deck.
+		// Now "remove" the Log from the DB.
 		inv.Remove(c)
 
 		// Make sure that the last five pointers are still there.
