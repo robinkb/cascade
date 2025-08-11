@@ -162,27 +162,13 @@ func Open(dir string, opts *Options) (DB, error) {
 	}
 
 	for _, name := range logFiles {
-		id, err := strconv.ParseUint(name[:len(name)-4], 10, 64)
-		if err != nil {
-			return nil, err
-		}
-
 		name := filepath.Join(db.dir, name)
-		w, err := os.OpenFile(name, os.O_WRONLY, 0644)
+		log, err := openLogFile(name)
 		if err != nil {
 			return nil, err
 		}
 
-		r, err := mmap.Open(name)
-		if err != nil {
-			return nil, err
-		}
-
-		db.logs = append(db.logs, &logFile{
-			ID:   LogID(id),
-			File: w,
-			log:  newLog(r, w),
-		})
+		db.logs = append(db.logs, log)
 		db.sequence++
 	}
 
@@ -464,6 +450,31 @@ func (d *db) pointer() pointer {
 }
 
 var logNameRe = regexp.MustCompile(`(\d{20}).log`)
+
+func openLogFile(filename string) (*logFile, error) {
+	basename := filepath.Base(filename)
+	id, err := strconv.ParseUint(basename[:len(basename)-4], 10, 64)
+	if err != nil {
+		return nil, err
+	}
+
+	w, err := os.OpenFile(filename, os.O_WRONLY, 0644)
+	if err != nil {
+		return nil, err
+	}
+
+	r, err := mmap.Open(filename)
+	if err != nil {
+		return nil, err
+	}
+
+	return &logFile{
+		ID:   LogID(id),
+		File: w,
+		// Mmap: r,
+		log: newLog(r, w),
+	}, nil
+}
 
 // logFile represents a Log that is backed by a file.
 // It wraps the basic Log and adds an ID for tracking unique Logs,
