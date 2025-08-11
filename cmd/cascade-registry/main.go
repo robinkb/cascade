@@ -63,6 +63,11 @@ func main() {
 		metadata = cluster.NewMetadataStore(node, metadata)
 		blobs = cluster.NewBlobStore(node, blobs)
 		node.Start()
+		defer func() {
+			if err := node.Stop(); err != nil {
+				log.Println("error while stopping Raft node:", err)
+			}
+		}()
 	}
 
 	service := cascade.NewRegistryService(metadata, blobs)

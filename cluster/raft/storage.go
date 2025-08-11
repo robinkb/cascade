@@ -3,6 +3,7 @@ package raft
 import (
 	"bytes"
 	"fmt"
+	"log"
 
 	"github.com/robinkb/cascade-registry/cluster"
 	"github.com/robinkb/cascade-registry/cluster/raft/logdeck"
@@ -26,15 +27,16 @@ func NewDiskStorage(deck logdeck.DB, snap cluster.Snapshotter) (*DiskStorage, er
 	s.deck.ReadAll()
 
 	if s.deck.Count(TypeEntry) > 0 {
+		log.Println("count", s.deck.Count(TypeEntry))
 		value, err := s.deck.First(TypeEntry)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("failed to read first entry: %w", err)
 		}
 
 		var entry raftpb.Entry
 		err = entry.Unmarshal(value)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("failed to unmarshal first entry: %w", err)
 		}
 
 		s.firstEntry = raftpb.Entry{
@@ -84,7 +86,6 @@ func NewDiskStorage(deck logdeck.DB, snap cluster.Snapshotter) (*DiskStorage, er
 	// 	}
 	// }()
 
-	// TODO: cutHook is broken.
 	s.deck.CutHook(s.cutHook())
 	s.deck.CompactHook(s.compactionHook())
 

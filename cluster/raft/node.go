@@ -17,7 +17,7 @@ type (
 	Node interface { // Represents everything that a Raft node has to do for Raft to work
 		// Lifecycle
 		Start()
-		Stop()
+		Stop() error
 		Tick()
 		ClusterStatus() Status
 
@@ -46,6 +46,11 @@ func NewNode(id uint64, addr netip.AddrPort, peers []Peer, workDir string, snap 
 	}
 
 	conf := raft.Config{
+		// TODO: This may need to be set when restarting a node.
+		// But I'm not sure of how to persist it. It can only be saved _after_
+		// applying entries to the state machine. And etcd doesn't seem to set this either.
+		Applied: 0,
+
 		ID:                id,
 		ElectionTick:      10,
 		HeartbeatTick:     1,
@@ -102,7 +107,9 @@ func (n *node) Start() {
 	go n.mesh.Start()
 }
 
-func (n *node) Stop() {}
+func (n *node) Stop() error {
+	return n.storage.deck.Close()
+}
 
 func (n *node) Tick() {
 	n.manualTick <- time.Now()
