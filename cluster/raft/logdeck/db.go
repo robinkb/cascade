@@ -160,7 +160,7 @@ func Open(dir string, opts *Options) (DB, error) {
 		return nil, err
 	}
 
-	for _, name := range logFiles {
+	for i, name := range logFiles {
 		name := filepath.Join(db.dir, name)
 		log, err := openLogFile(name)
 		if err != nil {
@@ -176,6 +176,13 @@ func Open(dir string, opts *Options) (DB, error) {
 				Offset: offset,
 				Size:   size,
 			})
+		}
+
+		// Lock all but the last log file.
+		if i != len(logFiles)-1 {
+			if err := log.Lock(); err != nil {
+				return nil, err
+			}
 		}
 
 		db.logs = append(db.logs, log)
@@ -339,7 +346,15 @@ func (d *db) CompactHook(h CompactHookFunc) {
 }
 
 func (d *db) Close() error {
-	// TODO: Should also close other logs.
+	for _, log := range d.logs[:len(d.logs)-1] {
+		if err := log.Close(); err != nil {
+			return err
+		}
+	}
+	if err := d.activeLog().Sync(); err != nil {
+		return err
+	}
+
 	return d.activeLog().Close()
 }
 
@@ -361,7 +376,7 @@ func (d *db) newLog() (*logFile, error) {
 
 func (d *db) cut() (*logFile, error) {
 	oldLog := d.activeLog()
-	err := oldLog.Sync()
+	err := oldLog.Lock()
 	if err != nil {
 		return nil, err
 	}
@@ -491,17 +506,24 @@ func (l *logFile) Sync() error {
 	return syscall.Fdatasync(int(l.File.Fd()))
 }
 
+func (l *logFile) Lock() error {
+	if err := l.Sync(); err != nil {
+		return err
+	}
+
+	if err := os.Truncate(l.File.Name(), l.log.cursor); err != nil {
+		return err
+	}
+
+	return l.File.Close()
+}
+
 func (l *logFile) Close() error {
-	err := l.Sync()
-	if err != nil {
-		return err
+	if err := l.File.Close(); err != nil {
+		if !errors.Is(err, os.ErrClosed) {
+			return err
+		}
 	}
-
-	err = l.File.Close()
-	if err != nil {
-		return err
-	}
-
 	return l.Mmap.Close()
 }
 
