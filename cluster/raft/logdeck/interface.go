@@ -43,7 +43,7 @@ type (
 		CompactHook(f CompactHookFunc)
 		// Sync calls syscall.Fdatasync on the active Log, ensuring that buffered
 		// writes to it are flushed to disk. DB only syncs automatically when a Log
-		// is cut and becomes read-noly. Any more syncs are the application's responsibility.
+		// is cut and becomes read-only. Any more syncs are the application's responsibility.
 		Sync() error
 		// Close closes the DB, flushing any pending writes to disk.
 		Close() error
