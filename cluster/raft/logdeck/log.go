@@ -7,7 +7,7 @@ import (
 	"iter"
 )
 
-func newLog(r io.ReaderAt, w io.Writer) *log {
+func newLog(r io.ReaderAt, w io.WriteSeeker) *log {
 	return &log{
 		enc:      newEncoder(w),
 		dec:      newDecoder(r),
@@ -45,6 +45,16 @@ func (l *log) ValueAt(p []byte, offset int64) error {
 
 func (l *log) All() iter.Seq[*record] {
 	return func(yield func(*record) bool) {
+		defer func() {
+			// Move the encoder's internal cursor to the end of the log
+			// after reading all records within it. Ensures that new appends
+			// are appended at the end of the log, and existing records
+			// are not overwritten.
+			if _, err := l.enc.Seek(l.cursor, io.SeekStart); err != nil {
+				panic("failed to seek encoder")
+			}
+		}()
+
 		r := new(record)
 		for {
 			n, err := l.dec.RecordAt(r, l.cursor)

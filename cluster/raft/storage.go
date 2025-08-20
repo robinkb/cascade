@@ -213,7 +213,7 @@ func (s *DiskStorage) Term(i uint64) (uint64, error) {
 	var entry raftpb.Entry
 	err = entry.Unmarshal(value)
 	if err != nil {
-		return 0, err
+		return 0, fmt.Errorf("failed to unmarshal entry [i: %d] [fi: %d] [li: %d]: %w ", i, fi, li, err)
 	}
 
 	return entry.Term, nil

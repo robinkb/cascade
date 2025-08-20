@@ -1,23 +1,22 @@
 package logdeck
 
 import (
-	"bytes"
 	"fmt"
 	"math/rand/v2"
+	"os"
 	"testing"
 
 	. "github.com/robinkb/cascade-registry/testing"
 )
 
 func TestEncodeDecode(t *testing.T) {
+	r, w := testReaderWriter(t)
 	got := new(record)
 	want := randomRecord(128)
 
-	w := new(bytes.Buffer)
 	written, err := newEncoder(w).Encode(want)
 	AssertNoError(t, err)
 
-	r := bytes.NewReader(w.Bytes())
 	read, err := newDecoder(r).RecordAt(got, 0)
 	AssertNoError(t, err).Require()
 
@@ -27,7 +26,8 @@ func TestEncodeDecode(t *testing.T) {
 }
 
 func TestDecodeAllRecords(t *testing.T) {
-	w := new(bytes.Buffer)
+	r, w := testReaderWriter(t)
+
 	enc := newEncoder(w)
 	want := make([]*record, 10)
 
@@ -37,7 +37,6 @@ func TestDecodeAllRecords(t *testing.T) {
 		AssertNoError(t, err).Require()
 	}
 
-	r := bytes.NewReader(w.Bytes())
 	dec := newDecoder(r)
 	got := make([]*record, len(want))
 
@@ -63,14 +62,13 @@ func TestDecodeAllRecords(t *testing.T) {
 }
 
 func TestDecodeValue(t *testing.T) {
+	r, w := testReaderWriter(t)
 	want := randomRecord(rand.Int64N(128) + 128)
+	got := make([]byte, len(want.Value))
 
-	w := new(bytes.Buffer)
 	_, err := newEncoder(w).Encode(want)
 	AssertNoError(t, err)
 
-	got := make([]byte, len(want.Value))
-	r := bytes.NewReader(w.Bytes())
 	_, err = newDecoder(r).ValueAt(got, RecordHeaderLength)
 	AssertNoError(t, err)
 	AssertSlicesEqual(t, got, want.Value)
@@ -106,10 +104,8 @@ func BenchmarkDecode(b *testing.B) {
 	}
 
 	for _, tt := range tc {
-		w := new(bytes.Buffer)
+		r, w := testReaderWriter(b)
 		newEncoder(w).Encode(tt.record) // nolint: errcheck
-
-		r := bytes.NewReader(w.Bytes())
 		dec := newDecoder(r)
 
 		b.Run(fmt.Sprintf("RecordSize: %d, RecordAt", tt.record.size()), func(b *testing.B) {
@@ -133,39 +129,40 @@ func BenchmarkDecode(b *testing.B) {
 
 func TestEncodeDecodeErrorDetection(t *testing.T) {
 	t.Run("truncated record leads to CRC mismatch", func(t *testing.T) {
+		r, w := testReaderWriter(t)
 		got := new(record)
-		w := new(bytes.Buffer)
 
 		_, err := newEncoder(w).Encode(randomRecord(128))
 		AssertNoError(t, err)
 
-		w.Truncate(100)
+		w.(*os.File).Truncate(100)
 
-		r := bytes.NewReader(w.Bytes())
 		_, err = newDecoder(r).RecordAt(got, 0)
 		AssertErrorIs(t, err, ErrShortRead)
 	})
 
 	t.Run("corrupt record leads to CRC mismatch", func(t *testing.T) {
+		r, w := testReaderWriter(t)
+		want := randomRecord(128)
 		got := new(record)
-		w := new(bytes.Buffer)
 
-		_, err := newEncoder(w).Encode(randomRecord(128))
+		_, err := newEncoder(w).Encode(want)
 		AssertNoError(t, err).Require()
 
-		b := w.Bytes()
-		b[len(b)-10] = byte(255)
-		w.Reset()
-		w.Write(b)
+		// Corrupt the record by writing to the middle of it.
+		_, err = w.(*os.File).WriteAt(
+			[]byte{byte(255)},
+			int64(len(want.Value)-10),
+		)
+		AssertNoError(t, err).Require()
 
-		r := bytes.NewReader(w.Bytes())
 		_, err = newDecoder(r).RecordAt(got, 0)
 		AssertErrorIs(t, err, ErrChecksumMismatch)
 	})
 }
 
 func TestEncodeDecodeDoesNotAllocate(t *testing.T) {
-	r, w := tempLog(t)
+	r, w := testReaderWriter(t)
 	encoder := newEncoder(w)
 	decoder := newDecoder(r)
 
