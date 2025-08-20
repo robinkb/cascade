@@ -249,12 +249,6 @@ func TestDBCompact(t *testing.T) {
 }
 
 func TestDBOpenExisting(t *testing.T) {
-	// Fails atm because internal cursor of a Log's encoder
-	// does not get set when opening a file that already has content.
-	// Could solve by reworking Encoder to have EncodeAt method instead,
-	// but that's kinda awkward.
-	// Should probably seek the file instead.
-	// This test is probably useful to keep. Maybe. Let's reproduce on Log.
 	t.Run("re-open db and write data", func(t *testing.T) {
 		dir := t.TempDir()
 		t.Cleanup(func() {
