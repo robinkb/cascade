@@ -17,7 +17,7 @@ import (
 )
 
 type Result struct {
-	T       *testing.T
+	T       testing.TB
 	Success bool
 }
 
@@ -27,7 +27,7 @@ func (r *Result) Require() {
 	}
 }
 
-func AssertErrorIs(t *testing.T, got, want error) *Result {
+func AssertErrorIs(t testing.TB, got, want error) *Result {
 	t.Helper()
 
 	if !errors.Is(got, want) {
@@ -37,7 +37,7 @@ func AssertErrorIs(t *testing.T, got, want error) *Result {
 	return &Result{t, true}
 }
 
-func AssertPanics(t *testing.T, want error) {
+func AssertPanics(t testing.TB, want error) {
 	got := recover()
 	if got == nil {
 		t.Error("expected a panic")
@@ -46,7 +46,7 @@ func AssertPanics(t *testing.T, want error) {
 	AssertErrorIs(t, got.(error), want)
 }
 
-func AssertNoError(t *testing.T, got error) *Result {
+func AssertNoError(t testing.TB, got error) *Result {
 	t.Helper()
 
 	if got != nil {
@@ -56,7 +56,7 @@ func AssertNoError(t *testing.T, got error) *Result {
 	return &Result{t, true}
 }
 
-func AssertResponseCode(t *testing.T, got *http.Response, want int) *Result {
+func AssertResponseCode(t testing.TB, got *http.Response, want int) *Result {
 	t.Helper()
 
 	if got.StatusCode != want {
@@ -69,7 +69,7 @@ func AssertResponseCode(t *testing.T, got *http.Response, want int) *Result {
 	return &Result{t, true}
 }
 
-func AssertResponseHeader(t *testing.T, got *http.Response, header string, want ...string) *Result {
+func AssertResponseHeader(t testing.TB, got *http.Response, header string, want ...string) *Result {
 	t.Helper()
 
 	// Normalize header name, because they are supposed to be case-insensitive.
@@ -89,7 +89,7 @@ func AssertResponseHeader(t *testing.T, got *http.Response, header string, want 
 	return &Result{t, true}
 }
 
-func AssertResponseHeaderSet(t *testing.T, got *http.Response, header string) *Result {
+func AssertResponseHeaderSet(t testing.TB, got *http.Response, header string) *Result {
 	t.Helper()
 
 	header = textproto.CanonicalMIMEHeaderKey(header)
@@ -102,7 +102,7 @@ func AssertResponseHeaderSet(t *testing.T, got *http.Response, header string) *R
 	return &Result{t, true}
 }
 
-func AssertResponseHeaderUnset(t *testing.T, got *http.Response, header string) *Result {
+func AssertResponseHeaderUnset(t testing.TB, got *http.Response, header string) *Result {
 	t.Helper()
 
 	header = textproto.CanonicalMIMEHeaderKey(header)
@@ -115,7 +115,7 @@ func AssertResponseHeaderUnset(t *testing.T, got *http.Response, header string) 
 	return &Result{t, true}
 }
 
-func AssertResponseBodyEquals(t *testing.T, got *http.Response, want []byte) *Result {
+func AssertResponseBodyEquals(t testing.TB, got *http.Response, want []byte) *Result {
 	t.Helper()
 
 	data, err := io.ReadAll(got.Body)
@@ -131,7 +131,7 @@ func AssertResponseBodyEquals(t *testing.T, got *http.Response, want []byte) *Re
 	return &Result{t, true}
 }
 
-func AssertResponseBodyUnmarshals[T any](t *testing.T, got *http.Response, obj T) *Result {
+func AssertResponseBodyUnmarshals[T any](t testing.TB, got *http.Response, obj T) *Result {
 	t.Helper()
 
 	data, err := io.ReadAll(got.Body)
@@ -148,7 +148,7 @@ func AssertResponseBodyUnmarshals[T any](t *testing.T, got *http.Response, obj T
 	return &Result{t, true}
 }
 
-func AssertIndex(t *testing.T, got, want *v1.Index) *Result {
+func AssertIndex(t testing.TB, got, want *v1.Index) *Result {
 	t.Helper()
 
 	if len(got.Manifests) != len(want.Manifests) {
@@ -171,7 +171,7 @@ func AssertIndex(t *testing.T, got, want *v1.Index) *Result {
 	return &Result{t, true}
 }
 
-func AssertEqual[T comparable](t *testing.T, got, want T) *Result {
+func AssertEqual[T comparable](t testing.TB, got, want T) *Result {
 	t.Helper()
 
 	if got != want {
@@ -182,7 +182,7 @@ func AssertEqual[T comparable](t *testing.T, got, want T) *Result {
 	return &Result{t, true}
 }
 
-func AssertSlicesEqual[S ~[]E, E comparable](t *testing.T, got S, want S) *Result {
+func AssertSlicesEqual[S ~[]E, E comparable](t testing.TB, got S, want S) *Result {
 	t.Helper()
 
 	if len(got) != len(want) {
@@ -191,13 +191,16 @@ func AssertSlicesEqual[S ~[]E, E comparable](t *testing.T, got S, want S) *Resul
 	}
 
 	if !slices.Equal(got, want) {
-		t.Errorf("slices are not equal;\ngot\n%v\nwant\n%v", got, want)
+		t.Errorf("slices are not equal")
+		if len(want) <= 32 && len(got) <= 32 {
+			t.Errorf("got\n%v\nwant\n%v", got, want)
+		}
 		return &Result{t, false}
 	}
 	return &Result{t, true}
 }
 
-func AssertMapsEqual[M1, M2 ~map[K]V, K, V comparable](t *testing.T, got M1, want M2) *Result {
+func AssertMapsEqual[M1, M2 ~map[K]V, K, V comparable](t testing.TB, got M1, want M2) *Result {
 	t.Helper()
 
 	if !maps.Equal(got, want) {
@@ -208,7 +211,7 @@ func AssertMapsEqual[M1, M2 ~map[K]V, K, V comparable](t *testing.T, got M1, wan
 	return &Result{t, true}
 }
 
-func AssertDeepEqual(t *testing.T, got, want any) *Result {
+func AssertDeepEqual(t testing.TB, got, want any) *Result {
 	t.Helper()
 
 	if !reflect.DeepEqual(got, want) {

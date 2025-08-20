@@ -29,6 +29,8 @@ func main() {
 		}
 	}()
 
+	cursor := 0
+
 	for t, val := range logdeck.DumpLog(f) {
 		switch t {
 		case raft.TypeEntry:
@@ -37,7 +39,7 @@ func main() {
 			if err != nil {
 				log.Fatalln(err)
 			}
-			fmt.Printf("%-7d [entry   ] index %d, term %d, type %s\n", len(val), entry.Index, entry.Term, entry.Type.String())
+			fmt.Printf("%8d:%-7d [entry   ] index %d, term %d, type %s\n", cursor, len(val), entry.Index, entry.Term, entry.Type.String())
 
 		case raft.TypeHardState:
 			var hs raftpb.HardState
@@ -45,7 +47,7 @@ func main() {
 			if err != nil {
 				log.Fatalln(err)
 			}
-			fmt.Printf("%-7d [state   ] commit %d, term %d, vote %d\n", len(val), hs.Commit, hs.Term, hs.Vote)
+			fmt.Printf("%8d:%-7d [state   ] commit %d, term %d, vote %d\n", cursor, len(val), hs.Commit, hs.Term, hs.Vote)
 
 		case raft.TypeSnapshot:
 			var snap raftpb.Snapshot
@@ -53,7 +55,9 @@ func main() {
 			if err != nil {
 				log.Fatalln(err)
 			}
-			fmt.Printf("%-7d [snapshot] index %d, term %d, confState %s\n", len(val), snap.Metadata.Index, snap.Metadata.Term, snap.Metadata.ConfState.String())
+			fmt.Printf("%8d:%-7d [snapshot] index %d, term %d, confState %s\n", cursor, len(val), snap.Metadata.Index, snap.Metadata.Term, snap.Metadata.ConfState.String())
 		}
+
+		cursor += logdeck.RecordHeaderLength + len(val)
 	}
 }

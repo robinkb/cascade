@@ -36,7 +36,10 @@ type (
 // Also, I should probably decompose this more and allow passing dependencies
 // like a Mesh and DiskStorage directly.
 func NewNode(id uint64, addr netip.AddrPort, peers []Peer, workDir string, snap cluster.SnapshotRestorer) Node {
-	db, err := logdeck.Open(workDir, nil)
+	db, err := logdeck.Open(workDir, &logdeck.Options{
+		MaxLogSize:  64 << 20,
+		MaxLogCount: 3,
+	})
 	if err != nil {
 		panic(err)
 	}

@@ -249,33 +249,86 @@ func TestDBCompact(t *testing.T) {
 }
 
 func TestDBOpenExisting(t *testing.T) {
-	dir := t.TempDir()
-	db := testDB(t, dir, &Options{
-		MaxLogCount: 8,
+	// Fails atm because internal cursor of a Log's encoder
+	// does not get set when opening a file that already has content.
+	// Could solve by reworking Encoder to have EncodeAt method instead,
+	// but that's kinda awkward.
+	// Should probably seek the file instead.
+	// This test is probably useful to keep. Maybe. Let's reproduce on Log.
+	t.Run("re-open db and write data", func(t *testing.T) {
+		dir := t.TempDir()
+		t.Cleanup(func() {
+			os.RemoveAll(dir) // nolint: errcheck
+		})
+
+		db := testDB(t, dir, nil)
+
+		// Generate some random values to write.
+		// Half will be written now, and half after recovery.
+		wantType := randomType()
+		wantValues := RandomBytesN(8, 1<<10, 10<<10)
+
+		// Write the first half.
+		for i := 0; i < len(wantValues)/2; i++ {
+			err := db.Append(wantType, wantValues[i])
+			AssertNoError(t, err).Require()
+		}
+
+		err := db.Close()
+		AssertNoError(t, err).Require()
+
+		// Re-open DB and rebuild state from directory.
+		db = testDB(t, dir, nil)
+
+		// Write the remaining values
+		for i := len(wantValues) / 2; i < len(wantValues); i++ {
+			err := db.Append(wantType, wantValues[i])
+			AssertNoError(t, err).Require()
+		}
+
+		// Make sure that all are available.
+		for i, wantValue := range wantValues {
+			got, err := db.Get(wantType, i)
+			AssertNoError(t, err)
+			AssertSlicesEqual(t, got, wantValue)
+		}
 	})
 
-	// Generate a bunch of random values, appending each to the DB.
-	// We call Cut after every Append, because we want to create
-	// a lot of Log files. We also need to trigger at least a few
-	// compactions, so we should append more values than MaxLogCount.
-	wantType := randomType()
-	wantValues := RandomBytesN(16, 1<<10, 10<<10)
-	for _, value := range wantValues {
-		err := db.Append(wantType, value)
+	t.Run("recover after cuts and compactions", func(t *testing.T) {
+		dir := t.TempDir()
+		db := testDB(t, dir, &Options{
+			MaxLogCount: 8,
+		})
+
+		// Generate a bunch of random values, appending each to the DB.
+		// We call Cut after every Append, because we want to create
+		// a lot of Log files. We also need to trigger at least a few
+		// compactions, so we should append more values than MaxLogCount.
+		wantType := randomType()
+		wantValues := RandomBytesN(16, 1<<10, 10<<10)
+		for _, value := range wantValues {
+			err := db.Append(wantType, value)
+			AssertNoError(t, err).Require()
+			err = db.Cut()
+			AssertNoError(t, err).Require()
+		}
+
+		// The amount of values left in DB after compaction.
+		remainingValueCount := db.Count(wantType)
+
+		err := db.Close()
 		AssertNoError(t, err).Require()
-		err = db.Cut()
-		AssertNoError(t, err).Require()
-	}
 
-	err := db.Close()
-	AssertNoError(t, err).Require()
+		// Open a new DB in the same directory.
+		db = testDB(t, dir, nil)
 
-	// Open a new DB in the same directory.
-	db = testDB(t, dir, nil)
-
-	got, err := db.Last(wantType)
-	AssertNoError(t, err).Require()
-	AssertSlicesEqual(t, got, wantValues[len(wantValues)-1])
+		// Check all remaining values
+		for i := range remainingValueCount {
+			got, err := db.Get(wantType, i)
+			AssertNoError(t, err)
+			AssertSlicesEqual(t, got, wantValues[remainingValueCount+i])
+		}
+	})
 }
 
 func testDB(t *testing.T, dir string, opts *Options) DB {

@@ -30,7 +30,7 @@ func (r *record) size() int64 {
 }
 
 // newEncoder returns an Encoder that writes encoded Records to the io.Writer.
-func newEncoder(w io.Writer) *encoder {
+func newEncoder(w io.WriteSeeker) *encoder {
 	return &encoder{
 		dst: w,
 		buf: new(bytes.Buffer),
@@ -40,7 +40,7 @@ func newEncoder(w io.Writer) *encoder {
 // encoder writes encoded Records to the output stream.
 // It is not threadsafe.
 type encoder struct {
-	dst io.Writer
+	dst io.WriteSeeker
 	buf *bytes.Buffer
 }
 
@@ -65,6 +65,11 @@ func (e *encoder) Encode(r *record) (int64, error) {
 
 	n, err := e.dst.Write(e.buf.Bytes())
 	return int64(n), err
+}
+
+// Seek wraps the io.Seek method of the Encoder's backing io.WriteSeeker.
+func (e *encoder) Seek(offset int64, whence int) (int64, error) {
+	return e.dst.Seek(offset, whence)
 }
 
 // newDecoder returns a Decoder that reads decoded Records from the io.ReaderAt.

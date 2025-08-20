@@ -11,9 +11,9 @@ import (
 	"golang.org/x/exp/mmap"
 )
 
-func tempLog(t *testing.T) (io.ReaderAt, io.Writer) {
+func testReaderWriter(t testing.TB) (io.ReaderAt, io.WriteSeeker) {
 	filename := filepath.Join(t.TempDir(), "log.bin")
-	w, err := os.OpenFile(filename, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0644)
+	w, err := os.OpenFile(filename, os.O_CREATE|os.O_WRONLY, 0644)
 	AssertNoError(t, err).Require()
 
 	r, err := os.OpenFile(filename, os.O_RDONLY, 0644)
@@ -35,7 +35,7 @@ func tempLog(t *testing.T) (io.ReaderAt, io.Writer) {
 
 func TestLogReadAll(t *testing.T) {
 	want := randomRecordsN(10, 16, 32)
-	r, w := tempLog(t)
+	r, w := testReaderWriter(t)
 
 	l := newLog(r, w)
 
