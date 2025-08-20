@@ -135,7 +135,8 @@ func TestEncodeDecodeErrorDetection(t *testing.T) {
 		_, err := newEncoder(w).Encode(randomRecord(128))
 		AssertNoError(t, err)
 
-		w.(*os.File).Truncate(100)
+		err = w.(*os.File).Truncate(100)
+		AssertNoError(t, err).Require()
 
 		_, err = newDecoder(r).RecordAt(got, 0)
 		AssertErrorIs(t, err, ErrShortRead)
