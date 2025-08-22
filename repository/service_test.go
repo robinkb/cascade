@@ -1,7 +1,6 @@
 package repository
 
 import (
-	"os"
 	"testing"
 
 	"github.com/robinkb/cascade-registry/store"
@@ -71,10 +70,6 @@ func TestWithBoltDBStore(t *testing.T) {
 			metadata := boltdb.NewMetadataStore(tmp)
 			blobs := inmemory.NewBlobStore()
 
-			t.Cleanup(func() {
-				os.RemoveAll(tmp) // nolint: errcheck
-			})
-
 			return metadata, blobs
 		},
 	})
@@ -86,10 +81,6 @@ func TestWithFilesystemStore(t *testing.T) {
 			tmp := t.TempDir()
 			metadata := inmemory.NewMetadataStore()
 			blobs := fs.NewBlobStore(tmp)
-
-			t.Cleanup(func() {
-				os.RemoveAll(tmp) // nolint: errcheck
-			})
 
 			return metadata, blobs
 		},

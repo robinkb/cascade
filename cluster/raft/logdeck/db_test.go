@@ -3,7 +3,6 @@ package logdeck
 import (
 	"errors"
 	"math/rand/v2"
-	"os"
 	"testing"
 
 	. "github.com/robinkb/cascade-registry/testing"
@@ -251,10 +250,6 @@ func TestDBCompact(t *testing.T) {
 func TestDBOpenExisting(t *testing.T) {
 	t.Run("re-open db and write data", func(t *testing.T) {
 		dir := t.TempDir()
-		t.Cleanup(func() {
-			os.RemoveAll(dir) // nolint: errcheck
-		})
-
 		db := testDB(t, dir, nil)
 
 		// Generate some random values to write.
@@ -326,10 +321,6 @@ func TestDBOpenExisting(t *testing.T) {
 }
 
 func testDB(t *testing.T, dir string, opts *Options) DB {
-	t.Cleanup(func() {
-		os.RemoveAll(dir) // nolint: errcheck
-	})
-
 	deck, err := Open(dir, opts)
 	AssertNoError(t, err).Require()
 

@@ -3,7 +3,6 @@ package raft
 import (
 	"math"
 	"math/rand/v2"
-	"os"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -381,10 +380,6 @@ func (i index) terms(terms ...uint64) []raftpb.Entry {
 
 func testDB(t *testing.T, opts *logdeck.Options) logdeck.DB {
 	dir := t.TempDir()
-	t.Cleanup(func() {
-		os.RemoveAll(dir) // nolint: errcheck
-	})
-
 	db, err := logdeck.Open(dir, opts)
 	AssertNoError(t, err).Require()
 
