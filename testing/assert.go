@@ -21,6 +21,7 @@ type Result struct {
 	Success bool
 }
 
+// Require checks the assertion result and calls `t.FailNow()` if it is not successful.
 func (r *Result) Require() {
 	if !r.Success {
 		r.T.FailNow()
