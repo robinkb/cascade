@@ -183,10 +183,22 @@ func TestBootstrapCluster(t *testing.T) {
 			},
 		},
 	})
+
 	// But if it's removed everywhere through ApplyConfChange, everything works as expected.
 	// So I could move adding and removing nodes out of Raft and completely into the controller,
 	// relying completely on service discovery. Raft will figure out a leader upon membership changes.
-	// That eliminates any need to have synchornization between service discovery and Raft, I think.
+	// That eliminates any need for synchronization between service discovery and Raft, I think.
+	// Buuut... What if there's a delay between removal on different nodes?
+	// For example: node 1 gets removed. Node 2 applies the change immediately, but node 3 is slow for whatever reason.
+	// Some quick tests show that node 1 can still participate in a vote, but cannot be elected.
+	// It also won't be re-added to the cluster by the new leader. So it should be fine!
+	//
+	// But when should a node be removed from the cluster? If, for example, a node disappears for an hour,
+	// then it's probably safe to remove it. But surely an expected reboot should not be cause for removal.
+	// But then how _does_ one signal removal of a node? Why shouldn't an expected reboot remove a node,
+	// and rejoin the cluster when it's back online?
+	// Node IDs must not be re-used. But can the same node (with the same ID) join, be removed, and rejoin?
+	// That would also simplify things. I need to test this.
 	secondNode.raft.ApplyConfChange(raftpb.ConfChangeV2{
 		Transition: raftpb.ConfChangeTransitionAuto,
 		Changes: []raftpb.ConfChangeSingle{
@@ -196,6 +208,7 @@ func TestBootstrapCluster(t *testing.T) {
 			},
 		},
 	})
+
 	thirdNode.raft.ApplyConfChange(raftpb.ConfChangeV2{
 		Transition: raftpb.ConfChangeTransitionAuto,
 		Changes: []raftpb.ConfChangeSingle{
