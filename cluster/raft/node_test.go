@@ -72,16 +72,6 @@ func TestBootstrapCluster(t *testing.T) {
 			},
 		},
 	})
-	// Add itself as well.
-	secondNode.raft.ApplyConfChange(raftpb.ConfChangeV2{
-		Transition: raftpb.ConfChangeTransitionAuto,
-		Changes: []raftpb.ConfChangeSingle{
-			raftpb.ConfChangeSingle{
-				Type:   raftpb.ConfChangeAddNode,
-				NodeID: secondNode.raft.Status().ID,
-			},
-		},
-	})
 
 	// Now propose adding the second node to the first node.
 	err := firstNode.raft.ProposeConfChange(context.TODO(), raftpb.ConfChangeV2{
@@ -117,16 +107,6 @@ func TestBootstrapCluster(t *testing.T) {
 			},
 		},
 	})
-	// And itself
-	thirdNode.raft.ApplyConfChange(raftpb.ConfChangeV2{
-		Transition: raftpb.ConfChangeTransitionAuto,
-		Changes: []raftpb.ConfChangeSingle{
-			raftpb.ConfChangeSingle{
-				Type:   raftpb.ConfChangeAddNode,
-				NodeID: thirdNode.raft.Status().ID,
-			},
-		},
-	})
 
 	// Now propose adding the third node to the leader node.
 	err = firstNode.raft.ProposeConfChange(context.TODO(), raftpb.ConfChangeV2{
@@ -143,6 +123,7 @@ func TestBootstrapCluster(t *testing.T) {
 
 	// And this is enough! Only the leader needs to be known to the new node.
 	// The other nodes get shared over the messages.
+	// The context of each node gets saved and shared when new nodes join.
 	time.Sleep(5 * time.Second)
 }
 
