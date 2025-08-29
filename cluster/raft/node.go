@@ -185,6 +185,7 @@ func (n *node) processEntries(entries []raftpb.Entry) {
 					n.mesh.SetPeer(change.NodeID, url)
 					log.Printf("%d added node with id %d and url %s", n.raft.Status().ID, change.NodeID, url.String())
 				case raftpb.ConfChangeRemoveNode:
+					log.Printf("%d removed node with id %d", n.raft.Status().ID, change.NodeID)
 					n.mesh.DeletePeer(change.NodeID)
 				}
 			}

@@ -148,6 +148,65 @@ func TestBootstrapCluster(t *testing.T) {
 	// But that would be fine. Actually, it would simplify things a lot.
 	// I just need to figure out what happens to the cluster.
 	time.Sleep(1 * time.Second)
+
+	// Removing the leader through a proposal on a follower works.
+	// secondNode.raft.ProposeConfChange(context.Background(), raftpb.ConfChangeV2{
+	// 	Transition: raftpb.ConfChangeTransitionAuto,
+	// 	Changes: []raftpb.ConfChangeSingle{
+	// 		raftpb.ConfChangeSingle{
+	// 			Type:   raftpb.ConfChangeRemoveNode,
+	// 			NodeID: firstNode.raft.Status().ID,
+	// 		},
+	// 	},
+	// })
+
+	// This removes the leader from the second node, but the first node is still the leader.
+	// secondNode.raft.ApplyConfChange(raftpb.ConfChangeV2{
+	// 	Transition: raftpb.ConfChangeTransitionAuto,
+	// 	Changes: []raftpb.ConfChangeSingle{
+	// 		raftpb.ConfChangeSingle{
+	// 			Type:   raftpb.ConfChangeRemoveNode,
+	// 			NodeID: firstNode.raft.Status().ID,
+	// 		},
+	// 	},
+	// })
+
+	// If the leader node removes itself through ApplyConfChange, it steps down as a leader.
+	// It also loses itself in its local cluster state, but the other nodes still recognize it.
+	// It somehow also participates in leader elections.
+	firstNode.raft.ApplyConfChange(raftpb.ConfChangeV2{
+		Transition: raftpb.ConfChangeTransitionAuto,
+		Changes: []raftpb.ConfChangeSingle{
+			raftpb.ConfChangeSingle{
+				Type:   raftpb.ConfChangeRemoveNode,
+				NodeID: firstNode.raft.Status().ID,
+			},
+		},
+	})
+	// But if it's removed everywhere through ApplyConfChange, everything works as expected.
+	// So I could move adding and removing nodes out of Raft and completely into the controller,
+	// relying completely on service discovery. Raft will figure out a leader upon membership changes.
+	// That eliminates any need to have synchornization between service discovery and Raft, I think.
+	secondNode.raft.ApplyConfChange(raftpb.ConfChangeV2{
+		Transition: raftpb.ConfChangeTransitionAuto,
+		Changes: []raftpb.ConfChangeSingle{
+			raftpb.ConfChangeSingle{
+				Type:   raftpb.ConfChangeRemoveNode,
+				NodeID: firstNode.raft.Status().ID,
+			},
+		},
+	})
+	thirdNode.raft.ApplyConfChange(raftpb.ConfChangeV2{
+		Transition: raftpb.ConfChangeTransitionAuto,
+		Changes: []raftpb.ConfChangeSingle{
+			raftpb.ConfChangeSingle{
+				Type:   raftpb.ConfChangeRemoveNode,
+				NodeID: firstNode.raft.Status().ID,
+			},
+		},
+	})
+
+	time.Sleep(10 * time.Second)
 }
 
 func TestBootstrapWithTwoLeaders(t *testing.T) {
