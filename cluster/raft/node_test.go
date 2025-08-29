@@ -107,6 +107,7 @@ func TestBootstrapCluster(t *testing.T) {
 	})
 
 	// Now propose adding the third node to the leader node.
+	// It doesn't have to be the leader node. Followers can also propose conf changes.
 	err = firstNode.raft.ProposeConfChange(context.TODO(), raftpb.ConfChangeV2{
 		Transition: raftpb.ConfChangeTransitionAuto,
 		Changes: []raftpb.ConfChangeSingle{
@@ -133,7 +134,20 @@ func TestBootstrapCluster(t *testing.T) {
 	// See TestBootstrapWithTwoLeaders
 	//
 	// It doesn't. So let's just go with a locking mechanism.
-	time.Sleep(5 * time.Second)
+	// Or actually it kinda does handle it when you use CheckQuorum.
+	// But then a 2-node cluster never recovers. A 3-node might, but I didn't test it.
+	//
+	// Actually, do we need to use ProposeConfChange at all? Can't we rely on service discovery
+	// and use ApplyConfChange directly instead? That's what Raft does when you use StartNode.
+	// Next test case:
+	// 	1. Start up a 3-node cluster.
+	// 	2. Remove a node with ApplyConfChange --> Do we still have quorom? What happens in general?
+	//  3. Add a node with ApplyConfChange --> Is it propagated?
+	// Maybe when we use ApplyConfChange we'll have to rely on service discovery completely
+	// to propagate node changes, because there are no ConfChange messages to process.
+	// But that would be fine. Actually, it would simplify things a lot.
+	// I just need to figure out what happens to the cluster.
+	time.Sleep(1 * time.Second)
 }
 
 func TestBootstrapWithTwoLeaders(t *testing.T) {
@@ -204,6 +218,50 @@ func TestBootstrapWithTwoLeaders(t *testing.T) {
 	// but Raft won't do it automatically. We could have nodes forget
 	// a leader, and start campaigning again or something.
 	// But it's better not to be in this situation to begin with.
+	//
+	// Actually, if CheckQuorum is active, Raft will start another campaign.
+	// But it won't elect another leader, probably because there's only 2 nodes.
+	time.Sleep(3 * time.Second)
+
+	thirdAddr := netip.MustParseAddrPort("127.0.0.1:50003")
+	thirdNode := NewNode(3, thirdAddr, nil, t.TempDir(), &SpySnapshotter{}).(*node)
+	thirdNode.raft.ApplyConfChange(raftpb.ConfChangeV2{
+		Transition: raftpb.ConfChangeTransitionAuto,
+		Changes: []raftpb.ConfChangeSingle{
+			raftpb.ConfChangeSingle{
+				Type:   raftpb.ConfChangeAddNode,
+				NodeID: thirdNode.raft.Status().ID,
+			},
+		},
+	})
+	thirdNode.Start()
+	thirdNode.raft.Campaign(context.Background())
+
+	// Now we have three leaders.
+	time.Sleep(1 * time.Second)
+
+	// Try adding the second node to the third.
+	thirdNode.mesh.SetPeer(secondNode.raft.Status().ID, secondAddr)
+	thirdNode.mesh.SetPeer(firstNode.raft.Status().ID, firstAddr)
+	err = thirdNode.raft.ProposeConfChange(context.TODO(), raftpb.ConfChangeV2{
+		Transition: raftpb.ConfChangeTransitionAuto,
+		Changes: []raftpb.ConfChangeSingle{
+			raftpb.ConfChangeSingle{
+				Type:   raftpb.ConfChangeAddNode,
+				NodeID: secondNode.raft.Status().ID,
+			},
+		},
+		Context: []byte(secondAddr.String()),
+	})
+	AssertNoError(t, err).Require()
+
+	time.Sleep(10 * time.Second)
+
+	// It's not really clear to me here what's happening. But it feels like syncing service discovery
+	// with cluster state will be a challenge? Actually what is the point of using ProposeConfChange?
+
+	fmt.Printf("%d lead: %d\n", firstNode.raft.Status().ID, firstNode.raft.Status().Lead)
+	fmt.Printf("%d lead: %d\n", secondNode.raft.Status().ID, secondNode.raft.Status().Lead)
 }
 
 func newTestCluster(t *testing.T, n int) ([]Node, []store.Blobs, []store.Metadata) {

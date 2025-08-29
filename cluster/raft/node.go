@@ -51,13 +51,17 @@ func NewNode(id uint64, addr netip.AddrPort, peers []Peer, workDir string, snap 
 		// applying entries to the state machine. And etcd doesn't seem to set this either.
 		Applied: 0,
 
-		ID:                id,
-		ElectionTick:      10,
-		HeartbeatTick:     1,
-		Storage:           storage,
-		MaxSizePerMsg:     1 << 20,
-		MaxInflightMsgs:   256,
+		ID:              id,
+		ElectionTick:    10,
+		HeartbeatTick:   1,
+		Storage:         storage,
+		MaxSizePerMsg:   1 << 20,
+		MaxInflightMsgs: 256,
+
+		// If weird stuff happens, I should check these toggles.
 		StepDownOnRemoval: true,
+		PreVote:           true,
+		CheckQuorum:       true,
 	}
 
 	node := &node{
