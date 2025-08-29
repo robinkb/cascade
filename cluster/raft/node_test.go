@@ -2,6 +2,7 @@ package raft
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"io"
 	"math/rand/v2"
@@ -15,7 +16,135 @@ import (
 	storecluster "github.com/robinkb/cascade-registry/store/cluster"
 	"github.com/robinkb/cascade-registry/store/inmemory"
 	. "github.com/robinkb/cascade-registry/testing"
+	"go.etcd.io/raft/v3/raftpb"
 )
+
+func TestBootstrapCluster(t *testing.T) {
+	// First step: Simplify this stupid function so that peers aren't passed statically.
+	// first := NewNode(id uint64, addr netip.AddrPort, peers []Peer, workDir string, snap cluster.SnapshotRestorer)
+	// Next: Add method to bootstrap the cluster on the first node.
+	// Basically making a single-node cluster.
+	//
+	// Then: Join a node through proposal.
+	// Pass the URL in context first.
+	// Leave service discovery for later.
+
+	firstAddr := netip.MustParseAddrPort("127.0.0.1:50001")
+	firstNode := NewNode(1, firstAddr, nil, t.TempDir(), &SpySnapshotter{}).(*node)
+	// blobs := storecluster.NewBlobStore(firstNode, inmemory.NewBlobStore())
+	// metadata := storecluster.NewMetadataStore(node, inmemory.NewMetadataStore())
+
+	fmt.Println(firstNode.raft.Status().Config.Voters.IDs()) // map[]
+
+	// We have to add the node to the Raft state so that it can campaign and become the leader.
+	// This is pretty much bootstrapping the cluster.
+	firstNode.raft.ApplyConfChange(raftpb.ConfChangeV2{
+		Transition: raftpb.ConfChangeTransitionAuto,
+		Changes: []raftpb.ConfChangeSingle{
+			raftpb.ConfChangeSingle{
+				Type:   raftpb.ConfChangeAddNode,
+				NodeID: firstNode.raft.Status().ID,
+			},
+		},
+	})
+
+	fmt.Println(firstNode.raft.Status().Config.Voters.IDs()) // map[1:{}]
+
+	firstNode.Start()
+
+	// This works; managed to form a 1-node cluster.
+	firstNode.raft.Campaign(context.Background())
+
+	secondAddr := netip.MustParseAddrPort("127.0.0.1:50002")
+	secondNode := NewNode(2, secondAddr, nil, t.TempDir(), &SpySnapshotter{}).(*node)
+
+	secondNode.Start()
+
+	// Add the first node to the mesh, because it has to send messages to it.
+	secondNode.mesh.SetPeer(firstNode.raft.Status().ID, firstAddr)
+	// Add the first node to the known nodes.
+	secondNode.raft.ApplyConfChange(raftpb.ConfChangeV2{
+		Transition: raftpb.ConfChangeTransitionAuto,
+		Changes: []raftpb.ConfChangeSingle{
+			raftpb.ConfChangeSingle{
+				Type:   raftpb.ConfChangeAddNode,
+				NodeID: firstNode.raft.Status().ID,
+			},
+		},
+	})
+	// Add itself as well.
+	secondNode.raft.ApplyConfChange(raftpb.ConfChangeV2{
+		Transition: raftpb.ConfChangeTransitionAuto,
+		Changes: []raftpb.ConfChangeSingle{
+			raftpb.ConfChangeSingle{
+				Type:   raftpb.ConfChangeAddNode,
+				NodeID: secondNode.raft.Status().ID,
+			},
+		},
+	})
+
+	// Now propose adding the second node to the first node.
+	err := firstNode.raft.ProposeConfChange(context.TODO(), raftpb.ConfChangeV2{
+		Transition: raftpb.ConfChangeTransitionAuto,
+		Changes: []raftpb.ConfChangeSingle{
+			raftpb.ConfChangeSingle{
+				Type:   raftpb.ConfChangeAddNode,
+				NodeID: secondNode.raft.Status().ID,
+			},
+		},
+		Context: []byte(secondAddr.String()),
+	})
+	AssertNoError(t, err).Require()
+
+	time.Sleep(1 * time.Second)
+
+	// And about now the second node joined.
+
+	// Now let's try adding a third.
+	thirdAddr := netip.MustParseAddrPort("127.0.0.1:50003")
+	thirdNode := NewNode(3, thirdAddr, nil, t.TempDir(), &SpySnapshotter{}).(*node)
+
+	thirdNode.Start()
+
+	// Let's try adding just the leader
+	thirdNode.mesh.SetPeer(firstNode.raft.Status().ID, firstAddr)
+	thirdNode.raft.ApplyConfChange(raftpb.ConfChangeV2{
+		Transition: raftpb.ConfChangeTransitionAuto,
+		Changes: []raftpb.ConfChangeSingle{
+			raftpb.ConfChangeSingle{
+				Type:   raftpb.ConfChangeAddNode,
+				NodeID: firstNode.raft.Status().ID,
+			},
+		},
+	})
+	// And itself
+	thirdNode.raft.ApplyConfChange(raftpb.ConfChangeV2{
+		Transition: raftpb.ConfChangeTransitionAuto,
+		Changes: []raftpb.ConfChangeSingle{
+			raftpb.ConfChangeSingle{
+				Type:   raftpb.ConfChangeAddNode,
+				NodeID: thirdNode.raft.Status().ID,
+			},
+		},
+	})
+
+	// Now propose adding the third node to the leader node.
+	err = firstNode.raft.ProposeConfChange(context.TODO(), raftpb.ConfChangeV2{
+		Transition: raftpb.ConfChangeTransitionAuto,
+		Changes: []raftpb.ConfChangeSingle{
+			raftpb.ConfChangeSingle{
+				Type:   raftpb.ConfChangeAddNode,
+				NodeID: thirdNode.raft.Status().ID,
+			},
+		},
+		Context: []byte(thirdAddr.String()),
+	})
+	AssertNoError(t, err).Require()
+
+	// And this is enough! Only the leader needs to be known to the new node.
+	// The other nodes get shared over the messages.
+	time.Sleep(5 * time.Second)
+}
 
 func newTestCluster(t *testing.T, n int) ([]Node, []store.Blobs, []store.Metadata) {
 	peers := make([]Peer, n)

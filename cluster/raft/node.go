@@ -60,30 +60,17 @@ func NewNode(id uint64, addr netip.AddrPort, peers []Peer, workDir string, snap 
 		StepDownOnRemoval: true,
 	}
 
-	raftPeers := make([]raft.Peer, len(peers))
-	for i := range peers {
-		raftPeers[i] = raft.Peer{ID: peers[i].ID}
-	}
-
-	clients := make(map[uint64]*Client, len(peers))
-	for _, peer := range peers {
-		clients[peer.ID] = NewClient("http://" + peer.AddrPort.String())
-	}
-
 	node := &node{
 		id:         id,
-		raft:       raft.StartNode(&conf, raftPeers),
+		raft:       raft.RestartNode(&conf),
 		storage:    storage,
-		ticker:     time.Tick(1 * time.Second),
+		ticker:     time.Tick(100 * time.Millisecond),
 		manualTick: make(chan time.Time),
 		done:       make(chan struct{}),
 	}
 
 	node.proposer = newProposer(node.raft)
 	node.mesh = NewMesh(node, addr)
-	for _, peer := range peers {
-		node.mesh.SetPeer(peer.ID, peer.AddrPort)
-	}
 	node.restorer = snap
 
 	return node
@@ -181,10 +168,21 @@ func (n *node) processEntries(entries []raftpb.Entry) {
 			if entry.Data != nil {
 				n.commit(entry.Data)
 			}
-		case raftpb.EntryConfChange:
-			var cc raftpb.ConfChange
+		case raftpb.EntryConfChangeV2:
+			var cc raftpb.ConfChangeV2
 			if err := cc.Unmarshal(entry.Data); err != nil {
 				log.Panicf("could not read ConfChange entry: %s", err)
+			}
+
+			for _, change := range cc.Changes {
+				switch change.Type {
+				case raftpb.ConfChangeAddNode:
+					url := netip.MustParseAddrPort(string(cc.Context))
+					n.mesh.SetPeer(change.NodeID, url)
+					log.Printf("%d added node with id %d and url %s", n.raft.Status().ID, change.NodeID, url.String())
+				case raftpb.ConfChangeRemoveNode:
+					n.mesh.DeletePeer(change.NodeID)
+				}
 			}
 			cs := n.raft.ApplyConfChange(cc)
 			n.storage.SaveConfState(*cs)
