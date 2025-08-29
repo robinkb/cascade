@@ -31,8 +31,6 @@ func TestBootstrapCluster(t *testing.T) {
 
 	firstAddr := netip.MustParseAddrPort("127.0.0.1:50001")
 	firstNode := NewNode(1, firstAddr, nil, t.TempDir(), &SpySnapshotter{}).(*node)
-	// blobs := storecluster.NewBlobStore(firstNode, inmemory.NewBlobStore())
-	// metadata := storecluster.NewMetadataStore(node, inmemory.NewMetadataStore())
 
 	fmt.Println(firstNode.raft.Status().Config.Voters.IDs()) // map[]
 
@@ -124,7 +122,88 @@ func TestBootstrapCluster(t *testing.T) {
 	// And this is enough! Only the leader needs to be known to the new node.
 	// The other nodes get shared over the messages.
 	// The context of each node gets saved and shared when new nodes join.
+	//
+	// The problem is now figuring out which node is the first and needs to bootstrap the cluster.
+	// In practice, each node can just register themselves in service discovery, and just bootstrap
+	// the cluster if there are no other nodes. But this is a potential race condition. Two nodes
+	// could come online and bootstrap a cluster at the same time, leaving us with two leaders.
+	//
+	// Actually... Let's see what happens when two leaders try to join each other.
+	// Maybe Raft will handle that?
+	// See TestBootstrapWithTwoLeaders
+	//
+	// It doesn't. So let's just go with a locking mechanism.
 	time.Sleep(5 * time.Second)
+}
+
+func TestBootstrapWithTwoLeaders(t *testing.T) {
+	firstAddr := netip.MustParseAddrPort("127.0.0.1:50001")
+	firstNode := NewNode(1, firstAddr, nil, t.TempDir(), &SpySnapshotter{}).(*node)
+
+	firstNode.raft.ApplyConfChange(raftpb.ConfChangeV2{
+		Transition: raftpb.ConfChangeTransitionAuto,
+		Changes: []raftpb.ConfChangeSingle{
+			raftpb.ConfChangeSingle{
+				Type:   raftpb.ConfChangeAddNode,
+				NodeID: firstNode.raft.Status().ID,
+			},
+		},
+	})
+
+	secondAddr := netip.MustParseAddrPort("127.0.0.1:50002")
+	secondNode := NewNode(2, secondAddr, nil, t.TempDir(), &SpySnapshotter{}).(*node)
+
+	secondNode.raft.ApplyConfChange(raftpb.ConfChangeV2{
+		Transition: raftpb.ConfChangeTransitionAuto,
+		Changes: []raftpb.ConfChangeSingle{
+			raftpb.ConfChangeSingle{
+				Type:   raftpb.ConfChangeAddNode,
+				NodeID: secondNode.raft.Status().ID,
+			},
+		},
+	})
+
+	firstNode.Start()
+	secondNode.Start()
+	firstNode.raft.Campaign(context.Background())
+	secondNode.raft.Campaign(context.Background())
+
+	time.Sleep(1 * time.Second)
+	// Now we have two leaders.
+	// Let's try to join them and see what happens.
+
+	err := firstNode.raft.ProposeConfChange(context.TODO(), raftpb.ConfChangeV2{
+		Transition: raftpb.ConfChangeTransitionAuto,
+		Changes: []raftpb.ConfChangeSingle{
+			raftpb.ConfChangeSingle{
+				Type:   raftpb.ConfChangeAddNode,
+				NodeID: secondNode.raft.Status().ID,
+			},
+		},
+		Context: []byte(secondAddr.String()),
+	})
+	AssertNoError(t, err).Require()
+
+	// Second node won't recognize the first node.
+	time.Sleep(1 * time.Second)
+
+	// Let's try adding the first to the second.
+	err = secondNode.raft.ProposeConfChange(context.TODO(), raftpb.ConfChangeV2{
+		Transition: raftpb.ConfChangeTransitionAuto,
+		Changes: []raftpb.ConfChangeSingle{
+			raftpb.ConfChangeSingle{
+				Type:   raftpb.ConfChangeAddNode,
+				NodeID: firstNode.raft.Status().ID,
+			},
+		},
+		Context: []byte(secondAddr.String()),
+	})
+	AssertNoError(t, err).Require()
+
+	// Still nothing. We could probably recover from this situation,
+	// but Raft won't do it automatically. We could have nodes forget
+	// a leader, and start campaigning again or something.
+	// But it's better not to be in this situation to begin with.
 }
 
 func newTestCluster(t *testing.T, n int) ([]Node, []store.Blobs, []store.Metadata) {
