@@ -33,7 +33,7 @@ type (
 
 // TODO: NewNode should return an error instead of panicking? Probably?
 // Also, I should probably decompose this more and allow passing dependencies
-// like a Mesh and DiskStorage directly.
+// like a Mesh directly.
 func NewNode(id uint64, addr netip.AddrPort, peers []Peer, storage *DiskStorage, snap cluster.SnapshotRestorer) Node {
 	conf := raft.Config{
 		// TODO: This may need to be set when restarting a node.
