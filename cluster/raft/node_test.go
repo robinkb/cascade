@@ -2,6 +2,7 @@ package raft
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"io"
 	"math/rand/v2"
@@ -15,7 +16,28 @@ import (
 	storecluster "github.com/robinkb/cascade-registry/store/cluster"
 	"github.com/robinkb/cascade-registry/store/inmemory"
 	. "github.com/robinkb/cascade-registry/testing"
+	"go.etcd.io/raft/v3/raftpb"
 )
+
+func TestClusterFormation(t *testing.T) {
+	t.Run("Form a single-node cluster", func(t *testing.T) {
+		firstAddr := RandomAddrPort()
+		firstNode := NewNode(rand.Uint64(), firstAddr, nil, testStore(t), &SpySnapshotter{}).(*node)
+
+		firstNode.Start()
+
+		firstNode.raft.ApplyConfChange(raftpb.ConfChange{
+			Type:    raftpb.ConfChangeAddNode,
+			NodeID:  firstNode.raft.Status().ID,
+			Context: []byte(firstAddr.String()),
+		}.AsV2())
+
+		firstNode.raft.Campaign(context.Background())
+
+		time.Sleep(10 * time.Second)
+	})
+
+}
 
 func newTestCluster(t *testing.T, n int) ([]Node, []store.Blobs, []store.Metadata) {
 	peers := make([]Peer, n)

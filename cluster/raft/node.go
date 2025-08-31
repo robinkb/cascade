@@ -58,7 +58,7 @@ func NewNode(id uint64, addr netip.AddrPort, peers []Peer, storage *DiskStorage,
 		id:         id,
 		raft:       raft.RestartNode(&conf),
 		storage:    storage,
-		ticker:     time.Tick(100 * time.Millisecond),
+		ticker:     time.Tick(1 * time.Second),
 		manualTick: make(chan time.Time),
 		done:       make(chan struct{}),
 	}
