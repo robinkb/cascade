@@ -8,6 +8,7 @@ import (
 	"time"
 
 	. "github.com/robinkb/cascade-registry/testing"
+	"go.etcd.io/raft/v3"
 	"go.etcd.io/raft/v3/raftpb"
 )
 
@@ -339,4 +340,63 @@ func TestBootstrapWithTwoLeaders(t *testing.T) {
 
 	fmt.Printf("%d lead: %d\n", firstNode.raft.Status().ID, firstNode.raft.Status().Lead)
 	fmt.Printf("%d lead: %d\n", secondNode.raft.Status().ID, secondNode.raft.Status().Lead)
+}
+
+func AssertRaftStatus(t *testing.T, status raft.Status) *RaftStatusAsserter {
+	t.Helper()
+	return &RaftStatusAsserter{t, status}
+}
+
+type RaftStatusAsserter struct {
+	t      *testing.T
+	status raft.Status
+}
+
+func (a *RaftStatusAsserter) Leader(id uint64) *RaftStatusAsserter {
+	a.t.Helper()
+	got := a.status.Lead
+	if got != id {
+		a.t.Logf("unexpected leader id; got %d, want %d", got, id)
+		a.t.Fail()
+	}
+	return a
+}
+
+func (a *RaftStatusAsserter) HasNoLeader() *RaftStatusAsserter {
+	a.t.Helper()
+	got := a.status.Lead
+	if a.status.Lead != 0 {
+		a.t.Logf("expected leaderless raft; got leader with id %d", got)
+		a.t.Fail()
+	}
+	return a
+}
+
+func (a *RaftStatusAsserter) IsLeader() *RaftStatusAsserter {
+	a.t.Helper()
+	return a.isState("StateLeader")
+}
+
+func (a *RaftStatusAsserter) IsFollower() *RaftStatusAsserter {
+	a.t.Helper()
+	return a.isState("StateFollower")
+}
+
+func (a *RaftStatusAsserter) isState(state string) *RaftStatusAsserter {
+	a.t.Helper()
+	got := a.status.RaftState.String()
+	if got != state {
+		a.t.Logf("unexpected node state; got %s, want %s", got, state)
+		a.t.Fail()
+	}
+	return a
+}
+
+func (a *RaftStatusAsserter) Voters(n int) *RaftStatusAsserter {
+	a.t.Helper()
+	got := len(a.status.Config.Voters.IDs())
+	if got != n {
+		a.t.Logf("unexpected voter count: got %d, want %d", got, n)
+	}
+	return a
 }
