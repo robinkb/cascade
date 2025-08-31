@@ -72,6 +72,7 @@ func NewNode(id uint64, addr netip.AddrPort, peers []Peer, storage *DiskStorage,
 
 type node struct {
 	id         uint64
+	addr       netip.AddrPort
 	raft       raft.Node
 	ticker     <-chan time.Time
 	manualTick chan time.Time
@@ -81,6 +82,19 @@ type node struct {
 	mesh     Mesh
 	storage  *DiskStorage
 	restorer cluster.Restorer
+}
+
+// Bootstrap starts a Raft cluster.
+func (n *node) Bootstrap(ctx context.Context) error {
+	confState := n.raft.ApplyConfChange(raftpb.ConfChange{
+		Type:    raftpb.ConfChangeAddNode,
+		NodeID:  n.id,
+		Context: []byte(n.addr.String()),
+	}.AsV2())
+
+	n.storage.SaveConfState(*confState)
+
+	return n.raft.Campaign(ctx)
 }
 
 func (n *node) Start() {
@@ -132,11 +146,6 @@ func (n *node) send(messages []raftpb.Message) {
 		err := n.mesh.SendMessage(message.To, &message)
 		if err != nil {
 			log.Println("failed to send message:", err)
-		}
-
-		if message.Type == raftpb.MsgSnap {
-			// TODO: Snapshotting may fail, and that has to be reported through this method.
-			n.raft.ReportSnapshot(message.To, raft.SnapshotFinish)
 		}
 	}
 }

@@ -24,19 +24,40 @@ func TestClusterFormation(t *testing.T) {
 		firstAddr := RandomAddrPort()
 		firstNode := NewNode(rand.Uint64(), firstAddr, nil, testStore(t), &SpySnapshotter{}).(*node)
 
+		AssertRaftStatus(t, firstNode.raft.Status()).
+			HasNoLeader().IsFollower().Voters(0)
+
 		firstNode.Start()
 
-		firstNode.raft.ApplyConfChange(raftpb.ConfChange{
+		err := firstNode.Bootstrap(context.Background())
+		AssertNoError(t, err)
+
+		wait() // No choice but to wait. Even adding `.Tick()` calls doesn't work.
+
+		AssertRaftStatus(t, firstNode.raft.Status()).
+			IsLeader().Voters(1)
+	})
+
+	t.Run("Form and expand a cluster", func(t *testing.T) {
+		firstAddr, secondAddr, _ := RandomAddrPort(), RandomAddrPort(), RandomAddrPort()
+
+		firstNode := NewNode(rand.Uint64(), firstAddr, nil, testStore(t), &SpySnapshotter{}).(*node)
+		firstNode.Start()
+		firstNode.Bootstrap(context.Background())
+
+		wait()
+
+		secondNode := NewNode(rand.Uint64(), secondAddr, nil, testStore(t), &SpySnapshotter{}).(*node)
+		secondNode.Start()
+
+		secondNode.mesh.SetPeer(firstNode.raft.Status().ID, firstAddr)
+		secondNode.raft.ApplyConfChange(raftpb.ConfChange{
 			Type:    raftpb.ConfChangeAddNode,
 			NodeID:  firstNode.raft.Status().ID,
 			Context: []byte(firstAddr.String()),
 		}.AsV2())
 
-		firstNode.raft.Campaign(context.Background())
-
-		time.Sleep(10 * time.Second)
 	})
-
 }
 
 func newTestCluster(t *testing.T, n int) ([]Node, []store.Blobs, []store.Metadata) {
