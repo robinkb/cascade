@@ -13,6 +13,7 @@ import (
 
 	"github.com/robinkb/cascade-registry"
 	"github.com/robinkb/cascade-registry/cluster/raft"
+	"github.com/robinkb/cascade-registry/cluster/raft/logdeck"
 	"github.com/robinkb/cascade-registry/server"
 	"github.com/robinkb/cascade-registry/store/boltdb"
 	"github.com/robinkb/cascade-registry/store/cluster"
@@ -59,7 +60,15 @@ func main() {
 			}
 		}
 
-		node := raft.NewNode(uint64(raftId), addr, peers, filepath.Join(path, "raft"), metadata)
+		db, err := logdeck.Open(filepath.Join(path, "raft"), nil)
+		if err != nil {
+			log.Fatal(err)
+		}
+		store, err := raft.NewDiskStorage(db, metadata)
+		if err != nil {
+			log.Fatal(err)
+		}
+		node := raft.NewNode(uint64(raftId), addr, peers, store, metadata)
 		metadata = cluster.NewMetadataStore(node, metadata)
 		blobs = cluster.NewBlobStore(node, blobs)
 		node.Start()

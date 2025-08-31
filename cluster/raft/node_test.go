@@ -37,7 +37,7 @@ func newTestCluster(t *testing.T, n int) ([]Node, []store.Blobs, []store.Metadat
 			peers[i].ID,
 			peers[i].AddrPort,
 			peers,
-			t.TempDir(),
+			testStore(t),
 			new(SpySnapshotter),
 		)
 		blobs[i] = storecluster.NewBlobStore(nodes[i], inmemory.NewBlobStore())
