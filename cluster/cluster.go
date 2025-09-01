@@ -6,6 +6,8 @@ type (
 	// Proposal defines an interface for creating proposal types.
 	// Implementers must return a stored random ID, but can include additional attributes.
 	// These attributes can be retrieved by asserting the Proposal back to its concrete type.
+	// TODO: Returning the payload as bytes in a Context or Body method makes way more sense.
+	// Body would be more like an HTTP request, while Context would be more like the rest of the Raft library.
 	Proposal interface {
 		ID() uint64
 	}

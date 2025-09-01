@@ -13,8 +13,8 @@ import (
 )
 
 type (
-	Node interface { // Represents everything that a Raft node has to do for Raft to work
-		// Lifecycle
+	// TODO: This is a dumb interface.
+	Node interface {
 		Start()
 		Stop() error
 		Tick()
@@ -62,6 +62,9 @@ func NewNode(id uint64, addr netip.AddrPort, peers []Peer, storage *DiskStorage,
 		ticker:     time.Tick(100 * time.Millisecond),
 		manualTick: make(chan time.Time),
 		done:       make(chan struct{}),
+		confChanges: errMap{
+			errs: make(map[uint64]chan error),
+		},
 	}
 
 	node.proposer = newProposer(node.raft)
@@ -78,6 +81,8 @@ type node struct {
 	ticker     <-chan time.Time
 	manualTick chan time.Time
 	done       chan struct{}
+
+	confChanges errMap
 
 	*proposer
 	mesh     Mesh
@@ -102,6 +107,42 @@ func (n *node) Bootstrap(peers ...Peer) {
 		}.AsV2())
 
 		n.storage.SaveConfState(*confState)
+
+		if n.id != peer.ID {
+			n.mesh.SetPeer(peer.ID, peer.AddrPort)
+		}
+	}
+}
+
+// AddNode proposes adding the given Peer to the cluster.
+// Proposals may be rejected by the cluster. AddNode blocks
+// until the Peer is added, an error is encountered,
+// or until the context is cancelled.
+func (n *node) AddNode(ctx context.Context, peer Peer) error {
+	return n.proposeConfChange(ctx, raftpb.ConfChange{
+		Type:    raftpb.ConfChangeAddNode,
+		NodeID:  peer.ID,
+		Context: []byte(peer.AddrPort.String()),
+	})
+}
+
+func (n *node) proposeConfChange(ctx context.Context, cc raftpb.ConfChange) error {
+	// TODO: Not really safe to use node ID as a key to track individual conf changes.
+	// Multiple conf changes about the same node may be underway at once.
+	// A unique ID should be generated per conf change instead.
+	errC := n.confChanges.create(cc.NodeID)
+	defer n.confChanges.delete(cc.NodeID)
+
+	err := n.raft.ProposeConfChange(ctx, cc.AsV2())
+	if err != nil {
+		return err
+	}
+
+	select {
+	case <-ctx.Done():
+		return context.Cause(ctx)
+	case err := <-errC:
+		return err
 	}
 }
 
@@ -196,6 +237,9 @@ func (n *node) processEntries(entries []raftpb.Entry) {
 				case raftpb.ConfChangeRemoveNode:
 					log.Printf("%d removed node with id %d", n.raft.Status().ID, change.NodeID)
 					n.mesh.DeletePeer(change.NodeID)
+				}
+				if errC, ok := n.confChanges.get(change.NodeID); ok {
+					errC <- nil
 				}
 			}
 			cs := n.raft.ApplyConfChange(cc)

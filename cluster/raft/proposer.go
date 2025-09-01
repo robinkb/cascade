@@ -39,6 +39,7 @@ func (p *proposer) Handle(proposal cluster.Proposal, f cluster.HandlerFunc) {
 	gob.Register(proposal)
 }
 
+// TODO: Pass a context here.
 func (p *proposer) Propose(proposal cluster.Proposal) error {
 	var buf bytes.Buffer
 	if err := gob.NewEncoder(&buf).Encode(&proposal); err != nil {
@@ -46,6 +47,8 @@ func (p *proposer) Propose(proposal cluster.Proposal) error {
 	}
 
 	errC := p.errs.create(proposal.ID())
+	defer p.errs.delete(proposal.ID())
+
 	// Propose blocks until accepted by the cluster.
 	err := p.raft.Propose(context.TODO(), buf.Bytes())
 	if err != nil {
@@ -53,9 +56,10 @@ func (p *proposer) Propose(proposal cluster.Proposal) error {
 	}
 
 	select {
+	// TODO: And wait for ctx.Done() instead of this dumb timeout.
 	case <-time.Tick(5 * time.Second):
 		panic("timed out")
-	case <-errC:
+	case err := <-errC:
 		return err
 	}
 }
@@ -83,10 +87,7 @@ func (p *proposer) commit(data []byte) {
 
 	errC, ok := p.errs.get(proposal.ID())
 	if ok {
-		if err != nil {
-			errC <- err
-		}
-		p.errs.delete(proposal.ID())
+		errC <- err
 	}
 }
 

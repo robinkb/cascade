@@ -16,7 +16,6 @@ import (
 	storecluster "github.com/robinkb/cascade-registry/store/cluster"
 	"github.com/robinkb/cascade-registry/store/inmemory"
 	. "github.com/robinkb/cascade-registry/testing"
-	"go.etcd.io/raft/v3/raftpb"
 )
 
 func TestClusterFormation(t *testing.T) {
@@ -46,20 +45,16 @@ func TestClusterFormation(t *testing.T) {
 		snapElections2(node1)
 
 		node2 := NewNode(rand.Uint64(), addr2, nil, testStore(t), &SpySnapshotter{}).(*node)
+		node2.Bootstrap(Peer{
+			ID:       node1.raft.Status().ID,
+			AddrPort: addr1,
+		})
 		node2.Start()
 
-		node2.mesh.SetPeer(node1.raft.Status().ID, addr1)
-		node2.raft.ApplyConfChange(raftpb.ConfChange{
-			Type:    raftpb.ConfChangeAddNode,
-			NodeID:  node1.raft.Status().ID,
-			Context: []byte(addr1.String()),
-		}.AsV2())
-
-		err := node1.raft.ProposeConfChange(context.Background(), raftpb.ConfChange{
-			Type:    raftpb.ConfChangeAddNode,
-			NodeID:  node2.raft.Status().ID,
-			Context: []byte(addr2.String()),
-		}.AsV2())
+		err := node1.AddNode(context.Background(), Peer{
+			ID:       node2.raft.Status().ID,
+			AddrPort: addr2,
+		})
 		AssertNoError(t, err).Require()
 
 		AssertRaftStatus(t, node1.raft.Status()).
