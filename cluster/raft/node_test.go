@@ -27,12 +27,11 @@ func TestClusterFormation(t *testing.T) {
 		AssertRaftStatus(t, node.raft.Status()).
 			HasNoLeader().IsFollower().Voters(0)
 
+		node.Bootstrap()
+
 		node.Start()
 
-		err := node.Bootstrap(context.Background())
-		AssertNoError(t, err)
-
-		wait() // No choice but to wait. Even adding `.Tick()` calls doesn't work.
+		snapElections2(node)
 
 		AssertRaftStatus(t, node.raft.Status()).
 			IsLeader().Voters(1)
@@ -42,10 +41,9 @@ func TestClusterFormation(t *testing.T) {
 		addr1, addr2, _ := RandomAddrPort(), RandomAddrPort(), RandomAddrPort()
 
 		node1 := NewNode(rand.Uint64(), addr1, nil, testStore(t), &SpySnapshotter{}).(*node)
+		node1.Bootstrap()
 		node1.Start()
-		node1.Bootstrap(context.Background())
-
-		wait()
+		snapElections2(node1)
 
 		node2 := NewNode(rand.Uint64(), addr2, nil, testStore(t), &SpySnapshotter{}).(*node)
 		node2.Start()
@@ -99,6 +97,23 @@ func newTestCluster(t *testing.T, n int) ([]Node, []store.Blobs, []store.Metadat
 	}
 
 	return nodes, blobs, metadata
+}
+
+func snapElections2(nodes ...Node) {
+	var wg sync.WaitGroup
+	wg.Add(len(nodes))
+
+	for _, n := range nodes {
+		go func() {
+			for n.(*node).raft.Status().Lead == 0 {
+				n.Tick()
+				wait()
+			}
+			wg.Done()
+		}()
+	}
+
+	wg.Wait()
 }
 
 func snapElections(nodes []Node) {

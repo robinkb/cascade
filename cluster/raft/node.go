@@ -56,6 +56,7 @@ func NewNode(id uint64, addr netip.AddrPort, peers []Peer, storage *DiskStorage,
 
 	node := &node{
 		id:         id,
+		addr:       addr,
 		raft:       raft.RestartNode(&conf),
 		storage:    storage,
 		ticker:     time.Tick(100 * time.Millisecond),
@@ -84,17 +85,24 @@ type node struct {
 	restorer cluster.Restorer
 }
 
-// Bootstrap starts a Raft cluster.
-func (n *node) Bootstrap(ctx context.Context) error {
-	confState := n.raft.ApplyConfChange(raftpb.ConfChange{
-		Type:    raftpb.ConfChangeAddNode,
-		NodeID:  n.id,
-		Context: []byte(n.addr.String()),
-	}.AsV2())
+// Bootstrap prepares a new Raft node. If this node will join a cluster,
+// at least the cluster's leader must be passed as a peer, but it is safer
+// to pass all known peers.
+func (n *node) Bootstrap(peers ...Peer) {
+	peers = append(peers, Peer{
+		ID:       n.raft.Status().ID,
+		AddrPort: n.addr,
+	})
 
-	n.storage.SaveConfState(*confState)
+	for _, peer := range peers {
+		confState := n.raft.ApplyConfChange(raftpb.ConfChange{
+			Type:    raftpb.ConfChangeAddNode,
+			NodeID:  peer.ID,
+			Context: []byte(peer.AddrPort.String()),
+		}.AsV2())
 
-	return n.raft.Campaign(ctx)
+		n.storage.SaveConfState(*confState)
+	}
 }
 
 func (n *node) Start() {
