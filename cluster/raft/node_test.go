@@ -21,42 +21,53 @@ import (
 
 func TestClusterFormation(t *testing.T) {
 	t.Run("Form a single-node cluster", func(t *testing.T) {
-		firstAddr := RandomAddrPort()
-		firstNode := NewNode(rand.Uint64(), firstAddr, nil, testStore(t), &SpySnapshotter{}).(*node)
+		addr := RandomAddrPort()
+		node := NewNode(rand.Uint64(), addr, nil, testStore(t), &SpySnapshotter{}).(*node)
 
-		AssertRaftStatus(t, firstNode.raft.Status()).
+		AssertRaftStatus(t, node.raft.Status()).
 			HasNoLeader().IsFollower().Voters(0)
 
-		firstNode.Start()
+		node.Start()
 
-		err := firstNode.Bootstrap(context.Background())
+		err := node.Bootstrap(context.Background())
 		AssertNoError(t, err)
 
 		wait() // No choice but to wait. Even adding `.Tick()` calls doesn't work.
 
-		AssertRaftStatus(t, firstNode.raft.Status()).
+		AssertRaftStatus(t, node.raft.Status()).
 			IsLeader().Voters(1)
 	})
 
 	t.Run("Form and expand a cluster", func(t *testing.T) {
-		firstAddr, secondAddr, _ := RandomAddrPort(), RandomAddrPort(), RandomAddrPort()
+		addr1, addr2, _ := RandomAddrPort(), RandomAddrPort(), RandomAddrPort()
 
-		firstNode := NewNode(rand.Uint64(), firstAddr, nil, testStore(t), &SpySnapshotter{}).(*node)
-		firstNode.Start()
-		firstNode.Bootstrap(context.Background())
+		node1 := NewNode(rand.Uint64(), addr1, nil, testStore(t), &SpySnapshotter{}).(*node)
+		node1.Start()
+		node1.Bootstrap(context.Background())
 
 		wait()
 
-		secondNode := NewNode(rand.Uint64(), secondAddr, nil, testStore(t), &SpySnapshotter{}).(*node)
-		secondNode.Start()
+		node2 := NewNode(rand.Uint64(), addr2, nil, testStore(t), &SpySnapshotter{}).(*node)
+		node2.Start()
 
-		secondNode.mesh.SetPeer(firstNode.raft.Status().ID, firstAddr)
-		secondNode.raft.ApplyConfChange(raftpb.ConfChange{
+		node2.mesh.SetPeer(node1.raft.Status().ID, addr1)
+		node2.raft.ApplyConfChange(raftpb.ConfChange{
 			Type:    raftpb.ConfChangeAddNode,
-			NodeID:  firstNode.raft.Status().ID,
-			Context: []byte(firstAddr.String()),
+			NodeID:  node1.raft.Status().ID,
+			Context: []byte(addr1.String()),
 		}.AsV2())
 
+		err := node1.raft.ProposeConfChange(context.Background(), raftpb.ConfChange{
+			Type:    raftpb.ConfChangeAddNode,
+			NodeID:  node2.raft.Status().ID,
+			Context: []byte(addr2.String()),
+		}.AsV2())
+		AssertNoError(t, err).Require()
+
+		AssertRaftStatus(t, node1.raft.Status()).
+			Voters(2).IsLeader()
+		AssertRaftStatus(t, node2.raft.Status()).
+			Voters(2).IsFollower()
 	})
 }
 
