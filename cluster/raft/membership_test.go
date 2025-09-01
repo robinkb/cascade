@@ -397,6 +397,7 @@ func (a *RaftStatusAsserter) Voters(n int) *RaftStatusAsserter {
 	got := len(a.status.Config.Voters.IDs())
 	if got != n {
 		a.t.Logf("unexpected voter count: got %d, want %d", got, n)
+		a.t.Fail()
 	}
 	return a
 }
