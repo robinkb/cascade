@@ -3,10 +3,8 @@ package raft
 import (
 	"bytes"
 	"context"
-	"fmt"
 	"io"
 	"math/rand/v2"
-	"net/netip"
 	"sync"
 	"testing"
 	"time"
@@ -21,7 +19,7 @@ import (
 func TestClusterFormation(t *testing.T) {
 	t.Run("Form a single-node cluster", func(t *testing.T) {
 		addr := RandomAddrPort()
-		node := NewNode(rand.Uint64(), addr, nil, testStore(t), &SpySnapshotter{}).(*node)
+		node := NewNode(rand.Uint64(), addr, testStore(t), &SpySnapshotter{}).(*node)
 
 		AssertRaftStatus(t, node.raft.Status()).
 			HasNoLeader().IsFollower().Voters(0)
@@ -37,14 +35,14 @@ func TestClusterFormation(t *testing.T) {
 	})
 
 	t.Run("Form and expand a cluster", func(t *testing.T) {
-		addr1, addr2, _ := RandomAddrPort(), RandomAddrPort(), RandomAddrPort()
+		addr1, addr2, addr3 := RandomAddrPort(), RandomAddrPort(), RandomAddrPort()
 
-		node1 := NewNode(rand.Uint64(), addr1, nil, testStore(t), &SpySnapshotter{}).(*node)
+		node1 := NewNode(rand.Uint64(), addr1, testStore(t), &SpySnapshotter{}).(*node)
 		node1.Bootstrap()
 		node1.Start()
 		snapElections2(node1)
 
-		node2 := NewNode(rand.Uint64(), addr2, nil, testStore(t), &SpySnapshotter{}).(*node)
+		node2 := NewNode(rand.Uint64(), addr2, testStore(t), &SpySnapshotter{}).(*node)
 		node2.Bootstrap(Peer{
 			ID:       node1.raft.Status().ID,
 			AddrPort: addr1,
@@ -57,10 +55,22 @@ func TestClusterFormation(t *testing.T) {
 		})
 		AssertNoError(t, err).Require()
 
-		AssertRaftStatus(t, node1.raft.Status()).
-			Voters(2).IsLeader()
-		AssertRaftStatus(t, node2.raft.Status()).
-			Voters(2).IsFollower()
+		AssertRaftStatus(t, node1.raft.Status()).Voters(2).IsLeader()
+		AssertRaftStatus(t, node2.raft.Status()).Voters(2).IsFollower()
+
+		node3 := NewNode(rand.Uint64(), addr3, testStore(t), &SpySnapshotter{}).(*node)
+		node3.Bootstrap(Peer{node1.raft.Status().ID, addr1}, Peer{node2.raft.Status().ID, addr2})
+		node3.Start()
+
+		err = node2.AddNode(context.Background(), Peer{
+			ID:       node3.raft.Status().ID,
+			AddrPort: addr3,
+		})
+		AssertNoError(t, err).Require()
+
+		AssertRaftStatus(t, node1.raft.Status()).Voters(3).IsLeader()
+		AssertRaftStatus(t, node2.raft.Status()).Voters(3).IsFollower()
+		AssertRaftStatus(t, node3.raft.Status()).Voters(3).IsFollower()
 	})
 }
 
@@ -72,10 +82,8 @@ func newTestCluster(t *testing.T, n int) ([]Node, []store.Blobs, []store.Metadat
 
 	for i := range n {
 		peers[i] = Peer{
-			ID: rand.Uint64(),
-			AddrPort: netip.MustParseAddrPort(
-				fmt.Sprintf("127.0.0.1:%d", RandomPort()),
-			),
+			ID:       rand.Uint64(),
+			AddrPort: RandomAddrPort(),
 		}
 	}
 
@@ -83,10 +91,10 @@ func newTestCluster(t *testing.T, n int) ([]Node, []store.Blobs, []store.Metadat
 		nodes[i] = NewNode(
 			peers[i].ID,
 			peers[i].AddrPort,
-			peers,
 			testStore(t),
 			new(SpySnapshotter),
 		)
+		nodes[i].(*node).Bootstrap(peers...)
 		blobs[i] = storecluster.NewBlobStore(nodes[i], inmemory.NewBlobStore())
 		metadata[i] = storecluster.NewMetadataStore(nodes[i], inmemory.NewMetadataStore())
 	}
@@ -124,21 +132,6 @@ func snapElections(nodes []Node) {
 		}()
 	}
 	wg.Wait()
-}
-
-func TestRaftClusterFormation(t *testing.T) {
-	nodes, _, _ := newTestCluster(t, 3)
-
-	for _, n := range nodes {
-		AssertEqual(t, n.ClusterStatus().Clustered, false)
-		n.Start()
-	}
-
-	snapElections(nodes)
-
-	for _, n := range nodes {
-		AssertEqual(t, n.ClusterStatus().Clustered, true)
-	}
 }
 
 func TestBlobReplication(t *testing.T) {

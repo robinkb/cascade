@@ -17,9 +17,7 @@ func newProposer(node raft.Node) *proposer {
 	return &proposer{
 		raft:         node,
 		handlerFuncs: make(map[reflect.Type]cluster.HandlerFunc),
-		errs: errMap{
-			errs: make(map[uint64]chan error),
-		},
+		errs:         newErrCs(),
 	}
 }
 
@@ -27,7 +25,7 @@ func newProposer(node raft.Node) *proposer {
 type proposer struct {
 	raft         raft.Node
 	handlerFuncs map[reflect.Type]cluster.HandlerFunc
-	errs         errMap
+	errs         errCs
 }
 
 func (p *proposer) Handle(proposal cluster.Proposal, f cluster.HandlerFunc) {
@@ -91,26 +89,32 @@ func (p *proposer) commit(data []byte) {
 	}
 }
 
-type errMap struct {
+func newErrCs() errCs {
+	return errCs{
+		errs: make(map[uint64]chan error),
+	}
+}
+
+type errCs struct {
 	mu   sync.RWMutex
 	errs map[uint64]chan error
 }
 
-func (e *errMap) create(id uint64) chan error {
+func (e *errCs) create(id uint64) chan error {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	e.errs[id] = make(chan error)
 	return e.errs[id]
 }
 
-func (e *errMap) get(id uint64) (chan error, bool) {
+func (e *errCs) get(id uint64) (chan error, bool) {
 	e.mu.RLock()
 	defer e.mu.RUnlock()
 	err, ok := e.errs[id]
 	return err, ok
 }
 
-func (e *errMap) delete(id uint64) {
+func (e *errCs) delete(id uint64) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	close(e.errs[id])

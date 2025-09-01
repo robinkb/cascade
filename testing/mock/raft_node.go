@@ -38,6 +38,54 @@ func (_m *RaftNode) EXPECT() *RaftNode_Expecter {
 	return &RaftNode_Expecter{mock: &_m.Mock}
 }
 
+// Bootstrap provides a mock function for the type RaftNode
+func (_mock *RaftNode) Bootstrap(peers ...raft.Peer) {
+	if len(peers) > 0 {
+		_mock.Called(peers)
+	} else {
+		_mock.Called()
+	}
+
+	return
+}
+
+// RaftNode_Bootstrap_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'Bootstrap'
+type RaftNode_Bootstrap_Call struct {
+	*mock.Call
+}
+
+// Bootstrap is a helper method to define mock.On call
+//   - peers ...raft.Peer
+func (_e *RaftNode_Expecter) Bootstrap(peers ...interface{}) *RaftNode_Bootstrap_Call {
+	return &RaftNode_Bootstrap_Call{Call: _e.mock.On("Bootstrap",
+		append([]interface{}{}, peers...)...)}
+}
+
+func (_c *RaftNode_Bootstrap_Call) Run(run func(peers ...raft.Peer)) *RaftNode_Bootstrap_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		var arg0 []raft.Peer
+		var variadicArgs []raft.Peer
+		if len(args) > 0 {
+			variadicArgs = args[0].([]raft.Peer)
+		}
+		arg0 = variadicArgs
+		run(
+			arg0...,
+		)
+	})
+	return _c
+}
+
+func (_c *RaftNode_Bootstrap_Call) Return() *RaftNode_Bootstrap_Call {
+	_c.Call.Return()
+	return _c
+}
+
+func (_c *RaftNode_Bootstrap_Call) RunAndReturn(run func(peers ...raft.Peer)) *RaftNode_Bootstrap_Call {
+	_c.Run(run)
+	return _c
+}
+
 // ClusterStatus provides a mock function for the type RaftNode
 func (_mock *RaftNode) ClusterStatus() raft.Status {
 	ret := _mock.Called()

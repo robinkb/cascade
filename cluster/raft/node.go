@@ -19,6 +19,7 @@ type (
 		Stop() error
 		Tick()
 		ClusterStatus() Status
+		Bootstrap(peers ...Peer)
 
 		// Messaging
 		Receive(m *raftpb.Message) error
@@ -34,7 +35,7 @@ type (
 // TODO: NewNode should return an error instead of panicking? Probably?
 // Also, I should probably decompose this more and allow passing dependencies
 // like a Mesh directly.
-func NewNode(id uint64, addr netip.AddrPort, peers []Peer, storage *DiskStorage, snap cluster.SnapshotRestorer) Node {
+func NewNode(id uint64, addr netip.AddrPort, storage *DiskStorage, snap cluster.SnapshotRestorer) Node {
 	conf := raft.Config{
 		// TODO: This may need to be set when restarting a node.
 		// But I'm not sure of how to persist it. It can only be saved _after_
@@ -55,16 +56,14 @@ func NewNode(id uint64, addr netip.AddrPort, peers []Peer, storage *DiskStorage,
 	}
 
 	node := &node{
-		id:         id,
-		addr:       addr,
-		raft:       raft.RestartNode(&conf),
-		storage:    storage,
-		ticker:     time.Tick(100 * time.Millisecond),
-		manualTick: make(chan time.Time),
-		done:       make(chan struct{}),
-		confChanges: errMap{
-			errs: make(map[uint64]chan error),
-		},
+		id:          id,
+		addr:        addr,
+		raft:        raft.RestartNode(&conf),
+		storage:     storage,
+		ticker:      time.Tick(100 * time.Millisecond),
+		manualTick:  make(chan time.Time),
+		done:        make(chan struct{}),
+		confChanges: newErrCs(),
 	}
 
 	node.proposer = newProposer(node.raft)
@@ -82,7 +81,7 @@ type node struct {
 	manualTick chan time.Time
 	done       chan struct{}
 
-	confChanges errMap
+	confChanges errCs
 
 	*proposer
 	mesh     Mesh

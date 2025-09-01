@@ -68,9 +68,10 @@ func main() {
 		if err != nil {
 			log.Fatal(err)
 		}
-		node := raft.NewNode(uint64(raftId), addr, peers, store, metadata)
+		node := raft.NewNode(uint64(raftId), addr, store, metadata)
 		metadata = cluster.NewMetadataStore(node, metadata)
 		blobs = cluster.NewBlobStore(node, blobs)
+		node.Bootstrap(peers...)
 		node.Start()
 		defer func() {
 			if err := node.Stop(); err != nil {
