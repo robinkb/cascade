@@ -28,7 +28,7 @@ func TestClusterFormation(t *testing.T) {
 
 		node.Start()
 
-		snapElections2(node)
+		snapElections(node)
 
 		AssertRaftStatus(t, node.raft.Status()).
 			IsLeader().Voters(1)
@@ -40,7 +40,7 @@ func TestClusterFormation(t *testing.T) {
 		node1 := NewNode(rand.Uint64(), addr1, testStore(t), &SpySnapshotter{}).(*node)
 		node1.Bootstrap()
 		node1.Start()
-		snapElections2(node1)
+		snapElections(node1)
 
 		node2 := NewNode(rand.Uint64(), addr2, testStore(t), &SpySnapshotter{}).(*node)
 		node2.Bootstrap(Peer{
@@ -72,6 +72,20 @@ func TestClusterFormation(t *testing.T) {
 		AssertRaftStatus(t, node2.raft.Status()).Voters(3).IsFollower()
 		AssertRaftStatus(t, node3.raft.Status()).Voters(3).IsFollower()
 	})
+
+	t.Run("remove a node from a cluster", func(t *testing.T) {
+		nodes, _, _ := newTestCluster(t, 3)
+		snapElections(nodes...)
+
+		AssertRaftStatus(t, nodes[0].(*node).raft.Status()).Voters(3)
+
+		err := nodes[0].RemoveNode(context.Background(), Peer{
+			ID:       nodes[2].(*node).raft.Status().ID,
+			AddrPort: nodes[2].(*node).addr,
+		})
+		AssertNoError(t, err)
+		AssertRaftStatus(t, nodes[0].(*node).raft.Status()).Voters(2)
+	})
 }
 
 func newTestCluster(t *testing.T, n int) ([]Node, []store.Blobs, []store.Metadata) {
@@ -97,12 +111,13 @@ func newTestCluster(t *testing.T, n int) ([]Node, []store.Blobs, []store.Metadat
 		nodes[i].(*node).Bootstrap(peers...)
 		blobs[i] = storecluster.NewBlobStore(nodes[i], inmemory.NewBlobStore())
 		metadata[i] = storecluster.NewMetadataStore(nodes[i], inmemory.NewMetadataStore())
+		nodes[i].Start()
 	}
 
 	return nodes, blobs, metadata
 }
 
-func snapElections2(nodes ...Node) {
+func snapElections(nodes ...Node) {
 	var wg sync.WaitGroup
 	wg.Add(len(nodes))
 
@@ -119,28 +134,13 @@ func snapElections2(nodes ...Node) {
 	wg.Wait()
 }
 
-func snapElections(nodes []Node) {
-	var wg sync.WaitGroup
-	wg.Add(len(nodes))
-	for _, n := range nodes {
-		go func() {
-			for !n.ClusterStatus().Clustered {
-				n.Tick()
-				wait()
-			}
-			wg.Done()
-		}()
-	}
-	wg.Wait()
-}
-
 func TestBlobReplication(t *testing.T) {
 	t.Parallel()
 	nodes, blobs, _ := newTestCluster(t, 3)
 	for _, n := range nodes {
 		n.Start()
 	}
-	snapElections(nodes)
+	snapElections(nodes...)
 
 	t.Run("Ensure blobs are replicated", func(t *testing.T) {
 		id, content := RandomDigest(), RandomBytes(32)
@@ -231,7 +231,7 @@ func TestMetadataReplication(t *testing.T) {
 	for _, n := range nodes {
 		n.Start()
 	}
-	snapElections(nodes)
+	snapElections(nodes...)
 
 	t.Run("Ensure repository metadata is replicated", func(t *testing.T) {
 		name := RandomName()

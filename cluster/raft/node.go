@@ -20,6 +20,8 @@ type (
 		Tick()
 		ClusterStatus() Status
 		Bootstrap(peers ...Peer)
+		AddNode(ctx context.Context, peer Peer) error
+		RemoveNode(ctx context.Context, peer Peer) error
 
 		// Messaging
 		Receive(m *raftpb.Message) error
@@ -114,12 +116,26 @@ func (n *node) Bootstrap(peers ...Peer) {
 }
 
 // AddNode proposes adding the given Peer to the cluster.
+// It may be called on any node, not just the leader.
 // Proposals may be rejected by the cluster. AddNode blocks
 // until the Peer is added, an error is encountered,
 // or until the context is cancelled.
 func (n *node) AddNode(ctx context.Context, peer Peer) error {
 	return n.proposeConfChange(ctx, raftpb.ConfChange{
 		Type:    raftpb.ConfChangeAddNode,
+		NodeID:  peer.ID,
+		Context: []byte(peer.AddrPort.String()),
+	})
+}
+
+// RemoveNode proposes removing the given Peer from the cluster.
+// It may be called on any node, not just the leader.
+// Proposals may be rejected by the cluster. RemoveNode blocks
+// until the Peer is removed, an error is encountered,
+// or until the context is cancelled.
+func (n *node) RemoveNode(ctx context.Context, peer Peer) error {
+	return n.proposeConfChange(ctx, raftpb.ConfChange{
+		Type:    raftpb.ConfChangeRemoveNode,
 		NodeID:  peer.ID,
 		Context: []byte(peer.AddrPort.String()),
 	})

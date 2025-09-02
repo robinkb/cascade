@@ -5,6 +5,8 @@
 package mock
 
 import (
+	"context"
+
 	"github.com/robinkb/cascade-registry/cluster"
 	"github.com/robinkb/cascade-registry/cluster/raft"
 	mock "github.com/stretchr/testify/mock"
@@ -36,6 +38,63 @@ type RaftNode_Expecter struct {
 
 func (_m *RaftNode) EXPECT() *RaftNode_Expecter {
 	return &RaftNode_Expecter{mock: &_m.Mock}
+}
+
+// AddNode provides a mock function for the type RaftNode
+func (_mock *RaftNode) AddNode(ctx context.Context, peer raft.Peer) error {
+	ret := _mock.Called(ctx, peer)
+
+	if len(ret) == 0 {
+		panic("no return value specified for AddNode")
+	}
+
+	var r0 error
+	if returnFunc, ok := ret.Get(0).(func(context.Context, raft.Peer) error); ok {
+		r0 = returnFunc(ctx, peer)
+	} else {
+		r0 = ret.Error(0)
+	}
+	return r0
+}
+
+// RaftNode_AddNode_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'AddNode'
+type RaftNode_AddNode_Call struct {
+	*mock.Call
+}
+
+// AddNode is a helper method to define mock.On call
+//   - ctx context.Context
+//   - peer raft.Peer
+func (_e *RaftNode_Expecter) AddNode(ctx interface{}, peer interface{}) *RaftNode_AddNode_Call {
+	return &RaftNode_AddNode_Call{Call: _e.mock.On("AddNode", ctx, peer)}
+}
+
+func (_c *RaftNode_AddNode_Call) Run(run func(ctx context.Context, peer raft.Peer)) *RaftNode_AddNode_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		var arg0 context.Context
+		if args[0] != nil {
+			arg0 = args[0].(context.Context)
+		}
+		var arg1 raft.Peer
+		if args[1] != nil {
+			arg1 = args[1].(raft.Peer)
+		}
+		run(
+			arg0,
+			arg1,
+		)
+	})
+	return _c
+}
+
+func (_c *RaftNode_AddNode_Call) Return(err error) *RaftNode_AddNode_Call {
+	_c.Call.Return(err)
+	return _c
+}
+
+func (_c *RaftNode_AddNode_Call) RunAndReturn(run func(ctx context.Context, peer raft.Peer) error) *RaftNode_AddNode_Call {
+	_c.Call.Return(run)
+	return _c
 }
 
 // Bootstrap provides a mock function for the type RaftNode
@@ -274,6 +333,63 @@ func (_c *RaftNode_Receive_Call) Return(err error) *RaftNode_Receive_Call {
 }
 
 func (_c *RaftNode_Receive_Call) RunAndReturn(run func(m *raftpb.Message) error) *RaftNode_Receive_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// RemoveNode provides a mock function for the type RaftNode
+func (_mock *RaftNode) RemoveNode(ctx context.Context, peer raft.Peer) error {
+	ret := _mock.Called(ctx, peer)
+
+	if len(ret) == 0 {
+		panic("no return value specified for RemoveNode")
+	}
+
+	var r0 error
+	if returnFunc, ok := ret.Get(0).(func(context.Context, raft.Peer) error); ok {
+		r0 = returnFunc(ctx, peer)
+	} else {
+		r0 = ret.Error(0)
+	}
+	return r0
+}
+
+// RaftNode_RemoveNode_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'RemoveNode'
+type RaftNode_RemoveNode_Call struct {
+	*mock.Call
+}
+
+// RemoveNode is a helper method to define mock.On call
+//   - ctx context.Context
+//   - peer raft.Peer
+func (_e *RaftNode_Expecter) RemoveNode(ctx interface{}, peer interface{}) *RaftNode_RemoveNode_Call {
+	return &RaftNode_RemoveNode_Call{Call: _e.mock.On("RemoveNode", ctx, peer)}
+}
+
+func (_c *RaftNode_RemoveNode_Call) Run(run func(ctx context.Context, peer raft.Peer)) *RaftNode_RemoveNode_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		var arg0 context.Context
+		if args[0] != nil {
+			arg0 = args[0].(context.Context)
+		}
+		var arg1 raft.Peer
+		if args[1] != nil {
+			arg1 = args[1].(raft.Peer)
+		}
+		run(
+			arg0,
+			arg1,
+		)
+	})
+	return _c
+}
+
+func (_c *RaftNode_RemoveNode_Call) Return(err error) *RaftNode_RemoveNode_Call {
+	_c.Call.Return(err)
+	return _c
+}
+
+func (_c *RaftNode_RemoveNode_Call) RunAndReturn(run func(ctx context.Context, peer raft.Peer) error) *RaftNode_RemoveNode_Call {
 	_c.Call.Return(run)
 	return _c
 }
