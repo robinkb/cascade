@@ -14,6 +14,7 @@ import (
 	storecluster "github.com/robinkb/cascade-registry/store/cluster"
 	"github.com/robinkb/cascade-registry/store/inmemory"
 	. "github.com/robinkb/cascade-registry/testing"
+	"go.etcd.io/raft/v3"
 )
 
 func TestClusterFormation(t *testing.T) {
@@ -79,57 +80,24 @@ func TestClusterFormation(t *testing.T) {
 		// Status returning 0 voters (kinda) indicates that it's stopped.
 		AssertRaftStatus(t, nodes[2].Status()).Voters(0)
 	})
-}
 
-func newTestNode(t *testing.T) Node {
-	return NewNode(rand.Uint64(), RandomAddrPort(), newTestStore(t), &SpySnapshotter{})
-}
+	t.Run("Remove and rejoin a node with the same ID", func(t *testing.T) {
+		// The Raft library says that an ID should not be re-used, but it _does_ work.
+		nodes, _, _ := newTestCluster(t, 3)
+		snapElections(nodes...)
+		AssertRaftStatus(t, nodes[0].Status()).Voters(3)
 
-func newTestCluster(t *testing.T, n int) ([]Node, []store.Blobs, []store.Metadata) {
-	peers := make([]Peer, n)
-	nodes := make([]Node, n)
-	blobs := make([]store.Blobs, n)
-	metadata := make([]store.Metadata, n)
+		err := nodes[0].RemoveNode(context.Background(), nodes[2].AsPeer())
+		AssertNoError(t, err)
+		AssertRaftStatus(t, nodes[0].Status()).Voters(2)
 
-	for i := range n {
-		peers[i] = Peer{
-			ID:       rand.Uint64(),
-			AddrPort: RandomAddrPort(),
-		}
-	}
-
-	for i := range n {
-		nodes[i] = NewNode(
-			peers[i].ID,
-			peers[i].AddrPort,
-			newTestStore(t),
-			new(SpySnapshotter),
-		)
-		nodes[i].(*node).Bootstrap(peers...)
-		blobs[i] = storecluster.NewBlobStore(nodes[i], inmemory.NewBlobStore())
-		metadata[i] = storecluster.NewMetadataStore(nodes[i], inmemory.NewMetadataStore())
-		nodes[i].Start()
-	}
-
-	return nodes, blobs, metadata
-}
-
-// snapElections rapidly ticks the given nodes until a leader is elected.
-func snapElections(nodes ...Node) {
-	var wg sync.WaitGroup
-	wg.Add(len(nodes))
-
-	for _, n := range nodes {
-		go func() {
-			for n.Status().Lead == 0 {
-				n.Tick()
-				wait()
-			}
-			wg.Done()
-		}()
-	}
-
-	wg.Wait()
+		// A removed node is stopped, so start it again.
+		nodes[2].Start()
+		err = nodes[0].AddNode(context.Background(), nodes[2].AsPeer())
+		wait()
+		AssertNoError(t, err)
+		AssertRaftStatus(t, nodes[0].Status()).Voters(3)
+	})
 }
 
 func TestBlobReplication(t *testing.T) {
@@ -365,6 +333,122 @@ func TestMetadataReplication(t *testing.T) {
 	})
 }
 
+func newTestNode(t *testing.T) Node {
+	return NewNode(rand.Uint64(), RandomAddrPort(), newTestStore(t), &SpySnapshotter{})
+}
+
+func newTestCluster(t *testing.T, n int) ([]Node, []store.Blobs, []store.Metadata) {
+	peers := make([]Peer, n)
+	nodes := make([]Node, n)
+	blobs := make([]store.Blobs, n)
+	metadata := make([]store.Metadata, n)
+
+	for i := range n {
+		peers[i] = Peer{
+			ID:       rand.Uint64(),
+			AddrPort: RandomAddrPort(),
+		}
+	}
+
+	for i := range n {
+		nodes[i] = NewNode(
+			peers[i].ID,
+			peers[i].AddrPort,
+			newTestStore(t),
+			new(SpySnapshotter),
+		)
+		nodes[i].(*node).Bootstrap(peers...)
+		blobs[i] = storecluster.NewBlobStore(nodes[i], inmemory.NewBlobStore())
+		metadata[i] = storecluster.NewMetadataStore(nodes[i], inmemory.NewMetadataStore())
+		nodes[i].Start()
+	}
+
+	return nodes, blobs, metadata
+}
+
+// snapElections rapidly ticks the given nodes until a leader is elected.
+func snapElections(nodes ...Node) {
+	var wg sync.WaitGroup
+	wg.Add(len(nodes))
+
+	for _, n := range nodes {
+		go func() {
+			for n.Status().Lead == 0 {
+				n.Tick()
+				wait()
+			}
+			wg.Done()
+		}()
+	}
+
+	wg.Wait()
+}
+
 func wait() {
 	time.Sleep(3000 * time.Microsecond)
+}
+
+func AssertRaftStatus(t *testing.T, status raft.Status) *RaftStatusAsserter {
+	t.Helper()
+	return &RaftStatusAsserter{t, status}
+}
+
+type RaftStatusAsserter struct {
+	t      *testing.T
+	status raft.Status
+}
+
+// Leader asserts that the node is the cluster's leader.
+func (a *RaftStatusAsserter) Leader(id uint64) *RaftStatusAsserter {
+	a.t.Helper()
+	got := a.status.Lead
+	if got != id {
+		a.t.Logf("unexpected leader id; got %d, want %d", got, id)
+		a.t.Fail()
+	}
+	return a
+}
+
+// HasNoLeader asserts that there is no leader in the cluster.
+func (a *RaftStatusAsserter) HasNoLeader() *RaftStatusAsserter {
+	a.t.Helper()
+	got := a.status.Lead
+	if a.status.Lead != 0 {
+		a.t.Logf("expected leaderless raft; got leader with id %d", got)
+		a.t.Fail()
+	}
+	return a
+}
+
+// IsLeader asserts that the node is in the leader state.
+func (a *RaftStatusAsserter) IsLeader() *RaftStatusAsserter {
+	a.t.Helper()
+	return a.isState("StateLeader")
+}
+
+// IsFollower asserts that the node is in the follower state.
+func (a *RaftStatusAsserter) IsFollower() *RaftStatusAsserter {
+	a.t.Helper()
+	return a.isState("StateFollower")
+}
+
+func (a *RaftStatusAsserter) isState(state string) *RaftStatusAsserter {
+	a.t.Helper()
+	got := a.status.RaftState.String()
+	if got != state {
+		a.t.Logf("unexpected node state; got %s, want %s", got, state)
+		a.t.Fail()
+	}
+	return a
+}
+
+// Voters asserts that there are n voters (members) in the cluster.
+func (a *RaftStatusAsserter) Voters(n int) *RaftStatusAsserter {
+	a.t.Helper()
+	got := len(a.status.Config.Voters.IDs())
+	if got != n {
+		a.t.Logf("unexpected voter count: got %d, want %d", got, n)
+		a.t.Fail()
+	}
+	return a
 }
