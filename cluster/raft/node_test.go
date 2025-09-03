@@ -385,7 +385,7 @@ func snapElections(nodes ...Node) {
 }
 
 func wait() {
-	time.Sleep(3000 * time.Microsecond)
+	time.Sleep(4 * time.Millisecond)
 }
 
 func AssertRaftStatus(t *testing.T, status raft.Status) *RaftStatusAsserter {
