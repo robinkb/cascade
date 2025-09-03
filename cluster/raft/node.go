@@ -18,7 +18,6 @@ type (
 		Start()
 		Stop() error
 		Tick()
-		ClusterStatus() Status
 
 		NodeID() uint64
 		AddrPort() netip.AddrPort
@@ -32,10 +31,6 @@ type (
 		Receive(m *raftpb.Message) error
 
 		cluster.Proposer
-	}
-
-	Status struct {
-		Clustered bool
 	}
 )
 
@@ -196,16 +191,6 @@ func (n *node) Stop() error {
 
 func (n *node) Tick() {
 	n.manualTick <- time.Now()
-}
-
-func (n *node) ClusterStatus() Status {
-	status := Status{}
-
-	if n.raft.Status().Lead != 0 {
-		status.Clustered = true
-	}
-
-	return status
 }
 
 func (n *node) run() {

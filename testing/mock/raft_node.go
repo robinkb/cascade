@@ -235,50 +235,6 @@ func (_c *RaftNode_Bootstrap_Call) RunAndReturn(run func(peers ...raft.Peer)) *R
 	return _c
 }
 
-// ClusterStatus provides a mock function for the type RaftNode
-func (_mock *RaftNode) ClusterStatus() raft.Status {
-	ret := _mock.Called()
-
-	if len(ret) == 0 {
-		panic("no return value specified for ClusterStatus")
-	}
-
-	var r0 raft.Status
-	if returnFunc, ok := ret.Get(0).(func() raft.Status); ok {
-		r0 = returnFunc()
-	} else {
-		r0 = ret.Get(0).(raft.Status)
-	}
-	return r0
-}
-
-// RaftNode_ClusterStatus_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'ClusterStatus'
-type RaftNode_ClusterStatus_Call struct {
-	*mock.Call
-}
-
-// ClusterStatus is a helper method to define mock.On call
-func (_e *RaftNode_Expecter) ClusterStatus() *RaftNode_ClusterStatus_Call {
-	return &RaftNode_ClusterStatus_Call{Call: _e.mock.On("ClusterStatus")}
-}
-
-func (_c *RaftNode_ClusterStatus_Call) Run(run func()) *RaftNode_ClusterStatus_Call {
-	_c.Call.Run(func(args mock.Arguments) {
-		run()
-	})
-	return _c
-}
-
-func (_c *RaftNode_ClusterStatus_Call) Return(status raft.Status) *RaftNode_ClusterStatus_Call {
-	_c.Call.Return(status)
-	return _c
-}
-
-func (_c *RaftNode_ClusterStatus_Call) RunAndReturn(run func() raft.Status) *RaftNode_ClusterStatus_Call {
-	_c.Call.Return(run)
-	return _c
-}
-
 // Handle provides a mock function for the type RaftNode
 func (_mock *RaftNode) Handle(p cluster.Proposal, f cluster.HandlerFunc) {
 	_mock.Called(p, f)
