@@ -327,6 +327,10 @@ func (s *DiskStorage) SaveConfState(cs raftpb.ConfState) {
 	s.confState = cs
 }
 
+func (s *DiskStorage) Close() error {
+	return s.deck.Close()
+}
+
 func (s *DiskStorage) cutHook() logdeck.CutHookFunc {
 	var entry raftpb.Entry
 	buf := new(bytes.Buffer)

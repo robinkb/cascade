@@ -28,7 +28,7 @@ func TestBootstrapCluster(t *testing.T) {
 	// Leave service discovery for later.
 
 	firstAddr := netip.MustParseAddrPort("127.0.0.1:50001")
-	firstNode := NewNode(1, firstAddr, testStore(t), &SpySnapshotter{}).(*node)
+	firstNode := NewNode(1, firstAddr, newTestStore(t), &SpySnapshotter{}).(*node)
 
 	fmt.Println(firstNode.raft.Status().Config.Voters.IDs()) // map[]
 
@@ -54,7 +54,7 @@ func TestBootstrapCluster(t *testing.T) {
 
 	// Let's add a second node.
 	secondAddr := netip.MustParseAddrPort("127.0.0.1:50002")
-	secondNode := NewNode(2, secondAddr, testStore(t), &SpySnapshotter{}).(*node)
+	secondNode := NewNode(2, secondAddr, newTestStore(t), &SpySnapshotter{}).(*node)
 
 	secondNode.Start()
 
@@ -92,7 +92,7 @@ func TestBootstrapCluster(t *testing.T) {
 
 	// Now let's try adding a third.
 	thirdAddr := netip.MustParseAddrPort("127.0.0.1:50003")
-	thirdNode := NewNode(3, thirdAddr, testStore(t), &SpySnapshotter{}).(*node)
+	thirdNode := NewNode(3, thirdAddr, newTestStore(t), &SpySnapshotter{}).(*node)
 
 	thirdNode.Start()
 
@@ -232,7 +232,7 @@ func TestBootstrapCluster(t *testing.T) {
 func TestBootstrapWithTwoLeaders(t *testing.T) {
 	t.SkipNow()
 	firstAddr := netip.MustParseAddrPort("127.0.0.1:50001")
-	firstNode := NewNode(1, firstAddr, testStore(t), &SpySnapshotter{}).(*node)
+	firstNode := NewNode(1, firstAddr, newTestStore(t), &SpySnapshotter{}).(*node)
 
 	firstNode.raft.ApplyConfChange(raftpb.ConfChangeV2{
 		Transition: raftpb.ConfChangeTransitionAuto,
@@ -245,7 +245,7 @@ func TestBootstrapWithTwoLeaders(t *testing.T) {
 	})
 
 	secondAddr := netip.MustParseAddrPort("127.0.0.1:50002")
-	secondNode := NewNode(2, secondAddr, testStore(t), &SpySnapshotter{}).(*node)
+	secondNode := NewNode(2, secondAddr, newTestStore(t), &SpySnapshotter{}).(*node)
 
 	secondNode.raft.ApplyConfChange(raftpb.ConfChangeV2{
 		Transition: raftpb.ConfChangeTransitionAuto,
@@ -304,7 +304,7 @@ func TestBootstrapWithTwoLeaders(t *testing.T) {
 	time.Sleep(3 * time.Second)
 
 	thirdAddr := netip.MustParseAddrPort("127.0.0.1:50003")
-	thirdNode := NewNode(3, thirdAddr, testStore(t), &SpySnapshotter{}).(*node)
+	thirdNode := NewNode(3, thirdAddr, newTestStore(t), &SpySnapshotter{}).(*node)
 	thirdNode.raft.ApplyConfChange(raftpb.ConfChangeV2{
 		Transition: raftpb.ConfChangeTransitionAuto,
 		Changes: []raftpb.ConfChangeSingle{

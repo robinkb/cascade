@@ -68,7 +68,7 @@ func TestClusterFormation(t *testing.T) {
 }
 
 func newTestNode(t *testing.T) Node {
-	return NewNode(rand.Uint64(), RandomAddrPort(), testStore(t), &SpySnapshotter{})
+	return NewNode(rand.Uint64(), RandomAddrPort(), newTestStore(t), &SpySnapshotter{})
 }
 
 func newTestCluster(t *testing.T, n int) ([]Node, []store.Blobs, []store.Metadata) {
@@ -88,7 +88,7 @@ func newTestCluster(t *testing.T, n int) ([]Node, []store.Blobs, []store.Metadat
 		nodes[i] = NewNode(
 			peers[i].ID,
 			peers[i].AddrPort,
-			testStore(t),
+			newTestStore(t),
 			new(SpySnapshotter),
 		)
 		nodes[i].(*node).Bootstrap(peers...)

@@ -562,20 +562,9 @@ func (_c *RaftNode_Status_Call) RunAndReturn(run func() raft0.Status) *RaftNode_
 }
 
 // Stop provides a mock function for the type RaftNode
-func (_mock *RaftNode) Stop() error {
-	ret := _mock.Called()
-
-	if len(ret) == 0 {
-		panic("no return value specified for Stop")
-	}
-
-	var r0 error
-	if returnFunc, ok := ret.Get(0).(func() error); ok {
-		r0 = returnFunc()
-	} else {
-		r0 = ret.Error(0)
-	}
-	return r0
+func (_mock *RaftNode) Stop() {
+	_mock.Called()
+	return
 }
 
 // RaftNode_Stop_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'Stop'
@@ -595,13 +584,13 @@ func (_c *RaftNode_Stop_Call) Run(run func()) *RaftNode_Stop_Call {
 	return _c
 }
 
-func (_c *RaftNode_Stop_Call) Return(err error) *RaftNode_Stop_Call {
-	_c.Call.Return(err)
+func (_c *RaftNode_Stop_Call) Return() *RaftNode_Stop_Call {
+	_c.Call.Return()
 	return _c
 }
 
-func (_c *RaftNode_Stop_Call) RunAndReturn(run func() error) *RaftNode_Stop_Call {
-	_c.Call.Return(run)
+func (_c *RaftNode_Stop_Call) RunAndReturn(run func()) *RaftNode_Stop_Call {
+	_c.Run(run)
 	return _c
 }
 

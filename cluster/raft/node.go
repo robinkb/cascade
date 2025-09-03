@@ -15,7 +15,7 @@ import (
 type (
 	Node interface {
 		Start()
-		Stop() error
+		Stop()
 		Tick()
 
 		NodeID() uint64
@@ -184,11 +184,10 @@ func (n *node) Start() {
 	go n.mesh.Start()
 }
 
-func (n *node) Stop() error {
+func (n *node) Stop() {
 	n.raft.Stop()
 	n.done <- struct{}{}
 	close(n.done)
-	return n.storage.deck.Close()
 }
 
 func (n *node) Tick() {
@@ -264,9 +263,7 @@ func (n *node) processEntries(entries []raftpb.Entry) {
 				case raftpb.ConfChangeRemoveNode:
 					if change.NodeID == n.NodeID() {
 						log.Println("removed from the cluster; stopping...")
-						if err := n.Stop(); err != nil {
-							log.Println("error while stopping node:", err)
-						}
+						n.Stop()
 					} else {
 						log.Printf("%d removed node with id %d", n.NodeID(), change.NodeID)
 						n.mesh.DeletePeer(change.NodeID)

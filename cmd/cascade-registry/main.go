@@ -68,16 +68,18 @@ func main() {
 		if err != nil {
 			log.Fatal(err)
 		}
+		defer func() {
+			if err := store.Close(); err != nil {
+				log.Println("error while closing raft storage:", err)
+			}
+		}()
+
 		node := raft.NewNode(uint64(raftId), addr, store, metadata)
 		metadata = cluster.NewMetadataStore(node, metadata)
 		blobs = cluster.NewBlobStore(node, blobs)
 		node.Bootstrap(peers...)
 		node.Start()
-		defer func() {
-			if err := node.Stop(); err != nil {
-				log.Println("error while stopping Raft node:", err)
-			}
-		}()
+		defer node.Stop()
 	}
 
 	service := cascade.NewRegistryService(metadata, blobs)
