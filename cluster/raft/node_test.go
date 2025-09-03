@@ -21,30 +21,41 @@ func TestClusterFormation(t *testing.T) {
 		node := newTestNode(t)
 		AssertRaftStatus(t, node.Status()).HasNoLeader().IsFollower().Voters(0)
 
+		// We have to add the node to the Raft state so that it can campaign and become the leader.
 		node.Bootstrap()
 		node.Start()
 		snapElections(node)
+		// The Raft status now shows the first node as part of the voters.
 		AssertRaftStatus(t, node.Status()).IsLeader().Voters(1)
 	})
 
 	t.Run("Form and expand a cluster", func(t *testing.T) {
 		node1, node2, node3 := newTestNode(t), newTestNode(t), newTestNode(t)
 
+		// Form a single-node cluster first.
 		node1.Bootstrap()
 		node1.Start()
 		snapElections(node1)
 
+		// Now let's add a second node.
+		// Adding the leader of the existing cluster is required.
 		node2.Bootstrap(node1.AsPeer())
 		node2.Start()
 
+		// Any node in the existing cluster can propose to add a node.
 		err := node1.AddNode(context.Background(), node2.AsPeer())
 		AssertNoError(t, err).Require()
 		AssertRaftStatus(t, node1.Status()).Voters(2).IsLeader()
 		AssertRaftStatus(t, node2.Status()).Voters(2).IsFollower()
 
+		// Let's add the third, passing all known peers. Adding just the leader
+		// would be enough, but it's safer to add them all. It's even possible to
+		// bootstrap with only a follower node. But once the new node joins, the leader
+		// will not broadcast itself to the new node. The leader must be bootstrapped in.
 		node3.Bootstrap(node1.AsPeer(), node2.AsPeer())
 		node3.Start()
 
+		// And after this, we have three nodes in the cluster.
 		err = node2.AddNode(context.Background(), node3.AsPeer())
 		AssertNoError(t, err).Require()
 		AssertRaftStatus(t, node1.Status()).Voters(3).IsLeader()
@@ -53,6 +64,8 @@ func TestClusterFormation(t *testing.T) {
 	})
 
 	t.Run("Remove a node from a cluster", func(t *testing.T) {
+		// At this point we've verified the details of cluster formation,
+		// so we can automate it with newTestCluster and snapElections.
 		nodes, _, _ := newTestCluster(t, 3)
 		snapElections(nodes...)
 		AssertRaftStatus(t, nodes[0].Status()).Voters(3)
@@ -63,6 +76,7 @@ func TestClusterFormation(t *testing.T) {
 		wait()
 		AssertRaftStatus(t, nodes[0].Status()).Voters(2)
 		AssertRaftStatus(t, nodes[1].Status()).Voters(2)
+		// Status returning 0 voters (kinda) indicates that it's stopped.
 		AssertRaftStatus(t, nodes[2].Status()).Voters(0)
 	})
 }

@@ -32,7 +32,6 @@ func TestBootstrapCluster(t *testing.T) {
 
 	fmt.Println(firstNode.raft.Status().Config.Voters.IDs()) // map[]
 
-	// We have to add the node to the Raft state so that it can campaign and become the leader.
 	// This is pretty much bootstrapping the cluster.
 	firstNode.raft.ApplyConfChange(raftpb.ConfChangeV2{
 		Transition: raftpb.ConfChangeTransitionAuto,
@@ -354,6 +353,7 @@ type RaftStatusAsserter struct {
 	status raft.Status
 }
 
+// Leader asserts that the node is the cluster's leader.
 func (a *RaftStatusAsserter) Leader(id uint64) *RaftStatusAsserter {
 	a.t.Helper()
 	got := a.status.Lead
@@ -364,6 +364,7 @@ func (a *RaftStatusAsserter) Leader(id uint64) *RaftStatusAsserter {
 	return a
 }
 
+// HasNoLeader asserts that there is no leader in the cluster.
 func (a *RaftStatusAsserter) HasNoLeader() *RaftStatusAsserter {
 	a.t.Helper()
 	got := a.status.Lead
@@ -374,11 +375,13 @@ func (a *RaftStatusAsserter) HasNoLeader() *RaftStatusAsserter {
 	return a
 }
 
+// IsLeader asserts that the node is in the leader state.
 func (a *RaftStatusAsserter) IsLeader() *RaftStatusAsserter {
 	a.t.Helper()
 	return a.isState("StateLeader")
 }
 
+// IsFollower asserts that the node is in the follower state.
 func (a *RaftStatusAsserter) IsFollower() *RaftStatusAsserter {
 	a.t.Helper()
 	return a.isState("StateFollower")
