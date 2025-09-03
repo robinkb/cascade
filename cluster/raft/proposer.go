@@ -17,9 +17,7 @@ func newProposer(node raft.Node) *proposer {
 	return &proposer{
 		raft:         node,
 		handlerFuncs: make(map[reflect.Type]cluster.HandlerFunc),
-		errs: errMap{
-			errs: make(map[uint64]chan error),
-		},
+		errs:         newErrCs(),
 	}
 }
 
@@ -27,7 +25,7 @@ func newProposer(node raft.Node) *proposer {
 type proposer struct {
 	raft         raft.Node
 	handlerFuncs map[reflect.Type]cluster.HandlerFunc
-	errs         errMap
+	errs         errCs
 }
 
 func (p *proposer) Handle(proposal cluster.Proposal, f cluster.HandlerFunc) {
@@ -39,6 +37,7 @@ func (p *proposer) Handle(proposal cluster.Proposal, f cluster.HandlerFunc) {
 	gob.Register(proposal)
 }
 
+// TODO: Pass a context here.
 func (p *proposer) Propose(proposal cluster.Proposal) error {
 	var buf bytes.Buffer
 	if err := gob.NewEncoder(&buf).Encode(&proposal); err != nil {
@@ -46,6 +45,8 @@ func (p *proposer) Propose(proposal cluster.Proposal) error {
 	}
 
 	errC := p.errs.create(proposal.ID())
+	defer p.errs.delete(proposal.ID())
+
 	// Propose blocks until accepted by the cluster.
 	err := p.raft.Propose(context.TODO(), buf.Bytes())
 	if err != nil {
@@ -53,9 +54,10 @@ func (p *proposer) Propose(proposal cluster.Proposal) error {
 	}
 
 	select {
+	// TODO: And wait for ctx.Done() instead of this dumb timeout.
 	case <-time.Tick(5 * time.Second):
 		panic("timed out")
-	case <-errC:
+	case err := <-errC:
 		return err
 	}
 }
@@ -83,33 +85,36 @@ func (p *proposer) commit(data []byte) {
 
 	errC, ok := p.errs.get(proposal.ID())
 	if ok {
-		if err != nil {
-			errC <- err
-		}
-		p.errs.delete(proposal.ID())
+		errC <- err
 	}
 }
 
-type errMap struct {
+func newErrCs() errCs {
+	return errCs{
+		errs: make(map[uint64]chan error),
+	}
+}
+
+type errCs struct {
 	mu   sync.RWMutex
 	errs map[uint64]chan error
 }
 
-func (e *errMap) create(id uint64) chan error {
+func (e *errCs) create(id uint64) chan error {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	e.errs[id] = make(chan error)
 	return e.errs[id]
 }
 
-func (e *errMap) get(id uint64) (chan error, bool) {
+func (e *errCs) get(id uint64) (chan error, bool) {
 	e.mu.RLock()
 	defer e.mu.RUnlock()
 	err, ok := e.errs[id]
 	return err, ok
 }
 
-func (e *errMap) delete(id uint64) {
+func (e *errCs) delete(id uint64) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	close(e.errs[id])

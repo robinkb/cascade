@@ -2,6 +2,13 @@
 
 Random rough notes that I need to develop and organize
 
+## Bootstrap
+
+A node always needs to be bootstrapped.
+All of the known peers when it starts should be added in the bootstrap.
+Do this by ammending a ConfChange entry per entry to the storage.
+Then apply each conf change to the Raft state machine.
+
 ## Transport
 
 Need some kind of admin or cluster API

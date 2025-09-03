@@ -20,4 +20,4 @@ Users are expected to having at least some understanding of the app internals.
 That's why it's advanced!
 
 A neat trick would be to enable compiling a simple config into an advanced config, and outputting it to a file.
-This would like users use a simple config as a starting point.
+This would let users use a simple config as a starting point.

@@ -19,7 +19,7 @@ var (
 
 func TestStorageEntries(t *testing.T) {
 	entries := index(3).terms(3, 4, 5, 5, 6, 7, 7, 7, 7, 8)
-	store := testStore(t)
+	store := newTestStore(t)
 	err := store.Save(entries, emptyHardState, false)
 	AssertNoError(t, err)
 
@@ -55,7 +55,7 @@ func TestStorageEntries(t *testing.T) {
 
 func TestStorageTerm(t *testing.T) {
 	t.Run("for empty storage", func(t *testing.T) {
-		store := testStore(t)
+		store := newTestStore(t)
 
 		fi, _ := store.FirstIndex()
 		_, err := store.Term(fi)
@@ -71,7 +71,7 @@ func TestStorageTerm(t *testing.T) {
 
 	t.Run("for storage with entries", func(t *testing.T) {
 		ents := index(3).terms(3, 4, 4, 5)
-		store := testStore(t)
+		store := newTestStore(t)
 
 		err := store.Save(ents, emptyHardState, false)
 		AssertNoError(t, err)
@@ -137,7 +137,7 @@ func TestStorageEntries2(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run("", func(t *testing.T) {
-			store := testStore(t)
+			store := newTestStore(t)
 			err := store.Save(ents, emptyHardState, false)
 			AssertNoError(t, err)
 
@@ -149,7 +149,7 @@ func TestStorageEntries2(t *testing.T) {
 }
 
 func TestStorageLastIndex(t *testing.T) {
-	store := testStore(t)
+	store := newTestStore(t)
 
 	var want uint64
 	got, err := store.LastIndex()
@@ -167,7 +167,7 @@ func TestStorageLastIndex(t *testing.T) {
 }
 
 func TestStorageFirstIndex(t *testing.T) {
-	store := testStore(t)
+	store := newTestStore(t)
 
 	var want uint64
 	t.Run("first index of an empty storage is 1", func(t *testing.T) {
@@ -193,7 +193,7 @@ func TestStorageFirstIndex(t *testing.T) {
 }
 
 func TestSetHardState(t *testing.T) {
-	store := testStore(t)
+	store := newTestStore(t)
 
 	want := raftpb.HardState{
 		Term:   rand.Uint64(),
@@ -210,7 +210,7 @@ func TestSetHardState(t *testing.T) {
 }
 
 func TestApplySnapshot(t *testing.T) {
-	store := testStore(t)
+	store := newTestStore(t)
 
 	want := raftpb.Snapshot{
 		Metadata: raftpb.SnapshotMetadata{
@@ -386,7 +386,7 @@ func testDB(t *testing.T, opts *logdeck.Options) logdeck.DB {
 	return db
 }
 
-func testStore(t *testing.T) *DiskStorage {
+func newTestStore(t *testing.T) *DiskStorage {
 	store, err := NewDiskStorage(testDB(t, nil), new(SpySnapshotter))
 	AssertNoError(t, err).Require()
 	return store
