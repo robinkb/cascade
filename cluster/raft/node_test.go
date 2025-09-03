@@ -59,10 +59,11 @@ func TestClusterFormation(t *testing.T) {
 
 		err := nodes[0].RemoveNode(context.Background(), nodes[2].AsPeer())
 		AssertNoError(t, err)
+
+		wait()
 		AssertRaftStatus(t, nodes[0].Status()).Voters(2)
 		AssertRaftStatus(t, nodes[1].Status()).Voters(2)
-		// TODO: A node should probably shut down when it's removed.
-		// AssertRaftStatus(t, nodes[2].Status()).Voters(2)
+		AssertRaftStatus(t, nodes[2].Status()).Voters(0)
 	})
 }
 

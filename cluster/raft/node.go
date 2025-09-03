@@ -13,7 +13,6 @@ import (
 )
 
 type (
-	// TODO: This is a dumb interface.
 	Node interface {
 		Start()
 		Stop() error
@@ -186,6 +185,9 @@ func (n *node) Start() {
 }
 
 func (n *node) Stop() error {
+	n.raft.Stop()
+	n.done <- struct{}{}
+	close(n.done)
 	return n.storage.deck.Close()
 }
 
@@ -257,11 +259,20 @@ func (n *node) processEntries(entries []raftpb.Entry) {
 				case raftpb.ConfChangeAddNode:
 					url := netip.MustParseAddrPort(string(cc.Context))
 					n.mesh.SetPeer(change.NodeID, url)
-					log.Printf("%d added node with id %d and url %s", n.raft.Status().ID, change.NodeID, url.String())
+					log.Printf("%d added node with id %d and url %s", n.NodeID(), change.NodeID, url.String())
+
 				case raftpb.ConfChangeRemoveNode:
-					log.Printf("%d removed node with id %d", n.raft.Status().ID, change.NodeID)
-					n.mesh.DeletePeer(change.NodeID)
+					if change.NodeID == n.NodeID() {
+						log.Println("removed from the cluster; stopping...")
+						if err := n.Stop(); err != nil {
+							log.Println("error while stopping node:", err)
+						}
+					} else {
+						log.Printf("%d removed node with id %d", n.NodeID(), change.NodeID)
+						n.mesh.DeletePeer(change.NodeID)
+					}
 				}
+
 				if errC, ok := n.confChanges.get(change.NodeID); ok {
 					errC <- nil
 				}
