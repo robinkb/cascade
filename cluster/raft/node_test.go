@@ -18,74 +18,56 @@ import (
 
 func TestClusterFormation(t *testing.T) {
 	t.Run("Form a single-node cluster", func(t *testing.T) {
-		addr := RandomAddrPort()
-		node := NewNode(rand.Uint64(), addr, testStore(t), &SpySnapshotter{}).(*node)
-
-		AssertRaftStatus(t, node.raft.Status()).
-			HasNoLeader().IsFollower().Voters(0)
+		node := newTestNode(t)
+		AssertRaftStatus(t, node.Status()).HasNoLeader().IsFollower().Voters(0)
 
 		node.Bootstrap()
-
 		node.Start()
-
 		snapElections(node)
-
-		AssertRaftStatus(t, node.raft.Status()).
-			IsLeader().Voters(1)
+		AssertRaftStatus(t, node.Status()).IsLeader().Voters(1)
 	})
 
 	t.Run("Form and expand a cluster", func(t *testing.T) {
-		addr1, addr2, addr3 := RandomAddrPort(), RandomAddrPort(), RandomAddrPort()
+		node1, node2, node3 := newTestNode(t), newTestNode(t), newTestNode(t)
 
-		node1 := NewNode(rand.Uint64(), addr1, testStore(t), &SpySnapshotter{}).(*node)
 		node1.Bootstrap()
 		node1.Start()
 		snapElections(node1)
 
-		node2 := NewNode(rand.Uint64(), addr2, testStore(t), &SpySnapshotter{}).(*node)
-		node2.Bootstrap(Peer{
-			ID:       node1.raft.Status().ID,
-			AddrPort: addr1,
-		})
+		node2.Bootstrap(node1.AsPeer())
 		node2.Start()
 
-		err := node1.AddNode(context.Background(), Peer{
-			ID:       node2.raft.Status().ID,
-			AddrPort: addr2,
-		})
+		err := node1.AddNode(context.Background(), node2.AsPeer())
 		AssertNoError(t, err).Require()
+		AssertRaftStatus(t, node1.Status()).Voters(2).IsLeader()
+		AssertRaftStatus(t, node2.Status()).Voters(2).IsFollower()
 
-		AssertRaftStatus(t, node1.raft.Status()).Voters(2).IsLeader()
-		AssertRaftStatus(t, node2.raft.Status()).Voters(2).IsFollower()
-
-		node3 := NewNode(rand.Uint64(), addr3, testStore(t), &SpySnapshotter{}).(*node)
-		node3.Bootstrap(Peer{node1.raft.Status().ID, addr1}, Peer{node2.raft.Status().ID, addr2})
+		node3.Bootstrap(node1.AsPeer(), node2.AsPeer())
 		node3.Start()
 
-		err = node2.AddNode(context.Background(), Peer{
-			ID:       node3.raft.Status().ID,
-			AddrPort: addr3,
-		})
+		err = node2.AddNode(context.Background(), node3.AsPeer())
 		AssertNoError(t, err).Require()
-
-		AssertRaftStatus(t, node1.raft.Status()).Voters(3).IsLeader()
-		AssertRaftStatus(t, node2.raft.Status()).Voters(3).IsFollower()
-		AssertRaftStatus(t, node3.raft.Status()).Voters(3).IsFollower()
+		AssertRaftStatus(t, node1.Status()).Voters(3).IsLeader()
+		AssertRaftStatus(t, node2.Status()).Voters(3).IsFollower()
+		AssertRaftStatus(t, node3.Status()).Voters(3).IsFollower()
 	})
 
-	t.Run("remove a node from a cluster", func(t *testing.T) {
+	t.Run("Remove a node from a cluster", func(t *testing.T) {
 		nodes, _, _ := newTestCluster(t, 3)
 		snapElections(nodes...)
+		AssertRaftStatus(t, nodes[0].Status()).Voters(3)
 
-		AssertRaftStatus(t, nodes[0].(*node).raft.Status()).Voters(3)
-
-		err := nodes[0].RemoveNode(context.Background(), Peer{
-			ID:       nodes[2].(*node).raft.Status().ID,
-			AddrPort: nodes[2].(*node).addr,
-		})
+		err := nodes[0].RemoveNode(context.Background(), nodes[2].AsPeer())
 		AssertNoError(t, err)
-		AssertRaftStatus(t, nodes[0].(*node).raft.Status()).Voters(2)
+		AssertRaftStatus(t, nodes[0].Status()).Voters(2)
+		AssertRaftStatus(t, nodes[1].Status()).Voters(2)
+		// TODO: A node should probably shut down when it's removed.
+		// AssertRaftStatus(t, nodes[2].Status()).Voters(2)
 	})
+}
+
+func newTestNode(t *testing.T) Node {
+	return NewNode(rand.Uint64(), RandomAddrPort(), testStore(t), &SpySnapshotter{})
 }
 
 func newTestCluster(t *testing.T, n int) ([]Node, []store.Blobs, []store.Metadata) {
@@ -117,13 +99,14 @@ func newTestCluster(t *testing.T, n int) ([]Node, []store.Blobs, []store.Metadat
 	return nodes, blobs, metadata
 }
 
+// snapElections rapidly ticks the given nodes until a leader is elected.
 func snapElections(nodes ...Node) {
 	var wg sync.WaitGroup
 	wg.Add(len(nodes))
 
 	for _, n := range nodes {
 		go func() {
-			for n.(*node).raft.Status().Lead == 0 {
+			for n.Status().Lead == 0 {
 				n.Tick()
 				wait()
 			}
@@ -137,9 +120,6 @@ func snapElections(nodes ...Node) {
 func TestBlobReplication(t *testing.T) {
 	t.Parallel()
 	nodes, blobs, _ := newTestCluster(t, 3)
-	for _, n := range nodes {
-		n.Start()
-	}
 	snapElections(nodes...)
 
 	t.Run("Ensure blobs are replicated", func(t *testing.T) {
@@ -228,9 +208,6 @@ func TestBlobReplication(t *testing.T) {
 func TestMetadataReplication(t *testing.T) {
 	t.Parallel()
 	nodes, _, metadata := newTestCluster(t, 3)
-	for _, n := range nodes {
-		n.Start()
-	}
 	snapElections(nodes...)
 
 	t.Run("Ensure repository metadata is replicated", func(t *testing.T) {

@@ -6,10 +6,12 @@ package mock
 
 import (
 	"context"
+	"net/netip"
 
 	"github.com/robinkb/cascade-registry/cluster"
 	"github.com/robinkb/cascade-registry/cluster/raft"
 	mock "github.com/stretchr/testify/mock"
+	raft0 "go.etcd.io/raft/v3"
 	"go.etcd.io/raft/v3/raftpb"
 )
 
@@ -93,6 +95,94 @@ func (_c *RaftNode_AddNode_Call) Return(err error) *RaftNode_AddNode_Call {
 }
 
 func (_c *RaftNode_AddNode_Call) RunAndReturn(run func(ctx context.Context, peer raft.Peer) error) *RaftNode_AddNode_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// AddrPort provides a mock function for the type RaftNode
+func (_mock *RaftNode) AddrPort() netip.AddrPort {
+	ret := _mock.Called()
+
+	if len(ret) == 0 {
+		panic("no return value specified for AddrPort")
+	}
+
+	var r0 netip.AddrPort
+	if returnFunc, ok := ret.Get(0).(func() netip.AddrPort); ok {
+		r0 = returnFunc()
+	} else {
+		r0 = ret.Get(0).(netip.AddrPort)
+	}
+	return r0
+}
+
+// RaftNode_AddrPort_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'AddrPort'
+type RaftNode_AddrPort_Call struct {
+	*mock.Call
+}
+
+// AddrPort is a helper method to define mock.On call
+func (_e *RaftNode_Expecter) AddrPort() *RaftNode_AddrPort_Call {
+	return &RaftNode_AddrPort_Call{Call: _e.mock.On("AddrPort")}
+}
+
+func (_c *RaftNode_AddrPort_Call) Run(run func()) *RaftNode_AddrPort_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run()
+	})
+	return _c
+}
+
+func (_c *RaftNode_AddrPort_Call) Return(addrPort netip.AddrPort) *RaftNode_AddrPort_Call {
+	_c.Call.Return(addrPort)
+	return _c
+}
+
+func (_c *RaftNode_AddrPort_Call) RunAndReturn(run func() netip.AddrPort) *RaftNode_AddrPort_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// AsPeer provides a mock function for the type RaftNode
+func (_mock *RaftNode) AsPeer() raft.Peer {
+	ret := _mock.Called()
+
+	if len(ret) == 0 {
+		panic("no return value specified for AsPeer")
+	}
+
+	var r0 raft.Peer
+	if returnFunc, ok := ret.Get(0).(func() raft.Peer); ok {
+		r0 = returnFunc()
+	} else {
+		r0 = ret.Get(0).(raft.Peer)
+	}
+	return r0
+}
+
+// RaftNode_AsPeer_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'AsPeer'
+type RaftNode_AsPeer_Call struct {
+	*mock.Call
+}
+
+// AsPeer is a helper method to define mock.On call
+func (_e *RaftNode_Expecter) AsPeer() *RaftNode_AsPeer_Call {
+	return &RaftNode_AsPeer_Call{Call: _e.mock.On("AsPeer")}
+}
+
+func (_c *RaftNode_AsPeer_Call) Run(run func()) *RaftNode_AsPeer_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run()
+	})
+	return _c
+}
+
+func (_c *RaftNode_AsPeer_Call) Return(peer raft.Peer) *RaftNode_AsPeer_Call {
+	_c.Call.Return(peer)
+	return _c
+}
+
+func (_c *RaftNode_AsPeer_Call) RunAndReturn(run func() raft.Peer) *RaftNode_AsPeer_Call {
 	_c.Call.Return(run)
 	return _c
 }
@@ -232,6 +322,50 @@ func (_c *RaftNode_Handle_Call) Return() *RaftNode_Handle_Call {
 
 func (_c *RaftNode_Handle_Call) RunAndReturn(run func(p cluster.Proposal, f cluster.HandlerFunc)) *RaftNode_Handle_Call {
 	_c.Run(run)
+	return _c
+}
+
+// NodeID provides a mock function for the type RaftNode
+func (_mock *RaftNode) NodeID() uint64 {
+	ret := _mock.Called()
+
+	if len(ret) == 0 {
+		panic("no return value specified for NodeID")
+	}
+
+	var r0 uint64
+	if returnFunc, ok := ret.Get(0).(func() uint64); ok {
+		r0 = returnFunc()
+	} else {
+		r0 = ret.Get(0).(uint64)
+	}
+	return r0
+}
+
+// RaftNode_NodeID_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'NodeID'
+type RaftNode_NodeID_Call struct {
+	*mock.Call
+}
+
+// NodeID is a helper method to define mock.On call
+func (_e *RaftNode_Expecter) NodeID() *RaftNode_NodeID_Call {
+	return &RaftNode_NodeID_Call{Call: _e.mock.On("NodeID")}
+}
+
+func (_c *RaftNode_NodeID_Call) Run(run func()) *RaftNode_NodeID_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run()
+	})
+	return _c
+}
+
+func (_c *RaftNode_NodeID_Call) Return(v uint64) *RaftNode_NodeID_Call {
+	_c.Call.Return(v)
+	return _c
+}
+
+func (_c *RaftNode_NodeID_Call) RunAndReturn(run func() uint64) *RaftNode_NodeID_Call {
+	_c.Call.Return(run)
 	return _c
 }
 
@@ -424,6 +558,50 @@ func (_c *RaftNode_Start_Call) Return() *RaftNode_Start_Call {
 
 func (_c *RaftNode_Start_Call) RunAndReturn(run func()) *RaftNode_Start_Call {
 	_c.Run(run)
+	return _c
+}
+
+// Status provides a mock function for the type RaftNode
+func (_mock *RaftNode) Status() raft0.Status {
+	ret := _mock.Called()
+
+	if len(ret) == 0 {
+		panic("no return value specified for Status")
+	}
+
+	var r0 raft0.Status
+	if returnFunc, ok := ret.Get(0).(func() raft0.Status); ok {
+		r0 = returnFunc()
+	} else {
+		r0 = ret.Get(0).(raft0.Status)
+	}
+	return r0
+}
+
+// RaftNode_Status_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'Status'
+type RaftNode_Status_Call struct {
+	*mock.Call
+}
+
+// Status is a helper method to define mock.On call
+func (_e *RaftNode_Expecter) Status() *RaftNode_Status_Call {
+	return &RaftNode_Status_Call{Call: _e.mock.On("Status")}
+}
+
+func (_c *RaftNode_Status_Call) Run(run func()) *RaftNode_Status_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run()
+	})
+	return _c
+}
+
+func (_c *RaftNode_Status_Call) Return(status raft0.Status) *RaftNode_Status_Call {
+	_c.Call.Return(status)
+	return _c
+}
+
+func (_c *RaftNode_Status_Call) RunAndReturn(run func() raft0.Status) *RaftNode_Status_Call {
+	_c.Call.Return(run)
 	return _c
 }
 

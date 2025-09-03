@@ -19,9 +19,14 @@ type (
 		Stop() error
 		Tick()
 		ClusterStatus() Status
+
+		NodeID() uint64
+		AddrPort() netip.AddrPort
+		AsPeer() Peer
 		Bootstrap(peers ...Peer)
 		AddNode(ctx context.Context, peer Peer) error
 		RemoveNode(ctx context.Context, peer Peer) error
+		Status() raft.Status
 
 		// Messaging
 		Receive(m *raftpb.Message) error
@@ -91,6 +96,21 @@ type node struct {
 	restorer cluster.Restorer
 }
 
+func (n *node) NodeID() uint64 {
+	return n.id
+}
+
+func (n *node) AddrPort() netip.AddrPort {
+	return n.addr
+}
+
+func (n *node) AsPeer() Peer {
+	return Peer{
+		ID:       n.NodeID(),
+		AddrPort: n.AddrPort(),
+	}
+}
+
 // Bootstrap prepares a new Raft node. If this node will join a cluster,
 // at least the cluster's leader must be passed as a peer, but it is safer
 // to pass all known peers.
@@ -139,6 +159,10 @@ func (n *node) RemoveNode(ctx context.Context, peer Peer) error {
 		NodeID:  peer.ID,
 		Context: []byte(peer.AddrPort.String()),
 	})
+}
+
+func (n *node) Status() raft.Status {
+	return n.raft.Status()
 }
 
 func (n *node) proposeConfChange(ctx context.Context, cc raftpb.ConfChange) error {
