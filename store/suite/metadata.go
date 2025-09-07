@@ -63,6 +63,27 @@ func (s *MetadataSuite) TestListBlobs() {
 		AssertNoError(t, err).Require()
 		AssertEqual(t, len(blobs), 0)
 	})
+
+	s.T().Run("returns a blob deleted in one repository but present in another", func(t *testing.T) {
+		store := s.Constructor()
+		name1, name2 := RandomName(), RandomName()
+		digest := RandomDigest()
+
+		for _, name := range []string{name1, name2} {
+			err := store.CreateRepository(name)
+			AssertNoError(t, err).Require()
+			err = store.PutBlob(name, digest)
+			AssertNoError(t, err).Require()
+		}
+
+		err := store.DeleteBlob(name1, digest)
+		AssertNoError(t, err).Require()
+
+		digests, err := store.ListBlobs()
+		AssertNoError(t, err)
+		AssertEqual(t, len(digests), 1).Require()
+		AssertEqual(t, digests[0], digest)
+	})
 }
 
 func (s *MetadataSuite) TestSnapshotRestore() {

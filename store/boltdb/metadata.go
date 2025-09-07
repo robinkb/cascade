@@ -158,12 +158,16 @@ func (s *metadataStore) PutBlob(name string, digest digest.Digest) error {
 			return store.ErrNotFound
 		}
 
-		err := repo.Bucket(_BLOBS).Put([]byte(digest.String()), []byte{})
+		err := repo.Bucket(_BLOBS).Put([]byte(digest), []byte{})
 		if err != nil {
 			return err
 		}
 
-		return tx.Bucket(_BLOBS).Put([]byte(digest.String()), []byte{})
+		blob, err := tx.Bucket(_BLOBS).CreateBucketIfNotExists([]byte(digest))
+		if err != nil {
+			return err
+		}
+		return blob.Put([]byte(name), []byte{})
 	})
 }
 
@@ -179,7 +183,14 @@ func (s *metadataStore) DeleteBlob(name string, digest digest.Digest) error {
 			return err
 		}
 
-		return tx.Bucket(_BLOBS).Delete([]byte(digest.String()))
+		err = tx.Bucket(_BLOBS).Bucket([]byte(digest)).Delete([]byte(name))
+		if err != nil {
+			return err
+		}
+		if tx.Bucket(_BLOBS).Bucket([]byte(digest)).Inspect().KeyN == 0 {
+			tx.Bucket(_BLOBS).DeleteBucket([]byte(digest))
+		}
+		return nil
 	})
 }
 

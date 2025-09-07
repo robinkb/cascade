@@ -14,7 +14,7 @@ import (
 func NewMetadataStore() store.Metadata {
 	return &metadataStore{
 		Repositories: make(map[string]*repository),
-		Blobs:        make(map[godigest.Digest]any),
+		Blobs:        make(map[godigest.Digest]map[string]struct{}),
 	}
 }
 
@@ -23,7 +23,7 @@ type (
 		mu sync.RWMutex
 
 		Repositories map[string]*repository
-		Blobs        map[digest.Digest]any
+		Blobs        map[digest.Digest]map[string]struct{}
 	}
 
 	repository struct {
@@ -120,7 +120,12 @@ func (s *metadataStore) PutBlob(repository string, digest godigest.Digest) error
 	}
 
 	repo.Blobs[digest.String()] = &blob{}
-	s.Blobs[digest] = nil
+
+	_, ok = s.Blobs[digest]
+	if !ok {
+		s.Blobs[digest] = make(map[string]struct{})
+	}
+	s.Blobs[digest][repository] = struct{}{}
 	return nil
 }
 
@@ -129,7 +134,10 @@ func (s *metadataStore) DeleteBlob(repository string, digest godigest.Digest) er
 	defer s.mu.Unlock()
 
 	delete(s.Repositories[repository].Blobs, digest.String())
-	delete(s.Blobs, digest)
+	delete(s.Blobs[digest], repository)
+	if len(s.Blobs[digest]) == 0 {
+		delete(s.Blobs, digest)
+	}
 	return nil
 }
 
