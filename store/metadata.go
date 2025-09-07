@@ -14,6 +14,7 @@ type (
 		CreateRepository(name string) error
 		DeleteRepository(name string) error
 
+		ListBlobs() ([]digest.Digest, error)
 		// TODO: Remove returned string, not used.
 		GetBlob(name string, digest digest.Digest) (string, error)
 		PutBlob(name string, digest digest.Digest) error

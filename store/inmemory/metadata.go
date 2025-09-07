@@ -6,6 +6,7 @@ import (
 	"slices"
 	"sync"
 
+	"github.com/opencontainers/go-digest"
 	godigest "github.com/opencontainers/go-digest"
 	"github.com/robinkb/cascade-registry/store"
 )
@@ -13,13 +14,16 @@ import (
 func NewMetadataStore() store.Metadata {
 	return &metadataStore{
 		Repositories: make(map[string]*repository),
+		Blobs:        make(map[godigest.Digest]any),
 	}
 }
 
 type (
 	metadataStore struct {
+		mu sync.RWMutex
+
 		Repositories map[string]*repository
-		mu           sync.RWMutex
+		Blobs        map[digest.Digest]any
 	}
 
 	repository struct {
@@ -29,6 +33,13 @@ type (
 		UploadSessions map[string]*store.UploadSession
 	}
 
+	// TODO: This should be refactored to something like:
+	// manifest struct {
+	//   Metadata  ManifestMetadata
+	//   Referrers map[godigest.Digest]any
+	// }
+	// This is how it's laid out in the BoltDB implementation.
+	// It would allow for the Metadata to be extracted into a common stuct.
 	manifest struct {
 		Annotations  map[string]string
 		ArtifactType string
@@ -79,6 +90,14 @@ func (s *metadataStore) DeleteRepository(name string) error {
 	return nil
 }
 
+func (s *metadataStore) ListBlobs() ([]godigest.Digest, error) {
+	digests := make([]digest.Digest, 0)
+	for id, _ := range s.Blobs {
+		digests = append(digests, id)
+	}
+	return digests, nil
+}
+
 func (s *metadataStore) GetBlob(repository string, digest godigest.Digest) (string, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
@@ -101,6 +120,7 @@ func (s *metadataStore) PutBlob(repository string, digest godigest.Digest) error
 	}
 
 	repo.Blobs[digest.String()] = &blob{}
+	s.Blobs[digest] = nil
 	return nil
 }
 
@@ -109,6 +129,7 @@ func (s *metadataStore) DeleteBlob(repository string, digest godigest.Digest) er
 	defer s.mu.Unlock()
 
 	delete(s.Repositories[repository].Blobs, digest.String())
+	delete(s.Blobs, digest)
 	return nil
 }
 

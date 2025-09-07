@@ -2,8 +2,10 @@ package suite
 
 import (
 	"bytes"
+	"slices"
 	"testing"
 
+	"github.com/opencontainers/go-digest"
 	"github.com/robinkb/cascade-registry/store"
 	. "github.com/robinkb/cascade-registry/testing" // nolint: staticcheck
 	"github.com/stretchr/testify/suite"
@@ -15,6 +17,52 @@ type MetadataSuite struct {
 	suite.Suite
 
 	Constructor MetadataStoreConstructor
+}
+
+func (s *MetadataSuite) TestListBlobs() {
+	s.T().Run("lists all blobs across repositories", func(t *testing.T) {
+		store := s.Constructor()
+		want := make([]digest.Digest, 5)
+
+		for i := range len(want) {
+			name := RandomName()
+			err := store.CreateRepository(name)
+			AssertNoError(t, err).Require()
+
+			want[i] = RandomDigest()
+			err = store.PutBlob(name, want[i])
+			AssertNoError(t, err).Require()
+		}
+
+		slices.Sort(want)
+
+		got, err := store.ListBlobs()
+		AssertNoError(t, err)
+
+		slices.Sort(got)
+		AssertSlicesEqual(t, got, want)
+	})
+
+	s.T().Run("does not return deleted blobs", func(t *testing.T) {
+		store := s.Constructor()
+		name, digest := RandomName(), RandomDigest()
+		err := store.CreateRepository(name)
+		AssertNoError(t, err).Require()
+		err = store.PutBlob(name, digest)
+		AssertNoError(t, err).Require()
+
+		blobs, err := store.ListBlobs()
+		AssertNoError(t, err).Require()
+		AssertEqual(t, len(blobs), 1).Require()
+		AssertEqual(t, blobs[0], digest)
+
+		err = store.DeleteBlob(name, digest)
+		AssertNoError(t, err).Require()
+
+		blobs, err = store.ListBlobs()
+		AssertNoError(t, err).Require()
+		AssertEqual(t, len(blobs), 0)
+	})
 }
 
 func (s *MetadataSuite) TestSnapshotRestore() {
