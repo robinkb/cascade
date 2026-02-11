@@ -4,6 +4,9 @@ import (
 	"bytes"
 	"fmt"
 	"io"
+	"iter"
+	"os"
+	"strings"
 	"sync"
 
 	"github.com/gofrs/uuid/v5"
@@ -25,6 +28,17 @@ func NewBlobStore() store.Blobs {
 type blobStore struct {
 	store map[string][]byte
 	mu    sync.RWMutex
+}
+
+func (s *blobStore) AllBlobs() iter.Seq2[digest.Digest, error] {
+	return func(yield func(digest.Digest, error) bool) {
+		for path, _ := range s.store {
+			id := s.pathToDigest(path)
+			if !yield(id, nil) {
+				return
+			}
+		}
+	}
 }
 
 func (s *blobStore) StatBlob(id digest.Digest) (*store.BlobInfo, error) {
@@ -50,6 +64,11 @@ func (s *blobStore) BlobReader(id digest.Digest) (io.Reader, error) {
 
 	path := s.digestToPath(id)
 	return bytes.NewBuffer(s.store[path]), nil
+}
+
+func (s *blobStore) BlobWriter(id digest.Digest) (io.Writer, error) {
+	path := s.digestToPath(id)
+	return &writer{s, path}, nil
 }
 
 func (s *blobStore) PutBlob(id digest.Digest, content []byte) error {
@@ -106,6 +125,15 @@ func (s *blobStore) DeleteUpload(id uuid.UUID) error {
 
 func (s *blobStore) digestToPath(id digest.Digest) string {
 	return fmt.Sprintf(blobPathFormat, id.Algorithm(), id.Encoded()[0:2], id.Encoded())
+}
+
+func (s *blobStore) pathToDigest(path string) digest.Digest {
+	parts := strings.Split(path, string(os.PathSeparator))
+	id, err := digest.Parse(fmt.Sprintf("%s:%s", parts[1], parts[3]))
+	if err != nil {
+		panic("invalid path: " + path)
+	}
+	return id
 }
 
 func (s *blobStore) uuidToPath(id uuid.UUID) string {
