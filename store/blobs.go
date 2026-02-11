@@ -49,13 +49,15 @@ type (
 	// outside of regular registry operations.
 	Syncer interface {
 		// All iterates over all blobs in the store.
-		All() iter.Seq2[digest.Digest, error]
+		AllBlobs() iter.Seq2[digest.Digest, error]
+		// StatBlob returns basic file info about the blob with the given digest.
+		StatBlob(id digest.Digest) (*BlobInfo, error)
 		// Writer returns an io.Writer to write a blob.
-		Writer(id digest.Digest) (io.Writer, error)
+		BlobWriter(id digest.Digest) (io.Writer, error)
 		// Reader returns an io.Reader that can be used to read a blob in a streaming fashion.
-		Reader(id digest.Digest) (io.Reader, error)
+		BlobReader(id digest.Digest) (io.Reader, error)
 		// Delete removes a blob from the blob store.
-		Delete(id digest.Digest) error
+		DeleteBlobs(id digest.Digest) error
 	}
 
 	// BlobInfo contains the basic information of a blob.

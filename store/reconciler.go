@@ -1,5 +1,10 @@
 package store
 
+import (
+	"errors"
+	"io"
+)
+
 /**
 Process should be:
 
@@ -34,10 +39,33 @@ Got it!
 - Reconciler in the store package implements cluster.Snapshotter based on the interfaces below.
 */
 
-type ()
+func Reconcile(meta Metadata, src, dst Syncer) error {
+	digests, err := meta.ListBlobs()
+	if err != nil {
+		return err
+	}
 
-// Reconciler
-type Reconciler struct {
-	// snap Snapshotter
-	// sync Syncer
+	for _, d := range digests {
+		if _, err := dst.StatBlob(d); err != nil {
+			if errors.Is(err, ErrBlobNotFound) {
+				r, err := src.BlobReader(d)
+				if err != nil {
+					return err
+				}
+
+				w, err := dst.BlobWriter(d)
+				if err != nil {
+					return err
+				}
+
+				_, err = io.Copy(w, r)
+				if err != nil {
+					return err
+				}
+			} else {
+				return err
+			}
+		}
+	}
+	return nil
 }
