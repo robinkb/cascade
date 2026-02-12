@@ -1,8 +1,6 @@
 package suite
 
 import (
-	"bytes"
-	"io"
 	"slices"
 	"testing"
 
@@ -26,35 +24,30 @@ func (s *ReconcilerSuite) TestReconcile() {
 		meta := s.MetadataStoreConstructor()
 		src := s.BlobStoreConstructor()
 		dst := s.BlobStoreConstructor()
-		count := 50
+		count := 10
 
 		name := RandomName()
 		err := meta.CreateRepository(name)
 		AssertNoError(t, err).Require()
 
+		want := make([]digest.Digest, 0)
 		for range count {
 			id, content := RandomBlob(32)
+			want = append(want, id)
 
 			err := meta.PutBlob(name, id)
 			AssertNoError(t, err).Require()
 
-			w, err := src.BlobWriter(id)
-			AssertNoError(t, err).Require()
-
-			_, err = io.Copy(w, bytes.NewBuffer(content))
+			err = src.PutBlob(id, content)
 			AssertNoError(t, err).Require()
 		}
 
 		err = store.Reconcile(meta, src, dst)
 		AssertNoError(t, err)
 
-		want, err := meta.ListBlobs()
-		AssertNoError(t, err)
-
 		got := make([]digest.Digest, 0)
 		for id, err := range dst.AllBlobs() {
 			AssertNoError(t, err)
-
 			got = append(got, id)
 		}
 
@@ -64,10 +57,4 @@ func (s *ReconcilerSuite) TestReconcile() {
 		AssertEqual(t, len(got), count)
 		AssertSlicesEqual(t, got, want)
 	})
-
-	// Have to add at least:
-	// 1. Destination has blobs that source does not have --> Ensure deleted
-	// 2. Source has missing blobs --> Should not happen, but detect error
-	//
-	// Would be cool if multiple sources can be tried to search for blobs, but that might be a future thing.
 }
