@@ -1,6 +1,9 @@
 package fs
 
 import (
+	"fmt"
+	"io"
+	"iter"
 	"os"
 	"path/filepath"
 	"slices"
@@ -49,7 +52,9 @@ func TestWalker(t *testing.T) {
 		want = append(want, id)
 	}
 
-	walker(dir)
+	for path := range itrWalker(dir) {
+		fmt.Println(path)
+	}
 }
 
 func walker(path string) {
@@ -58,7 +63,7 @@ func walker(path string) {
 		panic(err)
 	}
 
-	files, err := dir.ReadDir(10)
+	files, err := dir.ReadDir(2)
 	if err != nil {
 		panic(err)
 	}
@@ -73,5 +78,43 @@ func walker(path string) {
 		}
 
 		println(fullname)
+	}
+}
+
+func itrWalker(path string) iter.Seq[string] {
+	var walk func(path string)
+
+	return func(yield func(string) bool) {
+		walk = func(path string) {
+			dir, err := os.Open(path)
+			if err != nil {
+				panic(err)
+			}
+			defer dir.Close()
+
+			for {
+				files, err := dir.ReadDir(1)
+				if err == io.EOF {
+					break
+				}
+				if err != nil {
+					panic(err)
+				}
+
+				for _, file := range files {
+					fullname := filepath.Join(path, file.Name())
+					if file.IsDir() {
+						walk(fullname)
+						continue
+					}
+
+					if !yield(fullname) {
+						return
+					}
+				}
+			}
+		}
+
+		walk(path)
 	}
 }
