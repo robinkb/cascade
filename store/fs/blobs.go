@@ -7,6 +7,7 @@ import (
 	"iter"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/gofrs/uuid/v5"
 	"github.com/opencontainers/go-digest"
@@ -32,28 +33,44 @@ type blobStore struct {
 
 func (s *blobStore) AllBlobs() iter.Seq2[digest.Digest, error] {
 	return func(yield func(digest.Digest, error) bool) {
-		dir, err := os.Open(filepath.Join(s.baseDir, "blobs"))
-		if !yield("", err) {
+		path := filepath.Join(s.baseDir, "blobs")
+		s.allBlobs(path, yield)
+	}
+}
+
+func (s *blobStore) allBlobs(path string, yield func(digest.Digest, error) bool) {
+	dir, err := os.Open(path)
+	if err != nil {
+		yield("", err)
+		return
+	}
+	defer dir.Close()
+
+	for {
+		files, err := dir.ReadDir(1)
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			yield("", err)
 			return
 		}
-		defer dir.Close()
 
-		for {
-			files, err := dir.ReadDir(1)
-			if err == io.EOF {
-				break
+		for _, file := range files {
+			fullname := filepath.Join(path, file.Name())
+			if file.IsDir() {
+				s.allBlobs(fullname, yield)
+				continue
 			}
-			if !yield("", err) {
+
+			id, err := s.pathToDigest(fullname)
+			if err != nil {
+				yield("", err)
 				return
 			}
 
-			for _, file := range files {
-				if file.IsDir() {
-
-				}
-				if !yield(digest.Digest(file.Name()), nil) {
-					return
-				}
+			if !yield(id, nil) {
+				return
 			}
 		}
 	}
@@ -171,6 +188,11 @@ func (s *blobStore) digestToPath(id digest.Digest) string {
 		s.baseDir,
 		fmt.Sprintf(blobPathFormat, id.Algorithm(), id.Encoded()[0:2], id.Encoded()),
 	)
+}
+
+func (s *blobStore) pathToDigest(path string) (digest.Digest, error) {
+	parts := strings.Split(path, string(os.PathSeparator))
+	return digest.Parse(fmt.Sprintf("%s:%s", parts[len(parts)-3], parts[len(parts)-1]))
 }
 
 func (s *blobStore) uuidToPath(id uuid.UUID) string {

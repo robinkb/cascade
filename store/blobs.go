@@ -13,7 +13,10 @@ type (
 	// Implementations of this interface are responsible for deciding how data is persisted.
 	// Blobs must be retrievable by their digest, and uploads by their session ID.
 	Blobs interface {
-		// All iterates over all blobs in the store.
+		// AllBlobs iterates over all blobs in the store.
+		// TODO: Get rid of this. iter.Seq2 is an awkward fit for this.
+		// See: https://github.com/golang/go/issues/71901#issuecomment-3366650845
+		// Another example is BoltDB's Cursor.
 		AllBlobs() iter.Seq2[digest.Digest, error]
 		// StatBlob returns basic file info about the blob with the given digest.
 		StatBlob(id digest.Digest) (*BlobInfo, error)
