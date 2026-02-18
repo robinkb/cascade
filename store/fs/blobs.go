@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"io"
+	"iter"
 	"os"
 	"path/filepath"
 
@@ -29,6 +30,35 @@ type blobStore struct {
 	baseDir string
 }
 
+func (s *blobStore) AllBlobs() iter.Seq2[digest.Digest, error] {
+	return func(yield func(digest.Digest, error) bool) {
+		dir, err := os.Open(filepath.Join(s.baseDir, "blobs"))
+		if !yield("", err) {
+			return
+		}
+		defer dir.Close()
+
+		for {
+			files, err := dir.ReadDir(1)
+			if err == io.EOF {
+				break
+			}
+			if !yield("", err) {
+				return
+			}
+
+			for _, file := range files {
+				if file.IsDir() {
+
+				}
+				if !yield(digest.Digest(file.Name()), nil) {
+					return
+				}
+			}
+		}
+	}
+}
+
 // StatBlob returns basic file info about the blob with the given digest.
 func (s *blobStore) StatBlob(id digest.Digest) (*store.BlobInfo, error) {
 	path := s.digestToPath(id)
@@ -52,6 +82,10 @@ func (s *blobStore) GetBlob(id digest.Digest) ([]byte, error) {
 func (s *blobStore) BlobReader(id digest.Digest) (io.Reader, error) {
 	path := s.digestToPath(id)
 	return os.Open(path)
+}
+
+func (s *blobStore) BlobWriter(id digest.Digest) (io.Writer, error) {
+	return nil, nil
 }
 
 // PutBlob writes content to the given path. Intended for smaller blobs that

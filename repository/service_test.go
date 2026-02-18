@@ -66,8 +66,7 @@ func TestWithInMemoryStore(t *testing.T) {
 func TestWithBoltDBStore(t *testing.T) {
 	suite.Run(t, &Suite{
 		StoreConstructor: func() (store.Metadata, store.Blobs) {
-			tmp := t.TempDir()
-			metadata := boltdb.NewMetadataStore(tmp)
+			metadata := boltdb.NewMetadataStore(t.TempDir())
 			blobs := inmemory.NewBlobStore()
 
 			return metadata, blobs
@@ -78,9 +77,8 @@ func TestWithBoltDBStore(t *testing.T) {
 func TestWithFilesystemStore(t *testing.T) {
 	suite.Run(t, &Suite{
 		StoreConstructor: func() (store.Metadata, store.Blobs) {
-			tmp := t.TempDir()
 			metadata := inmemory.NewMetadataStore()
-			blobs := fs.NewBlobStore(tmp)
+			blobs := fs.NewBlobStore(t.TempDir())
 
 			return metadata, blobs
 		},
