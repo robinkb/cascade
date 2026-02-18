@@ -52,7 +52,7 @@ func TestWalker(t *testing.T) {
 		want = append(want, id)
 	}
 
-	for path := range itrWalker(dir) {
+	for path := range itrWalker2(dir) {
 		fmt.Println(path)
 	}
 }
@@ -116,5 +116,41 @@ func itrWalker(path string) iter.Seq[string] {
 		}
 
 		walk(path)
+	}
+}
+
+func itrWalker2(path string) iter.Seq[string] {
+	return func(yield func(string) bool) {
+		itrWalkerInt(path, yield)
+	}
+}
+
+func itrWalkerInt(path string, yield func(string) bool) {
+	dir, err := os.Open(path)
+	if err != nil {
+		panic(err)
+	}
+	defer dir.Close()
+
+	for {
+		files, err := dir.ReadDir(1)
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			panic(err)
+		}
+
+		for _, file := range files {
+			fullname := filepath.Join(path, file.Name())
+			if file.IsDir() {
+				itrWalkerInt(fullname, yield)
+				continue
+			}
+
+			if !yield(fullname) {
+				return
+			}
+		}
 	}
 }
