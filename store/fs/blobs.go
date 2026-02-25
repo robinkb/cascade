@@ -46,7 +46,7 @@ func (s *blobStore) allBlobs(path string, yield func(digest.Digest, error) bool)
 		yield("", err)
 		return
 	}
-	defer dir.Close()
+	defer dir.Close() // nolint: errcheck
 
 	for {
 		files, err := dir.ReadDir(1)

@@ -6,7 +6,6 @@ import (
 	"slices"
 	"sync"
 
-	"github.com/opencontainers/go-digest"
 	godigest "github.com/opencontainers/go-digest"
 	"github.com/robinkb/cascade-registry/store"
 )
@@ -23,7 +22,7 @@ type (
 		mu sync.RWMutex
 
 		Repositories map[string]*repository
-		Blobs        map[digest.Digest]map[string]struct{}
+		Blobs        map[godigest.Digest]map[string]struct{}
 	}
 
 	repository struct {
@@ -91,8 +90,8 @@ func (s *metadataStore) DeleteRepository(name string) error {
 }
 
 func (s *metadataStore) ListBlobs() ([]godigest.Digest, error) {
-	digests := make([]digest.Digest, 0)
-	for id, _ := range s.Blobs {
+	digests := make([]godigest.Digest, 0)
+	for id := range s.Blobs {
 		digests = append(digests, id)
 	}
 	return digests, nil

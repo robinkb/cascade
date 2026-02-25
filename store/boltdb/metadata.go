@@ -188,7 +188,7 @@ func (s *metadataStore) DeleteBlob(name string, digest digest.Digest) error {
 			return err
 		}
 		if tx.Bucket(_BLOBS).Bucket([]byte(digest)).Inspect().KeyN == 0 {
-			tx.Bucket(_BLOBS).DeleteBucket([]byte(digest))
+			return tx.Bucket(_BLOBS).DeleteBucket([]byte(digest))
 		}
 		return nil
 	})

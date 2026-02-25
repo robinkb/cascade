@@ -32,7 +32,7 @@ type blobStore struct {
 
 func (s *blobStore) AllBlobs() iter.Seq2[digest.Digest, error] {
 	return func(yield func(digest.Digest, error) bool) {
-		for path, _ := range s.store {
+		for path := range s.store {
 			id := s.pathToDigest(path)
 			if !yield(id, nil) {
 				return
