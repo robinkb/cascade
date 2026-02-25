@@ -2,7 +2,6 @@ package cascade
 
 import (
 	"errors"
-	"io"
 
 	"github.com/robinkb/cascade-registry/repository"
 	"github.com/robinkb/cascade-registry/store"
@@ -47,36 +46,4 @@ func (r *registryService) GetRepository(name string) (repository.Service, error)
 
 func (r *registryService) DeleteRepository(name string) error {
 	return r.metadata.DeleteRepository(name)
-}
-
-func (r *registryService) Reconcile(src store.BlobReader) error {
-	digests, err := r.metadata.ListBlobs()
-	if err != nil {
-		return err
-	}
-
-	for _, digest := range digests {
-		if _, err := r.blobs.StatBlob(digest); err != nil {
-			if errors.Is(err, store.ErrNotFound) {
-				rd, err := src.BlobReader(digest)
-				if err != nil {
-					return err
-				}
-
-				wr, err := r.blobs.BlobWriter(digest)
-				if err != nil {
-					return err
-				}
-
-				_, err = io.Copy(wr, rd)
-				if err != nil {
-					return err
-				}
-			} else {
-				return err
-			}
-		}
-	}
-
-	return nil
 }

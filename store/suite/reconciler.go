@@ -22,8 +22,8 @@ type ReconcilerSuite struct {
 func (s *ReconcilerSuite) TestReconcile() {
 	s.T().Run("reconciles from full source into empty destination", func(t *testing.T) {
 		meta := s.MetadataStoreConstructor()
+		blobs := s.BlobStoreConstructor()
 		src := s.BlobStoreConstructor()
-		dst := s.BlobStoreConstructor()
 		count := 10
 
 		name := RandomName()
@@ -42,11 +42,11 @@ func (s *ReconcilerSuite) TestReconcile() {
 			AssertNoError(t, err).Require()
 		}
 
-		err = store.Reconcile(meta, src, dst)
+		err = store.Reconcile(meta, blobs, src)
 		AssertNoError(t, err)
 
 		got := make([]digest.Digest, 0)
-		for id, err := range dst.AllBlobs() {
+		for id, err := range blobs.AllBlobs() {
 			AssertNoError(t, err)
 			got = append(got, id)
 		}
