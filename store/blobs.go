@@ -23,8 +23,7 @@ type (
 		// GetBlob returns the blob at the given path. Intended for smaller blobs that
 		// must be fully read into memory server-side, like manifests.
 		GetBlob(id digest.Digest) ([]byte, error)
-		// BlobReader returns an io.Reader that can be used to read a blob in a streaming fashion.
-		BlobReader(id digest.Digest) (io.Reader, error)
+		BlobReader
 		// BlobWriter returns an io.Writer to write a blob in a streaming fashion.
 		// It should only be used for reconciliation. Clients must go through the upload flow.
 		BlobWriter(id digest.Digest) (io.Writer, error)
@@ -50,6 +49,11 @@ type (
 		// DeleteUpload removes an upload from the store.
 		// Intended for cleaning up expired or failed uploads.
 		DeleteUpload(id uuid.UUID) error
+	}
+
+	BlobReader interface {
+		// BlobReader returns an io.Reader that can be used to read a blob in a streaming fashion.
+		BlobReader(id digest.Digest) (io.Reader, error)
 	}
 
 	// BlobInfo contains the basic information of a blob.

@@ -39,21 +39,21 @@ Got it!
 - Reconciler in the store package implements cluster.Snapshotter based on the interfaces below.
 */
 
-func Reconcile(meta Metadata, src, dst Blobs) error {
+func Reconcile(meta Metadata, blobs Blobs, src BlobReader) error {
 	digests, err := meta.ListBlobs()
 	if err != nil {
 		return err
 	}
 
 	for _, d := range digests {
-		if _, err := dst.StatBlob(d); err != nil {
+		if _, err := blobs.StatBlob(d); err != nil {
 			if errors.Is(err, ErrNotFound) {
 				r, err := src.BlobReader(d)
 				if err != nil {
 					return err
 				}
 
-				w, err := dst.BlobWriter(d)
+				w, err := blobs.BlobWriter(d)
 				if err != nil {
 					return err
 				}

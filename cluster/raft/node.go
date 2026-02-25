@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/robinkb/cascade-registry/cluster"
+	"github.com/robinkb/cascade-registry/store"
 	"go.etcd.io/raft/v3"
 	"go.etcd.io/raft/v3/raftpb"
 )
@@ -32,6 +33,14 @@ type (
 		cluster.Proposer
 	}
 )
+
+func NewNodeDirty(id uint64, addr netip.AddrPort, storage *DiskStorage, snap cluster.SnapshotRestorer, meta store.Metadata, blobs store.Blobs) Node {
+	n := NewNode(id, addr, storage, snap)
+	n.(*node).meta = meta
+	n.(*node).blobs = blobs
+
+	return n
+}
 
 // TODO: NewNode should return an error instead of panicking? Probably?
 // Also, I should probably decompose this more and allow passing dependencies
@@ -88,6 +97,9 @@ type node struct {
 	mesh     Mesh
 	storage  *DiskStorage
 	restorer cluster.Restorer
+
+	meta  store.Metadata
+	blobs store.Blobs
 }
 
 func (n *node) NodeID() uint64 {
@@ -231,6 +243,14 @@ func (n *node) processSnapshot(snap raftpb.Snapshot) {
 		log.Printf("failed to restore snapshot: %s", err)
 		n.raft.ReportSnapshot(n.id, raft.SnapshotFailure)
 	}
+
+	client := n.mesh.GetClient()
+	err = store.Reconcile(n.meta, n.blobs, client)
+	if err != nil {
+		log.Printf("failed to restore snapshot: %s", err)
+		n.raft.ReportSnapshot(n.id, raft.SnapshotFailure)
+	}
+
 	n.raft.ReportSnapshot(n.id, raft.SnapshotFinish)
 }
 
