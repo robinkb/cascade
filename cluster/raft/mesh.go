@@ -35,6 +35,14 @@ type (
 	}
 )
 
+func NewDirtyMesh(node Node, addr netip.AddrPort, blobs store.BlobReader) Mesh {
+	return &mesh{
+		addr:    addr,
+		server:  NewDirtyServer(node, blobs),
+		clients: make(map[uint64]*Client),
+	}
+}
+
 func NewMesh(node Node, addr netip.AddrPort) Mesh {
 	m := &mesh{
 		addr:    addr,
@@ -72,7 +80,16 @@ func (m *mesh) SendMessage(id uint64, msg *raftpb.Message) error {
 }
 
 func (m *mesh) GetClient() *Client {
-	return m.clients[1]
+	for _, client := range m.clients {
+		return client
+	}
+	panic("no clients")
+}
+
+func NewDirtyServer(node Node, blobs store.BlobReader) *server {
+	server := NewServer(node)
+	server.blobs = blobs
+	return server
 }
 
 func NewServer(node Node) *server {
@@ -174,7 +191,8 @@ func (c *Client) SendMessage(m *raftpb.Message) error {
 }
 
 func (c *Client) BlobReader(id godigest.Digest) (io.Reader, error) {
-	path := fmt.Sprintf("/digest/%s", id.Encoded())
+	path := fmt.Sprintf("/blobs/%s", id.String())
+	log.Print("reading blob at ", path)
 	resp, err := c.do(http.MethodGet, path, nil, nil)
 	if err != nil {
 		return nil, err

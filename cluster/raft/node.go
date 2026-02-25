@@ -35,11 +35,44 @@ type (
 )
 
 func NewNodeDirty(id uint64, addr netip.AddrPort, storage *DiskStorage, snap cluster.SnapshotRestorer, meta store.Metadata, blobs store.Blobs) Node {
-	n := NewNode(id, addr, storage, snap)
-	n.(*node).meta = meta
-	n.(*node).blobs = blobs
+	conf := raft.Config{
+		// TODO: This may need to be set when restarting a node.
+		// But I'm not sure of how to persist it. It can only be saved _after_
+		// applying entries to the state machine. And etcd doesn't seem to set this either.
+		Applied: 0,
 
-	return n
+		ID:              id,
+		ElectionTick:    10,
+		HeartbeatTick:   1,
+		Storage:         storage,
+		MaxSizePerMsg:   1 << 20,
+		MaxInflightMsgs: 256,
+
+		// If weird stuff happens, I should check these toggles.
+		StepDownOnRemoval: true,
+		PreVote:           true,
+		CheckQuorum:       true,
+	}
+
+	node := &node{
+		id:          id,
+		addr:        addr,
+		raft:        raft.RestartNode(&conf),
+		storage:     storage,
+		ticker:      time.Tick(100 * time.Millisecond),
+		manualTick:  make(chan time.Time),
+		done:        make(chan struct{}),
+		confChanges: newErrCs(),
+
+		meta:  meta,
+		blobs: blobs,
+	}
+
+	node.proposer = newProposer(node.raft)
+	node.mesh = NewDirtyMesh(node, addr, blobs)
+	node.restorer = snap
+
+	return node
 }
 
 // TODO: NewNode should return an error instead of panicking? Probably?
@@ -229,6 +262,12 @@ func (n *node) run() {
 
 func (n *node) send(messages []raftpb.Message) {
 	for _, message := range messages {
+		defer func() {
+			if r := recover(); r != nil {
+				log.Printf("failed to send message to peer %d: %s", message.To, r)
+			}
+		}()
+
 		err := n.mesh.SendMessage(message.To, &message)
 		if err != nil {
 			log.Println("failed to send message:", err)
