@@ -2,8 +2,10 @@ package fs
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"iter"
 	"os"
 	"path/filepath"
@@ -102,7 +104,15 @@ func (s *blobStore) BlobReader(id digest.Digest) (io.Reader, error) {
 }
 
 func (s *blobStore) BlobWriter(id digest.Digest) (io.Writer, error) {
-	return nil, nil
+	path := s.digestToPath(id)
+
+	base := filepath.Dir(path)
+	err := os.MkdirAll(base, 0755)
+	if err != nil {
+		return nil, err
+	}
+
+	return os.OpenFile(path, os.O_CREATE|os.O_WRONLY, os.ModeAppend)
 }
 
 // PutBlob writes content to the given path. Intended for smaller blobs that
@@ -205,6 +215,9 @@ func (s *blobStore) uuidToPath(id uuid.UUID) string {
 func (s *blobStore) stat(path string) (*store.BlobInfo, error) {
 	f, err := os.Open(path)
 	if err != nil {
+		if errors.Is(err, fs.ErrNotExist) {
+			return nil, store.ErrNotFound
+		}
 		return nil, err
 	}
 
