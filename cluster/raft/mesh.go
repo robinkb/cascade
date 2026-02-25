@@ -155,7 +155,10 @@ func (s *server) getBlobHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	io.Copy(w, rd)
+	_, err = io.Copy(w, rd)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+	}
 }
 
 func NewClient(baseUrl string) *Client {
