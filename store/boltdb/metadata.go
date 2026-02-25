@@ -37,8 +37,14 @@ func NewMetadataStore(baseDir string) store.Metadata {
 		panic(err)
 	}
 
+	// Initialize top-level buckets that hold all repositories,
+	// and cross-repository blob references.
 	if err := db.Update(func(tx *bolt.Tx) error {
 		_, err := tx.CreateBucketIfNotExists(_REPOSITORIES)
+		if err != nil {
+			return err
+		}
+		_, err = tx.CreateBucketIfNotExists(_BLOBS)
 		return err
 	}); err != nil {
 		panic(err)
@@ -76,7 +82,7 @@ func (s *metadataStore) CreateRepository(name string) error {
 		// by another thread.
 		if err != nil {
 			if errors.Is(err, bolterrors.ErrBucketExists) {
-				err = nil
+				return nil
 			}
 			return err
 		}
@@ -108,6 +114,25 @@ func (s *metadataStore) DeleteRepository(name string) error {
 	})
 }
 
+func (s *metadataStore) ListBlobs() ([]digest.Digest, error) {
+	digests := make([]digest.Digest, 0)
+	err := s.db.View(func(tx *bolt.Tx) error {
+		c := tx.Bucket(_BLOBS).Cursor()
+
+		for k, _ := c.First(); k != nil; k, _ = c.Next() {
+			id, err := digest.Parse(string(k))
+			if err != nil {
+				return err
+			}
+			digests = append(digests, id)
+		}
+
+		return nil
+	})
+
+	return digests, err
+}
+
 func (s *metadataStore) GetBlob(name string, digest digest.Digest) (string, error) {
 	err := s.db.View(func(tx *bolt.Tx) error {
 		repo := tx.Bucket(_REPOSITORIES).Bucket([]byte(name))
@@ -133,7 +158,16 @@ func (s *metadataStore) PutBlob(name string, digest digest.Digest) error {
 			return store.ErrNotFound
 		}
 
-		return repo.Bucket(_BLOBS).Put([]byte(digest.String()), []byte{})
+		err := repo.Bucket(_BLOBS).Put([]byte(digest), []byte{})
+		if err != nil {
+			return err
+		}
+
+		blob, err := tx.Bucket(_BLOBS).CreateBucketIfNotExists([]byte(digest))
+		if err != nil {
+			return err
+		}
+		return blob.Put([]byte(name), []byte{})
 	})
 }
 
@@ -144,7 +178,19 @@ func (s *metadataStore) DeleteBlob(name string, digest digest.Digest) error {
 			return store.ErrNotFound
 		}
 
-		return repo.Bucket(_BLOBS).Delete([]byte(digest.String()))
+		err := repo.Bucket(_BLOBS).Delete([]byte(digest.String()))
+		if err != nil {
+			return err
+		}
+
+		err = tx.Bucket(_BLOBS).Bucket([]byte(digest)).Delete([]byte(name))
+		if err != nil {
+			return err
+		}
+		if tx.Bucket(_BLOBS).Bucket([]byte(digest)).Inspect().KeyN == 0 {
+			return tx.Bucket(_BLOBS).DeleteBucket([]byte(digest))
+		}
+		return nil
 	})
 }
 
