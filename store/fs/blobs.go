@@ -112,7 +112,7 @@ func (s *blobStore) BlobWriter(id digest.Digest) (io.Writer, error) {
 		return nil, err
 	}
 
-	return os.OpenFile(path, os.O_CREATE|os.O_WRONLY, os.ModeAppend)
+	return os.OpenFile(path, os.O_CREATE|os.O_WRONLY, 0666)
 }
 
 // PutBlob writes content to the given path. Intended for smaller blobs that
