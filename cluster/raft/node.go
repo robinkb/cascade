@@ -77,8 +77,7 @@ func NewNodeDirty(id uint64, addr netip.AddrPort, storage *DiskStorage, snap clu
 }
 
 // TODO: NewNode should return an error instead of panicking? Probably?
-// Also, I should probably decompose this more and allow passing dependencies
-// like a Mesh directly.
+// Also, I should probably decompose this more and do dependency injection.
 func NewNode(id uint64, addr netip.AddrPort, storage *DiskStorage, snap cluster.SnapshotRestorer) Node {
 	conf := raft.Config{
 		// TODO: This may need to be set when restarting a node.
@@ -288,7 +287,11 @@ func (n *node) processSnapshot(snap raftpb.Snapshot) {
 		n.raft.ReportSnapshot(n.id, raft.SnapshotFailure)
 	}
 
-	client := n.mesh.GetClient()
+	var client *Client
+	for id := range n.raft.Status().Config.Voters.IDs() {
+		client, _ = n.clients.Get(id)
+	}
+
 	err = store.Reconcile(n.meta, n.blobs, client)
 	if err != nil {
 		log.Printf("failed to restore snapshot: %s", err)
