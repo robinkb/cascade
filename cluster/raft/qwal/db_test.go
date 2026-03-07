@@ -1,4 +1,4 @@
-package logdeck
+package qwal
 
 import (
 	"errors"
@@ -321,10 +321,10 @@ func TestDBOpenExisting(t *testing.T) {
 }
 
 func testDB(t *testing.T, dir string, opts *Options) DB {
-	deck, err := Open(dir, opts)
+	db, err := Open(dir, opts)
 	AssertNoError(t, err).Require()
 
-	return deck
+	return db
 }
 
 func randomRecordsN(n int, minSize, maxSize int64) []*record {

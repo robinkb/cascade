@@ -1,4 +1,4 @@
-package logdeck
+package qwal
 
 import (
 	"fmt"
@@ -11,7 +11,7 @@ const (
 )
 
 func ExampleDumpLog() {
-	// Open a Log created by LogDeckDB.
+	// Open a Log created by QWAL.
 	f, _ := os.Open("00000000000000000012.log")
 	defer f.Close() // nolint: errcheck
 

@@ -5,26 +5,26 @@ import (
 	"fmt"
 
 	"github.com/robinkb/cascade-registry/cluster"
-	"github.com/robinkb/cascade-registry/cluster/raft/logdeck"
+	"github.com/robinkb/cascade-registry/cluster/raft/qwal"
 	"go.etcd.io/raft/v3"
 	"go.etcd.io/raft/v3/raftpb"
 )
 
 const (
 	// Types of Records being saved to storage.
-	TypeEntry logdeck.Type = iota
+	TypeEntry qwal.Type = iota
 	TypeHardState
 	TypeSnapshot
 )
 
-func NewDiskStorage(deck logdeck.DB, snap cluster.Snapshotter) (*DiskStorage, error) {
+func NewDiskStorage(db qwal.DB, snap cluster.Snapshotter) (*DiskStorage, error) {
 	s := &DiskStorage{
-		deck: deck,
+		db:   db,
 		snap: snap,
 	}
 
-	if s.deck.Count(TypeEntry) > 0 {
-		value, err := s.deck.First(TypeEntry)
+	if s.db.Count(TypeEntry) > 0 {
+		value, err := s.db.First(TypeEntry)
 		if err != nil {
 			return nil, fmt.Errorf("failed to read first entry: %w", err)
 		}
@@ -41,8 +41,8 @@ func NewDiskStorage(deck logdeck.DB, snap cluster.Snapshotter) (*DiskStorage, er
 		}
 	}
 
-	if s.deck.Count(TypeHardState) > 0 {
-		value, err := s.deck.Last(TypeHardState)
+	if s.db.Count(TypeHardState) > 0 {
+		value, err := s.db.Last(TypeHardState)
 		if err != nil {
 			return nil, err
 		}
@@ -56,8 +56,8 @@ func NewDiskStorage(deck logdeck.DB, snap cluster.Snapshotter) (*DiskStorage, er
 		s.hardState = hardState
 	}
 
-	if s.deck.Count(TypeSnapshot) > 0 {
-		value, err := s.deck.Last(TypeSnapshot)
+	if s.db.Count(TypeSnapshot) > 0 {
+		value, err := s.db.Last(TypeSnapshot)
 		if err != nil {
 			return nil, err
 		}
@@ -82,14 +82,14 @@ func NewDiskStorage(deck logdeck.DB, snap cluster.Snapshotter) (*DiskStorage, er
 	// 	}
 	// }()
 
-	s.deck.CutHook(s.cutHook())
-	s.deck.CompactHook(s.compactionHook())
+	s.db.CutHook(s.cutHook())
+	s.db.CompactHook(s.compactionHook())
 
 	return s, nil
 }
 
 type DiskStorage struct {
-	deck logdeck.DB
+	db   qwal.DB
 	snap cluster.Snapshotter
 
 	hardState raftpb.HardState
@@ -155,7 +155,7 @@ func (s *DiskStorage) Entries(lo, hi, maxSize uint64) ([]raftpb.Entry, error) {
 	var size uint64
 	entries := make([]raftpb.Entry, 0)
 
-	for value, err := range s.deck.Range(TypeEntry, int(lo), int(hi)) {
+	for value, err := range s.db.Range(TypeEntry, int(lo), int(hi)) {
 		if err != nil {
 			return nil, fmt.Errorf("failed to get entries [lo: %d] [hi: %d]: %w", lo, hi, err)
 		}
@@ -186,7 +186,7 @@ func (s *DiskStorage) Term(i uint64) (uint64, error) {
 	// Term() is called really often, and some of our Entries are really big now.
 	// It's silly to read 1 MiB into memory when we only need 8 bytes.
 	s.callStats.term++
-	if i == 0 && s.deck.Count(TypeEntry) == 0 {
+	if i == 0 && s.db.Count(TypeEntry) == 0 {
 		return 0, nil
 	}
 
@@ -199,13 +199,13 @@ func (s *DiskStorage) Term(i uint64) (uint64, error) {
 	if i == fi-1 {
 		return s.compactedEntry.Term, nil
 	}
-	if i < fi || s.deck.Count(TypeEntry) == 0 {
+	if i < fi || s.db.Count(TypeEntry) == 0 {
 		return 0, raft.ErrCompacted
 	}
 
 	i -= fi
 
-	value, err := s.deck.Get(TypeEntry, int(i))
+	value, err := s.db.Get(TypeEntry, int(i))
 	if err != nil {
 		return 0, fmt.Errorf("failed to get term [i: %d] [fi: %d] [li: %d]: %w", i, fi, li, err)
 	}
@@ -226,10 +226,10 @@ func (s *DiskStorage) LastIndex() (uint64, error) {
 }
 
 func (s *DiskStorage) lastIndex() uint64 {
-	if s.deck.Count(TypeEntry) == 0 {
+	if s.db.Count(TypeEntry) == 0 {
 		return s.firstEntry.Index
 	}
-	return s.firstIndex() + uint64(s.deck.Count(TypeEntry)) - 1
+	return s.firstIndex() + uint64(s.db.Count(TypeEntry)) - 1
 }
 
 // FirstIndex returns the index of the first log entry that is
@@ -247,7 +247,7 @@ func (s *DiskStorage) AppliedIndex(i uint64) {
 func (s *DiskStorage) firstIndex() uint64 {
 	// Makes no sense, but here we are. This is how Raft's MemoryStorage works.
 	// The Raft Node will refuse to start up without it.
-	if s.deck.Count(TypeEntry) == 0 {
+	if s.db.Count(TypeEntry) == 0 {
 		return 1
 	}
 	return s.firstEntry.Index
@@ -261,7 +261,7 @@ func (s *DiskStorage) Snapshot() (raftpb.Snapshot, error) {
 
 func (s *DiskStorage) Save(entries []raftpb.Entry, hardState raftpb.HardState, sync bool) error {
 	if len(entries) != 0 {
-		if s.deck.Count(TypeEntry) == 0 {
+		if s.db.Count(TypeEntry) == 0 {
 			s.firstEntry = raftpb.Entry{
 				Term:  entries[0].Term,
 				Index: entries[0].Index,
@@ -274,7 +274,7 @@ func (s *DiskStorage) Save(entries []raftpb.Entry, hardState raftpb.HardState, s
 				return err
 			}
 
-			err = s.deck.Append(TypeEntry, value)
+			err = s.db.Append(TypeEntry, value)
 			if err != nil {
 				return err
 			}
@@ -287,7 +287,7 @@ func (s *DiskStorage) Save(entries []raftpb.Entry, hardState raftpb.HardState, s
 			return err
 		}
 
-		err = s.deck.Append(TypeHardState, value)
+		err = s.db.Append(TypeHardState, value)
 		if err != nil {
 			return err
 		}
@@ -296,7 +296,7 @@ func (s *DiskStorage) Save(entries []raftpb.Entry, hardState raftpb.HardState, s
 	}
 
 	if sync {
-		return s.deck.Sync()
+		return s.db.Sync()
 	}
 
 	return nil
@@ -313,14 +313,14 @@ func (s *DiskStorage) SaveSnapshot(snapshot raftpb.Snapshot) error {
 		return err
 	}
 
-	err = s.deck.Append(TypeSnapshot, value)
+	err = s.db.Append(TypeSnapshot, value)
 	if err != nil {
 		return err
 	}
 
 	s.snapshot = snapshot
 
-	return s.deck.Sync()
+	return s.db.Sync()
 }
 
 func (s *DiskStorage) SaveConfState(cs raftpb.ConfState) {
@@ -328,17 +328,17 @@ func (s *DiskStorage) SaveConfState(cs raftpb.ConfState) {
 }
 
 func (s *DiskStorage) Close() error {
-	return s.deck.Close()
+	return s.db.Close()
 }
 
-func (s *DiskStorage) cutHook() logdeck.CutHookFunc {
+func (s *DiskStorage) cutHook() qwal.CutHookFunc {
 	var entry raftpb.Entry
 	buf := new(bytes.Buffer)
 
-	return func(id logdeck.LogID) error {
+	return func(id qwal.LogID) error {
 		buf.Reset()
 
-		value, err := s.deck.Get(TypeEntry, int(s.appliedIndex-s.firstIndex()))
+		value, err := s.db.Get(TypeEntry, int(s.appliedIndex-s.firstIndex()))
 		if err != nil {
 			return err
 		}
@@ -365,7 +365,7 @@ func (s *DiskStorage) cutHook() logdeck.CutHookFunc {
 			return err
 		}
 
-		err = s.deck.Append(TypeSnapshot, data)
+		err = s.db.Append(TypeSnapshot, data)
 		if err != nil {
 			return err
 		}
@@ -376,17 +376,17 @@ func (s *DiskStorage) cutHook() logdeck.CutHookFunc {
 	}
 }
 
-func (s *DiskStorage) compactionHook() logdeck.CompactHookFunc {
+func (s *DiskStorage) compactionHook() qwal.CompactHookFunc {
 	var entry raftpb.Entry
 
-	return func(c logdeck.Counters) error {
+	return func(c qwal.Counters) error {
 		for t, count := range c.All() {
 			// We only do something with Entries atm.
 			if t != TypeEntry {
 				continue
 			}
 
-			value, err := s.deck.Get(TypeEntry, int(count-1))
+			value, err := s.db.Get(TypeEntry, int(count-1))
 			if err != nil {
 				return err
 			}
@@ -401,7 +401,7 @@ func (s *DiskStorage) compactionHook() logdeck.CompactHookFunc {
 				Term:  entry.Term,
 			}
 
-			value, err = s.deck.Get(TypeEntry, int(count))
+			value, err = s.db.Get(TypeEntry, int(count))
 			if err != nil {
 				return err
 			}

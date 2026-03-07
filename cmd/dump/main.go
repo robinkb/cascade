@@ -7,7 +7,7 @@ import (
 	"os"
 
 	"github.com/robinkb/cascade-registry/cluster/raft"
-	"github.com/robinkb/cascade-registry/cluster/raft/logdeck"
+	"github.com/robinkb/cascade-registry/cluster/raft/qwal"
 	"go.etcd.io/raft/v3/raftpb"
 )
 
@@ -31,7 +31,7 @@ func main() {
 
 	cursor := 0
 
-	for t, val := range logdeck.DumpLog(f) {
+	for t, val := range qwal.DumpLog(f) {
 		switch t {
 		case raft.TypeEntry:
 			var entry raftpb.Entry
@@ -58,6 +58,6 @@ func main() {
 			fmt.Printf("%8d:%-7d [snapshot] index %d, term %d, confState %s\n", cursor, len(val), snap.Metadata.Index, snap.Metadata.Term, snap.Metadata.ConfState.String())
 		}
 
-		cursor += logdeck.RecordHeaderLength + len(val)
+		cursor += qwal.RecordHeaderLength + len(val)
 	}
 }

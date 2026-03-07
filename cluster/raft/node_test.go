@@ -384,8 +384,11 @@ func snapElections(nodes ...Node) {
 	wg.Wait()
 }
 
+// wait is used for waiting between ticks for Raft test cluster formation and state checks.
+// If tests that use wait() are timing out, the sleep interval likely needs to be _increased_.
+// Because if Raft ticks too quickly, the cluster will keep failing to elect a leader.
 func wait() {
-	time.Sleep(4 * time.Millisecond)
+	time.Sleep(6 * time.Millisecond)
 }
 
 func AssertRaftStatus(t *testing.T, status raft.Status) *RaftStatusAsserter {

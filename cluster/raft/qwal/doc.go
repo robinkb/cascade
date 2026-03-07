@@ -1,14 +1,14 @@
 /*
-Logdeck is a storage engine that saves values by type and index.
+QWAL (Queryable Write-Ahead Log) is a storage engine that saves values by type and index.
 It was designed as the backend for an on-disk storage implementation for [go.etcd.io/raft/v3].
-You can perhaps think of it as a queryable write-ahead log.
 The design is heavily inspired by Bitcask, but it is not a traditional key/value store.
 
 Applications append values to the DB, which are encoded into records.
 The record contains the value's type, its size, a checksum, and the value itself.
 Internally, the values are written to files called logs, which are managed by the DB.
 There is always one active log, which accepts all new values written to the DB.
-Once a new record would cause the active log to exceed its limit, it is cut.
+Logs are limited in either size or the number of records.
+Once a new record would cause the active log to exceed its limits, it is cut.
 The cut log is moved into read-only mode.
 A new active log is then provisioned, and the value is written to the new log.
 A log can be limited either by size, or by record count.
@@ -34,4 +34,4 @@ Values are retrieved by their type and index within the DB at a specific index, 
 Applications can query the first (oldest) or last (newest) value of a type.
 Compaction shifts the index of each value, with the oldest remaining value of a type moving to index zero.
 */
-package logdeck
+package qwal

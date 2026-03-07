@@ -13,7 +13,7 @@ import (
 
 	"github.com/robinkb/cascade-registry"
 	"github.com/robinkb/cascade-registry/cluster/raft"
-	"github.com/robinkb/cascade-registry/cluster/raft/logdeck"
+	"github.com/robinkb/cascade-registry/cluster/raft/qwal"
 	"github.com/robinkb/cascade-registry/server"
 	"github.com/robinkb/cascade-registry/store/boltdb"
 	"github.com/robinkb/cascade-registry/store/cluster"
@@ -60,7 +60,7 @@ func main() {
 			}
 		}
 
-		db, err := logdeck.Open(filepath.Join(path, "raft"), nil)
+		db, err := qwal.Open(filepath.Join(path, "raft"), nil)
 		if err != nil {
 			log.Fatal(err)
 		}
