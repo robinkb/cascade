@@ -1,4 +1,4 @@
-package logdeck
+package qwal
 
 import "errors"
 
@@ -12,7 +12,7 @@ var (
 	ErrTypeUnknown      = errors.New("type unknown")
 	ErrRangeInvalid     = errors.New("range invalid")
 
-	// LogDeck errors
+	// QWAL errors
 	ErrInvalidCompaction = errors.New("invalid compaction")
 	ErrCutHookFailed     = errors.New("cut hook failed")
 	ErrCompactHookFailed = errors.New("compact hook failed")

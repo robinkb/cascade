@@ -1,4 +1,4 @@
-package logdeck
+package qwal
 
 import (
 	"math/rand/v2"

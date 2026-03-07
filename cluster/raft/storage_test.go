@@ -9,7 +9,7 @@ import (
 	"go.etcd.io/raft/v3"
 	"go.etcd.io/raft/v3/raftpb"
 
-	"github.com/robinkb/cascade-registry/cluster/raft/logdeck"
+	"github.com/robinkb/cascade-registry/cluster/raft/qwal"
 	. "github.com/robinkb/cascade-registry/testing"
 )
 
@@ -230,7 +230,7 @@ func TestApplySnapshot(t *testing.T) {
 func TestPersistence(t *testing.T) {
 	dir := t.TempDir()
 
-	oldDb, err := logdeck.Open(dir, nil)
+	oldDb, err := qwal.Open(dir, nil)
 	AssertNoError(t, err).Require()
 	oldStore, err := NewDiskStorage(oldDb, new(SpySnapshotter))
 	AssertNoError(t, err).Require()
@@ -250,7 +250,7 @@ func TestPersistence(t *testing.T) {
 	err = oldStore.SaveSnapshot(want.snapshot)
 	AssertNoError(t, err).Require()
 
-	newDb, err := logdeck.Open(dir, nil)
+	newDb, err := qwal.Open(dir, nil)
 	AssertNoError(t, err).Require()
 	newStore, err := NewDiskStorage(newDb, new(SpySnapshotter))
 	AssertNoError(t, err).Require()
@@ -378,9 +378,9 @@ func (i index) terms(terms ...uint64) []raftpb.Entry {
 	return entries
 }
 
-func testDB(t *testing.T, opts *logdeck.Options) logdeck.DB {
+func testDB(t *testing.T, opts *qwal.Options) qwal.DB {
 	dir := t.TempDir()
-	db, err := logdeck.Open(dir, opts)
+	db, err := qwal.Open(dir, opts)
 	AssertNoError(t, err).Require()
 
 	return db
