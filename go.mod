@@ -1,8 +1,8 @@
 module github.com/robinkb/cascade-registry
 
-go 1.24.0
+go 1.25.0
 
-toolchain go1.24.3
+toolchain go1.25.7
 
 require (
 	github.com/gofrs/uuid/v5 v5.4.0
