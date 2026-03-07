@@ -63,6 +63,7 @@ func NewNodeDirty(id uint64, addr netip.AddrPort, storage *DiskStorage, snap clu
 		manualTick:  make(chan time.Time),
 		done:        make(chan struct{}),
 		confChanges: newErrCs(),
+		clients:     cluster.NewClients[Client](),
 
 		meta:  meta,
 		blobs: blobs,
@@ -107,6 +108,7 @@ func NewNode(id uint64, addr netip.AddrPort, storage *DiskStorage, snap cluster.
 		manualTick:  make(chan time.Time),
 		done:        make(chan struct{}),
 		confChanges: newErrCs(),
+		clients:     cluster.NewClients[Client](),
 	}
 
 	node.proposer = newProposer(node.raft)
@@ -127,6 +129,7 @@ type node struct {
 	confChanges errCs
 
 	*proposer
+	clients  cluster.Clients[Client]
 	mesh     Mesh
 	storage  *DiskStorage
 	restorer cluster.Restorer
@@ -169,7 +172,8 @@ func (n *node) Bootstrap(peers ...Peer) {
 		n.storage.SaveConfState(*confState)
 
 		if n.id != peer.ID {
-			n.mesh.SetPeer(peer.ID, peer.AddrPort)
+			client := NewClient("http://" + peer.AddrPort.String())
+			n.clients.Add(peer.ID, client)
 		}
 	}
 }
@@ -268,7 +272,8 @@ func (n *node) send(messages []raftpb.Message) {
 			}
 		}()
 
-		err := n.mesh.SendMessage(message.To, &message)
+		client, _ := n.clients.Get(message.To)
+		err := client.SendMessage(&message)
 		if err != nil {
 			log.Println("failed to send message:", err)
 		}
@@ -315,8 +320,12 @@ func (n *node) processEntries(entries []raftpb.Entry) {
 			for _, change := range cc.Changes {
 				switch change.Type {
 				case raftpb.ConfChangeAddNode:
+					// TODO: Adding a client can error out, technically, in which case
+					// we should not call raft.ApplyConfChange because it did not get accepted.
 					url := netip.MustParseAddrPort(string(cc.Context))
-					n.mesh.SetPeer(change.NodeID, url)
+					client := NewClient("http://" + url.String())
+					n.clients.Add(change.NodeID, client)
+
 					log.Printf("%d added node with id %d and url %s", n.NodeID(), change.NodeID, url.String())
 
 				case raftpb.ConfChangeRemoveNode:
@@ -325,7 +334,7 @@ func (n *node) processEntries(entries []raftpb.Entry) {
 						n.Stop()
 					} else {
 						log.Printf("%d removed node with id %d", n.NodeID(), change.NodeID)
-						n.mesh.DeletePeer(change.NodeID)
+						n.clients.Remove(change.NodeID)
 					}
 				}
 
