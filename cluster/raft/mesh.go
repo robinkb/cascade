@@ -42,9 +42,8 @@ func NewMesh(node Node, addr netip.AddrPort) Mesh {
 }
 
 type mesh struct {
-	addr    netip.AddrPort
-	server  *server
-	clients map[uint64]*Client
+	addr   netip.AddrPort
+	server *server
 }
 
 func (m *mesh) Start() {

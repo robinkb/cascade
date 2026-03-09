@@ -172,7 +172,9 @@ func (n *node) Bootstrap(peers ...Peer) {
 
 		if n.id != peer.ID {
 			client := NewClient("http://" + peer.AddrPort.String())
-			n.clients.Add(peer.ID, client)
+			if err := n.clients.Add(peer.ID, client); err != nil {
+				log.Printf("failed to add client for peer with ID %d: %s", peer.ID, err)
+			}
 		}
 	}
 }
@@ -289,13 +291,27 @@ func (n *node) processSnapshot(snap raftpb.Snapshot) {
 
 	var client *Client
 	for id := range n.raft.Status().Config.Voters.IDs() {
-		client, _ = n.clients.Get(id)
+		if id == n.id {
+			continue
+		}
+
+		client, err = n.clients.Get(id)
+		if err != nil {
+			log.Printf("failed to get client for peer with ID %d", id)
+		}
+	}
+
+	if client == nil {
+		log.Println("failed to retrieve client for any peers")
+		n.raft.ReportSnapshot(n.id, raft.SnapshotFailure)
+		return
 	}
 
 	err = store.Reconcile(n.meta, n.blobs, client)
 	if err != nil {
 		log.Printf("failed to restore snapshot: %s", err)
 		n.raft.ReportSnapshot(n.id, raft.SnapshotFailure)
+		return
 	}
 
 	n.raft.ReportSnapshot(n.id, raft.SnapshotFinish)
@@ -327,7 +343,9 @@ func (n *node) processEntries(entries []raftpb.Entry) {
 					// we should not call raft.ApplyConfChange because it did not get accepted.
 					url := netip.MustParseAddrPort(string(cc.Context))
 					client := NewClient("http://" + url.String())
-					n.clients.Add(change.NodeID, client)
+					if err := n.clients.Add(change.NodeID, client); err != nil {
+						log.Printf("failed to add client for peer with ID %d: %s", change.NodeID, err)
+					}
 
 					log.Printf("%d added node with id %d and url %s", n.NodeID(), change.NodeID, url.String())
 
