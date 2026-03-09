@@ -63,6 +63,7 @@ func NewNodeDirty(id uint64, addr netip.AddrPort, storage *DiskStorage, snap clu
 		manualTick:  make(chan time.Time),
 		done:        make(chan struct{}),
 		confChanges: newErrCs(),
+		clients:     cluster.NewClients[Client](),
 
 		meta:  meta,
 		blobs: blobs,
@@ -76,8 +77,7 @@ func NewNodeDirty(id uint64, addr netip.AddrPort, storage *DiskStorage, snap clu
 }
 
 // TODO: NewNode should return an error instead of panicking? Probably?
-// Also, I should probably decompose this more and allow passing dependencies
-// like a Mesh directly.
+// Also, I should probably decompose this more and do dependency injection.
 func NewNode(id uint64, addr netip.AddrPort, storage *DiskStorage, snap cluster.SnapshotRestorer) Node {
 	conf := raft.Config{
 		// TODO: This may need to be set when restarting a node.
@@ -107,6 +107,7 @@ func NewNode(id uint64, addr netip.AddrPort, storage *DiskStorage, snap cluster.
 		manualTick:  make(chan time.Time),
 		done:        make(chan struct{}),
 		confChanges: newErrCs(),
+		clients:     cluster.NewClients[Client](),
 	}
 
 	node.proposer = newProposer(node.raft)
@@ -127,6 +128,7 @@ type node struct {
 	confChanges errCs
 
 	*proposer
+	clients  cluster.Clients[Client]
 	mesh     Mesh
 	storage  *DiskStorage
 	restorer cluster.Restorer
@@ -169,7 +171,10 @@ func (n *node) Bootstrap(peers ...Peer) {
 		n.storage.SaveConfState(*confState)
 
 		if n.id != peer.ID {
-			n.mesh.SetPeer(peer.ID, peer.AddrPort)
+			client := NewClient("http://" + peer.AddrPort.String())
+			if err := n.clients.Add(peer.ID, client); err != nil {
+				log.Printf("failed to add client for peer with ID %d: %s", peer.ID, err)
+			}
 		}
 	}
 }
@@ -268,7 +273,8 @@ func (n *node) send(messages []raftpb.Message) {
 			}
 		}()
 
-		err := n.mesh.SendMessage(message.To, &message)
+		client, _ := n.clients.Get(message.To)
+		err := client.SendMessage(&message)
 		if err != nil {
 			log.Println("failed to send message:", err)
 		}
@@ -283,11 +289,29 @@ func (n *node) processSnapshot(snap raftpb.Snapshot) {
 		n.raft.ReportSnapshot(n.id, raft.SnapshotFailure)
 	}
 
-	client := n.mesh.GetClient()
+	var client *Client
+	for id := range n.raft.Status().Config.Voters.IDs() {
+		if id == n.id {
+			continue
+		}
+
+		client, err = n.clients.Get(id)
+		if err != nil {
+			log.Printf("failed to get client for peer with ID %d", id)
+		}
+	}
+
+	if client == nil {
+		log.Println("failed to retrieve client for any peers")
+		n.raft.ReportSnapshot(n.id, raft.SnapshotFailure)
+		return
+	}
+
 	err = store.Reconcile(n.meta, n.blobs, client)
 	if err != nil {
 		log.Printf("failed to restore snapshot: %s", err)
 		n.raft.ReportSnapshot(n.id, raft.SnapshotFailure)
+		return
 	}
 
 	n.raft.ReportSnapshot(n.id, raft.SnapshotFinish)
@@ -315,8 +339,14 @@ func (n *node) processEntries(entries []raftpb.Entry) {
 			for _, change := range cc.Changes {
 				switch change.Type {
 				case raftpb.ConfChangeAddNode:
+					// TODO: Adding a client can error out, technically, in which case
+					// we should not call raft.ApplyConfChange because it did not get accepted.
 					url := netip.MustParseAddrPort(string(cc.Context))
-					n.mesh.SetPeer(change.NodeID, url)
+					client := NewClient("http://" + url.String())
+					if err := n.clients.Add(change.NodeID, client); err != nil {
+						log.Printf("failed to add client for peer with ID %d: %s", change.NodeID, err)
+					}
+
 					log.Printf("%d added node with id %d and url %s", n.NodeID(), change.NodeID, url.String())
 
 				case raftpb.ConfChangeRemoveNode:
@@ -325,7 +355,7 @@ func (n *node) processEntries(entries []raftpb.Entry) {
 						n.Stop()
 					} else {
 						log.Printf("%d removed node with id %d", n.NodeID(), change.NodeID)
-						n.mesh.DeletePeer(change.NodeID)
+						n.clients.Remove(change.NodeID)
 					}
 				}
 

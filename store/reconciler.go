@@ -39,6 +39,7 @@ Got it!
 - Reconciler in the store package implements cluster.Snapshotter based on the interfaces below.
 */
 
+// TODO: Allow passing more than one source so that multiple sources can be checked.
 func Reconcile(meta Metadata, blobs Blobs, src BlobReader) error {
 	digests, err := meta.ListBlobs()
 	if err != nil {
