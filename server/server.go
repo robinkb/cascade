@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"log"
 	"net"
 	"net/http"
 	"time"
@@ -17,7 +18,7 @@ func NewServer(opts ServerOptions) *Server {
 	mux := http.NewServeMux()
 	srv := &Server{
 		srv: &http.Server{
-			Handler: mux,
+			Handler: logger(mux),
 		},
 		mux: mux,
 	}
@@ -61,4 +62,12 @@ func (s *Server) Shutdown() error {
 
 func (s *Server) Handle(pattern string, handler http.Handler) {
 	s.mux.Handle(pattern, handler)
+}
+
+func logger(handler http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		lw := NewResponseWriter(w)
+		handler.ServeHTTP(lw, r)
+		log.Printf("%-8s %s %d %s", r.Method, r.URL.Path, lw.Code(), r.Header.Get("User-Agent"))
+	})
 }
