@@ -3,11 +3,11 @@ package repository
 import (
 	"testing"
 
-	"github.com/robinkb/cascade-registry/registry/store"
-	"github.com/robinkb/cascade-registry/registry/store/boltdb"
-	"github.com/robinkb/cascade-registry/registry/store/fs"
-	"github.com/robinkb/cascade-registry/registry/store/inmemory"
-	. "github.com/robinkb/cascade-registry/testing"
+	"github.com/robinkb/cascade/registry/store"
+	"github.com/robinkb/cascade/registry/store/boltdb"
+	"github.com/robinkb/cascade/registry/store/fs"
+	"github.com/robinkb/cascade/registry/store/inmemory"
+	. "github.com/robinkb/cascade/testing"
 	"github.com/stretchr/testify/suite"
 )
 

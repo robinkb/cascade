@@ -7,7 +7,7 @@ import (
 	"syscall"
 	"testing"
 
-	. "github.com/robinkb/cascade-registry/testing"
+	. "github.com/robinkb/cascade/testing"
 	"golang.org/x/exp/mmap"
 )
 

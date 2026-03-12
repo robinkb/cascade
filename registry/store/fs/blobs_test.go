@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	"github.com/opencontainers/go-digest"
-	. "github.com/robinkb/cascade-registry/testing" // nolint: staticcheck
+	. "github.com/robinkb/cascade/testing" // nolint: staticcheck
 )
 
 func TestAllBlobs(t *testing.T) {

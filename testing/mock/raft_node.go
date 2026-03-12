@@ -8,8 +8,8 @@ import (
 	"context"
 	"net/netip"
 
-	"github.com/robinkb/cascade-registry/cluster"
-	"github.com/robinkb/cascade-registry/cluster/raft"
+	"github.com/robinkb/cascade/cluster"
+	"github.com/robinkb/cascade/cluster/raft"
 	mock "github.com/stretchr/testify/mock"
 	raft0 "go.etcd.io/raft/v3"
 	"go.etcd.io/raft/v3/raftpb"

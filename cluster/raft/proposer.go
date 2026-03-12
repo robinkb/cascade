@@ -9,7 +9,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/robinkb/cascade-registry/cluster"
+	"github.com/robinkb/cascade/cluster"
 	"go.etcd.io/raft/v3"
 )
 

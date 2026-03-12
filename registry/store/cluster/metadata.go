@@ -4,8 +4,8 @@ import (
 	"math/rand/v2"
 
 	"github.com/opencontainers/go-digest"
-	"github.com/robinkb/cascade-registry/cluster"
-	"github.com/robinkb/cascade-registry/registry/store"
+	"github.com/robinkb/cascade/cluster"
+	"github.com/robinkb/cascade/registry/store"
 )
 
 func NewMetadataStore(proposer cluster.Proposer, metadata store.Metadata) store.Metadata {

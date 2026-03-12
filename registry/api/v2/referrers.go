@@ -6,7 +6,7 @@ import (
 	"strings"
 
 	v1 "github.com/opencontainers/image-spec/specs-go/v1"
-	"github.com/robinkb/cascade-registry/registry/repository"
+	"github.com/robinkb/cascade/registry/repository"
 )
 
 func (h *Handler) referrersHandler(w http.ResponseWriter, r *http.Request) {

@@ -13,7 +13,7 @@ import (
 
 	"github.com/opencontainers/go-digest"
 	v1 "github.com/opencontainers/image-spec/specs-go/v1"
-	. "github.com/robinkb/cascade-registry/testing" //nolint: staticcheck
+	. "github.com/robinkb/cascade/testing" //nolint: staticcheck
 )
 
 // NewTestClientForHandler returns a test client for the given handler, likely a registry server.

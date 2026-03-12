@@ -5,11 +5,11 @@ import (
 	"testing"
 
 	"github.com/gofrs/uuid/v5"
-	"github.com/robinkb/cascade-registry/registry/repository"
-	"github.com/robinkb/cascade-registry/registry/store"
-	. "github.com/robinkb/cascade-registry/testing"
-	testclient "github.com/robinkb/cascade-registry/testing/client"
-	"github.com/robinkb/cascade-registry/testing/mock"
+	"github.com/robinkb/cascade/registry/repository"
+	"github.com/robinkb/cascade/registry/store"
+	. "github.com/robinkb/cascade/testing"
+	testclient "github.com/robinkb/cascade/testing/client"
+	"github.com/robinkb/cascade/testing/mock"
 )
 
 func TestBlobUploadSession(t *testing.T) {

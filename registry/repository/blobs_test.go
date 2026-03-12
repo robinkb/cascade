@@ -4,7 +4,7 @@ import (
 	"io"
 	"testing"
 
-	. "github.com/robinkb/cascade-registry/testing"
+	. "github.com/robinkb/cascade/testing"
 )
 
 func (s *Suite) TestStatBlob() {

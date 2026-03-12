@@ -4,9 +4,9 @@ import (
 	"net/http"
 	"testing"
 
-	. "github.com/robinkb/cascade-registry/testing"
-	testclient "github.com/robinkb/cascade-registry/testing/client"
-	"github.com/robinkb/cascade-registry/testing/mock"
+	. "github.com/robinkb/cascade/testing"
+	testclient "github.com/robinkb/cascade/testing/client"
+	"github.com/robinkb/cascade/testing/mock"
 )
 
 func TestListTags(t *testing.T) {

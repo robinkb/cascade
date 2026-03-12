@@ -6,7 +6,7 @@ import (
 	"os"
 	"testing"
 
-	. "github.com/robinkb/cascade-registry/testing"
+	. "github.com/robinkb/cascade/testing"
 )
 
 func TestEncodeDecode(t *testing.T) {
@@ -79,7 +79,7 @@ Proving that yes, ValueAt is way, WAY faster. Especially for small values.
 
 goos: linux
 goarch: amd64
-pkg: github.com/robinkb/cascade-registry/cluster/raft/storage
+pkg: github.com/robinkb/cascade/cluster/raft/storage
 cpu: AMD Ryzen 7 7840U w/ Radeon  780M Graphics
 BenchmarkDecode/RecordSize:_272,_RecordAt-16         	 2637667	       454.0 ns/op	 	599.17 MB/s
 BenchmarkDecode/RecordSize:_272,_ValueAt-16            175557979	         6.702 ns/op	38199.31 MB/s
