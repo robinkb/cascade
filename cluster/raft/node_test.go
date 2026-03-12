@@ -369,16 +369,13 @@ func newTestCluster(t *testing.T, n int) ([]Node, []store.Blobs, []store.Metadat
 // snapElections rapidly ticks the given nodes until a leader is elected.
 func snapElections(nodes ...Node) {
 	var wg sync.WaitGroup
-	wg.Add(len(nodes))
-
 	for _, n := range nodes {
-		go func() {
+		wg.Go(func() {
 			for n.Status().Lead == 0 {
 				n.Tick()
 				wait()
 			}
-			wg.Done()
-		}()
+		})
 	}
 
 	wg.Wait()
