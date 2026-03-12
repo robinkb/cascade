@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	. "github.com/robinkb/cascade-registry/testing"
+	. "github.com/robinkb/cascade/testing"
 )
 
 func TestManager(t *testing.T) {

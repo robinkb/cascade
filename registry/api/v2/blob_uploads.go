@@ -8,7 +8,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/robinkb/cascade-registry/registry/repository"
+	"github.com/robinkb/cascade/registry/repository"
 )
 
 func Location(name, reference string) string {

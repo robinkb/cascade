@@ -8,8 +8,8 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/robinkb/cascade-registry/registry"
-	"github.com/robinkb/cascade-registry/registry/repository"
+	"github.com/robinkb/cascade/registry"
+	"github.com/robinkb/cascade/registry/repository"
 )
 
 const (

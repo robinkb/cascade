@@ -4,7 +4,7 @@ import (
 	"math/rand/v2"
 	"testing"
 
-	. "github.com/robinkb/cascade-registry/testing"
+	. "github.com/robinkb/cascade/testing"
 )
 
 func TestCounters(t *testing.T) {

@@ -4,7 +4,7 @@ import (
 	"errors"
 
 	"github.com/opencontainers/go-digest"
-	"github.com/robinkb/cascade-registry/registry/store"
+	"github.com/robinkb/cascade/registry/store"
 )
 
 func (s *repositoryService) ListTags(repository string, count int, last string) ([]string, error) {

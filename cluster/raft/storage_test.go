@@ -9,8 +9,8 @@ import (
 	"go.etcd.io/raft/v3"
 	"go.etcd.io/raft/v3/raftpb"
 
-	"github.com/robinkb/cascade-registry/cluster/raft/qwal"
-	. "github.com/robinkb/cascade-registry/testing"
+	"github.com/robinkb/cascade/cluster/raft/qwal"
+	. "github.com/robinkb/cascade/testing"
 )
 
 var (

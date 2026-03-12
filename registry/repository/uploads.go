@@ -9,7 +9,7 @@ import (
 
 	"github.com/gofrs/uuid/v5"
 	godigest "github.com/opencontainers/go-digest"
-	"github.com/robinkb/cascade-registry/registry/store"
+	"github.com/robinkb/cascade/registry/store"
 )
 
 func (s *repositoryService) StatUpload(repository, sessionID string) (*store.BlobInfo, error) {

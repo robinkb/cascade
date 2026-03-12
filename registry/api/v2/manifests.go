@@ -7,7 +7,7 @@ import (
 	"strconv"
 
 	"github.com/opencontainers/go-digest"
-	"github.com/robinkb/cascade-registry/registry/repository"
+	"github.com/robinkb/cascade/registry/repository"
 )
 
 func (h *Handler) manifestsHandler(w http.ResponseWriter, r *http.Request) {

@@ -3,8 +3,8 @@ package repository
 import (
 	"testing"
 
-	"github.com/robinkb/cascade-registry/registry/store"
-	. "github.com/robinkb/cascade-registry/testing"
+	"github.com/robinkb/cascade/registry/store"
+	. "github.com/robinkb/cascade/testing"
 )
 
 func (s *Suite) TestStatManifest() {

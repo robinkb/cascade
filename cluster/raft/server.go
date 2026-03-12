@@ -6,7 +6,7 @@ import (
 
 	"github.com/golang/protobuf/proto"
 	godigest "github.com/opencontainers/go-digest"
-	"github.com/robinkb/cascade-registry/registry/store"
+	"github.com/robinkb/cascade/registry/store"
 	"go.etcd.io/raft/v3/raftpb"
 )
 

@@ -5,22 +5,25 @@ dir: testing/mock
 filename: "{{ snakecase .InterfaceName }}.go"
 # A mock will have the exact name of the interface that it's mocking.
 # Results in imported names like `mock.RegistryService`, which is 👌
-structname: '{{ .InterfaceName }}'
+structname: "{{ .InterfaceName }}"
 # Name of the package, ie. the file will start with `package mock`.
 pkgname: mock
 template: testify
 # Explicitly select with interfaces to generate mocks for.
 packages:
-  github.com/robinkb/cascade-registry:
+  github.com/robinkb/cascade/registry:
     interfaces:
-      RegistryService: {}
-  github.com/robinkb/cascade-registry/repository:
+      Service:
+        config:
+          fileName: registry_service.go
+          structName: RegistryService
+  github.com/robinkb/cascade/registry/repository:
     interfaces:
       Service:
         config:
           fileName: repository_service.go
           structName: RepositoryService
-  github.com/robinkb/cascade-registry/cluster/raft:
+  github.com/robinkb/cascade/cluster/raft:
     interfaces:
       Node:
         config:

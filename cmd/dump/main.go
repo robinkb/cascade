@@ -6,8 +6,8 @@ import (
 	"log"
 	"os"
 
-	"github.com/robinkb/cascade-registry/cluster/raft"
-	"github.com/robinkb/cascade-registry/cluster/raft/qwal"
+	"github.com/robinkb/cascade/cluster/raft"
+	"github.com/robinkb/cascade/cluster/raft/qwal"
 	"go.etcd.io/raft/v3/raftpb"
 )
 
