@@ -10,11 +10,11 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/robinkb/cascade-registry"
 	v2 "github.com/robinkb/cascade-registry/api/v2"
 	"github.com/robinkb/cascade-registry/cluster/raft"
 	"github.com/robinkb/cascade-registry/cluster/raft/qwal"
 	"github.com/robinkb/cascade-registry/process"
+	"github.com/robinkb/cascade-registry/registry"
 	"github.com/robinkb/cascade-registry/server"
 	"github.com/robinkb/cascade-registry/store/boltdb"
 	"github.com/robinkb/cascade-registry/store/cluster"
@@ -85,7 +85,7 @@ func main() {
 		defer node.Stop()
 	}
 
-	service := cascade.NewRegistryService(metadata, blobs)
+	service := registry.NewService(metadata, blobs)
 	api := v2.New(service)
 
 	srv := server.NewServer(server.ServerOptions{

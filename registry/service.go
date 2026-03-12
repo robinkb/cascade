@@ -1,4 +1,4 @@
-package cascade
+package registry
 
 import (
 	"errors"
@@ -8,14 +8,14 @@ import (
 )
 
 type (
-	RegistryService interface {
+	Service interface {
 		CreateRepository(name string) error
 		GetRepository(name string) (repository.Service, error)
 		DeleteRepository(name string) error
 	}
 )
 
-func NewRegistryService(metadata store.Metadata, blobs store.Blobs) RegistryService {
+func NewService(metadata store.Metadata, blobs store.Blobs) Service {
 	return &registryService{
 		metadata: metadata,
 		blobs:    blobs,

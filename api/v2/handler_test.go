@@ -8,7 +8,7 @@ import (
 	"net/url"
 	"testing"
 
-	"github.com/robinkb/cascade-registry"
+	"github.com/robinkb/cascade-registry/registry"
 	"github.com/robinkb/cascade-registry/repository"
 	"github.com/robinkb/cascade-registry/store/inmemory"
 	. "github.com/robinkb/cascade-registry/testing"
@@ -18,7 +18,7 @@ import (
 
 func TestRoot(t *testing.T) {
 	server := New(
-		cascade.NewRegistryService(
+		registry.NewService(
 			inmemory.NewMetadataStore(),
 			inmemory.NewBlobStore(),
 		),

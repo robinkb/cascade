@@ -7,8 +7,8 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/robinkb/cascade-registry"
 	v2 "github.com/robinkb/cascade-registry/api/v2"
+	"github.com/robinkb/cascade-registry/registry"
 	"github.com/robinkb/cascade-registry/store/inmemory"
 	. "github.com/robinkb/cascade-registry/testing"
 	testclient "github.com/robinkb/cascade-registry/testing/client"
@@ -17,7 +17,7 @@ import (
 func TestPush(t *testing.T) {
 	metadata := inmemory.NewMetadataStore()
 	blobs := inmemory.NewBlobStore()
-	service := cascade.NewRegistryService(metadata, blobs)
+	service := registry.NewService(metadata, blobs)
 	srv := v2.New(service)
 
 	t.Run("Pushing blobs", func(t *testing.T) {

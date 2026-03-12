@@ -8,7 +8,7 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/robinkb/cascade-registry"
+	"github.com/robinkb/cascade-registry/registry"
 	"github.com/robinkb/cascade-registry/repository"
 )
 
@@ -28,7 +28,7 @@ const (
 	ContentTypeOctetStream = "application/octet-stream"
 )
 
-func New(service cascade.RegistryService) *Handler {
+func New(service registry.Service) *Handler {
 	h := new(Handler)
 
 	h.service = service
@@ -70,7 +70,7 @@ func New(service cascade.RegistryService) *Handler {
 }
 
 type Handler struct {
-	service cascade.RegistryService
+	service registry.Service
 	http.Handler
 }
 
