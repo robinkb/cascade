@@ -6,8 +6,8 @@ import (
 	"strconv"
 	"testing"
 
+	"github.com/robinkb/cascade-registry/registry/repository"
 	"github.com/robinkb/cascade-registry/registry/store"
-	"github.com/robinkb/cascade-registry/repository"
 	. "github.com/robinkb/cascade-registry/testing"
 	testclient "github.com/robinkb/cascade-registry/testing/client"
 	"github.com/robinkb/cascade-registry/testing/mock"

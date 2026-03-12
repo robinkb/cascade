@@ -9,7 +9,7 @@ import (
 	"strings"
 
 	"github.com/robinkb/cascade-registry/registry"
-	"github.com/robinkb/cascade-registry/repository"
+	"github.com/robinkb/cascade-registry/registry/repository"
 )
 
 const (

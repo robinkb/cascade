@@ -3,8 +3,8 @@ package registry
 import (
 	"errors"
 
+	"github.com/robinkb/cascade-registry/registry/repository"
 	"github.com/robinkb/cascade-registry/registry/store"
-	"github.com/robinkb/cascade-registry/repository"
 )
 
 type (

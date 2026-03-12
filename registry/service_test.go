@@ -4,10 +4,10 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/robinkb/cascade-registry/registry/repository"
 	"github.com/robinkb/cascade-registry/registry/store"
 	"github.com/robinkb/cascade-registry/registry/store/boltdb"
 	"github.com/robinkb/cascade-registry/registry/store/inmemory"
-	"github.com/robinkb/cascade-registry/repository"
 	. "github.com/robinkb/cascade-registry/testing"
 )
 

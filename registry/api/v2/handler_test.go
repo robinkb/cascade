@@ -9,8 +9,8 @@ import (
 	"testing"
 
 	"github.com/robinkb/cascade-registry/registry"
+	"github.com/robinkb/cascade-registry/registry/repository"
 	"github.com/robinkb/cascade-registry/registry/store/inmemory"
-	"github.com/robinkb/cascade-registry/repository"
 	. "github.com/robinkb/cascade-registry/testing"
 	testclient "github.com/robinkb/cascade-registry/testing/client"
 	"github.com/robinkb/cascade-registry/testing/mock"

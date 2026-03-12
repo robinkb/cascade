@@ -7,7 +7,7 @@ import (
 
 	"github.com/gofrs/uuid/v5"
 	"github.com/opencontainers/go-digest"
-	"github.com/robinkb/cascade-registry/repository"
+	"github.com/robinkb/cascade-registry/registry/repository"
 	. "github.com/robinkb/cascade-registry/testing"
 	"github.com/robinkb/cascade-registry/testing/mock"
 )
