@@ -10,34 +10,29 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
-// Manager starts registered Runnables in order, and shuts them down when a signal is received.
-type Manager interface {
-	// Register adds a Runnable to the Manager.
-	Register(Runnable)
-	// Run starts all registered Runnables in order by calling their Run method.
-	// If any Runnable's Run method returns an error , the Manager initiates a shutdown.
-	Run() error
-	// Shutdown calls the Shutdown method on all Runnables in reverse order of registration.
-	// It will wait for each Runnable to shut down before moving on to the next.
-	Shutdown() error
-}
-
-func NewManager() Manager {
+func NewManager() *Manager {
 	sigint := make(chan os.Signal, 1)
 	signal.Notify(sigint, os.Interrupt)
 
-	return &manager{
+	return &Manager{
 		runnables: make([]Runnable, 0),
 		sigint:    sigint,
 	}
 }
 
-type manager struct {
+type Manager struct {
 	runnables []Runnable
 	sigint    chan os.Signal
 }
 
-func (m *manager) Run() error {
+// Register adds a Runnable to the Manager.
+func (m *Manager) Register(r Runnable) {
+	m.runnables = append(m.runnables, r)
+}
+
+// Run starts all registered Runnables in order by calling their Run method.
+// If any Runnable's Run method returns an error , the Manager initiates a shutdown.
+func (m *Manager) Run() error {
 	g, ctx := errgroup.WithContext(context.Background())
 	for _, r := range m.runnables {
 		g.Go(func() error {
@@ -56,7 +51,9 @@ func (m *manager) Run() error {
 	}
 }
 
-func (m *manager) Shutdown() error {
+// Shutdown calls the Shutdown method on all Runnables in reverse order of registration.
+// It will wait for each Runnable to shut down before moving on to the next.
+func (m *Manager) Shutdown() error {
 	errs := make([]error, 0)
 	for i := len(m.runnables) - 1; i >= 0; i-- {
 		err := m.runnables[i].Shutdown()
@@ -69,8 +66,4 @@ func (m *manager) Shutdown() error {
 		return fmt.Errorf("encountered errors shutting down: \n%w", errors.Join(errs...))
 	}
 	return nil
-}
-
-func (m *manager) Register(r Runnable) {
-	m.runnables = append(m.runnables, r)
 }

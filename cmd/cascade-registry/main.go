@@ -4,7 +4,6 @@ import (
 	"flag"
 	"log"
 	"net"
-	"net/http"
 	"net/netip"
 	"os"
 	"path/filepath"
@@ -15,6 +14,8 @@ import (
 	v2 "github.com/robinkb/cascade-registry/api/v2"
 	"github.com/robinkb/cascade-registry/cluster/raft"
 	"github.com/robinkb/cascade-registry/cluster/raft/qwal"
+	"github.com/robinkb/cascade-registry/process"
+	"github.com/robinkb/cascade-registry/server"
 	"github.com/robinkb/cascade-registry/store/boltdb"
 	"github.com/robinkb/cascade-registry/store/cluster"
 	"github.com/robinkb/cascade-registry/store/fs"
@@ -38,6 +39,8 @@ func main() {
 	if err != nil {
 		log.Fatalf("failed to get working directory: %s", err)
 	}
+
+	mgr := process.NewManager()
 
 	metadata := boltdb.NewMetadataStore(path)
 	blobs := fs.NewBlobStore(path)
@@ -83,10 +86,20 @@ func main() {
 	}
 
 	service := cascade.NewRegistryService(metadata, blobs)
-	server := v2.New(service)
+	api := v2.New(service)
 
-	addr := net.TCPAddr{
-		Port: port,
+	srv := server.NewServer(server.ServerOptions{
+		Name: "oci-api",
+		Addr: &net.TCPAddr{
+			Port: port,
+		},
+	})
+
+	srv.Handle("/", api)
+
+	mgr.Register(srv)
+
+	if err := mgr.Run(); err != nil {
+		log.Fatal(err)
 	}
-	log.Fatal(http.ListenAndServe(addr.String(), server))
 }
