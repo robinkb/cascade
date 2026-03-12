@@ -1,4 +1,4 @@
-package server
+package v2
 
 import (
 	"encoding/json"
@@ -28,18 +28,18 @@ const (
 	ContentTypeOctetStream = "application/octet-stream"
 )
 
-func New(service cascade.RegistryService) *Server {
-	s := new(Server)
+func New(service cascade.RegistryService) *Handler {
+	h := new(Handler)
 
-	s.service = service
+	h.service = service
 
 	repositoryRouter := http.NewServeMux()
-	repositoryRouter.Handle("/blobs/{digest}", http.HandlerFunc(s.blobsHandler))
-	repositoryRouter.Handle("/blobs/uploads/", http.HandlerFunc(s.blobsUploadsSessionHandler))
-	repositoryRouter.Handle("/blobs/uploads/{reference}", http.HandlerFunc(s.blobsUploadsHandler))
-	repositoryRouter.Handle("/manifests/{reference}", http.HandlerFunc(s.manifestsHandler))
-	repositoryRouter.Handle("/tags/list", http.HandlerFunc(s.tagsHandler))
-	repositoryRouter.Handle("/referrers/{digest}", http.HandlerFunc(s.referrersHandler))
+	repositoryRouter.Handle("/blobs/{digest}", http.HandlerFunc(h.blobsHandler))
+	repositoryRouter.Handle("/blobs/uploads/", http.HandlerFunc(h.blobsUploadsSessionHandler))
+	repositoryRouter.Handle("/blobs/uploads/{reference}", http.HandlerFunc(h.blobsUploadsHandler))
+	repositoryRouter.Handle("/manifests/{reference}", http.HandlerFunc(h.manifestsHandler))
+	repositoryRouter.Handle("/tags/list", http.HandlerFunc(h.tagsHandler))
+	repositoryRouter.Handle("/referrers/{digest}", http.HandlerFunc(h.referrersHandler))
 
 	registryRouter := http.NewServeMux()
 	registryRouter.Handle("/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -64,22 +64,15 @@ func New(service cascade.RegistryService) *Server {
 	router := http.NewServeMux()
 	router.Handle("/v2/", http.HandlerFunc(http.StripPrefix("/v2", registryRouter).ServeHTTP))
 
-	s.Handler = logger(router)
+	h.Handler = router
 
-	return s
+	return h
 }
 
-type (
-	Server struct {
-		service cascade.RegistryService
-		http.Handler
-	}
-
-	TagsListResponse struct {
-		Name string   `json:"name"`
-		Tags []string `json:"tags"`
-	}
-)
+type Handler struct {
+	service cascade.RegistryService
+	http.Handler
+}
 
 func NewResponseWriter(w http.ResponseWriter) *ResponseWriter {
 	return &ResponseWriter{

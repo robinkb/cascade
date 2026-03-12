@@ -1,4 +1,4 @@
-package server
+package v2
 
 import (
 	"encoding/json"
@@ -6,21 +6,26 @@ import (
 	"strconv"
 )
 
-func (s *Server) tagsHandler(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) tagsHandler(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case http.MethodGet:
-		s.listTagsHandler(w, r)
+		h.listTagsHandler(w, r)
 	default:
 		w.WriteHeader(http.StatusMethodNotAllowed)
 	}
 }
 
-func (s *Server) listTagsHandler(w http.ResponseWriter, r *http.Request) {
+type TagsListResponse struct {
+	Name string   `json:"name"`
+	Tags []string `json:"tags"`
+}
+
+func (h *Handler) listTagsHandler(w http.ResponseWriter, r *http.Request) {
 	name := r.PathValue("name")
 	n := r.URL.Query().Get("n")
 	last := r.URL.Query().Get("last")
 
-	repo, err := s.service.GetRepository(name)
+	repo, err := h.service.GetRepository(name)
 	if err != nil {
 		errorHandler(w, r, err)
 		return

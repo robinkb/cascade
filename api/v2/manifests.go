@@ -1,4 +1,4 @@
-package server
+package v2
 
 import (
 	"fmt"
@@ -10,26 +10,26 @@ import (
 	"github.com/robinkb/cascade-registry/repository"
 )
 
-func (s *Server) manifestsHandler(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) manifestsHandler(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case http.MethodHead:
-		s.statManifestsHandler(w, r)
+		h.statManifestsHandler(w, r)
 	case http.MethodGet:
-		s.getManifestsHandler(w, r)
+		h.getManifestsHandler(w, r)
 	case http.MethodPut:
-		s.putManifestsHandler(w, r)
+		h.putManifestsHandler(w, r)
 	case http.MethodDelete:
-		s.deleteManifestsHandler(w, r)
+		h.deleteManifestsHandler(w, r)
 	default:
 		w.WriteHeader(http.StatusMethodNotAllowed)
 	}
 }
 
-func (s *Server) statManifestsHandler(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) statManifestsHandler(w http.ResponseWriter, r *http.Request) {
 	name := r.PathValue("name")
 	reference := r.PathValue("reference")
 
-	repo, err := s.service.GetRepository(name)
+	repo, err := h.service.GetRepository(name)
 	if err != nil {
 		errorHandler(w, r, err)
 		return
@@ -55,11 +55,11 @@ func (s *Server) statManifestsHandler(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 }
 
-func (s *Server) getManifestsHandler(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) getManifestsHandler(w http.ResponseWriter, r *http.Request) {
 	name := r.PathValue("name")
 	reference := r.PathValue("reference")
 
-	repo, err := s.service.GetRepository(name)
+	repo, err := h.service.GetRepository(name)
 	if err != nil {
 		errorHandler(w, r, err)
 		return
@@ -86,11 +86,11 @@ func (s *Server) getManifestsHandler(w http.ResponseWriter, r *http.Request) {
 	writeOrLog(w.Write(content))
 }
 
-func (s *Server) putManifestsHandler(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) putManifestsHandler(w http.ResponseWriter, r *http.Request) {
 	name := r.PathValue("name")
 	reference := r.PathValue("reference")
 
-	repo, err := s.service.GetRepository(name)
+	repo, err := h.service.GetRepository(name)
 	if err != nil {
 		errorHandler(w, r, err)
 		return
@@ -133,11 +133,11 @@ func (s *Server) putManifestsHandler(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusCreated)
 }
 
-func (s *Server) deleteManifestsHandler(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) deleteManifestsHandler(w http.ResponseWriter, r *http.Request) {
 	name := r.PathValue("name")
 	reference := r.PathValue("reference")
 
-	repo, err := s.service.GetRepository(name)
+	repo, err := h.service.GetRepository(name)
 	if err != nil {
 		errorHandler(w, r, err)
 		return

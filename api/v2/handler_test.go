@@ -1,4 +1,4 @@
-package server
+package v2
 
 import (
 	"encoding/json"

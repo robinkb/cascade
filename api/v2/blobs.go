@@ -1,4 +1,4 @@
-package server
+package v2
 
 import (
 	"io"
@@ -6,24 +6,24 @@ import (
 	"strconv"
 )
 
-func (s *Server) blobsHandler(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) blobsHandler(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case http.MethodHead:
-		s.statBlobsHandler(w, r)
+		h.statBlobsHandler(w, r)
 	case http.MethodGet:
-		s.getBlobsHandler(w, r)
+		h.getBlobsHandler(w, r)
 	case http.MethodDelete:
-		s.deleteBlobsHandler(w, r)
+		h.deleteBlobsHandler(w, r)
 	default:
 		w.WriteHeader(http.StatusMethodNotAllowed)
 	}
 }
 
-func (s *Server) statBlobsHandler(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) statBlobsHandler(w http.ResponseWriter, r *http.Request) {
 	name := r.PathValue("name")
 	digest := r.PathValue("digest")
 
-	repo, err := s.service.GetRepository(name)
+	repo, err := h.service.GetRepository(name)
 	if err != nil {
 		errorHandler(w, r, err)
 		return
@@ -39,11 +39,11 @@ func (s *Server) statBlobsHandler(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 }
 
-func (s *Server) getBlobsHandler(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) getBlobsHandler(w http.ResponseWriter, r *http.Request) {
 	name := r.PathValue("name")
 	digest := r.PathValue("digest")
 
-	repo, err := s.service.GetRepository(name)
+	repo, err := h.service.GetRepository(name)
 	if err != nil {
 		errorHandler(w, r, err)
 		return
@@ -59,11 +59,11 @@ func (s *Server) getBlobsHandler(w http.ResponseWriter, r *http.Request) {
 	writeOrLog(io.Copy(w, blob))
 }
 
-func (s *Server) deleteBlobsHandler(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) deleteBlobsHandler(w http.ResponseWriter, r *http.Request) {
 	name := r.PathValue("name")
 	digest := r.PathValue("digest")
 
-	repo, err := s.service.GetRepository(name)
+	repo, err := h.service.GetRepository(name)
 	if err != nil {
 		errorHandler(w, r, err)
 		return

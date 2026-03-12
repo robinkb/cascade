@@ -12,9 +12,9 @@ import (
 	"strings"
 
 	"github.com/robinkb/cascade-registry"
+	v2 "github.com/robinkb/cascade-registry/api/v2"
 	"github.com/robinkb/cascade-registry/cluster/raft"
 	"github.com/robinkb/cascade-registry/cluster/raft/qwal"
-	"github.com/robinkb/cascade-registry/server"
 	"github.com/robinkb/cascade-registry/store/boltdb"
 	"github.com/robinkb/cascade-registry/store/cluster"
 	"github.com/robinkb/cascade-registry/store/fs"
@@ -83,7 +83,7 @@ func main() {
 	}
 
 	service := cascade.NewRegistryService(metadata, blobs)
-	server := server.New(service)
+	server := v2.New(service)
 
 	addr := net.TCPAddr{
 		Port: port,

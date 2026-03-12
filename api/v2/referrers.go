@@ -1,4 +1,4 @@
-package server
+package v2
 
 import (
 	"encoding/json"
@@ -9,21 +9,21 @@ import (
 	"github.com/robinkb/cascade-registry/repository"
 )
 
-func (s *Server) referrersHandler(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) referrersHandler(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case http.MethodGet:
-		s.listReferrersHandler(w, r)
+		h.listReferrersHandler(w, r)
 	default:
 		w.WriteHeader(http.StatusMethodNotAllowed)
 	}
 }
 
-func (s *Server) listReferrersHandler(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) listReferrersHandler(w http.ResponseWriter, r *http.Request) {
 	name := r.PathValue("name")
 	digest := r.PathValue("digest")
 	artifactType := r.URL.Query().Get("artifactType")
 
-	repo, err := s.service.GetRepository(name)
+	repo, err := h.service.GetRepository(name)
 	if err != nil {
 		errorHandler(w, r, err)
 		return

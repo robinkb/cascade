@@ -1,4 +1,4 @@
-package server
+package v2
 
 import (
 	"bytes"
@@ -15,19 +15,19 @@ func Location(name, reference string) string {
 	return fmt.Sprintf("/v2/%s/blobs/uploads/%s", name, reference)
 }
 
-func (s *Server) blobsUploadsHandler(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) blobsUploadsHandler(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case http.MethodGet:
-		s.checkUploadHandler(w, r)
+		h.checkUploadHandler(w, r)
 	case http.MethodPut:
-		s.closeUploadHandler(w, r)
+		h.closeUploadHandler(w, r)
 	case http.MethodPatch:
 		if r.Header.Get(HeaderContentType) == ContentTypeOctetStream {
 			if r.Header.Get(HeaderContentLength) != "" &&
 				r.Header.Get(HeaderContentRange) != "" {
-				s.chunkedUploadHandler(w, r)
+				h.chunkedUploadHandler(w, r)
 			} else {
-				s.streamedUploadHandler(w, r)
+				h.streamedUploadHandler(w, r)
 			}
 		} else {
 			w.WriteHeader(http.StatusBadRequest)
@@ -37,11 +37,11 @@ func (s *Server) blobsUploadsHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (s *Server) checkUploadHandler(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) checkUploadHandler(w http.ResponseWriter, r *http.Request) {
 	name := r.PathValue("name")
 	reference := r.PathValue("reference")
 
-	repo, err := s.service.GetRepository(name)
+	repo, err := h.service.GetRepository(name)
 	if err != nil {
 		errorHandler(w, r, err)
 		return
@@ -60,11 +60,11 @@ func (s *Server) checkUploadHandler(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
-func (s *Server) chunkedUploadHandler(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) chunkedUploadHandler(w http.ResponseWriter, r *http.Request) {
 	name := r.PathValue("name")
 	reference := r.PathValue("reference")
 
-	repo, err := s.service.GetRepository(name)
+	repo, err := h.service.GetRepository(name)
 	if err != nil {
 		errorHandler(w, r, err)
 		return
@@ -100,11 +100,11 @@ func (s *Server) chunkedUploadHandler(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusAccepted)
 }
 
-func (s *Server) streamedUploadHandler(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) streamedUploadHandler(w http.ResponseWriter, r *http.Request) {
 	name := r.PathValue("name")
 	reference := r.PathValue("reference")
 
-	repo, err := s.service.GetRepository(name)
+	repo, err := h.service.GetRepository(name)
 	if err != nil {
 		errorHandler(w, r, err)
 		return
@@ -120,11 +120,11 @@ func (s *Server) streamedUploadHandler(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusAccepted)
 }
 
-func (s *Server) closeUploadHandler(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) closeUploadHandler(w http.ResponseWriter, r *http.Request) {
 	name := r.PathValue("name")
 	reference := r.PathValue("reference")
 
-	repo, err := s.service.GetRepository(name)
+	repo, err := h.service.GetRepository(name)
 	if err != nil {
 		errorHandler(w, r, err)
 		return

@@ -1,20 +1,20 @@
-package server
+package v2
 
 import "net/http"
 
-func (s *Server) blobsUploadsSessionHandler(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) blobsUploadsSessionHandler(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case http.MethodPost:
-		s.initUploadHandler(w, r)
+		h.initUploadHandler(w, r)
 	default:
 		w.WriteHeader(http.StatusMethodNotAllowed)
 	}
 }
 
-func (s *Server) initUploadHandler(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) initUploadHandler(w http.ResponseWriter, r *http.Request) {
 	name := r.PathValue("name")
 
-	repository, err := s.service.GetRepository(name)
+	repository, err := h.service.GetRepository(name)
 	if err != nil {
 		errorHandler(w, r, err)
 		return
