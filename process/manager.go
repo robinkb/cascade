@@ -10,28 +10,15 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
-/*
- * What do I actually need this to do?
- *
- * 	1. Start Go routines
- * 		1. Report errors, if any
- * 		2. Order doesn't matter, at least not now
- *      3. What do if a Go routine fails?
- * 		-> Shut them all down (could be improved later)
- * 		-> Exit with non-zero exit code
- *  2. Stop Go routines
- * 		1. Report errors, if any
- * 		2. Order doesn't matter, at least not now
- * 		3. What do if a Go routine fails?
- * 		-> Exit with non-zero exit code
- *
- * What do I _not_ need this to do (for now)?
- *
- * 	1. Restart Go routines if they fail
- */
+// Manager starts registered Runnables in order, and shuts them down when a signal is received.
 type Manager interface {
+	// Register adds a Runnable to the Manager.
 	Register(Runnable)
+	// Run starts all registered Runnables in order by calling their Run method.
+	// If any Runnable's Run method returns an error , the Manager initiates a shutdown.
 	Run() error
+	// Shutdown calls the Shutdown method on all Runnables in reverse order of registration.
+	// It will wait for each Runnable to shut down before moving on to the next.
 	Shutdown() error
 }
 
@@ -60,7 +47,10 @@ func (m *manager) Run() error {
 
 	select {
 	case <-ctx.Done():
-		return g.Wait()
+		return errors.Join(
+			context.Cause(ctx),
+			m.Shutdown(),
+		)
 	case <-m.sigint:
 		return m.Shutdown()
 	}

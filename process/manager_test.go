@@ -61,6 +61,21 @@ func TestManager(t *testing.T) {
 		got := mgr.Shutdown()
 		AssertErrorIs(t, got, want)
 	})
+
+	t.Run("initiates a shutdown when a Runnable fails", func(t *testing.T) {
+		mgr := NewManager()
+
+		spy := NewSpyRunnable(nil)
+		want := errors.New("broken")
+		broken := NewBrokenRunnable(want)
+
+		mgr.Register(spy)
+		mgr.Register(broken)
+
+		got := mgr.Run()
+		AssertErrorIs(t, got, want)
+		AssertEqual(t, spy.stopped, true)
+	})
 }
 
 func NewSpyRunnable(log chan<- string) *SpyRunnable {
@@ -90,7 +105,10 @@ func (r *SpyRunnable) Run() error {
 }
 
 func (r *SpyRunnable) Shutdown() error {
-	r.log <- "stopped " + r.Name()
+	if r.log != nil {
+		r.log <- "stopped " + r.Name()
+	}
+
 	r.stopped = true
 	r.done <- struct{}{}
 	close(r.done)
