@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/robinkb/cascade-registry/cluster"
-	"github.com/robinkb/cascade-registry/store"
+	"github.com/robinkb/cascade-registry/registry/store"
 	"go.etcd.io/raft/v3"
 	"go.etcd.io/raft/v3/raftpb"
 )

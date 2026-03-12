@@ -7,7 +7,7 @@ import (
 	"sync"
 
 	godigest "github.com/opencontainers/go-digest"
-	"github.com/robinkb/cascade-registry/store"
+	"github.com/robinkb/cascade-registry/registry/store"
 )
 
 func NewMetadataStore() store.Metadata {

@@ -10,9 +10,9 @@ import (
 	"time"
 
 	"github.com/gofrs/uuid/v5"
-	"github.com/robinkb/cascade-registry/store"
-	storecluster "github.com/robinkb/cascade-registry/store/cluster"
-	"github.com/robinkb/cascade-registry/store/inmemory"
+	"github.com/robinkb/cascade-registry/registry/store"
+	storecluster "github.com/robinkb/cascade-registry/registry/store/cluster"
+	"github.com/robinkb/cascade-registry/registry/store/inmemory"
 	. "github.com/robinkb/cascade-registry/testing"
 	"go.etcd.io/raft/v3"
 )

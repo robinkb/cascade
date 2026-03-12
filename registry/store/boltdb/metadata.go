@@ -9,7 +9,7 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/robinkb/cascade-registry/store"
+	"github.com/robinkb/cascade-registry/registry/store"
 
 	"github.com/opencontainers/go-digest"
 	bolt "go.etcd.io/bbolt"

@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	"github.com/opencontainers/go-digest"
-	"github.com/robinkb/cascade-registry/store"
+	"github.com/robinkb/cascade-registry/registry/store"
 	. "github.com/robinkb/cascade-registry/testing" // nolint: staticcheck
 	"github.com/stretchr/testify/suite"
 )

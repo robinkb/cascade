@@ -9,7 +9,7 @@ import (
 	"github.com/opencontainers/go-digest"
 
 	"github.com/robinkb/cascade-registry/cluster"
-	"github.com/robinkb/cascade-registry/store"
+	"github.com/robinkb/cascade-registry/registry/store"
 )
 
 func NewBlobStore(proposer cluster.Proposer, blobs store.Blobs) store.Blobs {

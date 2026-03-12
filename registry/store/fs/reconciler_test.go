@@ -3,9 +3,9 @@ package fs
 import (
 	"testing"
 
-	"github.com/robinkb/cascade-registry/store"
-	"github.com/robinkb/cascade-registry/store/inmemory"
-	storesuite "github.com/robinkb/cascade-registry/store/suite"
+	"github.com/robinkb/cascade-registry/registry/store"
+	"github.com/robinkb/cascade-registry/registry/store/inmemory"
+	storesuite "github.com/robinkb/cascade-registry/registry/store/suite"
 	"github.com/stretchr/testify/suite"
 )
 

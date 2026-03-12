@@ -5,7 +5,7 @@ import (
 	"io"
 
 	"github.com/opencontainers/go-digest"
-	"github.com/robinkb/cascade-registry/store"
+	"github.com/robinkb/cascade-registry/registry/store"
 )
 
 func (s *repositoryService) StatBlob(repository, id string) (*store.BlobInfo, error) {

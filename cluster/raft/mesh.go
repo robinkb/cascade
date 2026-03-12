@@ -5,7 +5,7 @@ import (
 	"net/http"
 	"net/netip"
 
-	"github.com/robinkb/cascade-registry/store"
+	"github.com/robinkb/cascade-registry/registry/store"
 	"go.etcd.io/raft/v3/raftpb"
 )
 

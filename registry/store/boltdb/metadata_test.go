@@ -3,8 +3,8 @@ package boltdb
 import (
 	"testing"
 
-	"github.com/robinkb/cascade-registry/store"
-	storesuite "github.com/robinkb/cascade-registry/store/suite"
+	"github.com/robinkb/cascade-registry/registry/store"
+	storesuite "github.com/robinkb/cascade-registry/registry/store/suite"
 	"github.com/stretchr/testify/suite"
 )
 

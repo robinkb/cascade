@@ -8,8 +8,8 @@ import (
 	"io"
 
 	"github.com/opencontainers/go-digest"
+	"github.com/robinkb/cascade-registry/registry/store"
 	"github.com/robinkb/cascade-registry/repository"
-	"github.com/robinkb/cascade-registry/store"
 	mock "github.com/stretchr/testify/mock"
 )
 

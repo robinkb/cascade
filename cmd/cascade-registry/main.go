@@ -15,10 +15,10 @@ import (
 	"github.com/robinkb/cascade-registry/process"
 	"github.com/robinkb/cascade-registry/registry"
 	v2 "github.com/robinkb/cascade-registry/registry/api/v2"
+	"github.com/robinkb/cascade-registry/registry/store/boltdb"
+	"github.com/robinkb/cascade-registry/registry/store/cluster"
+	"github.com/robinkb/cascade-registry/registry/store/fs"
 	"github.com/robinkb/cascade-registry/server"
-	"github.com/robinkb/cascade-registry/store/boltdb"
-	"github.com/robinkb/cascade-registry/store/cluster"
-	"github.com/robinkb/cascade-registry/store/fs"
 )
 
 var (
