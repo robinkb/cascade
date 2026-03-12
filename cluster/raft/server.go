@@ -10,6 +10,12 @@ import (
 	"go.etcd.io/raft/v3/raftpb"
 )
 
+func NewDirtyServer(node Node, blobs store.BlobReader) *server {
+	server := NewServer(node)
+	server.blobs = blobs
+	return server
+}
+
 func NewServer(node Node) *server {
 	s := new(server)
 	s.node = node

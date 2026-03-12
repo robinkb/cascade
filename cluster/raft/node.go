@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"log"
+	"net/http"
 	"net/netip"
 	"time"
 
@@ -31,6 +32,11 @@ type (
 		Receive(m *raftpb.Message) error
 
 		cluster.Proposer
+	}
+
+	Peer struct {
+		ID       uint64
+		AddrPort netip.AddrPort
 	}
 )
 
@@ -70,7 +76,7 @@ func NewNodeDirty(id uint64, addr netip.AddrPort, storage *DiskStorage, snap clu
 	}
 
 	node.proposer = newProposer(node.raft)
-	node.mesh = NewDirtyMesh(node, addr, blobs)
+	node.server = NewDirtyServer(node, blobs)
 	node.restorer = snap
 
 	return node
@@ -111,7 +117,7 @@ func NewNode(id uint64, addr netip.AddrPort, storage *DiskStorage, snap cluster.
 	}
 
 	node.proposer = newProposer(node.raft)
-	node.mesh = NewMesh(node, addr)
+	node.server = NewServer(node)
 	node.restorer = snap
 
 	return node
@@ -129,7 +135,7 @@ type node struct {
 
 	*proposer
 	clients  cluster.Clients[Client]
-	mesh     Mesh
+	server   *server
 	storage  *DiskStorage
 	restorer cluster.Restorer
 
@@ -231,7 +237,11 @@ func (n *node) proposeConfChange(ctx context.Context, cc raftpb.ConfChange) erro
 
 func (n *node) Start() {
 	go n.run()
-	go n.mesh.Start()
+	go func() {
+		if err := http.ListenAndServe(n.addr.String(), n.server); err != nil {
+			log.Println(err)
+		}
+	}()
 }
 
 func (n *node) Stop() {
