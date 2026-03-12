@@ -5,7 +5,7 @@
 package mock
 
 import (
-	"github.com/robinkb/cascade-registry/repository"
+	"github.com/robinkb/cascade-registry/registry/repository"
 	mock "github.com/stretchr/testify/mock"
 )
 

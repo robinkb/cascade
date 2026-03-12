@@ -1,0 +1,56 @@
+package v2
+
+import (
+	"encoding/json"
+	"net/http"
+	"strconv"
+)
+
+func (h *Handler) tagsHandler(w http.ResponseWriter, r *http.Request) {
+	switch r.Method {
+	case http.MethodGet:
+		h.listTagsHandler(w, r)
+	default:
+		w.WriteHeader(http.StatusMethodNotAllowed)
+	}
+}
+
+type TagsListResponse struct {
+	Name string   `json:"name"`
+	Tags []string `json:"tags"`
+}
+
+func (h *Handler) listTagsHandler(w http.ResponseWriter, r *http.Request) {
+	name := r.PathValue("name")
+	n := r.URL.Query().Get("n")
+	last := r.URL.Query().Get("last")
+
+	repo, err := h.service.GetRepository(name)
+	if err != nil {
+		errorHandler(w, r, err)
+		return
+	}
+
+	count := -1
+	if n != "" {
+		var err error
+		count, err = strconv.Atoi(n)
+		if err != nil {
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+	}
+
+	tags, err := repo.ListTags(name, count, last)
+	if err != nil {
+		errorHandler(w, r, err)
+		return
+	}
+
+	response := TagsListResponse{
+		Name: name,
+		Tags: tags,
+	}
+
+	encodeOrLog(json.NewEncoder(w).Encode(response))
+}

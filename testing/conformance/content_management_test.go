@@ -4,9 +4,9 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/robinkb/cascade-registry"
-	"github.com/robinkb/cascade-registry/server"
-	"github.com/robinkb/cascade-registry/store/inmemory"
+	"github.com/robinkb/cascade-registry/registry"
+	v2 "github.com/robinkb/cascade-registry/registry/api/v2"
+	"github.com/robinkb/cascade-registry/registry/store/inmemory"
 	. "github.com/robinkb/cascade-registry/testing"
 	testclient "github.com/robinkb/cascade-registry/testing/client"
 )
@@ -14,8 +14,8 @@ import (
 func TestContentManagement(t *testing.T) {
 	metadata := inmemory.NewMetadataStore()
 	blobs := inmemory.NewBlobStore()
-	service := cascade.NewRegistryService(metadata, blobs)
-	srv := server.New(service)
+	service := registry.NewService(metadata, blobs)
+	srv := v2.New(service)
 
 	t.Run("Deleting tags", func(t *testing.T) {
 		repository := RandomName()
