@@ -82,7 +82,7 @@ func main() {
 			}
 		}()
 
-		node := raft.NewNodeDirty(uint64(raftId), addr, store, metadata, metadata, blobs)
+		node := raft.NewNode(uint64(raftId), addr, store, metadata)
 		metadata = cluster.NewMetadataStore(node, metadata)
 		blobs = cluster.NewBlobStore(node, blobs)
 		node.Bootstrap(peers...)

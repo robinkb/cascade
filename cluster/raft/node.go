@@ -41,48 +41,6 @@ type (
 	}
 )
 
-func NewNodeDirty(id uint64, addr netip.AddrPort, storage *DiskStorage, snap cluster.SnapshotRestorer, meta store.Metadata, blobs store.Blobs) Node {
-	conf := raft.Config{
-		// TODO: This may need to be set when restarting a node.
-		// But I'm not sure of how to persist it. It can only be saved _after_
-		// applying entries to the state machine. And etcd doesn't seem to set this either.
-		Applied: 0,
-
-		ID:              id,
-		ElectionTick:    10,
-		HeartbeatTick:   1,
-		Storage:         storage,
-		MaxSizePerMsg:   1 << 20,
-		MaxInflightMsgs: 256,
-
-		// If weird stuff happens, I should check these toggles.
-		StepDownOnRemoval: true,
-		PreVote:           true,
-		CheckQuorum:       true,
-	}
-
-	node := &node{
-		id:          id,
-		addr:        addr,
-		raft:        raft.RestartNode(&conf),
-		storage:     storage,
-		ticker:      time.Tick(100 * time.Millisecond),
-		manualTick:  make(chan time.Time),
-		done:        make(chan struct{}),
-		confChanges: newErrCs(),
-		clients:     cluster.NewClients[Client](),
-
-		meta:  meta,
-		blobs: blobs,
-	}
-
-	node.proposer = newProposer(node.raft)
-	node.server = NewDirtyServer(node, blobs)
-	node.restorer = snap
-
-	return node
-}
-
 // TODO: NewNode should return an error instead of panicking? Probably?
 // Also, I should probably decompose this more and do dependency injection.
 func NewNode(id uint64, addr netip.AddrPort, storage *DiskStorage, snap cluster.SnapshotRestorer) Node {
@@ -117,7 +75,6 @@ func NewNode(id uint64, addr netip.AddrPort, storage *DiskStorage, snap cluster.
 	}
 
 	node.proposer = newProposer(node.raft)
-	node.server = NewServer(node)
 	node.restorer = snap
 
 	return node
@@ -135,7 +92,6 @@ type node struct {
 
 	*proposer
 	clients  cluster.Clients[Client]
-	server   *serverBad
 	storage  *DiskStorage
 	restorer cluster.Restorer
 
