@@ -17,6 +17,8 @@ func New(node raft.Node) *Handler {
 	mux := http.NewServeMux()
 	mux.Handle("/message", http.HandlerFunc(h.messageHandler))
 
+	h.Handler = mux
+
 	return h
 }
 

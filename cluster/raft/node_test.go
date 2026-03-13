@@ -5,7 +5,6 @@ import (
 	"context"
 	"io"
 	"math/rand/v2"
-	"net"
 	"sync"
 	"testing"
 	"time"
@@ -13,7 +12,6 @@ import (
 	"github.com/gofrs/uuid/v5"
 	"github.com/robinkb/cascade/cluster/raft"
 	"github.com/robinkb/cascade/cluster/raft/api"
-	"github.com/robinkb/cascade/process"
 	"github.com/robinkb/cascade/registry/store"
 	storecluster "github.com/robinkb/cascade/registry/store/cluster"
 	"github.com/robinkb/cascade/registry/store/inmemory"
@@ -29,7 +27,7 @@ func TestClusterFormation(t *testing.T) {
 
 		// We have to add the node to the Raft state so that it can campaign and become the leader.
 		node.Bootstrap()
-		node.Start()
+		go node.Run()
 		snapElections(node)
 		// The Raft status now shows the first node as part of the voters.
 		AssertRaftStatus(t, node.Status()).IsLeader().Voters(1)
@@ -40,13 +38,13 @@ func TestClusterFormation(t *testing.T) {
 
 		// Form a single-node cluster first.
 		node1.Bootstrap()
-		node1.Start()
+		go node1.Run()
 		snapElections(node1)
 
 		// Now let's add a second node.
 		// Adding the leader of the existing cluster is required.
 		node2.Bootstrap(node1.AsPeer())
-		node2.Start()
+		go node2.Run()
 
 		// Any node in the existing cluster can propose to add a node.
 		err := node1.AddNode(context.Background(), node2.AsPeer())
@@ -59,7 +57,7 @@ func TestClusterFormation(t *testing.T) {
 		// bootstrap with only a follower node. But once the new node joins, the leader
 		// will not broadcast itself to the new node. The leader must be bootstrapped in.
 		node3.Bootstrap(node1.AsPeer(), node2.AsPeer())
-		node3.Start()
+		go node3.Run()
 
 		// And after this, we have three nodes in the cluster.
 		err = node2.AddNode(context.Background(), node3.AsPeer())
@@ -339,26 +337,25 @@ func TestMetadataReplication(t *testing.T) {
 }
 
 func newTestNode(t *testing.T) raft.Node {
-	mgr := process.NewManager()
+	addr := RandomAddrPort()
 	srv := server.NewServer(server.ServerOptions{
 		Name: "test-server",
-		Addr: &net.TCPAddr{
-			Port: RandomPort(),
-		},
+		Addr: addr,
 	})
-	node := raft.NewNode(rand.Uint64(), RandomAddrPort(), newTestStore(t), &raft.SpySnapshotter{})
+	node := raft.NewNode(rand.Uint64(), addr, newTestStore(t), &raft.SpySnapshotter{})
 	api := api.New(node)
-	srv.Handle("/raft", api)
-	mgr.Register(srv)
-	mgr.Register(node)
+	srv.Handle("/", api)
 
 	go func() {
-		err := mgr.Run()
+		err := srv.Run()
 		AssertNoError(t, err).Require()
 	}()
 
 	t.Cleanup(func() {
-		mgr.Shutdown()
+		err := srv.Shutdown()
+		AssertNoError(t, err).Require()
+		err = node.Shutdown()
+		AssertNoError(t, err).Require()
 	})
 
 	return node

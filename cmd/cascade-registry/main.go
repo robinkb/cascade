@@ -2,8 +2,8 @@ package main
 
 import (
 	"flag"
+	"fmt"
 	"log"
-	"net"
 	"net/netip"
 	"os"
 	"path/filepath"
@@ -90,9 +90,7 @@ func main() {
 
 	srv := server.NewServer(server.ServerOptions{
 		Name: "oci-api",
-		Addr: &net.TCPAddr{
-			Port: port,
-		},
+		Addr: netip.MustParseAddrPort(fmt.Sprintf(":%d", port)),
 	})
 
 	srv.Handle("/", api)

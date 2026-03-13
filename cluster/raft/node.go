@@ -210,6 +210,9 @@ func (n *node) Bootstrap(peers ...Peer) {
 // Proposals may be rejected by the cluster. AddNode blocks
 // until the Peer is added, an error is encountered,
 // or until the context is cancelled.
+// TODO: AddNode should have a timeout attached to it.
+// Could generate a context with timeout inside this method.
+// Not sure why it should be able to take a context as argument.
 func (n *node) AddNode(ctx context.Context, peer Peer) error {
 	return n.proposeConfChange(ctx, raftpb.ConfChange{
 		Type:    raftpb.ConfChangeAddNode,
