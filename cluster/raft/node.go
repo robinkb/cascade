@@ -3,12 +3,14 @@ package raft
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"log"
 	"net/http"
 	"net/netip"
 	"time"
 
 	"github.com/robinkb/cascade/cluster"
+	"github.com/robinkb/cascade/process"
 	"github.com/robinkb/cascade/registry/store"
 	"go.etcd.io/raft/v3"
 	"go.etcd.io/raft/v3/raftpb"
@@ -16,6 +18,8 @@ import (
 
 type (
 	Node interface {
+		process.Runnable
+
 		Start()
 		Stop()
 		Tick()
@@ -111,7 +115,6 @@ func NewNode(id uint64, addr netip.AddrPort, storage *DiskStorage, snap cluster.
 		storage:     storage,
 		ticker:      time.Tick(100 * time.Millisecond),
 		manualTick:  make(chan time.Time),
-		done:        make(chan struct{}),
 		confChanges: newErrCs(),
 		clients:     cluster.NewClients[Client](),
 	}
@@ -135,12 +138,29 @@ type node struct {
 
 	*proposer
 	clients  cluster.Clients[Client]
-	server   *server
+	server   *serverBad
 	storage  *DiskStorage
 	restorer cluster.Restorer
 
 	meta  store.Metadata
 	blobs store.Blobs
+}
+
+func (n *node) Name() string {
+	return fmt.Sprintf("raft node %d", n.id)
+}
+
+func (n *node) Run() error {
+	n.done = make(chan struct{}, 1)
+	n.run()
+	return nil
+}
+
+func (n *node) Shutdown() error {
+	n.raft.Stop()
+	n.done <- struct{}{}
+	close(n.done)
+	return nil
 }
 
 func (n *node) NodeID() uint64 {

@@ -1,20 +1,25 @@
-package raft
+package raft_test
 
 import (
 	"bytes"
 	"context"
 	"io"
 	"math/rand/v2"
+	"net"
 	"sync"
 	"testing"
 	"time"
 
 	"github.com/gofrs/uuid/v5"
+	"github.com/robinkb/cascade/cluster/raft"
+	"github.com/robinkb/cascade/cluster/raft/api"
+	"github.com/robinkb/cascade/process"
 	"github.com/robinkb/cascade/registry/store"
 	storecluster "github.com/robinkb/cascade/registry/store/cluster"
 	"github.com/robinkb/cascade/registry/store/inmemory"
+	"github.com/robinkb/cascade/server"
 	. "github.com/robinkb/cascade/testing"
-	"go.etcd.io/raft/v3"
+	etcdraft "go.etcd.io/raft/v3"
 )
 
 func TestClusterFormation(t *testing.T) {
@@ -333,31 +338,53 @@ func TestMetadataReplication(t *testing.T) {
 	})
 }
 
-func newTestNode(t *testing.T) Node {
-	return NewNode(rand.Uint64(), RandomAddrPort(), newTestStore(t), &SpySnapshotter{})
+func newTestNode(t *testing.T) raft.Node {
+	mgr := process.NewManager()
+	srv := server.NewServer(server.ServerOptions{
+		Name: "test-server",
+		Addr: &net.TCPAddr{
+			Port: RandomPort(),
+		},
+	})
+	node := raft.NewNode(rand.Uint64(), RandomAddrPort(), newTestStore(t), &raft.SpySnapshotter{})
+	api := api.New(node)
+	srv.Handle("/raft", api)
+	mgr.Register(srv)
+	mgr.Register(node)
+
+	go func() {
+		err := mgr.Run()
+		AssertNoError(t, err).Require()
+	}()
+
+	t.Cleanup(func() {
+		mgr.Shutdown()
+	})
+
+	return node
 }
 
-func newTestCluster(t *testing.T, n int) ([]Node, []store.Blobs, []store.Metadata) {
-	peers := make([]Peer, n)
-	nodes := make([]Node, n)
+func newTestCluster(t *testing.T, n int) ([]raft.Node, []store.Blobs, []store.Metadata) {
+	peers := make([]raft.Peer, n)
+	nodes := make([]raft.Node, n)
 	blobs := make([]store.Blobs, n)
 	metadata := make([]store.Metadata, n)
 
 	for i := range n {
-		peers[i] = Peer{
+		peers[i] = raft.Peer{
 			ID:       rand.Uint64(),
 			AddrPort: RandomAddrPort(),
 		}
 	}
 
 	for i := range n {
-		nodes[i] = NewNode(
+		nodes[i] = raft.NewNode(
 			peers[i].ID,
 			peers[i].AddrPort,
 			newTestStore(t),
-			new(SpySnapshotter),
+			new(raft.SpySnapshotter),
 		)
-		nodes[i].(*node).Bootstrap(peers...)
+		nodes[i].Bootstrap(peers...)
 		blobs[i] = storecluster.NewBlobStore(nodes[i], inmemory.NewBlobStore())
 		metadata[i] = storecluster.NewMetadataStore(nodes[i], inmemory.NewMetadataStore())
 		nodes[i].Start()
@@ -367,7 +394,7 @@ func newTestCluster(t *testing.T, n int) ([]Node, []store.Blobs, []store.Metadat
 }
 
 // snapElections rapidly ticks the given nodes until a leader is elected.
-func snapElections(nodes ...Node) {
+func snapElections(nodes ...raft.Node) {
 	var wg sync.WaitGroup
 	for _, n := range nodes {
 		wg.Go(func() {
@@ -388,14 +415,14 @@ func wait() {
 	time.Sleep(6 * time.Millisecond)
 }
 
-func AssertRaftStatus(t *testing.T, status raft.Status) *RaftStatusAsserter {
+func AssertRaftStatus(t *testing.T, status etcdraft.Status) *RaftStatusAsserter {
 	t.Helper()
 	return &RaftStatusAsserter{t, status}
 }
 
 type RaftStatusAsserter struct {
 	t      *testing.T
-	status raft.Status
+	status etcdraft.Status
 }
 
 // Leader asserts that the node is the cluster's leader.

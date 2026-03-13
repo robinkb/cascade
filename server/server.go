@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"errors"
 	"log"
 	"net"
 	"net/http"
@@ -51,7 +52,11 @@ func (s *Server) Name() string {
 }
 
 func (s *Server) Run() error {
-	return s.srv.ListenAndServe()
+	err := s.srv.ListenAndServe()
+	if !errors.Is(err, http.ErrServerClosed) {
+		return err
+	}
+	return nil
 }
 
 func (s *Server) Shutdown() error {

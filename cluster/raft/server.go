@@ -10,14 +10,14 @@ import (
 	"go.etcd.io/raft/v3/raftpb"
 )
 
-func NewDirtyServer(node Node, blobs store.BlobReader) *server {
+func NewDirtyServer(node Node, blobs store.BlobReader) *serverBad {
 	server := NewServer(node)
 	server.blobs = blobs
 	return server
 }
 
-func NewServer(node Node) *server {
-	s := new(server)
+func NewServer(node Node) *serverBad {
+	s := new(serverBad)
 	s.node = node
 
 	router := http.NewServeMux()
@@ -29,13 +29,13 @@ func NewServer(node Node) *server {
 	return s
 }
 
-type server struct {
+type serverBad struct {
 	http.Handler
 	node  Node
 	blobs store.BlobReader
 }
 
-func (s *server) messageHandler(w http.ResponseWriter, r *http.Request) {
+func (s *serverBad) messageHandler(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case http.MethodPost:
 		s.postMessageHandler(w, r)
@@ -45,7 +45,7 @@ func (s *server) messageHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (s *server) postMessageHandler(w http.ResponseWriter, r *http.Request) {
+func (s *serverBad) postMessageHandler(w http.ResponseWriter, r *http.Request) {
 	// TODO: Properly handle errors
 	data, _ := io.ReadAll(r.Body)
 	var message raftpb.Message
@@ -54,7 +54,7 @@ func (s *server) postMessageHandler(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 }
 
-func (s *server) blobHandler(w http.ResponseWriter, r *http.Request) {
+func (s *serverBad) blobHandler(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case http.MethodGet:
 		s.getBlobHandler(w, r)
@@ -64,7 +64,7 @@ func (s *server) blobHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (s *server) getBlobHandler(w http.ResponseWriter, r *http.Request) {
+func (s *serverBad) getBlobHandler(w http.ResponseWriter, r *http.Request) {
 	digest := r.PathValue("digest")
 
 	id, err := godigest.Parse(digest)
