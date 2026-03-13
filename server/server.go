@@ -19,7 +19,10 @@ func NewServer(opts ServerOptions) *Server {
 	mux := http.NewServeMux()
 	srv := &Server{
 		srv: &http.Server{
-			Handler: logger(mux),
+			// TODO: Can't just enable this globally
+			// because every Raft message would produce a log line.
+			// Handler: logger(mux),
+			Handler: mux,
 		},
 		mux: mux,
 	}

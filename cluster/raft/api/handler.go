@@ -4,7 +4,7 @@ import (
 	"io"
 	"net/http"
 
-	"github.com/gogo/protobuf/proto"
+	"github.com/golang/protobuf/proto"
 	"github.com/robinkb/cascade/cluster/raft"
 	"go.etcd.io/raft/v3/raftpb"
 )

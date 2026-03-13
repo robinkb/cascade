@@ -3,6 +3,7 @@ package raft_test
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"io"
 	"math/rand/v2"
 	"sync"
@@ -95,7 +96,7 @@ func TestClusterFormation(t *testing.T) {
 		AssertRaftStatus(t, nodes[0].Status()).Voters(2)
 
 		// A removed node is stopped, so start it again.
-		nodes[2].Start()
+		go nodes[2].Run()
 		err = nodes[0].AddNode(context.Background(), nodes[2].AsPeer())
 		wait()
 		AssertNoError(t, err)
@@ -375,16 +376,34 @@ func newTestCluster(t *testing.T, n int) ([]raft.Node, []store.Blobs, []store.Me
 	}
 
 	for i := range n {
+		srv := server.NewServer(server.ServerOptions{
+			Name: fmt.Sprintf("test-server %d", peers[i].ID),
+			Addr: peers[i].AddrPort,
+		})
 		nodes[i] = raft.NewNode(
 			peers[i].ID,
 			peers[i].AddrPort,
 			newTestStore(t),
 			new(raft.SpySnapshotter),
 		)
+		srv.Handle("/", api.New(nodes[i]))
+
+		go func() {
+			err := srv.Run()
+			AssertNoError(t, err).Require()
+		}()
+
+		t.Cleanup(func() {
+			err := nodes[i].Shutdown()
+			AssertNoError(t, err).Require()
+			err = srv.Shutdown()
+			AssertNoError(t, err).Require()
+		})
+
 		nodes[i].Bootstrap(peers...)
 		blobs[i] = storecluster.NewBlobStore(nodes[i], inmemory.NewBlobStore())
 		metadata[i] = storecluster.NewMetadataStore(nodes[i], inmemory.NewMetadataStore())
-		nodes[i].Start()
+		go nodes[i].Run()
 	}
 
 	return nodes, blobs, metadata

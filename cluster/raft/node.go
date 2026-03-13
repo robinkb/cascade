@@ -5,7 +5,6 @@ import (
 	"context"
 	"fmt"
 	"log"
-	"net/http"
 	"net/netip"
 	"time"
 
@@ -20,8 +19,6 @@ type (
 	Node interface {
 		process.Runnable
 
-		Start()
-		Stop()
 		Tick()
 
 		NodeID() uint64
@@ -158,8 +155,8 @@ func (n *node) Run() error {
 
 func (n *node) Shutdown() error {
 	n.raft.Stop()
-	n.done <- struct{}{}
-	close(n.done)
+	// n.done <- struct{}{}
+	// close(n.done)
 	return nil
 }
 
@@ -256,21 +253,6 @@ func (n *node) proposeConfChange(ctx context.Context, cc raftpb.ConfChange) erro
 	case err := <-errC:
 		return err
 	}
-}
-
-func (n *node) Start() {
-	go n.run()
-	go func() {
-		if err := http.ListenAndServe(n.addr.String(), n.server); err != nil {
-			log.Println(err)
-		}
-	}()
-}
-
-func (n *node) Stop() {
-	n.raft.Stop()
-	n.done <- struct{}{}
-	close(n.done)
 }
 
 func (n *node) Tick() {
@@ -385,7 +367,7 @@ func (n *node) processEntries(entries []raftpb.Entry) {
 				case raftpb.ConfChangeRemoveNode:
 					if change.NodeID == n.NodeID() {
 						log.Println("removed from the cluster; stopping...")
-						n.Stop()
+						n.Shutdown()
 					} else {
 						log.Printf("%d removed node with id %d", n.NodeID(), change.NodeID)
 						n.clients.Remove(change.NodeID)

@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/robinkb/cascade/cluster/raft"
+	"github.com/robinkb/cascade/cluster/raft/api"
 	"github.com/robinkb/cascade/cluster/raft/qwal"
 	"github.com/robinkb/cascade/process"
 	"github.com/robinkb/cascade/registry"
@@ -47,6 +48,10 @@ func main() {
 
 	if raftId != 0 {
 		addr := netip.MustParseAddrPort(raftHostPort)
+		srv := server.NewServer(server.ServerOptions{
+			Name: "cluster-server",
+			Addr: addr,
+		})
 
 		hosts := strings.Split(raftPeers, ",")
 		peers := make([]raft.Peer, len(hosts))
@@ -81,8 +86,10 @@ func main() {
 		metadata = cluster.NewMetadataStore(node, metadata)
 		blobs = cluster.NewBlobStore(node, blobs)
 		node.Bootstrap(peers...)
-		node.Start()
-		defer node.Stop()
+
+		srv.Handle("/", api.New(node))
+		mgr.Register(srv)
+		mgr.Register(node)
 	}
 
 	service := registry.NewService(metadata, blobs)
@@ -90,7 +97,7 @@ func main() {
 
 	srv := server.NewServer(server.ServerOptions{
 		Name: "oci-api",
-		Addr: netip.MustParseAddrPort(fmt.Sprintf(":%d", port)),
+		Addr: netip.MustParseAddrPort(fmt.Sprintf("127.0.0.1:%d", port)),
 	})
 
 	srv.Handle("/", api)
