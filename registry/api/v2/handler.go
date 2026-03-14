@@ -34,15 +34,15 @@ func New(service registry.Service) *Handler {
 	h.service = service
 
 	repositoryRouter := http.NewServeMux()
-	repositoryRouter.Handle("/blobs/{digest}", http.HandlerFunc(h.blobsHandler))
-	repositoryRouter.Handle("/blobs/uploads/", http.HandlerFunc(h.blobsUploadsSessionHandler))
-	repositoryRouter.Handle("/blobs/uploads/{reference}", http.HandlerFunc(h.blobsUploadsHandler))
-	repositoryRouter.Handle("/manifests/{reference}", http.HandlerFunc(h.manifestsHandler))
-	repositoryRouter.Handle("/tags/list", http.HandlerFunc(h.tagsHandler))
-	repositoryRouter.Handle("/referrers/{digest}", http.HandlerFunc(h.referrersHandler))
+	repositoryRouter.HandleFunc("/blobs/{digest}", h.blobsHandler)
+	repositoryRouter.HandleFunc("/blobs/uploads/", h.blobsUploadsSessionHandler)
+	repositoryRouter.HandleFunc("/blobs/uploads/{reference}", h.blobsUploadsHandler)
+	repositoryRouter.HandleFunc("/manifests/{reference}", h.manifestsHandler)
+	repositoryRouter.HandleFunc("/tags/list", h.tagsHandler)
+	repositoryRouter.HandleFunc("/referrers/{digest}", h.referrersHandler)
 
 	registryRouter := http.NewServeMux()
-	registryRouter.Handle("/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	registryRouter.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/" {
 			w.WriteHeader(http.StatusOK)
 			return
@@ -59,10 +59,10 @@ func New(service registry.Service) *Handler {
 
 		prefix := strings.Join(segments[:i], "/")
 		http.StripPrefix(prefix, repositoryRouter).ServeHTTP(w, r)
-	}))
+	})
 
 	router := http.NewServeMux()
-	router.Handle("/v2/", http.HandlerFunc(http.StripPrefix("/v2", registryRouter).ServeHTTP))
+	router.Handle("/v2/", http.StripPrefix("/v2", registryRouter))
 
 	h.Handler = router
 
