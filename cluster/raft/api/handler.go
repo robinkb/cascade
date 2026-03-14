@@ -38,10 +38,22 @@ func (h *Handler) messageHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) postMessageHandler(w http.ResponseWriter, r *http.Request) {
-	// TODO: Properly handle errors
-	data, _ := io.ReadAll(r.Body)
+	data, err := io.ReadAll(r.Body)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
 	var message raftpb.Message
-	_ = proto.Unmarshal(data, &message)
-	_ = h.node.Receive(&message)
+	if err := proto.Unmarshal(data, &message); err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+
+	if err := h.node.Receive(&message); err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
 	w.WriteHeader(http.StatusOK)
 }

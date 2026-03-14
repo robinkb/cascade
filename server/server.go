@@ -6,6 +6,7 @@ import (
 	"log"
 	"net/http"
 	"net/netip"
+	"strings"
 	"time"
 )
 
@@ -66,7 +67,12 @@ func (s *Server) Shutdown() error {
 }
 
 func (s *Server) Handle(pattern string, handler http.Handler) {
-	s.mux.Handle(pattern, handler)
+	s.mux.Handle(pattern,
+		http.StripPrefix(
+			strings.TrimSuffix(pattern, "/"),
+			handler,
+		),
+	)
 }
 
 func logger(handler http.Handler) http.Handler {

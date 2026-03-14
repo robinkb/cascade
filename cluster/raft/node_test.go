@@ -344,8 +344,7 @@ func newTestNode(t *testing.T) raft.Node {
 		Addr: addr,
 	})
 	node := raft.NewNode(rand.Uint64(), addr, newTestStore(t), &raft.SpySnapshotter{})
-	api := api.New(node)
-	srv.Handle("/", api)
+	srv.Handle("/cluster/raft/", api.New(node))
 
 	go func() {
 		err := srv.Run()
@@ -386,7 +385,7 @@ func newTestCluster(t *testing.T, n int) ([]raft.Node, []store.Blobs, []store.Me
 			newTestStore(t),
 			new(raft.SpySnapshotter),
 		)
-		srv.Handle("/", api.New(nodes[i]))
+		srv.Handle("/cluster/raft/", api.New(nodes[i]))
 
 		go func() {
 			err := srv.Run()

@@ -11,11 +11,12 @@ import (
 	"strings"
 
 	"github.com/robinkb/cascade/cluster/raft"
-	"github.com/robinkb/cascade/cluster/raft/api"
+	raftapi "github.com/robinkb/cascade/cluster/raft/api"
 	"github.com/robinkb/cascade/cluster/raft/qwal"
 	"github.com/robinkb/cascade/process"
 	"github.com/robinkb/cascade/registry"
-	v2 "github.com/robinkb/cascade/registry/api/v2"
+	registryapi "github.com/robinkb/cascade/registry/api/v2"
+	storeapi "github.com/robinkb/cascade/registry/store/api"
 	"github.com/robinkb/cascade/registry/store/boltdb"
 	"github.com/robinkb/cascade/registry/store/cluster"
 	"github.com/robinkb/cascade/registry/store/fs"
@@ -87,20 +88,19 @@ func main() {
 		blobs = cluster.NewBlobStore(node, blobs)
 		node.Bootstrap(peers...)
 
-		srv.Handle("/", api.New(node))
+		srv.Handle("/cluster/raft/", raftapi.New(node))
+		srv.Handle("/store/", storeapi.New(blobs))
 		mgr.Register(srv)
 		mgr.Register(node)
 	}
-
-	service := registry.NewService(metadata, blobs)
-	api := v2.New(service)
 
 	srv := server.NewServer(server.ServerOptions{
 		Name: "oci-api",
 		Addr: netip.MustParseAddrPort(fmt.Sprintf("127.0.0.1:%d", port)),
 	})
 
-	srv.Handle("/", api)
+	service := registry.NewService(metadata, blobs)
+	srv.Handle("/", registryapi.New(service))
 
 	mgr.Register(srv)
 

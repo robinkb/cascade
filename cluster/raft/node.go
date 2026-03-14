@@ -42,7 +42,6 @@ type (
 )
 
 // TODO: NewNode should return an error instead of panicking? Probably?
-// Also, I should probably decompose this more and do dependency injection.
 func NewNode(id uint64, addr netip.AddrPort, storage *DiskStorage, snap cluster.SnapshotRestorer) Node {
 	conf := raft.Config{
 		// TODO: This may need to be set when restarting a node.
@@ -150,7 +149,7 @@ func (n *node) Bootstrap(peers ...Peer) {
 		n.storage.SaveConfState(*confState)
 
 		if n.id != peer.ID {
-			client := NewClient("http://" + peer.AddrPort.String())
+			client := NewClient("http://" + peer.AddrPort.String() + "/cluster/raft")
 			if err := n.clients.Add(peer.ID, client); err != nil {
 				log.Printf("failed to add client for peer with ID %d: %s", peer.ID, err)
 			}
@@ -313,7 +312,7 @@ func (n *node) processEntries(entries []raftpb.Entry) {
 					// TODO: Adding a client can error out, technically, in which case
 					// we should not call raft.ApplyConfChange because it did not get accepted.
 					url := netip.MustParseAddrPort(string(cc.Context))
-					client := NewClient("http://" + url.String())
+					client := NewClient("http://" + url.String() + "/cluster/raft")
 					if err := n.clients.Add(change.NodeID, client); err != nil {
 						log.Printf("failed to add client for peer with ID %d: %s", change.NodeID, err)
 					}

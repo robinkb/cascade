@@ -2,7 +2,6 @@ package raft
 
 import (
 	"bytes"
-	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -40,7 +39,7 @@ func (c *Client) SendMessage(m *raftpb.Message) error {
 	}
 
 	if resp.StatusCode != http.StatusOK {
-		return errors.New("unexpected error")
+		return fmt.Errorf("received response with status code %d", resp.StatusCode)
 	}
 	return nil
 }
