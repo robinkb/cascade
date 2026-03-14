@@ -1,11 +1,14 @@
 package store
 
 import (
+	"fmt"
 	"io"
 	"iter"
+	"net/http"
 
 	"github.com/gofrs/uuid/v5"
 	"github.com/opencontainers/go-digest"
+	godigest "github.com/opencontainers/go-digest"
 )
 
 type (
@@ -62,3 +65,35 @@ type (
 		Size int64
 	}
 )
+
+func NewBlobsClient(baseUrl string) *blobsClient {
+	return &blobsClient{
+		client:  new(http.Client),
+		baseUrl: baseUrl,
+	}
+}
+
+type blobsClient struct {
+	client  *http.Client
+	baseUrl string
+}
+
+func (c *blobsClient) BlobReader(id godigest.Digest) (io.Reader, error) {
+	path := fmt.Sprintf("/blobs/%s", id.String())
+	resp, err := c.do(http.MethodGet, path, nil, nil)
+	if err != nil {
+		return nil, err
+	}
+	return resp.Body, nil
+}
+
+func (c *blobsClient) do(method string, path string, headers http.Header, body io.Reader) (*http.Response, error) {
+	url := c.baseUrl + path
+	req, err := http.NewRequest(method, url, body)
+	if err != nil {
+		return nil, err
+	}
+	req.Header = headers
+
+	return c.client.Do(req)
+}

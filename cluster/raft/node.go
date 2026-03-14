@@ -23,10 +23,10 @@ type (
 
 		NodeID() uint64
 		AddrPort() netip.AddrPort
-		AsPeer() Peer
-		Bootstrap(peers ...Peer)
-		AddNode(ctx context.Context, peer Peer) error
-		RemoveNode(ctx context.Context, peer Peer) error
+		AsPeer() cluster.Peer
+		Bootstrap(peers ...cluster.Peer)
+		AddNode(ctx context.Context, peer cluster.Peer) error
+		RemoveNode(ctx context.Context, peer cluster.Peer) error
 		Status() raft.Status
 
 		// Messaging
@@ -34,15 +34,10 @@ type (
 
 		cluster.Proposer
 	}
-
-	Peer struct {
-		ID       uint64
-		AddrPort netip.AddrPort
-	}
 )
 
 // TODO: NewNode should return an error instead of panicking? Probably?
-func NewNode(id uint64, addr netip.AddrPort, storage *DiskStorage, snap cluster.SnapshotRestorer) Node {
+func NewNode(id uint64, addr netip.AddrPort, storage *DiskStorage, restorer cluster.Restorer) Node {
 	conf := raft.Config{
 		// TODO: This may need to be set when restarting a node.
 		// But I'm not sure of how to persist it. It can only be saved _after_
@@ -74,7 +69,7 @@ func NewNode(id uint64, addr netip.AddrPort, storage *DiskStorage, snap cluster.
 	}
 
 	node.proposer = newProposer(node.raft)
-	node.restorer = snap
+	node.restorer = restorer
 
 	return node
 }
@@ -123,8 +118,8 @@ func (n *node) AddrPort() netip.AddrPort {
 	return n.addr
 }
 
-func (n *node) AsPeer() Peer {
-	return Peer{
+func (n *node) AsPeer() cluster.Peer {
+	return cluster.Peer{
 		ID:       n.NodeID(),
 		AddrPort: n.AddrPort(),
 	}
@@ -133,8 +128,8 @@ func (n *node) AsPeer() Peer {
 // Bootstrap prepares a new Raft node. If this node will join a cluster,
 // at least the cluster's leader must be passed as a peer, but it is safer
 // to pass all known peers.
-func (n *node) Bootstrap(peers ...Peer) {
-	peers = append(peers, Peer{
+func (n *node) Bootstrap(peers ...cluster.Peer) {
+	peers = append(peers, cluster.Peer{
 		ID:       n.raft.Status().ID,
 		AddrPort: n.addr,
 	})
@@ -150,7 +145,7 @@ func (n *node) Bootstrap(peers ...Peer) {
 
 		if n.id != peer.ID {
 			client := NewClient("http://" + peer.AddrPort.String() + "/cluster/raft")
-			if err := n.clients.Add(peer.ID, client); err != nil {
+			if err := n.clients.Add(peer, client); err != nil {
 				log.Printf("failed to add client for peer with ID %d: %s", peer.ID, err)
 			}
 		}
@@ -165,7 +160,7 @@ func (n *node) Bootstrap(peers ...Peer) {
 // TODO: AddNode should have a timeout attached to it.
 // Could generate a context with timeout inside this method.
 // Not sure why it should be able to take a context as argument.
-func (n *node) AddNode(ctx context.Context, peer Peer) error {
+func (n *node) AddNode(ctx context.Context, peer cluster.Peer) error {
 	return n.proposeConfChange(ctx, raftpb.ConfChange{
 		Type:    raftpb.ConfChangeAddNode,
 		NodeID:  peer.ID,
@@ -178,7 +173,7 @@ func (n *node) AddNode(ctx context.Context, peer Peer) error {
 // Proposals may be rejected by the cluster. RemoveNode blocks
 // until the Peer is removed, an error is encountered,
 // or until the context is cancelled.
-func (n *node) RemoveNode(ctx context.Context, peer Peer) error {
+func (n *node) RemoveNode(ctx context.Context, peer cluster.Peer) error {
 	return n.proposeConfChange(ctx, raftpb.ConfChange{
 		Type:    raftpb.ConfChangeRemoveNode,
 		NodeID:  peer.ID,
@@ -253,31 +248,8 @@ func (n *node) send(messages []raftpb.Message) {
 
 func (n *node) processSnapshot(snap raftpb.Snapshot) {
 	buf := bytes.NewBuffer(snap.Data)
-	err := n.restorer.Restore(buf)
-	if err != nil {
-		log.Printf("failed to restore snapshot: %s", err)
-		n.raft.ReportSnapshot(n.id, raft.SnapshotFailure)
-	}
 
-	var client *Client
-	for id := range n.raft.Status().Config.Voters.IDs() {
-		if id == n.id {
-			continue
-		}
-
-		client, err = n.clients.Get(id)
-		if err != nil {
-			log.Printf("failed to get client for peer with ID %d", id)
-		}
-	}
-
-	if client == nil {
-		log.Println("failed to retrieve client for any peers")
-		n.raft.ReportSnapshot(n.id, raft.SnapshotFailure)
-		return
-	}
-
-	err = store.Reconcile(n.meta, n.blobs, client)
+	err := n.restorer.Restore(buf, n.clients.Peers())
 	if err != nil {
 		log.Printf("failed to restore snapshot: %s", err)
 		n.raft.ReportSnapshot(n.id, raft.SnapshotFailure)
@@ -311,13 +283,14 @@ func (n *node) processEntries(entries []raftpb.Entry) {
 				case raftpb.ConfChangeAddNode:
 					// TODO: Adding a client can error out, technically, in which case
 					// we should not call raft.ApplyConfChange because it did not get accepted.
-					url := netip.MustParseAddrPort(string(cc.Context))
-					client := NewClient("http://" + url.String() + "/cluster/raft")
-					if err := n.clients.Add(change.NodeID, client); err != nil {
+					addr := netip.MustParseAddrPort(string(cc.Context))
+					client := NewClient("http://" + addr.String() + "/cluster/raft")
+					peer := cluster.Peer{ID: change.NodeID, AddrPort: addr}
+					if err := n.clients.Add(peer, client); err != nil {
 						log.Printf("failed to add client for peer with ID %d: %s", change.NodeID, err)
 					}
 
-					log.Printf("%d added node with id %d and url %s", n.NodeID(), change.NodeID, url.String())
+					log.Printf("%d added node with id %d and url %s", n.NodeID(), change.NodeID, addr.String())
 
 				case raftpb.ConfChangeRemoveNode:
 					if change.NodeID == n.NodeID() {

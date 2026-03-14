@@ -2,36 +2,78 @@ package store
 
 import (
 	"errors"
+	"fmt"
 	"io"
+
+	"github.com/robinkb/cascade/cluster"
 )
 
-// TODO: Allow passing more than one source so that multiple sources can be checked.
-func Reconcile(meta Metadata, blobs Blobs, src BlobReader) error {
-	digests, err := meta.ListBlobs()
+func NewReconciler(meta Metadata, blobs Blobs) *reconciler {
+	return &reconciler{
+		meta:  meta,
+		blobs: blobs,
+	}
+}
+
+type reconciler struct {
+	meta  Metadata
+	blobs Blobs
+}
+
+func (r *reconciler) Snapshot(w io.Writer) error {
+	return r.meta.Snapshot(w)
+}
+
+func (r *reconciler) Restore(rd io.Reader, peers []cluster.Peer) error {
+	if err := r.meta.Restore(rd); err != nil {
+		return err
+	}
+
+	clients := cluster.NewClients[blobsClient]()
+	for _, peer := range peers {
+		client := NewBlobsClient(fmt.Sprintf("http://%s/store", peer.AddrPort.String()))
+		if err := clients.Add(peer, client); err != nil {
+			return err
+		}
+	}
+
+	digests, err := r.meta.ListBlobs()
 	if err != nil {
 		return err
 	}
 
-	for _, d := range digests {
-		if _, err := blobs.StatBlob(d); err != nil {
-			if errors.Is(err, ErrNotFound) {
-				r, err := src.BlobReader(d)
-				if err != nil {
-					return err
-				}
+	for _, digest := range digests {
+		_, err := r.blobs.StatBlob(digest)
+		if err == nil {
+			continue
+		}
 
-				w, err := blobs.BlobWriter(d)
-				if err != nil {
-					return err
-				}
+		if !errors.Is(err, ErrNotFound) {
+			return err
+		}
 
-				_, err = io.Copy(w, r)
-				if err != nil {
-					return err
-				}
-			} else {
+		for _, peer := range peers {
+			src, err := clients.Get(peer.ID)
+			if err != nil {
 				return err
 			}
+
+			rd, err := src.BlobReader(digest)
+			if err != nil {
+				continue
+			}
+
+			wr, err := r.blobs.BlobWriter(digest)
+			if err != nil {
+				return err
+			}
+
+			_, err = io.Copy(wr, rd)
+			if err != nil {
+				return err
+			}
+
+			break
 		}
 	}
 

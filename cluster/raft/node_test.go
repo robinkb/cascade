@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/gofrs/uuid/v5"
+	"github.com/robinkb/cascade/cluster"
 	"github.com/robinkb/cascade/cluster/raft"
 	"github.com/robinkb/cascade/cluster/raft/api"
 	"github.com/robinkb/cascade/registry/store"
@@ -362,13 +363,13 @@ func newTestNode(t *testing.T) raft.Node {
 }
 
 func newTestCluster(t *testing.T, n int) ([]raft.Node, []store.Blobs, []store.Metadata) {
-	peers := make([]raft.Peer, n)
+	peers := make([]cluster.Peer, n)
 	nodes := make([]raft.Node, n)
 	blobs := make([]store.Blobs, n)
 	metadata := make([]store.Metadata, n)
 
 	for i := range n {
-		peers[i] = raft.Peer{
+		peers[i] = cluster.Peer{
 			ID:       rand.Uint64(),
 			AddrPort: RandomAddrPort(),
 		}

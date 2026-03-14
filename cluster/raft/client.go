@@ -4,11 +4,9 @@ import (
 	"bytes"
 	"fmt"
 	"io"
-	"log"
 	"net/http"
 
 	"github.com/golang/protobuf/proto"
-	godigest "github.com/opencontainers/go-digest"
 	"go.etcd.io/raft/v3/raftpb"
 )
 
@@ -42,17 +40,6 @@ func (c *Client) SendMessage(m *raftpb.Message) error {
 		return fmt.Errorf("received response with status code %d", resp.StatusCode)
 	}
 	return nil
-}
-
-// TODO: Plainly does not belong here.
-func (c *Client) BlobReader(id godigest.Digest) (io.Reader, error) {
-	path := fmt.Sprintf("/blobs/%s", id.String())
-	log.Print("reading blob at ", path)
-	resp, err := c.do(http.MethodGet, path, nil, nil)
-	if err != nil {
-		return nil, err
-	}
-	return resp.Body, nil
 }
 
 func (c *Client) do(method string, path string, headers http.Header, body io.Reader) (*http.Response, error) {

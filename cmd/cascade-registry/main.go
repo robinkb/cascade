@@ -10,15 +10,17 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/robinkb/cascade/cluster"
 	"github.com/robinkb/cascade/cluster/raft"
 	raftapi "github.com/robinkb/cascade/cluster/raft/api"
 	"github.com/robinkb/cascade/cluster/raft/qwal"
 	"github.com/robinkb/cascade/process"
 	"github.com/robinkb/cascade/registry"
 	registryapi "github.com/robinkb/cascade/registry/api/v2"
+	"github.com/robinkb/cascade/registry/store"
 	storeapi "github.com/robinkb/cascade/registry/store/api"
 	"github.com/robinkb/cascade/registry/store/boltdb"
-	"github.com/robinkb/cascade/registry/store/cluster"
+	storecluster "github.com/robinkb/cascade/registry/store/cluster"
 	"github.com/robinkb/cascade/registry/store/fs"
 	"github.com/robinkb/cascade/server"
 )
@@ -55,7 +57,7 @@ func main() {
 		})
 
 		hosts := strings.Split(raftPeers, ",")
-		peers := make([]raft.Peer, len(hosts))
+		peers := make([]cluster.Peer, len(hosts))
 		for i := range hosts {
 			parts := strings.Split(hosts[i], ":")
 			id, err := strconv.ParseUint(parts[0], 10, 64)
@@ -63,7 +65,7 @@ func main() {
 				log.Fatal(err)
 			}
 			host := strings.Join(parts[1:3], ":")
-			peers[i] = raft.Peer{
+			peers[i] = cluster.Peer{
 				ID:       id,
 				AddrPort: netip.MustParseAddrPort(host),
 			}
@@ -73,19 +75,20 @@ func main() {
 		if err != nil {
 			log.Fatal(err)
 		}
-		store, err := raft.NewDiskStorage(db, metadata)
+		storage, err := raft.NewDiskStorage(db, metadata)
 		if err != nil {
 			log.Fatal(err)
 		}
 		defer func() {
-			if err := store.Close(); err != nil {
+			if err := storage.Close(); err != nil {
 				log.Println("error while closing raft storage:", err)
 			}
 		}()
 
-		node := raft.NewNode(uint64(raftId), addr, store, metadata)
-		metadata = cluster.NewMetadataStore(node, metadata)
-		blobs = cluster.NewBlobStore(node, blobs)
+		reconciler := store.NewReconciler(metadata, blobs)
+		node := raft.NewNode(uint64(raftId), addr, storage, reconciler)
+		metadata = storecluster.NewMetadataStore(node, metadata)
+		blobs = storecluster.NewBlobStore(node, blobs)
 		node.Bootstrap(peers...)
 
 		srv.Handle("/cluster/raft/", raftapi.New(node))

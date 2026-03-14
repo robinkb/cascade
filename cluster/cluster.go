@@ -1,6 +1,9 @@
 package cluster
 
-import "io"
+import (
+	"io"
+	"net/netip"
+)
 
 type (
 	// Proposal defines an interface for creating proposal types.
@@ -46,6 +49,11 @@ type (
 	// Restorer wraps the basic Restore method.
 	Restorer interface {
 		// Restorer reads a snapshot from the given Reader and applies it to the application's state machine.
-		Restore(r io.Reader) error
+		Restore(r io.Reader, peers []Peer) error
+	}
+
+	Peer struct {
+		ID       uint64
+		AddrPort netip.AddrPort
 	}
 )
