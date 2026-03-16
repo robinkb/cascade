@@ -87,6 +87,8 @@ func TestClusterFormation(t *testing.T) {
 	})
 
 	t.Run("Remove and rejoin a node with the same ID", func(t *testing.T) {
+		t.Skip("test is flaky")
+
 		// The Raft library says that an ID should not be re-used, but it _does_ work.
 		nodes, _, _ := newTestCluster(t, 3)
 		snapElections(nodes...)

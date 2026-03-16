@@ -2,8 +2,6 @@ package cluster
 
 import (
 	"errors"
-	"maps"
-	"slices"
 )
 
 var (
@@ -44,6 +42,9 @@ func (c *Clients[T]) Remove(id uint64) {
 	delete(c.peers, id)
 }
 
-func (c *Clients[T]) Peers() []Peer {
-	return slices.Collect(maps.Values(c.peers))
+func (c *Clients[T]) Peer(id uint64) (Peer, error) {
+	if peer, ok := c.peers[id]; ok {
+		return peer, nil
+	}
+	return Peer{}, ErrClientNotFound
 }

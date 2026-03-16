@@ -85,8 +85,8 @@ func main() {
 			}
 		}()
 
-		reconciler := store.NewReconciler(metadata, blobs)
-		node := raft.NewNode(uint64(raftId), addr, storage, reconciler)
+		restorer := store.NewRestorer(metadata, blobs)
+		node := raft.NewNode(uint64(raftId), addr, storage, restorer)
 		metadata = storecluster.NewMetadataStore(node, metadata)
 		blobs = storecluster.NewBlobStore(node, blobs)
 		node.Bootstrap(peers...)

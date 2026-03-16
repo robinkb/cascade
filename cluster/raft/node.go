@@ -249,7 +249,13 @@ func (n *node) send(messages []raftpb.Message) {
 func (n *node) processSnapshot(snap raftpb.Snapshot) {
 	buf := bytes.NewBuffer(snap.Data)
 
-	err := n.restorer.Restore(buf, n.clients.Peers())
+	leaderID := n.raft.Status().Lead
+	peer, err := n.clients.Peer(leaderID)
+	if err != nil {
+		log.Panic("failed to find leader in local clients")
+	}
+
+	err = n.restorer.Restore(buf, peer)
 	if err != nil {
 		log.Printf("failed to restore snapshot: %s", err)
 		n.raft.ReportSnapshot(n.id, raft.SnapshotFailure)
