@@ -8,7 +8,6 @@ import (
 
 	"github.com/gofrs/uuid/v5"
 	"github.com/opencontainers/go-digest"
-	godigest "github.com/opencontainers/go-digest"
 )
 
 type (
@@ -78,8 +77,8 @@ type blobsClient struct {
 	baseUrl string
 }
 
-func (c *blobsClient) BlobReader(id godigest.Digest) (io.Reader, error) {
-	path := fmt.Sprintf("/blobs/%s", id.String())
+func (c *blobsClient) BlobReader(digest digest.Digest) (io.Reader, error) {
+	path := fmt.Sprintf("/blobs/%s", digest.String())
 	resp, err := c.do(http.MethodGet, path, nil, nil)
 	if err != nil {
 		return nil, err

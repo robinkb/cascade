@@ -51,7 +51,7 @@ func main() {
 
 	if raftId != 0 {
 		addr := netip.MustParseAddrPort(raftHostPort)
-		srv := server.NewServer(server.ServerOptions{
+		srv := server.New(server.Options{
 			Name: "cluster-server",
 			Addr: addr,
 		})
@@ -97,9 +97,10 @@ func main() {
 		mgr.Register(node)
 	}
 
-	srv := server.NewServer(server.ServerOptions{
-		Name: "oci-api",
-		Addr: netip.MustParseAddrPort(fmt.Sprintf("127.0.0.1:%d", port)),
+	srv := server.New(server.Options{
+		Name:          "oci-api",
+		Addr:          netip.MustParseAddrPort(fmt.Sprintf("127.0.0.1:%d", port)),
+		LoggerEnabled: true,
 	})
 
 	service := registry.NewService(metadata, blobs)

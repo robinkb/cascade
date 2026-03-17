@@ -10,19 +10,17 @@ import (
 	"time"
 )
 
-type ServerOptions struct {
+type Options struct {
 	Name            string
 	Addr            netip.AddrPort
 	ShutdowmTimeout time.Duration
+	LoggerEnabled   bool
 }
 
-func NewServer(opts ServerOptions) *Server {
+func New(opts Options) *Server {
 	mux := http.NewServeMux()
 	srv := &Server{
 		srv: &http.Server{
-			// TODO: Can't just enable this globally
-			// because every Raft message would produce a log line.
-			// Handler: logger(mux),
 			Handler: mux,
 		},
 		mux: mux,
@@ -35,6 +33,10 @@ func NewServer(opts ServerOptions) *Server {
 		srv.shutdownTimeout = opts.ShutdowmTimeout
 	} else {
 		srv.shutdownTimeout = 60 * time.Second
+	}
+
+	if opts.LoggerEnabled {
+		srv.srv.Handler = logger(mux)
 	}
 
 	return srv

@@ -10,7 +10,6 @@ import (
 
 	"github.com/robinkb/cascade/cluster"
 	"github.com/robinkb/cascade/process"
-	"github.com/robinkb/cascade/registry/store"
 	"go.etcd.io/raft/v3"
 	"go.etcd.io/raft/v3/raftpb"
 )
@@ -88,9 +87,6 @@ type node struct {
 	clients  cluster.Clients[Client]
 	storage  *DiskStorage
 	restorer cluster.Restorer
-
-	meta  store.Metadata
-	blobs store.Blobs
 }
 
 func (n *node) Name() string {
@@ -301,7 +297,9 @@ func (n *node) processEntries(entries []raftpb.Entry) {
 				case raftpb.ConfChangeRemoveNode:
 					if change.NodeID == n.NodeID() {
 						log.Println("removed from the cluster; stopping...")
-						n.Shutdown()
+						if err := n.Shutdown(); err != nil {
+							log.Fatalf("failed to stop node: %s", err)
+						}
 					} else {
 						log.Printf("%d removed node with id %d", n.NodeID(), change.NodeID)
 						n.clients.Remove(change.NodeID)
