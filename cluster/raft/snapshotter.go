@@ -1,6 +1,10 @@
 package raft
 
-import "io"
+import (
+	"io"
+
+	"github.com/robinkb/cascade/cluster"
+)
 
 type SpySnapshotter struct {
 	CallStats struct {
@@ -15,7 +19,7 @@ func (s *SpySnapshotter) Snapshot(w io.Writer) error {
 	return err
 }
 
-func (s *SpySnapshotter) Restore(r io.Reader) error {
+func (s *SpySnapshotter) Restore(r io.Reader, peer cluster.Peer) error {
 	s.CallStats.Restore++
 	_, err := io.Copy(io.Discard, r)
 	return err

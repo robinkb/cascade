@@ -2,21 +2,25 @@ package main
 
 import (
 	"flag"
+	"fmt"
 	"log"
-	"net"
 	"net/netip"
 	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
 
+	"github.com/robinkb/cascade/cluster"
 	"github.com/robinkb/cascade/cluster/raft"
+	raftapi "github.com/robinkb/cascade/cluster/raft/api"
 	"github.com/robinkb/cascade/cluster/raft/qwal"
 	"github.com/robinkb/cascade/process"
 	"github.com/robinkb/cascade/registry"
-	v2 "github.com/robinkb/cascade/registry/api/v2"
+	registryapi "github.com/robinkb/cascade/registry/api/v2"
+	"github.com/robinkb/cascade/registry/store"
+	storeapi "github.com/robinkb/cascade/registry/store/api"
 	"github.com/robinkb/cascade/registry/store/boltdb"
-	"github.com/robinkb/cascade/registry/store/cluster"
+	storecluster "github.com/robinkb/cascade/registry/store/cluster"
 	"github.com/robinkb/cascade/registry/store/fs"
 	"github.com/robinkb/cascade/server"
 )
@@ -47,9 +51,13 @@ func main() {
 
 	if raftId != 0 {
 		addr := netip.MustParseAddrPort(raftHostPort)
+		srv := server.New(server.Options{
+			Name: "cluster-server",
+			Addr: addr,
+		})
 
 		hosts := strings.Split(raftPeers, ",")
-		peers := make([]raft.Peer, len(hosts))
+		peers := make([]cluster.Peer, len(hosts))
 		for i := range hosts {
 			parts := strings.Split(hosts[i], ":")
 			id, err := strconv.ParseUint(parts[0], 10, 64)
@@ -57,7 +65,7 @@ func main() {
 				log.Fatal(err)
 			}
 			host := strings.Join(parts[1:3], ":")
-			peers[i] = raft.Peer{
+			peers[i] = cluster.Peer{
 				ID:       id,
 				AddrPort: netip.MustParseAddrPort(host),
 			}
@@ -67,35 +75,36 @@ func main() {
 		if err != nil {
 			log.Fatal(err)
 		}
-		store, err := raft.NewDiskStorage(db, metadata)
+		storage, err := raft.NewDiskStorage(db, metadata)
 		if err != nil {
 			log.Fatal(err)
 		}
 		defer func() {
-			if err := store.Close(); err != nil {
+			if err := storage.Close(); err != nil {
 				log.Println("error while closing raft storage:", err)
 			}
 		}()
 
-		node := raft.NewNodeDirty(uint64(raftId), addr, store, metadata, metadata, blobs)
-		metadata = cluster.NewMetadataStore(node, metadata)
-		blobs = cluster.NewBlobStore(node, blobs)
+		restorer := store.NewRestorer(metadata, blobs)
+		node := raft.NewNode(uint64(raftId), addr, storage, restorer)
+		metadata = storecluster.NewMetadataStore(node, metadata)
+		blobs = storecluster.NewBlobStore(node, blobs)
 		node.Bootstrap(peers...)
-		node.Start()
-		defer node.Stop()
+
+		srv.Handle("/cluster/raft/", raftapi.New(node))
+		srv.Handle("/store/", storeapi.New(blobs))
+		mgr.Register(srv)
+		mgr.Register(node)
 	}
 
-	service := registry.NewService(metadata, blobs)
-	api := v2.New(service)
-
-	srv := server.NewServer(server.ServerOptions{
-		Name: "oci-api",
-		Addr: &net.TCPAddr{
-			Port: port,
-		},
+	srv := server.New(server.Options{
+		Name:          "oci-api",
+		Addr:          netip.MustParseAddrPort(fmt.Sprintf("127.0.0.1:%d", port)),
+		LoggerEnabled: true,
 	})
 
-	srv.Handle("/", api)
+	service := registry.NewService(metadata, blobs)
+	srv.Handle("/", registryapi.New(service))
 
 	mgr.Register(srv)
 

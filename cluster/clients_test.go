@@ -12,12 +12,12 @@ func TestClients(t *testing.T) {
 		clients := NewClients[testClient]()
 
 		want := newTestClient()
-		err := clients.Add(want.id, want)
+		err := clients.Add(want.Peer, want)
 		AssertNoError(t, err)
 
-		got, err := clients.Get(want.id)
+		got, err := clients.Get(want.ID)
 		AssertNoError(t, err)
-		AssertEqual(t, got.id, want.id)
+		AssertEqual(t, got.ID, want.ID)
 	})
 
 	t.Run("adding the same client twice returns error", func(t *testing.T) {
@@ -26,9 +26,9 @@ func TestClients(t *testing.T) {
 		want := ErrDuplicateClient
 
 		c := newTestClient()
-		got := clients.Add(c.id, c)
+		got := clients.Add(c.Peer, c)
 		AssertNoError(t, got)
-		got = clients.Add(c.id, c)
+		got = clients.Add(c.Peer, c)
 		AssertErrorIs(t, got, want)
 	})
 
@@ -46,23 +46,25 @@ func TestClients(t *testing.T) {
 		want := ErrClientNotFound
 
 		c := newTestClient()
-		err := clients.Add(c.id, c)
+		err := clients.Add(c.Peer, c)
 		AssertNoError(t, err)
-		_, err = clients.Get(c.id)
+		_, err = clients.Get(c.ID)
 		AssertNoError(t, err)
 
-		clients.Remove(c.id)
-		_, got := clients.Get(c.id)
+		clients.Remove(c.ID)
+		_, got := clients.Get(c.ID)
 		AssertErrorIs(t, got, want)
 	})
 }
 
 type testClient struct {
-	id uint64
+	Peer
 }
 
 func newTestClient() *testClient {
 	return &testClient{
-		id: rand.Uint64(),
+		Peer: Peer{
+			ID: rand.Uint64(),
+		},
 	}
 }

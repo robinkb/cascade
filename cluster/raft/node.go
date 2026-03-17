@@ -3,29 +3,29 @@ package raft
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"log"
-	"net/http"
 	"net/netip"
 	"time"
 
 	"github.com/robinkb/cascade/cluster"
-	"github.com/robinkb/cascade/registry/store"
+	"github.com/robinkb/cascade/process"
 	"go.etcd.io/raft/v3"
 	"go.etcd.io/raft/v3/raftpb"
 )
 
 type (
 	Node interface {
-		Start()
-		Stop()
+		process.Runnable
+
 		Tick()
 
 		NodeID() uint64
 		AddrPort() netip.AddrPort
-		AsPeer() Peer
-		Bootstrap(peers ...Peer)
-		AddNode(ctx context.Context, peer Peer) error
-		RemoveNode(ctx context.Context, peer Peer) error
+		AsPeer() cluster.Peer
+		Bootstrap(peers ...cluster.Peer)
+		AddNode(ctx context.Context, peer cluster.Peer) error
+		RemoveNode(ctx context.Context, peer cluster.Peer) error
 		Status() raft.Status
 
 		// Messaging
@@ -33,58 +33,10 @@ type (
 
 		cluster.Proposer
 	}
-
-	Peer struct {
-		ID       uint64
-		AddrPort netip.AddrPort
-	}
 )
 
-func NewNodeDirty(id uint64, addr netip.AddrPort, storage *DiskStorage, snap cluster.SnapshotRestorer, meta store.Metadata, blobs store.Blobs) Node {
-	conf := raft.Config{
-		// TODO: This may need to be set when restarting a node.
-		// But I'm not sure of how to persist it. It can only be saved _after_
-		// applying entries to the state machine. And etcd doesn't seem to set this either.
-		Applied: 0,
-
-		ID:              id,
-		ElectionTick:    10,
-		HeartbeatTick:   1,
-		Storage:         storage,
-		MaxSizePerMsg:   1 << 20,
-		MaxInflightMsgs: 256,
-
-		// If weird stuff happens, I should check these toggles.
-		StepDownOnRemoval: true,
-		PreVote:           true,
-		CheckQuorum:       true,
-	}
-
-	node := &node{
-		id:          id,
-		addr:        addr,
-		raft:        raft.RestartNode(&conf),
-		storage:     storage,
-		ticker:      time.Tick(100 * time.Millisecond),
-		manualTick:  make(chan time.Time),
-		done:        make(chan struct{}),
-		confChanges: newErrCs(),
-		clients:     cluster.NewClients[Client](),
-
-		meta:  meta,
-		blobs: blobs,
-	}
-
-	node.proposer = newProposer(node.raft)
-	node.server = NewDirtyServer(node, blobs)
-	node.restorer = snap
-
-	return node
-}
-
 // TODO: NewNode should return an error instead of panicking? Probably?
-// Also, I should probably decompose this more and do dependency injection.
-func NewNode(id uint64, addr netip.AddrPort, storage *DiskStorage, snap cluster.SnapshotRestorer) Node {
+func NewNode(id uint64, addr netip.AddrPort, storage *DiskStorage, restorer cluster.Restorer) Node {
 	conf := raft.Config{
 		// TODO: This may need to be set when restarting a node.
 		// But I'm not sure of how to persist it. It can only be saved _after_
@@ -111,14 +63,12 @@ func NewNode(id uint64, addr netip.AddrPort, storage *DiskStorage, snap cluster.
 		storage:     storage,
 		ticker:      time.Tick(100 * time.Millisecond),
 		manualTick:  make(chan time.Time),
-		done:        make(chan struct{}),
 		confChanges: newErrCs(),
 		clients:     cluster.NewClients[Client](),
 	}
 
 	node.proposer = newProposer(node.raft)
-	node.server = NewServer(node)
-	node.restorer = snap
+	node.restorer = restorer
 
 	return node
 }
@@ -135,12 +85,25 @@ type node struct {
 
 	*proposer
 	clients  cluster.Clients[Client]
-	server   *server
 	storage  *DiskStorage
 	restorer cluster.Restorer
+}
 
-	meta  store.Metadata
-	blobs store.Blobs
+func (n *node) Name() string {
+	return fmt.Sprintf("raft node %d", n.id)
+}
+
+func (n *node) Run() error {
+	n.done = make(chan struct{}, 1)
+	n.run()
+	return nil
+}
+
+func (n *node) Shutdown() error {
+	n.raft.Stop()
+	// n.done <- struct{}{}
+	// close(n.done)
+	return nil
 }
 
 func (n *node) NodeID() uint64 {
@@ -151,8 +114,8 @@ func (n *node) AddrPort() netip.AddrPort {
 	return n.addr
 }
 
-func (n *node) AsPeer() Peer {
-	return Peer{
+func (n *node) AsPeer() cluster.Peer {
+	return cluster.Peer{
 		ID:       n.NodeID(),
 		AddrPort: n.AddrPort(),
 	}
@@ -161,8 +124,8 @@ func (n *node) AsPeer() Peer {
 // Bootstrap prepares a new Raft node. If this node will join a cluster,
 // at least the cluster's leader must be passed as a peer, but it is safer
 // to pass all known peers.
-func (n *node) Bootstrap(peers ...Peer) {
-	peers = append(peers, Peer{
+func (n *node) Bootstrap(peers ...cluster.Peer) {
+	peers = append(peers, cluster.Peer{
 		ID:       n.raft.Status().ID,
 		AddrPort: n.addr,
 	})
@@ -177,8 +140,8 @@ func (n *node) Bootstrap(peers ...Peer) {
 		n.storage.SaveConfState(*confState)
 
 		if n.id != peer.ID {
-			client := NewClient("http://" + peer.AddrPort.String())
-			if err := n.clients.Add(peer.ID, client); err != nil {
+			client := NewClient("http://" + peer.AddrPort.String() + "/cluster/raft")
+			if err := n.clients.Add(peer, client); err != nil {
 				log.Printf("failed to add client for peer with ID %d: %s", peer.ID, err)
 			}
 		}
@@ -190,7 +153,10 @@ func (n *node) Bootstrap(peers ...Peer) {
 // Proposals may be rejected by the cluster. AddNode blocks
 // until the Peer is added, an error is encountered,
 // or until the context is cancelled.
-func (n *node) AddNode(ctx context.Context, peer Peer) error {
+// TODO: AddNode should have a timeout attached to it.
+// Could generate a context with timeout inside this method.
+// Not sure why it should be able to take a context as argument.
+func (n *node) AddNode(ctx context.Context, peer cluster.Peer) error {
 	return n.proposeConfChange(ctx, raftpb.ConfChange{
 		Type:    raftpb.ConfChangeAddNode,
 		NodeID:  peer.ID,
@@ -203,7 +169,7 @@ func (n *node) AddNode(ctx context.Context, peer Peer) error {
 // Proposals may be rejected by the cluster. RemoveNode blocks
 // until the Peer is removed, an error is encountered,
 // or until the context is cancelled.
-func (n *node) RemoveNode(ctx context.Context, peer Peer) error {
+func (n *node) RemoveNode(ctx context.Context, peer cluster.Peer) error {
 	return n.proposeConfChange(ctx, raftpb.ConfChange{
 		Type:    raftpb.ConfChangeRemoveNode,
 		NodeID:  peer.ID,
@@ -233,21 +199,6 @@ func (n *node) proposeConfChange(ctx context.Context, cc raftpb.ConfChange) erro
 	case err := <-errC:
 		return err
 	}
-}
-
-func (n *node) Start() {
-	go n.run()
-	go func() {
-		if err := http.ListenAndServe(n.addr.String(), n.server); err != nil {
-			log.Println(err)
-		}
-	}()
-}
-
-func (n *node) Stop() {
-	n.raft.Stop()
-	n.done <- struct{}{}
-	close(n.done)
 }
 
 func (n *node) Tick() {
@@ -293,31 +244,14 @@ func (n *node) send(messages []raftpb.Message) {
 
 func (n *node) processSnapshot(snap raftpb.Snapshot) {
 	buf := bytes.NewBuffer(snap.Data)
-	err := n.restorer.Restore(buf)
+
+	leaderID := n.raft.Status().Lead
+	peer, err := n.clients.Peer(leaderID)
 	if err != nil {
-		log.Printf("failed to restore snapshot: %s", err)
-		n.raft.ReportSnapshot(n.id, raft.SnapshotFailure)
+		log.Panic("failed to find leader in local clients")
 	}
 
-	var client *Client
-	for id := range n.raft.Status().Config.Voters.IDs() {
-		if id == n.id {
-			continue
-		}
-
-		client, err = n.clients.Get(id)
-		if err != nil {
-			log.Printf("failed to get client for peer with ID %d", id)
-		}
-	}
-
-	if client == nil {
-		log.Println("failed to retrieve client for any peers")
-		n.raft.ReportSnapshot(n.id, raft.SnapshotFailure)
-		return
-	}
-
-	err = store.Reconcile(n.meta, n.blobs, client)
+	err = n.restorer.Restore(buf, peer)
 	if err != nil {
 		log.Printf("failed to restore snapshot: %s", err)
 		n.raft.ReportSnapshot(n.id, raft.SnapshotFailure)
@@ -351,18 +285,21 @@ func (n *node) processEntries(entries []raftpb.Entry) {
 				case raftpb.ConfChangeAddNode:
 					// TODO: Adding a client can error out, technically, in which case
 					// we should not call raft.ApplyConfChange because it did not get accepted.
-					url := netip.MustParseAddrPort(string(cc.Context))
-					client := NewClient("http://" + url.String())
-					if err := n.clients.Add(change.NodeID, client); err != nil {
+					addr := netip.MustParseAddrPort(string(cc.Context))
+					client := NewClient("http://" + addr.String() + "/cluster/raft")
+					peer := cluster.Peer{ID: change.NodeID, AddrPort: addr}
+					if err := n.clients.Add(peer, client); err != nil {
 						log.Printf("failed to add client for peer with ID %d: %s", change.NodeID, err)
 					}
 
-					log.Printf("%d added node with id %d and url %s", n.NodeID(), change.NodeID, url.String())
+					log.Printf("%d added node with id %d and url %s", n.NodeID(), change.NodeID, addr.String())
 
 				case raftpb.ConfChangeRemoveNode:
 					if change.NodeID == n.NodeID() {
 						log.Println("removed from the cluster; stopping...")
-						n.Stop()
+						if err := n.Shutdown(); err != nil {
+							log.Fatalf("failed to stop node: %s", err)
+						}
 					} else {
 						log.Printf("%d removed node with id %d", n.NodeID(), change.NodeID)
 						n.clients.Remove(change.NodeID)

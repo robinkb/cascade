@@ -2,37 +2,41 @@ package server
 
 import (
 	"context"
+	"errors"
 	"log"
-	"net"
 	"net/http"
+	"net/netip"
+	"strings"
 	"time"
 )
 
-type ServerOptions struct {
+type Options struct {
 	Name            string
-	Addr            net.Addr
+	Addr            netip.AddrPort
 	ShutdowmTimeout time.Duration
+	LoggerEnabled   bool
 }
 
-func NewServer(opts ServerOptions) *Server {
+func New(opts Options) *Server {
 	mux := http.NewServeMux()
 	srv := &Server{
 		srv: &http.Server{
-			Handler: logger(mux),
+			Handler: mux,
 		},
 		mux: mux,
 	}
 
 	srv.name = opts.Name
-
-	if opts.Addr != nil {
-		srv.srv.Addr = opts.Addr.String()
-	}
+	srv.srv.Addr = opts.Addr.String()
 
 	if opts.ShutdowmTimeout != 0 {
 		srv.shutdownTimeout = opts.ShutdowmTimeout
 	} else {
 		srv.shutdownTimeout = 60 * time.Second
+	}
+
+	if opts.LoggerEnabled {
+		srv.srv.Handler = logger(mux)
 	}
 
 	return srv
@@ -51,7 +55,11 @@ func (s *Server) Name() string {
 }
 
 func (s *Server) Run() error {
-	return s.srv.ListenAndServe()
+	err := s.srv.ListenAndServe()
+	if !errors.Is(err, http.ErrServerClosed) {
+		return err
+	}
+	return nil
 }
 
 func (s *Server) Shutdown() error {
@@ -61,7 +69,12 @@ func (s *Server) Shutdown() error {
 }
 
 func (s *Server) Handle(pattern string, handler http.Handler) {
-	s.mux.Handle(pattern, handler)
+	s.mux.Handle(pattern,
+		http.StripPrefix(
+			strings.TrimSuffix(pattern, "/"),
+			handler,
+		),
+	)
 }
 
 func logger(handler http.Handler) http.Handler {

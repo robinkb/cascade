@@ -1,6 +1,8 @@
 package cluster
 
-import "errors"
+import (
+	"errors"
+)
 
 var (
 	ErrDuplicateClient = errors.New("duplicate client")
@@ -10,18 +12,21 @@ var (
 func NewClients[T any]() Clients[T] {
 	return Clients[T]{
 		clients: make(map[uint64]*T),
+		peers:   make(map[uint64]Peer),
 	}
 }
 
 type Clients[T any] struct {
 	clients map[uint64]*T
+	peers   map[uint64]Peer
 }
 
-func (c *Clients[T]) Add(id uint64, client *T) error {
-	if _, ok := c.clients[id]; ok {
+func (c *Clients[T]) Add(peer Peer, client *T) error {
+	if _, ok := c.clients[peer.ID]; ok {
 		return ErrDuplicateClient
 	}
-	c.clients[id] = client
+	c.clients[peer.ID] = client
+	c.peers[peer.ID] = peer
 	return nil
 }
 
@@ -34,4 +39,12 @@ func (c *Clients[T]) Get(id uint64) (*T, error) {
 
 func (c *Clients[T]) Remove(id uint64) {
 	delete(c.clients, id)
+	delete(c.peers, id)
+}
+
+func (c *Clients[T]) Peer(id uint64) (Peer, error) {
+	if peer, ok := c.peers[id]; ok {
+		return peer, nil
+	}
+	return Peer{}, ErrClientNotFound
 }
