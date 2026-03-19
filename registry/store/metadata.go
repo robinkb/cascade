@@ -1,6 +1,7 @@
 package store
 
 import (
+	"errors"
 	"io"
 	"time"
 
@@ -8,37 +9,50 @@ import (
 	"github.com/opencontainers/go-digest"
 )
 
+var (
+	ErrRepositoryNotFound     = errors.New("repository not found")
+	ErrRepositoryExists       = errors.New("repository with the given name already exists")
+	ErrRepositoryBlobNotFound = errors.New("blob not found in repository")
+)
+
 type (
 	Metadata interface {
-		GetRepository(name string) error
-		CreateRepository(name string) error
+		// GetRepository verifies that a repository with the given name exists in the store.
+		// If a repository does not exists, it returns ErrRepositoryNotFound.
+		GetRepository(name string) (Repository, error)
+		// CreateRepository creates a new repository in the store.
+		// If a repository with the given name already exists, it returns ErrRepositoryExists.
+		CreateRepository(name string) (Repository, error)
+		// DeleteRepository deletes an existing repository and all of its resources from the store.
+		// If a repository with the given name does not exist, it returns ErrRepositoryNotFound.
 		DeleteRepository(name string) error
-
-		ListBlobs() ([]digest.Digest, error)
-		// TODO: Remove returned string, not used.
-		GetBlob(name string, digest digest.Digest) (string, error)
-		PutBlob(name string, digest digest.Digest) error
-		DeleteBlob(name string, digest digest.Digest) error
-
-		GetManifest(name string, digest digest.Digest) (*ManifestMetadata, error)
-		PutManifest(name string, digest digest.Digest, meta *ManifestMetadata) error
-		DeleteManifest(name string, digest digest.Digest) error
-
-		ListTags(name string, count int, last string) ([]string, error)
-		GetTag(name, tag string) (digest.Digest, error)
-		PutTag(name, tag string, digest digest.Digest) error
-		DeleteTag(name, tag string) error
-
-		ListReferrers(name string, digest digest.Digest) ([]digest.Digest, error)
-
-		GetUploadSession(name string, id string) (*UploadSession, error)
-		PutUploadSession(name string, session *UploadSession) error
-		DeleteUploadSession(name string, id string) error
-
+		// Blobs() iter.Seq[digest.Digest]
 		// Snapshot writes a snapshot of the MetadataStore to the given Writer.
 		Snapshot(w io.Writer) error
 		// Restore reads a snapshot of the MetadataStore from the given Reader.
 		Restore(r io.Reader) error
+	}
+
+	Repository interface {
+		ListBlobs() ([]digest.Digest, error)
+		GetBlob(digest digest.Digest) error
+		PutBlob(digest digest.Digest) error
+		DeleteBlob(digest digest.Digest) error
+
+		GetManifest(digest digest.Digest) (*ManifestMetadata, error)
+		PutManifest(digest digest.Digest, meta *ManifestMetadata) error
+		DeleteManifest(digest digest.Digest) error
+
+		ListTags(count int, last string) ([]string, error)
+		GetTag(tag string) (digest.Digest, error)
+		PutTag(tag string, digest digest.Digest) error
+		DeleteTag(tag string) error
+
+		ListReferrers(digest digest.Digest) ([]digest.Digest, error)
+
+		GetUploadSession(id string) (*UploadSession, error)
+		PutUploadSession(session *UploadSession) error
+		DeleteUploadSession(id string) error
 	}
 
 	// ManifestMetadata represents the metadata of a manifest that is stored in the MetadataStore.

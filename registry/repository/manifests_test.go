@@ -1,6 +1,7 @@
 package repository
 
 import (
+	"io"
 	"testing"
 
 	"github.com/robinkb/cascade/registry/store"
@@ -117,6 +118,12 @@ func (s *Suite) TestPutManifest() {
 		_, got, err := s.repository.GetManifest(name, digest.String())
 		AssertNoError(t, err)
 		AssertSlicesEqual(t, got, content)
+
+		r, err := s.repository.GetBlob(name, digest.String())
+		AssertNoError(t, err).Require()
+
+		gotBlob, err := io.ReadAll(r)
+		AssertSlicesEqual(t, gotBlob, content)
 	})
 
 	s.T().Run("Putting a manifest with subject returns the subject hash", func(t *testing.T) {

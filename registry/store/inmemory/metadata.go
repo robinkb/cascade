@@ -113,6 +113,10 @@ func (s *metadataStore) PutBlob(repository string, digest godigest.Digest) error
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
+	return s.putBlob(repository, digest)
+}
+
+func (s *metadataStore) putBlob(repository string, digest godigest.Digest) error {
 	repo, ok := s.Repositories[repository]
 	if !ok {
 		return store.ErrRepositoryNotFound
@@ -189,7 +193,7 @@ func (s *metadataStore) PutManifest(repository string, digest godigest.Digest, m
 		manifests.Referrers[digest] = nil
 	}
 
-	return nil
+	return s.putBlob(repository, digest)
 }
 
 func (s *metadataStore) DeleteManifest(repository string, digest godigest.Digest) error {

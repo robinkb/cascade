@@ -1,7 +1,6 @@
 package store
 
 import (
-	"errors"
 	"fmt"
 	"io"
 
@@ -34,33 +33,33 @@ func (r *restorer) Restore(rd io.Reader, peer cluster.Peer) error {
 }
 
 func Reconcile(meta Metadata, blobs Blobs, src BlobReader) error {
-	digests, err := meta.ListBlobs()
-	if err != nil {
-		return err
-	}
+	// digests, err := meta.ListBlobs()
+	// if err != nil {
+	// 	return err
+	// }
 
-	for _, d := range digests {
-		if _, err := blobs.StatBlob(d); err != nil {
-			if errors.Is(err, ErrNotFound) {
-				r, err := src.BlobReader(d)
-				if err != nil {
-					return err
-				}
+	// for _, d := range digests {
+	// 	if _, err := blobs.StatBlob(d); err != nil {
+	// 		if errors.Is(err, ErrNotFound) {
+	// 			r, err := src.BlobReader(d)
+	// 			if err != nil {
+	// 				return err
+	// 			}
 
-				w, err := blobs.BlobWriter(d)
-				if err != nil {
-					return err
-				}
+	// 			w, err := blobs.BlobWriter(d)
+	// 			if err != nil {
+	// 				return err
+	// 			}
 
-				_, err = io.Copy(w, r)
-				if err != nil {
-					return err
-				}
-			} else {
-				return err
-			}
-		}
-	}
+	// 			_, err = io.Copy(w, r)
+	// 			if err != nil {
+	// 				return err
+	// 			}
+	// 		} else {
+	// 			return err
+	// 		}
+	// 	}
+	// }
 
 	return nil
 }
