@@ -1,8 +1,10 @@
 package suite
 
 import (
+	"slices"
 	"testing"
 
+	"github.com/opencontainers/go-digest"
 	"github.com/robinkb/cascade/registry/store"
 	. "github.com/robinkb/cascade/testing" // nolint: staticcheck
 	"github.com/stretchr/testify/suite"
@@ -15,8 +17,13 @@ type MetadataSuite struct {
 
 	Constructor MetadataStoreConstructor
 
-	SkipRepository bool
-	SkipBlob       bool
+	// Toggles to skip sets of tests.
+	// When implementing a new Metadata driver,
+	// it is recommended to pass the tests from top to bottom.
+
+	SkipRepository bool // basic repository management
+	SkipBlob       bool // CRUD of blobs
+	SkipListBlobs  bool // listing blobs across repositories
 }
 
 func (s *MetadataSuite) TestRepository() {
@@ -25,52 +32,52 @@ func (s *MetadataSuite) TestRepository() {
 	}
 
 	s.T().Run("creates a new repository", func(t *testing.T) {
-		m := s.Constructor()
+		meta := s.Constructor()
 		name := RandomName()
 
-		_, err := m.GetRepository(name)
+		_, err := meta.GetRepository(name)
 		AssertErrorIs(t, err, store.ErrRepositoryNotFound)
 
-		_, err = m.CreateRepository(name)
+		_, err = meta.CreateRepository(name)
 		AssertNoError(t, err)
 
-		_, err = m.GetRepository(name)
+		_, err = meta.GetRepository(name)
 		AssertNoError(t, err)
 	})
 
 	s.T().Run("deletes an existing repository", func(t *testing.T) {
-		m := s.Constructor()
+		meta := s.Constructor()
 		name := RandomName()
 
-		_, err := m.CreateRepository(name)
+		_, err := meta.CreateRepository(name)
 		AssertNoError(t, err)
 
-		_, err = m.GetRepository(name)
+		_, err = meta.GetRepository(name)
 		AssertNoError(t, err)
 
-		err = m.DeleteRepository(name)
+		err = meta.DeleteRepository(name)
 		AssertNoError(t, err)
 
-		_, err = m.GetRepository(name)
+		_, err = meta.GetRepository(name)
 		AssertErrorIs(t, err, store.ErrRepositoryNotFound)
 	})
 
 	s.T().Run("creating repository with the same name returns ErrRepositoryExists", func(t *testing.T) {
-		m := s.Constructor()
+		meta := s.Constructor()
 		name := RandomName()
 
-		_, err := m.CreateRepository(name)
+		_, err := meta.CreateRepository(name)
 		AssertNoError(t, err)
 
-		_, err = m.CreateRepository(name)
+		_, err = meta.CreateRepository(name)
 		AssertErrorIs(t, err, store.ErrRepositoryExists)
 	})
 
 	s.T().Run("deleting unknown repository returns ErrRepositoryNotFound", func(t *testing.T) {
-		m := s.Constructor()
+		meta := s.Constructor()
 		name := RandomName()
 
-		err := m.DeleteRepository(name)
+		err := meta.DeleteRepository(name)
 		AssertErrorIs(t, err, store.ErrRepositoryNotFound)
 	})
 }
@@ -82,10 +89,10 @@ func (s *MetadataSuite) TestBlobs() {
 	name := RandomName()
 
 	s.T().Run("creates a new blob", func(t *testing.T) {
-		m := s.Constructor()
+		meta := s.Constructor()
 		digest := RandomDigest()
 
-		repo, err := m.CreateRepository(name)
+		repo, err := meta.CreateRepository(name)
 		AssertNoError(t, err).Require()
 
 		err = repo.GetBlob(digest)
@@ -99,10 +106,10 @@ func (s *MetadataSuite) TestBlobs() {
 	})
 
 	s.T().Run("deletes an existing blob", func(t *testing.T) {
-		m := s.Constructor()
+		meta := s.Constructor()
 		digest := RandomDigest()
 
-		repo, err := m.CreateRepository(name)
+		repo, err := meta.CreateRepository(name)
 		AssertNoError(t, err).Require()
 
 		err = repo.PutBlob(digest)
@@ -117,74 +124,92 @@ func (s *MetadataSuite) TestBlobs() {
 		err = repo.GetBlob(digest)
 		AssertErrorIs(t, err, store.ErrRepositoryBlobNotFound)
 	})
+
+	s.T().Run("deleting unknown blob returns ErrRepositoryBlobNotFound", func(t *testing.T) {
+		meta := s.Constructor()
+		digest := RandomDigest()
+
+		repo, err := meta.CreateRepository(name)
+		AssertNoError(t, err).Require()
+
+		err = repo.DeleteBlob(digest)
+		AssertErrorIs(t, err, store.ErrRepositoryBlobNotFound)
+	})
 }
 
-// func (s *MetadataSuite) TestListBlobs() {
-// 	s.T().Run("lists all blobs across repositories", func(t *testing.T) {
-// 		store := s.Constructor()
-// 		want := make([]digest.Digest, 5)
+func (s *MetadataSuite) TestListBlobs() {
+	if s.SkipListBlobs {
+		s.T().Skip()
+	}
 
-// 		for i := range len(want) {
-// 			name := RandomName()
-// 			err := store.CreateRepository(name)
-// 			AssertNoError(t, err).Require()
+	s.T().Run("lists blobs across repositories", func(t *testing.T) {
+		meta := s.Constructor()
+		want := make([]digest.Digest, 5)
+		got := make([]digest.Digest, 0)
 
-// 			want[i] = RandomDigest()
-// 			err = store.PutBlob(name, want[i])
-// 			AssertNoError(t, err).Require()
-// 		}
+		for i := range len(want) {
+			name := RandomName()
+			repo, err := meta.CreateRepository(name)
+			AssertNoError(t, err).Require()
 
-// 		slices.Sort(want)
+			want[i] = RandomDigest()
+			err = repo.PutBlob(want[i])
+			AssertNoError(t, err).Require()
+		}
 
-// 		got, err := store.ListBlobs()
-// 		AssertNoError(t, err)
+		for digest := range meta.Blobs() {
+			got = append(got, digest)
+		}
 
-// 		slices.Sort(got)
-// 		AssertSlicesEqual(t, got, want)
-// 	})
+		slices.Sort(want)
+		slices.Sort(got)
 
-// 	s.T().Run("does not return deleted blobs", func(t *testing.T) {
-// 		store := s.Constructor()
-// 		name, digest := RandomName(), RandomDigest()
-// 		err := store.CreateRepository(name)
-// 		AssertNoError(t, err).Require()
-// 		err = store.PutBlob(name, digest)
-// 		AssertNoError(t, err).Require()
+		AssertSlicesEqual(t, got, want)
+	})
 
-// 		blobs, err := store.ListBlobs()
-// 		AssertNoError(t, err).Require()
-// 		AssertEqual(t, len(blobs), 1).Require()
-// 		AssertEqual(t, blobs[0], digest)
+	s.T().Run("does not return deleted blobs", func(t *testing.T) {
+		meta := s.Constructor()
+		name, digest := RandomName(), RandomDigest()
+		repo, err := meta.CreateRepository(name)
+		AssertNoError(t, err).Require()
 
-// 		err = store.DeleteBlob(name, digest)
-// 		AssertNoError(t, err).Require()
+		err = repo.PutBlob(digest)
+		AssertNoError(t, err).Require()
 
-// 		blobs, err = store.ListBlobs()
-// 		AssertNoError(t, err).Require()
-// 		AssertEqual(t, len(blobs), 0)
-// 	})
+		blobs := slices.Collect(meta.Blobs())
+		AssertEqual(t, len(blobs), 1).Require()
+		AssertEqual(t, blobs[0], digest)
 
-// 	s.T().Run("returns a blob deleted in one repository but present in another", func(t *testing.T) {
-// 		store := s.Constructor()
-// 		name1, name2 := RandomName(), RandomName()
-// 		digest := RandomDigest()
+		err = repo.DeleteBlob(digest)
+		AssertNoError(t, err).Require()
 
-// 		for _, name := range []string{name1, name2} {
-// 			err := store.CreateRepository(name)
-// 			AssertNoError(t, err).Require()
-// 			err = store.PutBlob(name, digest)
-// 			AssertNoError(t, err).Require()
-// 		}
+		blobs = slices.Collect(meta.Blobs())
+		AssertNoError(t, err).Require()
+		AssertEqual(t, len(blobs), 0)
+	})
 
-// 		err := store.DeleteBlob(name1, digest)
-// 		AssertNoError(t, err).Require()
+	s.T().Run("returns a blob deleted in one repository but present in another", func(t *testing.T) {
+		meta := s.Constructor()
+		count := 5
+		repos := make([]store.Repository, count)
+		digest := RandomDigest()
 
-// 		digests, err := store.ListBlobs()
-// 		AssertNoError(t, err)
-// 		AssertEqual(t, len(digests), 1).Require()
-// 		AssertEqual(t, digests[0], digest)
-// 	})
-// }
+		var err error
+		for i := range repos {
+			repos[i], err = meta.CreateRepository(RandomName())
+			AssertNoError(t, err).Require()
+			err = repos[i].PutBlob(digest)
+			AssertNoError(t, err).Require()
+		}
+
+		err = repos[0].DeleteBlob(digest)
+		AssertNoError(t, err).Require()
+
+		digests := slices.Collect(meta.Blobs())
+		AssertEqual(t, len(digests), 1).Require()
+		AssertEqual(t, digests[0], digest)
+	})
+}
 
 // func (s *MetadataSuite) TestSnapshotRestore() {
 // 	s.T().Run("snapshot and restore into another MetadataStore", func(t *testing.T) {

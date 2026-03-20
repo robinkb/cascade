@@ -3,6 +3,7 @@ package store
 import (
 	"errors"
 	"io"
+	"iter"
 	"time"
 
 	"github.com/gofrs/uuid/v5"
@@ -26,7 +27,8 @@ type (
 		// DeleteRepository deletes an existing repository and all of its resources from the store.
 		// If a repository with the given name does not exist, it returns ErrRepositoryNotFound.
 		DeleteRepository(name string) error
-		// Blobs() iter.Seq[digest.Digest]
+		// Blobs iterates over all blobs in the Metadata store.
+		Blobs() iter.Seq[digest.Digest]
 		// Snapshot writes a snapshot of the MetadataStore to the given Writer.
 		Snapshot(w io.Writer) error
 		// Restore reads a snapshot of the MetadataStore from the given Reader.
