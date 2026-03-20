@@ -13,6 +13,7 @@ import (
 	"github.com/gofrs/uuid/v5"
 	"github.com/opencontainers/go-digest"
 	v1 "github.com/opencontainers/image-spec/specs-go/v1"
+	"github.com/robinkb/cascade/registry/store"
 )
 
 const (
@@ -98,6 +99,18 @@ func RandomManifestWithSubject(subjDigest digest.Digest, subject *v1.Manifest) (
 	content, _ = json.Marshal(manifest)
 	digest := digest.FromBytes(content)
 	return digest, manifest, content
+}
+
+func RandomManifestMetadata() store.ManifestMetadata {
+	return store.ManifestMetadata{
+		MediaType: v1.MediaTypeImageManifest,
+		Annotations: map[string]string{
+			// Small amount of random content to make sure that
+			// every generated manifest has a unique digest.
+			"random": RandomString(8),
+		},
+		Size: rand.Int64(),
+	}
 }
 
 func RandomBlob(length int64) (id digest.Digest, content []byte) {

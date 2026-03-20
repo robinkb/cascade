@@ -15,7 +15,8 @@ Describing the various stores in use in the registry.
 
 Tags reference manifests.
 Tags only exist as metadata.
-Manifests reference blobs, or other manifests (through `Subject` field).
+Manifests reference blobs through `Layers` field, a config file through the `Config` field, or other manifests (through `Subject` field).
+There's also the case of index manifests, which reference other manifests through the `Manifests` field.
 Manifests themselves are blobs in the blob store.
 Blobs in the repository reference blobs in the blob store.
 

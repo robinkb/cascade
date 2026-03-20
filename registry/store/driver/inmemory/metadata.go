@@ -36,7 +36,12 @@ type (
 	}
 
 	repository struct {
-		blobs map[digest.Digest]any
+		blobs     map[digest.Digest]any
+		manifests map[digest.Digest]manifest
+	}
+
+	manifest struct {
+		metadata store.ManifestMetadata
 	}
 )
 
@@ -46,7 +51,8 @@ func (m *metadataStore) CreateRepository(name string) (store.Repository, error) 
 	}
 
 	repo := &repository{
-		blobs: make(map[digest.Digest]any),
+		blobs:     make(map[digest.Digest]any),
+		manifests: make(map[digest.Digest]manifest),
 	}
 	m.repositories[name] = repo
 	return newRepository(name, m.blobs, repo), nil
@@ -123,4 +129,26 @@ func (r *repositoryStore) DeleteBlob(digest digest.Digest) error {
 		return nil
 	}
 	return fmt.Errorf("%w: %s", store.ErrRepositoryBlobNotFound, digest)
+}
+
+func (r *repositoryStore) GetManifest(digest digest.Digest) (store.ManifestMetadata, error) {
+	if manifest, ok := r.repo.manifests[digest]; ok {
+		return manifest.metadata, nil
+	}
+	return store.ManifestMetadata{}, store.ErrManifestNotFound
+}
+
+func (r *repositoryStore) PutManifest(digest digest.Digest, metadata store.ManifestMetadata) error {
+	r.repo.manifests[digest] = manifest{
+		metadata: metadata,
+	}
+	return nil
+}
+
+func (r *repositoryStore) DeleteManifest(digest digest.Digest) error {
+	if _, ok := r.repo.manifests[digest]; ok {
+		delete(r.repo.manifests, digest)
+		return nil
+	}
+	return store.ErrManifestNotFound
 }

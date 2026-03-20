@@ -14,6 +14,7 @@ var (
 	ErrRepositoryNotFound     = errors.New("repository not found")
 	ErrRepositoryExists       = errors.New("repository with the given name already exists")
 	ErrRepositoryBlobNotFound = errors.New("blob not found in repository")
+	ErrManifestNotFound       = errors.New("manifest not found")
 )
 
 type (
@@ -41,8 +42,13 @@ type (
 		PutBlob(digest digest.Digest) error
 		DeleteBlob(digest digest.Digest) error
 
-		GetManifest(digest digest.Digest) (*ManifestMetadata, error)
-		PutManifest(digest digest.Digest, meta *ManifestMetadata) error
+		GetManifest(digest digest.Digest) (ManifestMetadata, error)
+		// TODO: Must be amended to enable passing digests in the Layers, Config, and Subject fields,
+		// as all of these fields establish links to other objects that must be accounted for
+		// for garbage collection.
+		// Obviously this must also be tested.
+		// There's also the case of an image index, which may require a different method completely. Ugh.
+		PutManifest(digest digest.Digest, meta ManifestMetadata) error
 		DeleteManifest(digest digest.Digest) error
 
 		ListTags(count int, last string) ([]string, error)

@@ -21,9 +21,24 @@ type MetadataSuite struct {
 	// When implementing a new Metadata driver,
 	// it is recommended to pass the tests from top to bottom.
 
-	SkipRepository bool // basic repository management
-	SkipBlob       bool // CRUD of blobs
+	SkipRepository bool // repository management
+	SkipBlob       bool // blob management
 	SkipListBlobs  bool // listing blobs across repositories
+	SkipManifest   bool // manifest management
+}
+
+func (s *MetadataSuite) RepositoryConstructor(t *testing.T) store.Repository {
+	meta := s.Constructor()
+	name := RandomName()
+	repo, err := meta.CreateRepository(name)
+	AssertNoError(t, err).Require()
+
+	t.Cleanup(func() {
+		err := meta.DeleteRepository(name)
+		AssertNoError(t, err).Require()
+	})
+
+	return repo
 }
 
 func (s *MetadataSuite) TestRepository() {
@@ -86,16 +101,12 @@ func (s *MetadataSuite) TestBlobs() {
 	if s.SkipBlob {
 		s.T().Skip()
 	}
-	name := RandomName()
 
 	s.T().Run("creates a new blob", func(t *testing.T) {
-		meta := s.Constructor()
+		repo := s.RepositoryConstructor(t)
 		digest := RandomDigest()
 
-		repo, err := meta.CreateRepository(name)
-		AssertNoError(t, err).Require()
-
-		err = repo.GetBlob(digest)
+		err := repo.GetBlob(digest)
 		AssertErrorIs(t, err, store.ErrRepositoryBlobNotFound)
 
 		err = repo.PutBlob(digest)
@@ -106,13 +117,10 @@ func (s *MetadataSuite) TestBlobs() {
 	})
 
 	s.T().Run("deletes an existing blob", func(t *testing.T) {
-		meta := s.Constructor()
+		repo := s.RepositoryConstructor(t)
 		digest := RandomDigest()
 
-		repo, err := meta.CreateRepository(name)
-		AssertNoError(t, err).Require()
-
-		err = repo.PutBlob(digest)
+		err := repo.PutBlob(digest)
 		AssertNoError(t, err)
 
 		err = repo.GetBlob(digest)
@@ -126,13 +134,10 @@ func (s *MetadataSuite) TestBlobs() {
 	})
 
 	s.T().Run("deleting unknown blob returns ErrRepositoryBlobNotFound", func(t *testing.T) {
-		meta := s.Constructor()
+		repo := s.RepositoryConstructor(t)
 		digest := RandomDigest()
 
-		repo, err := meta.CreateRepository(name)
-		AssertNoError(t, err).Require()
-
-		err = repo.DeleteBlob(digest)
+		err := repo.DeleteBlob(digest)
 		AssertErrorIs(t, err, store.ErrRepositoryBlobNotFound)
 	})
 }
@@ -208,6 +213,52 @@ func (s *MetadataSuite) TestListBlobs() {
 		digests := slices.Collect(meta.Blobs())
 		AssertEqual(t, len(digests), 1).Require()
 		AssertEqual(t, digests[0], digest)
+	})
+}
+
+func (s *MetadataSuite) TestManifests() {
+	if s.SkipManifest {
+		s.T().Skip()
+	}
+
+	s.T().Run("creates a new manifest", func(t *testing.T) {
+		repo := s.RepositoryConstructor(t)
+		digest, want := RandomDigest(), RandomManifestMetadata()
+
+		_, err := repo.GetManifest(digest)
+		AssertErrorIs(t, err, store.ErrManifestNotFound)
+
+		err = repo.PutManifest(digest, want)
+		AssertNoError(t, err)
+
+		got, err := repo.GetManifest(digest)
+		AssertNoError(t, err)
+		AssertDeepEqual(t, got, want)
+	})
+
+	s.T().Run("deletes an existing manifest", func(t *testing.T) {
+		repo := s.RepositoryConstructor(t)
+		digest := RandomDigest()
+
+		err := repo.PutManifest(digest, store.ManifestMetadata{})
+		AssertNoError(t, err)
+
+		_, err = repo.GetManifest(digest)
+		AssertNoError(t, err)
+
+		err = repo.DeleteManifest(digest)
+		AssertNoError(t, err)
+
+		_, err = repo.GetManifest(digest)
+		AssertErrorIs(t, err, store.ErrManifestNotFound)
+	})
+
+	s.T().Run("deleting unknown manifest returns ErrManifestNotFound", func(t *testing.T) {
+		repo := s.RepositoryConstructor(t)
+		digest := RandomDigest()
+
+		err := repo.DeleteManifest(digest)
+		AssertErrorIs(t, err, store.ErrManifestNotFound)
 	})
 }
 
