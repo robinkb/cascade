@@ -43,16 +43,7 @@ type (
 		DeleteBlob(digest digest.Digest) error
 
 		GetManifest(digest digest.Digest) (Manifest, error)
-		// TODO: Must be amended to enable passing digests in the Layers, Config, and Subject fields,
-		// as all of these fields establish links to other objects that must be accounted for
-		// for garbage collection.
-		// Obviously this must also be tested.
-		// There's also the case of an image index, which may require a different method completely. Ugh.
-		// Ultimately there should just be a "references []digest.Digest" argument.
-		// These are all just digests pointing to blobs. Doesn't matter what they are for the metadata.
-		// Extracting those digests is the job of the business layer above it.
-		// Only the Subject field is a special case, because that's needed for the Referrers API.
-		PutManifest(digest digest.Digest, meta Manifest) error
+		PutManifest(digest digest.Digest, meta Manifest, refs References) error
 		DeleteManifest(digest digest.Digest) error
 
 		ListTags(count int, last string) ([]string, error)
@@ -77,12 +68,22 @@ type (
 
 	// References defines the various ways in which a manifest can point to other objects in the registry.
 	// These are mostly used to establish links between objects for garbage collection.
+	// TODO: According to the OCI Distribution spec, manifest uploads MAY be rejected if any of the referenced
+	// blobs or manifests do not exist in the registry. Doing so would allow greater guarantees of
+	// no stale references existing in the metadata store, and may eliminate the need of having an additional
+	// mechanism to verify that there are no stale references.
 	References struct {
+		// Config references a configuration object for a container like in an OCI Image Manifest.
+		// It is used for tracking links from image manifests to a blob for garbage collection.
+		Config digest.Digest
 		// Layers is a slice of digests pointing to blobs like in an OCI Image Manifest.
+		// It is used for tracking links from image manifests to blobs for garbage collection.
 		Layers []digest.Digest
 		// Manifests is a slice of digests pointing to other manifests like in an OCI Image Index.
+		// It is used for tracking links from image index manifests to other manifests for garbage collection.
 		Manifests []digest.Digest
 		// Subject is a digest pointing to another manifest as used by the Referrers API.
+		// Besides being used for the Referrers API, it is also used for garbage collection.
 		Subject digest.Digest
 	}
 

@@ -21,10 +21,11 @@ type MetadataSuite struct {
 	// When implementing a new Metadata driver,
 	// it is recommended to pass the tests from top to bottom.
 
-	SkipRepository bool // repository management
-	SkipBlob       bool // blob management
-	SkipListBlobs  bool // listing blobs across repositories
-	SkipManifest   bool // manifest management
+	SkipRepository    bool // repository management
+	SkipBlob          bool // blob management
+	SkipListBlobs     bool // listing blobs across repositories
+	SkipManifest      bool // manifest management
+	SkipListManifests bool // listing blobs across repositories, including manifests
 }
 
 func (s *MetadataSuite) RepositoryConstructor(t *testing.T) store.Repository {
@@ -228,7 +229,7 @@ func (s *MetadataSuite) TestManifests() {
 		_, err := repo.GetManifest(digest)
 		AssertErrorIs(t, err, store.ErrManifestNotFound)
 
-		err = repo.PutManifest(digest, want)
+		err = repo.PutManifest(digest, want, store.References{})
 		AssertNoError(t, err)
 
 		got, err := repo.GetManifest(digest)
@@ -236,11 +237,25 @@ func (s *MetadataSuite) TestManifests() {
 		AssertDeepEqual(t, got, want)
 	})
 
+	s.T().Run("creates a blob for the manifest", func(t *testing.T) {
+		repo := s.RepositoryConstructor(t)
+		digest := RandomDigest()
+
+		err := repo.GetBlob(digest)
+		AssertErrorIs(t, err, store.ErrRepositoryBlobNotFound)
+
+		err = repo.PutManifest(digest, store.Manifest{}, store.References{})
+		AssertNoError(t, err)
+
+		err = repo.GetBlob(digest)
+		AssertNoError(t, err)
+	})
+
 	s.T().Run("deletes an existing manifest", func(t *testing.T) {
 		repo := s.RepositoryConstructor(t)
 		digest := RandomDigest()
 
-		err := repo.PutManifest(digest, store.Manifest{})
+		err := repo.PutManifest(digest, store.Manifest{}, store.References{})
 		AssertNoError(t, err)
 
 		_, err = repo.GetManifest(digest)
@@ -253,12 +268,48 @@ func (s *MetadataSuite) TestManifests() {
 		AssertErrorIs(t, err, store.ErrManifestNotFound)
 	})
 
+	s.T().Run("deletes the manifest's associated blob", func(t *testing.T) {
+		repo := s.RepositoryConstructor(t)
+		digest := RandomDigest()
+
+		err := repo.PutManifest(digest, store.Manifest{}, store.References{})
+		AssertNoError(t, err)
+
+		err = repo.GetBlob(digest)
+		AssertNoError(t, err)
+
+		err = repo.DeleteManifest(digest)
+		AssertNoError(t, err)
+
+		err = repo.GetBlob(digest)
+		AssertErrorIs(t, err, store.ErrRepositoryBlobNotFound)
+	})
+
 	s.T().Run("deleting unknown manifest returns ErrManifestNotFound", func(t *testing.T) {
 		repo := s.RepositoryConstructor(t)
 		digest := RandomDigest()
 
 		err := repo.DeleteManifest(digest)
 		AssertErrorIs(t, err, store.ErrManifestNotFound)
+	})
+
+	s.T().Run("deletes a referenced config manifest", func(t *testing.T) {
+		repo := s.RepositoryConstructor(t)
+		configDigest, manifestDigest := RandomDigest(), RandomDigest()
+
+		err := repo.PutBlob(configDigest)
+		AssertNoError(t, err)
+
+		err = repo.PutManifest(manifestDigest, store.Manifest{}, store.References{
+			Config: configDigest,
+		})
+		AssertNoError(t, err)
+
+		err = repo.DeleteManifest(manifestDigest)
+		AssertNoError(t, err)
+
+		err = repo.GetBlob(configDigest)
+		AssertErrorIs(t, err, store.ErrRepositoryBlobNotFound)
 	})
 }
 

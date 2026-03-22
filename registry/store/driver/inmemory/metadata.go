@@ -41,7 +41,8 @@ type (
 	}
 
 	manifest struct {
-		metadata store.Manifest
+		metadata   store.Manifest
+		references store.References
 	}
 )
 
@@ -138,16 +139,25 @@ func (r *repositoryStore) GetManifest(digest digest.Digest) (store.Manifest, err
 	return store.Manifest{}, store.ErrManifestNotFound
 }
 
-func (r *repositoryStore) PutManifest(digest digest.Digest, metadata store.Manifest) error {
+func (r *repositoryStore) PutManifest(digest digest.Digest, meta store.Manifest, refs store.References) error {
 	r.repo.manifests[digest] = manifest{
-		metadata: metadata,
+		metadata:   meta,
+		references: refs,
 	}
+	if refs.Config != "" {
+		r.blobs.digests[refs.Config].repositories[r.name] = nil
+	}
+	r.repo.blobs[digest] = owners{}
 	return nil
 }
 
 func (r *repositoryStore) DeleteManifest(digest digest.Digest) error {
-	if _, ok := r.repo.manifests[digest]; ok {
+	if manifest, ok := r.repo.manifests[digest]; ok {
+		if manifest.references.Config != "" {
+			delete(r.repo.blobs, manifest.references.Config)
+		}
 		delete(r.repo.manifests, digest)
+		delete(r.repo.blobs, digest)
 		return nil
 	}
 	return store.ErrManifestNotFound
