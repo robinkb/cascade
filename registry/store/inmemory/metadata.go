@@ -144,7 +144,7 @@ func (s *metadataStore) DeleteBlob(repository string, digest godigest.Digest) er
 	return nil
 }
 
-func (s *metadataStore) GetManifest(repository string, digest godigest.Digest) (*store.ManifestMetadata, error) {
+func (s *metadataStore) GetManifest(repository string, digest godigest.Digest) (*store.Manifest, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
@@ -154,7 +154,7 @@ func (s *metadataStore) GetManifest(repository string, digest godigest.Digest) (
 	}
 
 	if manifest, ok := repo.Manifests[digest.String()]; ok {
-		return &store.ManifestMetadata{
+		return &store.Manifest{
 			Annotations:  manifest.Annotations,
 			ArtifactType: manifest.ArtifactType,
 			MediaType:    manifest.MediaType,
@@ -164,7 +164,7 @@ func (s *metadataStore) GetManifest(repository string, digest godigest.Digest) (
 	return nil, store.ErrMetadataNotFound
 }
 
-func (s *metadataStore) PutManifest(repository string, digest godigest.Digest, meta *store.ManifestMetadata) error {
+func (s *metadataStore) PutManifest(repository string, digest godigest.Digest, meta *store.Manifest) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 

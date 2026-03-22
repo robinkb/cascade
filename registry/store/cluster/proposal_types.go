@@ -90,7 +90,7 @@ type putManifest struct {
 	Id     uint64
 	Name   string
 	Digest digest.Digest
-	Meta   *store.ManifestMetadata
+	Meta   *store.Manifest
 }
 
 func (o *putManifest) ID() uint64 { return o.Id }

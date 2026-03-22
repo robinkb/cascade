@@ -42,13 +42,17 @@ type (
 		PutBlob(digest digest.Digest) error
 		DeleteBlob(digest digest.Digest) error
 
-		GetManifest(digest digest.Digest) (ManifestMetadata, error)
+		GetManifest(digest digest.Digest) (Manifest, error)
 		// TODO: Must be amended to enable passing digests in the Layers, Config, and Subject fields,
 		// as all of these fields establish links to other objects that must be accounted for
 		// for garbage collection.
 		// Obviously this must also be tested.
 		// There's also the case of an image index, which may require a different method completely. Ugh.
-		PutManifest(digest digest.Digest, meta ManifestMetadata) error
+		// Ultimately there should just be a "references []digest.Digest" argument.
+		// These are all just digests pointing to blobs. Doesn't matter what they are for the metadata.
+		// Extracting those digests is the job of the business layer above it.
+		// Only the Subject field is a special case, because that's needed for the Referrers API.
+		PutManifest(digest digest.Digest, meta Manifest) error
 		DeleteManifest(digest digest.Digest) error
 
 		ListTags(count int, last string) ([]string, error)
@@ -63,13 +67,23 @@ type (
 		DeleteUploadSession(id string) error
 	}
 
-	// ManifestMetadata represents the metadata of a manifest that is stored in the MetadataStore.
-	ManifestMetadata struct {
+	// Manifest represents the metadata of a manifest that is stored in the MetadataStore.
+	Manifest struct {
 		Annotations  map[string]string
 		ArtifactType string
 		MediaType    string
-		Subject      digest.Digest
 		Size         int64
+	}
+
+	// References defines the various ways in which a manifest can point to other objects in the registry.
+	// These are mostly used to establish links between objects for garbage collection.
+	References struct {
+		// Layers is a slice of digests pointing to blobs like in an OCI Image Manifest.
+		Layers []digest.Digest
+		// Manifests is a slice of digests pointing to other manifests like in an OCI Image Index.
+		Manifests []digest.Digest
+		// Subject is a digest pointing to another manifest as used by the Referrers API.
+		Subject digest.Digest
 	}
 
 	UploadSession struct {

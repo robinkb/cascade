@@ -83,7 +83,7 @@ func TestStatManifests(t *testing.T) {
 func TestGetManifests(t *testing.T) {
 	name := RandomName()
 	digest, manifest, content := RandomManifest()
-	meta := &store.ManifestMetadata{
+	meta := &store.Manifest{
 		MediaType: manifest.MediaType,
 	}
 	tag := RandomVersion()

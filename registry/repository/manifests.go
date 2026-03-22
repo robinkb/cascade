@@ -28,7 +28,7 @@ func (s *repositoryService) StatManifest(repository, id string) (*store.BlobInfo
 	return info, err
 }
 
-func (s *repositoryService) GetManifest(repository, id string) (*store.ManifestMetadata, []byte, error) {
+func (s *repositoryService) GetManifest(repository, id string) (*store.Manifest, []byte, error) {
 	digest, err := digest.Parse(id)
 	if err != nil {
 		return nil, nil, ErrBlobUnknown
@@ -84,7 +84,7 @@ func (s *repositoryService) PutManifest(repository, reference string, content []
 		return "", err
 	}
 
-	meta := &store.ManifestMetadata{
+	meta := &store.Manifest{
 		Annotations:  manifest.Annotations,
 		ArtifactType: manifest.ArtifactType,
 		MediaType:    manifest.MediaType,

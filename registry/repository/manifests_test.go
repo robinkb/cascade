@@ -16,7 +16,7 @@ func (s *Suite) TestStatManifest() {
 	name := s.RandomRepository()
 	digest, _, content := RandomManifest()
 
-	err := s.metadata.PutManifest(name, digest, &store.ManifestMetadata{})
+	err := s.metadata.PutManifest(name, digest, &store.Manifest{})
 	RequireNoError(s.T(), err)
 	err = s.blobs.PutBlob(digest, content)
 	RequireNoError(s.T(), err)
@@ -58,7 +58,7 @@ func (s *Suite) TestGetManifest() {
 	name := s.RandomRepository()
 	digest, _, content := RandomManifest()
 
-	err := s.metadata.PutManifest(name, digest, &store.ManifestMetadata{})
+	err := s.metadata.PutManifest(name, digest, &store.Manifest{})
 	RequireNoError(s.T(), err)
 	err = s.blobs.PutBlob(digest, content)
 	RequireNoError(s.T(), err)
@@ -71,7 +71,7 @@ func (s *Suite) TestGetManifest() {
 
 	s.T().Run("Metadata is correctly retrieved", func(t *testing.T) {
 		name := s.RandomRepository()
-		want := store.ManifestMetadata{
+		want := store.Manifest{
 			Annotations: map[string]string{
 				RandomString(6): RandomString(32),
 			},

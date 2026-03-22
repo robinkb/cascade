@@ -194,7 +194,7 @@ func (s *metadataStore) DeleteBlob(name string, digest digest.Digest) error {
 	})
 }
 
-func (s *metadataStore) GetManifest(name string, digest digest.Digest) (*store.ManifestMetadata, error) {
+func (s *metadataStore) GetManifest(name string, digest digest.Digest) (*store.Manifest, error) {
 	var buf *bytes.Buffer
 	var meta manifestMetadata
 
@@ -225,7 +225,7 @@ func (s *metadataStore) GetManifest(name string, digest digest.Digest) (*store.M
 		return nil, err
 	}
 
-	return &store.ManifestMetadata{
+	return &store.Manifest{
 		Annotations:  meta.Annotations,
 		ArtifactType: meta.ArtifactType,
 		MediaType:    meta.MediaType,
@@ -233,7 +233,7 @@ func (s *metadataStore) GetManifest(name string, digest digest.Digest) (*store.M
 	}, nil
 }
 
-func (s *metadataStore) PutManifest(name string, digest digest.Digest, metadata *store.ManifestMetadata) error {
+func (s *metadataStore) PutManifest(name string, digest digest.Digest, metadata *store.Manifest) error {
 	buf := new(bytes.Buffer)
 	err := gob.NewEncoder(buf).Encode(&manifestMetadata{
 		Annotations:  metadata.Annotations,

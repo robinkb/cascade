@@ -240,7 +240,7 @@ func (s *MetadataSuite) TestManifests() {
 		repo := s.RepositoryConstructor(t)
 		digest := RandomDigest()
 
-		err := repo.PutManifest(digest, store.ManifestMetadata{})
+		err := repo.PutManifest(digest, store.Manifest{})
 		AssertNoError(t, err)
 
 		_, err = repo.GetManifest(digest)

@@ -41,7 +41,7 @@ type (
 	}
 
 	manifest struct {
-		metadata store.ManifestMetadata
+		metadata store.Manifest
 	}
 )
 
@@ -131,14 +131,14 @@ func (r *repositoryStore) DeleteBlob(digest digest.Digest) error {
 	return fmt.Errorf("%w: %s", store.ErrRepositoryBlobNotFound, digest)
 }
 
-func (r *repositoryStore) GetManifest(digest digest.Digest) (store.ManifestMetadata, error) {
+func (r *repositoryStore) GetManifest(digest digest.Digest) (store.Manifest, error) {
 	if manifest, ok := r.repo.manifests[digest]; ok {
 		return manifest.metadata, nil
 	}
-	return store.ManifestMetadata{}, store.ErrManifestNotFound
+	return store.Manifest{}, store.ErrManifestNotFound
 }
 
-func (r *repositoryStore) PutManifest(digest digest.Digest, metadata store.ManifestMetadata) error {
+func (r *repositoryStore) PutManifest(digest digest.Digest, metadata store.Manifest) error {
 	r.repo.manifests[digest] = manifest{
 		metadata: metadata,
 	}

@@ -61,7 +61,7 @@ type (
 	// BlobInfo contains the basic information of a blob.
 	BlobInfo struct {
 		Name string
-		Size int64
+		Size int64 // TODO: Store and retrieve in the metadata store instead. Never changes and is faster.
 	}
 )
 

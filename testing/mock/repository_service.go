@@ -412,24 +412,24 @@ func (_c *RepositoryService_GetBlob_Call) RunAndReturn(run func(repository strin
 }
 
 // GetManifest provides a mock function for the type RepositoryService
-func (_mock *RepositoryService) GetManifest(repository string, reference string) (*store.ManifestMetadata, []byte, error) {
+func (_mock *RepositoryService) GetManifest(repository string, reference string) (*store.Manifest, []byte, error) {
 	ret := _mock.Called(repository, reference)
 
 	if len(ret) == 0 {
 		panic("no return value specified for GetManifest")
 	}
 
-	var r0 *store.ManifestMetadata
+	var r0 *store.Manifest
 	var r1 []byte
 	var r2 error
-	if returnFunc, ok := ret.Get(0).(func(string, string) (*store.ManifestMetadata, []byte, error)); ok {
+	if returnFunc, ok := ret.Get(0).(func(string, string) (*store.Manifest, []byte, error)); ok {
 		return returnFunc(repository, reference)
 	}
-	if returnFunc, ok := ret.Get(0).(func(string, string) *store.ManifestMetadata); ok {
+	if returnFunc, ok := ret.Get(0).(func(string, string) *store.Manifest); ok {
 		r0 = returnFunc(repository, reference)
 	} else {
 		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(*store.ManifestMetadata)
+			r0 = ret.Get(0).(*store.Manifest)
 		}
 	}
 	if returnFunc, ok := ret.Get(1).(func(string, string) []byte); ok {
@@ -477,12 +477,12 @@ func (_c *RepositoryService_GetManifest_Call) Run(run func(repository string, re
 	return _c
 }
 
-func (_c *RepositoryService_GetManifest_Call) Return(manifestMetadata *store.ManifestMetadata, bytes []byte, err error) *RepositoryService_GetManifest_Call {
+func (_c *RepositoryService_GetManifest_Call) Return(manifestMetadata *store.Manifest, bytes []byte, err error) *RepositoryService_GetManifest_Call {
 	_c.Call.Return(manifestMetadata, bytes, err)
 	return _c
 }
 
-func (_c *RepositoryService_GetManifest_Call) RunAndReturn(run func(repository string, reference string) (*store.ManifestMetadata, []byte, error)) *RepositoryService_GetManifest_Call {
+func (_c *RepositoryService_GetManifest_Call) RunAndReturn(run func(repository string, reference string) (*store.Manifest, []byte, error)) *RepositoryService_GetManifest_Call {
 	_c.Call.Return(run)
 	return _c
 }

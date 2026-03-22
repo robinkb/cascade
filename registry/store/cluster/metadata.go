@@ -85,7 +85,7 @@ func (s *metadataStore) deleteBlob(p cluster.Proposal) error {
 	return s.Metadata.DeleteBlob(v.Name, v.Digest)
 }
 
-func (s *metadataStore) PutManifest(name string, digest digest.Digest, meta *store.ManifestMetadata) error {
+func (s *metadataStore) PutManifest(name string, digest digest.Digest, meta *store.Manifest) error {
 	p := &putManifest{
 		rand.Uint64(),
 		name, digest, meta,

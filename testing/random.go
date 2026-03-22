@@ -101,8 +101,8 @@ func RandomManifestWithSubject(subjDigest digest.Digest, subject *v1.Manifest) (
 	return digest, manifest, content
 }
 
-func RandomManifestMetadata() store.ManifestMetadata {
-	return store.ManifestMetadata{
+func RandomManifestMetadata() store.Manifest {
+	return store.Manifest{
 		MediaType: v1.MediaTypeImageManifest,
 		Annotations: map[string]string{
 			// Small amount of random content to make sure that

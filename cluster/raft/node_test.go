@@ -255,7 +255,7 @@ func TestMetadataReplication(t *testing.T) {
 		RequireNoError(t, err)
 
 		digest, manifest, content := RandomManifest()
-		meta := &store.ManifestMetadata{
+		meta := &store.Manifest{
 			Annotations:  manifest.Annotations,
 			ArtifactType: manifest.ArtifactType,
 			MediaType:    manifest.MediaType,
