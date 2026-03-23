@@ -3,7 +3,6 @@ package inmemory2
 import (
 	"fmt"
 	"iter"
-	"sync"
 
 	"github.com/opencontainers/go-digest"
 	"github.com/robinkb/cascade/registry/store"
@@ -27,7 +26,6 @@ type (
 	}
 
 	blobs struct {
-		mu      sync.RWMutex
 		digests map[digest.Digest]owners
 	}
 
@@ -42,9 +40,9 @@ type (
 	}
 
 	manifest struct {
+		owners
 		metadata store.Manifest
 		refs     store.References
-		owners   owners
 	}
 )
 
@@ -103,10 +101,11 @@ type repositoryStore struct {
 }
 
 func (r *repositoryStore) GetBlob(digest digest.Digest) error {
-	if _, ok := r.repo.blobs[digest]; ok {
-		return nil
+	_, ok := r.repo.blobs[digest]
+	if !ok {
+		return fmt.Errorf("%w: %s", store.ErrRepositoryBlobNotFound, digest)
 	}
-	return fmt.Errorf("%w: %s", store.ErrRepositoryBlobNotFound, digest)
+	return nil
 }
 
 func (r *repositoryStore) PutBlob(digest digest.Digest) error {
@@ -137,10 +136,11 @@ func (r *repositoryStore) DeleteBlob(digest digest.Digest) error {
 }
 
 func (r *repositoryStore) GetManifest(digest digest.Digest) (store.Manifest, error) {
-	if manifest, ok := r.repo.manifests[digest]; ok {
-		return manifest.metadata, nil
+	manifest, ok := r.repo.manifests[digest]
+	if !ok {
+		return store.Manifest{}, store.ErrManifestNotFound
 	}
-	return store.Manifest{}, store.ErrManifestNotFound
+	return manifest.metadata, nil
 }
 
 func (r *repositoryStore) PutManifest(digest digest.Digest, meta store.Manifest, refs store.References) error {
@@ -171,7 +171,7 @@ func (r *repositoryStore) PutManifest(digest digest.Digest, meta store.Manifest,
 		if !ok {
 			return fmt.Errorf("%w: %w: %s", store.ErrManifestInvalid, store.ErrManifestImageNotFound, manifestDigest)
 		}
-		owners.owners.manifests[digest] = nil
+		owners.manifests[digest] = nil
 	}
 
 	r.repo.blobs[digest] = newOwners()
@@ -203,8 +203,8 @@ func (r *repositoryStore) DeleteManifest(id digest.Digest) ([]digest.Digest, err
 	}
 
 	for _, manifestDigest := range manifest.refs.Manifests {
-		delete(r.repo.manifests[manifestDigest].owners.manifests, id)
-		if len(r.repo.manifests[manifestDigest].owners.manifests) == 0 {
+		delete(r.repo.manifests[manifestDigest].manifests, id)
+		if len(r.repo.manifests[manifestDigest].manifests) == 0 {
 			delete(r.repo.manifests, manifestDigest)
 			delete(r.repo.blobs, manifestDigest)
 			deleted = append(deleted, manifestDigest)
