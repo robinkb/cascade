@@ -261,8 +261,10 @@ func (s *MetadataSuite) TestManifests() {
 		_, err = repo.GetManifest(digest)
 		AssertNoError(t, err)
 
-		err = repo.DeleteManifest(digest)
+		deleted, err := repo.DeleteManifest(digest)
 		AssertNoError(t, err)
+		AssertEqual(t, len(deleted), 1).Require()
+		AssertEqual(t, deleted[0], digest)
 
 		_, err = repo.GetManifest(digest)
 		AssertErrorIs(t, err, store.ErrManifestNotFound)
@@ -278,7 +280,7 @@ func (s *MetadataSuite) TestManifests() {
 		err = repo.GetBlob(digest)
 		AssertNoError(t, err)
 
-		err = repo.DeleteManifest(digest)
+		_, err = repo.DeleteManifest(digest)
 		AssertNoError(t, err)
 
 		err = repo.GetBlob(digest)
@@ -289,13 +291,17 @@ func (s *MetadataSuite) TestManifests() {
 		repo := s.RepositoryConstructor(t)
 		digest := RandomDigest()
 
-		err := repo.DeleteManifest(digest)
+		_, err := repo.DeleteManifest(digest)
 		AssertErrorIs(t, err, store.ErrManifestNotFound)
 	})
 
 	s.T().Run("deletes a referenced config manifest", func(t *testing.T) {
 		repo := s.RepositoryConstructor(t)
 		configDigest, manifestDigest := RandomDigest(), RandomDigest()
+		digests := []digest.Digest{
+			configDigest,
+			manifestDigest,
+		}
 
 		err := repo.PutBlob(configDigest)
 		AssertNoError(t, err)
@@ -305,11 +311,24 @@ func (s *MetadataSuite) TestManifests() {
 		})
 		AssertNoError(t, err)
 
-		err = repo.DeleteManifest(manifestDigest)
+		deleted, err := repo.DeleteManifest(manifestDigest)
 		AssertNoError(t, err)
+		slices.Sort(deleted)
+		slices.Sort(digests)
+		AssertSlicesEqual(t, deleted, digests)
 
 		err = repo.GetBlob(configDigest)
 		AssertErrorIs(t, err, store.ErrRepositoryBlobNotFound)
+	})
+
+	s.T().Run("creating manifest referencing unknown config blob returns ErrManifestConfigNotFound", func(t *testing.T) {
+		repo := s.RepositoryConstructor(t)
+		digest := RandomDigest()
+
+		err := repo.PutManifest(digest, store.Manifest{}, store.References{
+			Config: RandomDigest(),
+		})
+		AssertErrorIs(t, err, store.ErrManifestInvalid, store.ErrManifestConfigNotFound)
 	})
 }
 

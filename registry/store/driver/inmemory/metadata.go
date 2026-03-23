@@ -145,20 +145,32 @@ func (r *repositoryStore) PutManifest(digest digest.Digest, meta store.Manifest,
 		references: refs,
 	}
 	if refs.Config != "" {
-		r.blobs.digests[refs.Config].repositories[r.name] = nil
+		if owners, ok := r.blobs.digests[refs.Config]; ok {
+			owners.repositories[r.name] = nil
+		} else {
+			return fmt.Errorf("%w: %w: %s", store.ErrManifestInvalid, store.ErrManifestConfigNotFound, refs.Config)
+		}
 	}
 	r.repo.blobs[digest] = owners{}
 	return nil
 }
 
-func (r *repositoryStore) DeleteManifest(digest digest.Digest) error {
-	if manifest, ok := r.repo.manifests[digest]; ok {
+func (r *repositoryStore) DeleteManifest(id digest.Digest) ([]digest.Digest, error) {
+	if manifest, ok := r.repo.manifests[id]; ok {
+		deleted := make([]digest.Digest, 0)
+
 		if manifest.references.Config != "" {
 			delete(r.repo.blobs, manifest.references.Config)
+			deleted = append(deleted, manifest.references.Config)
 		}
-		delete(r.repo.manifests, digest)
-		delete(r.repo.blobs, digest)
-		return nil
+
+		delete(r.repo.manifests, id)
+		deleted = append(deleted, id)
+
+		delete(r.repo.blobs, id)
+
+		return deleted, nil
 	}
-	return store.ErrManifestNotFound
+
+	return nil, store.ErrManifestNotFound
 }

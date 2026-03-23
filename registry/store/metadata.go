@@ -14,7 +14,13 @@ var (
 	ErrRepositoryNotFound     = errors.New("repository not found")
 	ErrRepositoryExists       = errors.New("repository with the given name already exists")
 	ErrRepositoryBlobNotFound = errors.New("blob not found in repository")
-	ErrManifestNotFound       = errors.New("manifest not found")
+
+	ErrManifestNotFound = errors.New("manifest not found")
+
+	ErrManifestInvalid        = errors.New("manifest invalid") // usually paired with more detailed errors below
+	ErrManifestConfigNotFound = errors.New("blob referenced in manifest config descriptor not found")
+	ErrManifestLayerNotFound  = errors.New("blob referenced in manifest layers not found")
+	ErrManifestImageNotFound  = errors.New("manifest referenced in image index not found")
 )
 
 type (
@@ -36,6 +42,11 @@ type (
 		Restore(r io.Reader) error
 	}
 
+	// TODO: DeleteManifest and DeleteTag should probably return a []digest.Digest
+	// indicating which blobs were deleted from the store due to garbage collection.
+	// The business layer is then responsible for actually deleting them from the blob store.
+	// Any errors in doing so should only be logged as internal errors; the client
+	// should not be bothered with it. All they need to know is if the manifest or tag got deleted.
 	Repository interface {
 		ListBlobs() ([]digest.Digest, error)
 		GetBlob(digest digest.Digest) error
@@ -44,12 +55,12 @@ type (
 
 		GetManifest(digest digest.Digest) (Manifest, error)
 		PutManifest(digest digest.Digest, meta Manifest, refs References) error
-		DeleteManifest(digest digest.Digest) error
+		DeleteManifest(digest digest.Digest) ([]digest.Digest, error)
 
 		ListTags(count int, last string) ([]string, error)
 		GetTag(tag string) (digest.Digest, error)
 		PutTag(tag string, digest digest.Digest) error
-		DeleteTag(tag string) error
+		DeleteTag(tag string) ([]digest.Digest, error)
 
 		ListReferrers(digest digest.Digest) ([]digest.Digest, error)
 
