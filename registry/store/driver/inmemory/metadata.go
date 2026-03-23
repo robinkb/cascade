@@ -42,9 +42,9 @@ type (
 	}
 
 	manifest struct {
-		metadata   store.Manifest
-		references store.References
-		owners     owners
+		metadata store.Manifest
+		refs     store.References
+		owners   owners
 	}
 )
 
@@ -145,17 +145,17 @@ func (r *repositoryStore) GetManifest(digest digest.Digest) (store.Manifest, err
 
 func (r *repositoryStore) PutManifest(digest digest.Digest, meta store.Manifest, refs store.References) error {
 	r.repo.manifests[digest] = manifest{
-		metadata:   meta,
-		references: refs,
-		owners:     newOwners(),
+		metadata: meta,
+		refs:     refs,
+		owners:   newOwners(),
 	}
 
 	if refs.Config != "" {
-		owners, ok := r.blobs.digests[refs.Config]
+		owners, ok := r.repo.blobs[refs.Config]
 		if !ok {
 			return fmt.Errorf("%w: %w: %s", store.ErrManifestInvalid, store.ErrManifestConfigNotFound, refs.Config)
 		}
-		owners.repositories[r.name] = nil
+		owners.manifests[digest] = nil
 	}
 
 	for _, layerDigest := range refs.Layers {
@@ -167,7 +167,11 @@ func (r *repositoryStore) PutManifest(digest digest.Digest, meta store.Manifest,
 	}
 
 	for _, manifestDigest := range refs.Manifests {
-		r.repo.manifests[manifestDigest].owners.manifests[manifestDigest] = nil
+		owners, ok := r.repo.manifests[manifestDigest]
+		if !ok {
+			return fmt.Errorf("%w: %w: %s", store.ErrManifestInvalid, store.ErrManifestImageNotFound, manifestDigest)
+		}
+		owners.owners.manifests[digest] = nil
 	}
 
 	r.repo.blobs[digest] = newOwners()
@@ -182,12 +186,15 @@ func (r *repositoryStore) DeleteManifest(id digest.Digest) ([]digest.Digest, err
 
 	deleted := make([]digest.Digest, 0)
 
-	if manifest.references.Config != "" {
-		delete(r.repo.blobs, manifest.references.Config)
-		deleted = append(deleted, manifest.references.Config)
+	if manifest.refs.Config != "" {
+		delete(r.repo.blobs[manifest.refs.Config].manifests, id)
+		if len(r.repo.blobs[manifest.refs.Config].manifests) == 0 {
+			delete(r.repo.blobs, manifest.refs.Config)
+			deleted = append(deleted, manifest.refs.Config)
+		}
 	}
 
-	for _, layerDigest := range manifest.references.Layers {
+	for _, layerDigest := range manifest.refs.Layers {
 		delete(r.repo.blobs[layerDigest].manifests, id)
 		if len(r.repo.blobs[layerDigest].manifests) == 0 {
 			delete(r.repo.blobs, layerDigest)
@@ -195,10 +202,13 @@ func (r *repositoryStore) DeleteManifest(id digest.Digest) ([]digest.Digest, err
 		}
 	}
 
-	for _, manifestDigest := range manifest.references.Manifests {
-		delete(r.repo.manifests, manifestDigest)
-		delete(r.repo.blobs, manifestDigest)
-		deleted = append(deleted, manifestDigest)
+	for _, manifestDigest := range manifest.refs.Manifests {
+		delete(r.repo.manifests[manifestDigest].owners.manifests, id)
+		if len(r.repo.manifests[manifestDigest].owners.manifests) == 0 {
+			delete(r.repo.manifests, manifestDigest)
+			delete(r.repo.blobs, manifestDigest)
+			deleted = append(deleted, manifestDigest)
+		}
 	}
 
 	delete(r.repo.manifests, id)

@@ -320,7 +320,36 @@ func (s *MetadataSuite) TestManifests() {
 		AssertErrorIs(t, err, store.ErrRepositoryBlobNotFound)
 	})
 
-	// TODO: Case for config blob referenced by multiple manifests; shouldn't happen, but who knows
+	// This case does not happen under normal circumstances; a config blob is unique to each manifest.
+	s.T().Run("does not delete a config blob referenced by multiple manifests", func(t *testing.T) {
+		repo := s.RepositoryConstructor(t)
+		manifestDigestA, manifestDigestB := RandomDigest(), RandomDigest()
+		configDigest := RandomDigest()
+		digests := []digest.Digest{manifestDigestB, configDigest}
+		slices.Sort(digests)
+
+		err := repo.PutBlob(configDigest)
+		AssertNoError(t, err)
+
+		err = repo.PutManifest(manifestDigestA, store.Manifest{}, store.References{
+			Config: configDigest,
+		})
+		AssertNoError(t, err)
+		err = repo.PutManifest(manifestDigestB, store.Manifest{}, store.References{
+			Config: configDigest,
+		})
+		AssertNoError(t, err)
+
+		deleted, err := repo.DeleteManifest(manifestDigestA)
+		AssertNoError(t, err)
+		AssertEqual(t, len(deleted), 1).Require()
+		AssertEqual(t, deleted[0], manifestDigestA)
+
+		deleted, err = repo.DeleteManifest(manifestDigestB)
+		AssertNoError(t, err)
+		slices.Sort(deleted)
+		AssertSlicesEqual(t, deleted, digests)
+	})
 
 	s.T().Run("creating manifest referencing unknown config blob returns ErrManifestConfigNotFound", func(t *testing.T) {
 		repo := s.RepositoryConstructor(t)
@@ -441,8 +470,45 @@ func (s *MetadataSuite) TestManifests() {
 		}
 	})
 
-	// This is a case that I don't see happening in the real world, but let's be safe.
-	s.T().Run("does not delete image manifests referenced by multiple image indices", func(t *testing.T) {})
+	// This case is unlikely to happen under normal circumstances;
+	// an image manifest is unlikely to be listed in multiple indices.
+	s.T().Run("does not delete image manifests referenced by multiple image indices", func(t *testing.T) {
+		repo := s.RepositoryConstructor(t)
+		indexDigestA, indexDigestB := RandomDigest(), RandomDigest()
+		imageDigest := RandomDigest()
+		digests := []digest.Digest{indexDigestB, imageDigest}
+		slices.Sort(digests)
+
+		err := repo.PutManifest(imageDigest, store.Manifest{}, store.References{})
+		AssertNoError(t, err)
+
+		err = repo.PutManifest(indexDigestA, store.Manifest{}, store.References{
+			Manifests: []digest.Digest{imageDigest},
+		})
+		AssertNoError(t, err)
+		err = repo.PutManifest(indexDigestB, store.Manifest{}, store.References{
+			Manifests: []digest.Digest{imageDigest},
+		})
+
+		deleted, err := repo.DeleteManifest(indexDigestA)
+		AssertNoError(t, err)
+		AssertEqual(t, len(deleted), 1).Require()
+		AssertEqual(t, deleted[0], indexDigestA)
+
+		deleted, err = repo.DeleteManifest(indexDigestB)
+		AssertNoError(t, err)
+		slices.Sort(deleted)
+		AssertSlicesEqual(t, deleted, digests)
+	})
+
+	s.T().Run("creating index referencing unknown manifest returns ErrManifestImageNotFound", func(t *testing.T) {
+		repo := s.RepositoryConstructor(t)
+
+		err := repo.PutManifest(RandomDigest(), store.Manifest{}, store.References{
+			Manifests: []digest.Digest{RandomDigest()},
+		})
+		AssertErrorIs(t, err, store.ErrManifestInvalid, store.ErrManifestImageNotFound)
+	})
 }
 
 // func (s *MetadataSuite) TestSnapshotRestore() {
