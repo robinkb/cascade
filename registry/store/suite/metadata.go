@@ -398,7 +398,14 @@ func (s *MetadataSuite) TestManifests() {
 		AssertErrorIs(t, err, store.ErrRepositoryBlobNotFound)
 	})
 
-	s.T().Run("creating manifest referencing unknown layer blob returns ErrManifestLayerNotFound", func(t *testing.T) {})
+	s.T().Run("creating manifest referencing unknown layer blob returns ErrManifestLayerNotFound", func(t *testing.T) {
+		repo := s.RepositoryConstructor(t)
+
+		err := repo.PutManifest(RandomDigest(), store.Manifest{}, store.References{
+			Layers: []digest.Digest{RandomDigest()},
+		})
+		AssertErrorIs(t, err, store.ErrManifestInvalid, store.ErrManifestLayerNotFound)
+	})
 }
 
 // func (s *MetadataSuite) TestSnapshotRestore() {

@@ -33,10 +33,11 @@ type (
 
 	owners struct {
 		repositories map[string]any
+		manifests    map[digest.Digest]any
 	}
 
 	repository struct {
-		blobs     map[digest.Digest]any
+		blobs     map[digest.Digest]owners
 		manifests map[digest.Digest]manifest
 	}
 
@@ -52,7 +53,7 @@ func (m *metadataStore) CreateRepository(name string) (store.Repository, error) 
 	}
 
 	repo := &repository{
-		blobs:     make(map[digest.Digest]any),
+		blobs:     make(map[digest.Digest]owners),
 		manifests: make(map[digest.Digest]manifest),
 	}
 	m.repositories[name] = repo
@@ -115,21 +116,23 @@ func (r *repositoryStore) PutBlob(digest digest.Digest) error {
 		}
 	}
 	r.blobs.digests[digest].repositories[r.name] = nil
-	r.repo.blobs[digest] = nil
+	r.repo.blobs[digest] = newOwners()
 	return nil
 }
 
 func (r *repositoryStore) DeleteBlob(digest digest.Digest) error {
-	if _, ok := r.repo.blobs[digest]; ok {
-		delete(r.blobs.digests[digest].repositories, r.name)
-		if len(r.blobs.digests[digest].repositories) == 0 {
-			delete(r.blobs.digests, digest)
-		}
-
-		delete(r.repo.blobs, digest)
-		return nil
+	_, ok := r.repo.blobs[digest]
+	if !ok {
+		return fmt.Errorf("%w: %s", store.ErrRepositoryBlobNotFound, digest)
 	}
-	return fmt.Errorf("%w: %s", store.ErrRepositoryBlobNotFound, digest)
+
+	delete(r.blobs.digests[digest].repositories, r.name)
+	if len(r.blobs.digests[digest].repositories) == 0 {
+		delete(r.blobs.digests, digest)
+	}
+
+	delete(r.repo.blobs, digest)
+	return nil
 }
 
 func (r *repositoryStore) GetManifest(digest digest.Digest) (store.Manifest, error) {
@@ -144,41 +147,59 @@ func (r *repositoryStore) PutManifest(digest digest.Digest, meta store.Manifest,
 		metadata:   meta,
 		references: refs,
 	}
+
 	if refs.Config != "" {
-		if owners, ok := r.blobs.digests[refs.Config]; ok {
-			owners.repositories[r.name] = nil
-		} else {
+		owners, ok := r.blobs.digests[refs.Config]
+		if !ok {
 			return fmt.Errorf("%w: %w: %s", store.ErrManifestInvalid, store.ErrManifestConfigNotFound, refs.Config)
 		}
+		owners.repositories[r.name] = nil
 	}
+
 	for _, layerDigest := range refs.Layers {
-		r.blobs.digests[layerDigest].repositories[r.name] = nil
+		owners, ok := r.repo.blobs[layerDigest]
+		if !ok {
+			return fmt.Errorf("%w: %w: %s", store.ErrManifestInvalid, store.ErrManifestLayerNotFound, layerDigest)
+		}
+		owners.manifests[digest] = nil
 	}
-	r.repo.blobs[digest] = owners{}
+
+	r.repo.blobs[digest] = newOwners()
 	return nil
 }
 
 func (r *repositoryStore) DeleteManifest(id digest.Digest) ([]digest.Digest, error) {
-	if manifest, ok := r.repo.manifests[id]; ok {
-		deleted := make([]digest.Digest, 0)
+	manifest, ok := r.repo.manifests[id]
+	if !ok {
+		return nil, store.ErrManifestNotFound
+	}
 
-		if manifest.references.Config != "" {
-			delete(r.repo.blobs, manifest.references.Config)
-			deleted = append(deleted, manifest.references.Config)
-		}
+	deleted := make([]digest.Digest, 0)
 
-		for _, layerDigest := range manifest.references.Layers {
+	if manifest.references.Config != "" {
+		delete(r.repo.blobs, manifest.references.Config)
+		deleted = append(deleted, manifest.references.Config)
+	}
+
+	for _, layerDigest := range manifest.references.Layers {
+		delete(r.repo.blobs[layerDigest].manifests, id)
+		if len(r.repo.blobs[layerDigest].manifests) == 0 {
 			delete(r.repo.blobs, layerDigest)
 			deleted = append(deleted, layerDigest)
 		}
-
-		delete(r.repo.manifests, id)
-		deleted = append(deleted, id)
-
-		delete(r.repo.blobs, id)
-
-		return deleted, nil
 	}
 
-	return nil, store.ErrManifestNotFound
+	delete(r.repo.manifests, id)
+	deleted = append(deleted, id)
+
+	delete(r.repo.blobs, id)
+
+	return deleted, nil
+}
+
+func newOwners() owners {
+	return owners{
+		repositories: make(map[string]any),
+		manifests:    make(map[digest.Digest]any),
+	}
 }
