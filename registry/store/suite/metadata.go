@@ -295,7 +295,7 @@ func (s *MetadataSuite) TestManifests() {
 		AssertErrorIs(t, err, store.ErrManifestNotFound)
 	})
 
-	s.T().Run("deletes a referenced manifest config", func(t *testing.T) {
+	s.T().Run("deletes a referenced manifest config blob", func(t *testing.T) {
 		repo := s.RepositoryConstructor(t)
 		configDigest, manifestDigest := RandomDigest(), RandomDigest()
 		digests := []digest.Digest{
@@ -320,6 +320,8 @@ func (s *MetadataSuite) TestManifests() {
 		AssertErrorIs(t, err, store.ErrRepositoryBlobNotFound)
 	})
 
+	// TODO: Case for config blob referenced by multiple manifests; shouldn't happen, but who knows
+
 	s.T().Run("creating manifest referencing unknown config blob returns ErrManifestConfigNotFound", func(t *testing.T) {
 		repo := s.RepositoryConstructor(t)
 		digest := RandomDigest()
@@ -330,11 +332,11 @@ func (s *MetadataSuite) TestManifests() {
 		AssertErrorIs(t, err, store.ErrManifestInvalid, store.ErrManifestConfigNotFound)
 	})
 
-	s.T().Run("deletes referenced manifest layers", func(t *testing.T) {
+	s.T().Run("deletes referenced layers when deleting manifest", func(t *testing.T) {
 		repo := s.RepositoryConstructor(t)
 		manifestDigest := RandomDigest()
-		layerDigests := make([]digest.Digest, 0)
 
+		layerDigests := make([]digest.Digest, 0)
 		for range 5 {
 			id := RandomDigest()
 			layerDigests = append(layerDigests, id)
@@ -406,6 +408,41 @@ func (s *MetadataSuite) TestManifests() {
 		})
 		AssertErrorIs(t, err, store.ErrManifestInvalid, store.ErrManifestLayerNotFound)
 	})
+
+	s.T().Run("deletes listed image manifests when deleting image index", func(t *testing.T) {
+		repo := s.RepositoryConstructor(t)
+		indexDigest := RandomDigest()
+
+		imageDigests := make([]digest.Digest, 0)
+		for range 5 {
+			id := RandomDigest()
+			imageDigests = append(imageDigests, id)
+			err := repo.PutManifest(id, store.Manifest{}, store.References{})
+			AssertNoError(t, err)
+		}
+		digests := slices.Concat([]digest.Digest{indexDigest}, imageDigests)
+
+		err := repo.PutManifest(indexDigest, store.Manifest{}, store.References{
+			Manifests: imageDigests,
+		})
+		AssertNoError(t, err)
+
+		deleted, err := repo.DeleteManifest(indexDigest)
+		AssertNoError(t, err)
+		slices.Sort(deleted)
+		slices.Sort(digests)
+		AssertSlicesEqual(t, deleted, digests)
+
+		for _, digest := range imageDigests {
+			_, err = repo.GetManifest(digest)
+			AssertErrorIs(t, err, store.ErrManifestNotFound)
+			err = repo.GetBlob(digest)
+			AssertErrorIs(t, err, store.ErrRepositoryBlobNotFound)
+		}
+	})
+
+	// This is a case that I don't see happening in the real world, but let's be safe.
+	s.T().Run("does not delete image manifests referenced by multiple image indices", func(t *testing.T) {})
 }
 
 // func (s *MetadataSuite) TestSnapshotRestore() {

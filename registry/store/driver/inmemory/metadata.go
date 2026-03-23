@@ -44,6 +44,7 @@ type (
 	manifest struct {
 		metadata   store.Manifest
 		references store.References
+		owners     owners
 	}
 )
 
@@ -146,6 +147,7 @@ func (r *repositoryStore) PutManifest(digest digest.Digest, meta store.Manifest,
 	r.repo.manifests[digest] = manifest{
 		metadata:   meta,
 		references: refs,
+		owners:     newOwners(),
 	}
 
 	if refs.Config != "" {
@@ -162,6 +164,10 @@ func (r *repositoryStore) PutManifest(digest digest.Digest, meta store.Manifest,
 			return fmt.Errorf("%w: %w: %s", store.ErrManifestInvalid, store.ErrManifestLayerNotFound, layerDigest)
 		}
 		owners.manifests[digest] = nil
+	}
+
+	for _, manifestDigest := range refs.Manifests {
+		r.repo.manifests[manifestDigest].owners.manifests[manifestDigest] = nil
 	}
 
 	r.repo.blobs[digest] = newOwners()
@@ -187,6 +193,12 @@ func (r *repositoryStore) DeleteManifest(id digest.Digest) ([]digest.Digest, err
 			delete(r.repo.blobs, layerDigest)
 			deleted = append(deleted, layerDigest)
 		}
+	}
+
+	for _, manifestDigest := range manifest.references.Manifests {
+		delete(r.repo.manifests, manifestDigest)
+		delete(r.repo.blobs, manifestDigest)
+		deleted = append(deleted, manifestDigest)
 	}
 
 	delete(r.repo.manifests, id)
