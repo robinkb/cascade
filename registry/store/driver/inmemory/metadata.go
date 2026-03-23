@@ -151,6 +151,9 @@ func (r *repositoryStore) PutManifest(digest digest.Digest, meta store.Manifest,
 			return fmt.Errorf("%w: %w: %s", store.ErrManifestInvalid, store.ErrManifestConfigNotFound, refs.Config)
 		}
 	}
+	for _, layerDigest := range refs.Layers {
+		r.blobs.digests[layerDigest].repositories[r.name] = nil
+	}
 	r.repo.blobs[digest] = owners{}
 	return nil
 }
@@ -162,6 +165,11 @@ func (r *repositoryStore) DeleteManifest(id digest.Digest) ([]digest.Digest, err
 		if manifest.references.Config != "" {
 			delete(r.repo.blobs, manifest.references.Config)
 			deleted = append(deleted, manifest.references.Config)
+		}
+
+		for _, layerDigest := range manifest.references.Layers {
+			delete(r.repo.blobs, layerDigest)
+			deleted = append(deleted, layerDigest)
 		}
 
 		delete(r.repo.manifests, id)

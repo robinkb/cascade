@@ -295,12 +295,11 @@ func (s *MetadataSuite) TestManifests() {
 		AssertErrorIs(t, err, store.ErrManifestNotFound)
 	})
 
-	s.T().Run("deletes a referenced config manifest", func(t *testing.T) {
+	s.T().Run("deletes a referenced manifest config", func(t *testing.T) {
 		repo := s.RepositoryConstructor(t)
 		configDigest, manifestDigest := RandomDigest(), RandomDigest()
 		digests := []digest.Digest{
-			configDigest,
-			manifestDigest,
+			configDigest, manifestDigest,
 		}
 
 		err := repo.PutBlob(configDigest)
@@ -330,6 +329,76 @@ func (s *MetadataSuite) TestManifests() {
 		})
 		AssertErrorIs(t, err, store.ErrManifestInvalid, store.ErrManifestConfigNotFound)
 	})
+
+	s.T().Run("deletes referenced manifest layers", func(t *testing.T) {
+		repo := s.RepositoryConstructor(t)
+		manifestDigest := RandomDigest()
+		layerDigests := make([]digest.Digest, 0)
+
+		for range 5 {
+			id := RandomDigest()
+			layerDigests = append(layerDigests, id)
+			err := repo.PutBlob(id)
+			AssertNoError(t, err)
+		}
+		digests := slices.Concat([]digest.Digest{manifestDigest}, layerDigests)
+
+		err := repo.PutManifest(manifestDigest, store.Manifest{}, store.References{
+			Layers: layerDigests,
+		})
+		AssertNoError(t, err)
+
+		deleted, err := repo.DeleteManifest(manifestDigest)
+		AssertNoError(t, err)
+		slices.Sort(deleted)
+		slices.Sort(digests)
+		AssertSlicesEqual(t, deleted, digests)
+
+		for _, digest := range layerDigests {
+			err = repo.GetBlob(digest)
+			AssertErrorIs(t, err, store.ErrRepositoryBlobNotFound)
+		}
+	})
+
+	s.T().Run("does not delete layer referenced by multiple manifests", func(t *testing.T) {
+		repo := s.RepositoryConstructor(t)
+		manifestDigestA, manifestDigestB := RandomDigest(), RandomDigest()
+		layerDigest := RandomDigest()
+		wantDeleted := []digest.Digest{
+			manifestDigestB, layerDigest,
+		}
+
+		err := repo.PutBlob(layerDigest)
+		AssertNoError(t, err)
+
+		err = repo.PutManifest(manifestDigestA, store.Manifest{}, store.References{
+			Layers: []digest.Digest{layerDigest},
+		})
+		AssertNoError(t, err)
+		err = repo.PutManifest(manifestDigestB, store.Manifest{}, store.References{
+			Layers: []digest.Digest{layerDigest},
+		})
+		AssertNoError(t, err)
+
+		deleted, err := repo.DeleteManifest(manifestDigestA)
+		AssertNoError(t, err)
+		AssertEqual(t, len(deleted), 1)
+		AssertEqual(t, deleted[0], manifestDigestA)
+
+		err = repo.GetBlob(layerDigest)
+		AssertNoError(t, err)
+
+		deleted, err = repo.DeleteManifest(manifestDigestB)
+		AssertNoError(t, err)
+		slices.Sort(deleted)
+		slices.Sort(wantDeleted)
+		AssertSlicesEqual(t, deleted, wantDeleted)
+
+		err = repo.GetBlob(layerDigest)
+		AssertErrorIs(t, err, store.ErrRepositoryBlobNotFound)
+	})
+
+	s.T().Run("creating manifest referencing unknown layer blob returns ErrManifestLayerNotFound", func(t *testing.T) {})
 }
 
 // func (s *MetadataSuite) TestSnapshotRestore() {
