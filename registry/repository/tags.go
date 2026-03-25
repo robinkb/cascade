@@ -8,7 +8,12 @@ import (
 )
 
 func (s *repositoryService) ListTags(repository string, count int, last string) ([]string, error) {
-	return s.metadata.ListTags(repository, count, last)
+	repo, err := s.metadata.GetRepository(repository)
+	if err != nil {
+		return nil, err
+	}
+
+	return repo.ListTags(count, last)
 }
 
 func (s *repositoryService) GetTag(repository, tag string) (string, error) {

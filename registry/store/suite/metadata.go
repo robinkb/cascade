@@ -208,8 +208,10 @@ func (s *MetadataSuite) TestListBlobs() {
 			AssertNoError(t, err).Require()
 		}
 
-		err = repos[0].DeleteBlob(digest)
-		AssertNoError(t, err).Require()
+		for i := range count / 2 {
+			err = repos[i].DeleteBlob(digest)
+			AssertNoError(t, err).Require()
+		}
 
 		digests := slices.Collect(meta.Blobs())
 		AssertEqual(t, len(digests), 1).Require()
@@ -508,6 +510,82 @@ func (s *MetadataSuite) TestManifests() {
 			Manifests: []digest.Digest{RandomDigest()},
 		})
 		AssertErrorIs(t, err, store.ErrManifestInvalid, store.ErrManifestImageNotFound)
+	})
+}
+
+func (s *MetadataSuite) TestListManifests() {
+	if s.SkipListManifests {
+		s.T().Skip()
+	}
+
+	s.T().Run("lists manifest blobs across repositories", func(t *testing.T) {
+		meta := s.Constructor()
+		want := make([]digest.Digest, 5)
+		got := make([]digest.Digest, 0)
+
+		for i := range len(want) {
+			name := RandomName()
+			repo, err := meta.CreateRepository(name)
+			AssertNoError(t, err).Require()
+
+			want[i] = RandomDigest()
+			err = repo.PutManifest(want[i], store.Manifest{}, store.References{})
+			AssertNoError(t, err).Require()
+		}
+
+		for digest := range meta.Blobs() {
+			got = append(got, digest)
+		}
+
+		slices.Sort(want)
+		slices.Sort(got)
+
+		AssertSlicesEqual(t, got, want)
+	})
+
+	s.T().Run("does not return deleted manifest blobs", func(t *testing.T) {
+		meta := s.Constructor()
+		name, digest := RandomName(), RandomDigest()
+		repo, err := meta.CreateRepository(name)
+		AssertNoError(t, err).Require()
+
+		err = repo.PutManifest(digest, store.Manifest{}, store.References{})
+		AssertNoError(t, err).Require()
+
+		blobs := slices.Collect(meta.Blobs())
+		AssertEqual(t, len(blobs), 1).Require()
+		AssertEqual(t, blobs[0], digest)
+
+		_, err = repo.DeleteManifest(digest)
+		AssertNoError(t, err).Require()
+
+		blobs = slices.Collect(meta.Blobs())
+		AssertNoError(t, err).Require()
+		AssertEqual(t, len(blobs), 0)
+	})
+
+	s.T().Run("returns a manifest blob deleted in one repository but present in another", func(t *testing.T) {
+		meta := s.Constructor()
+		count := 5
+		repos := make([]store.Repository, count)
+		digest := RandomDigest()
+
+		var err error
+		for i := range repos {
+			repos[i], err = meta.CreateRepository(RandomName())
+			AssertNoError(t, err).Require()
+			err = repos[i].PutManifest(digest, store.Manifest{}, store.References{})
+			AssertNoError(t, err).Require()
+		}
+
+		for i := range count / 2 {
+			_, err = repos[i].DeleteManifest(digest)
+			AssertNoError(t, err).Require()
+		}
+
+		digests := slices.Collect(meta.Blobs())
+		AssertEqual(t, len(digests), 1).Require()
+		AssertEqual(t, digests[0], digest)
 	})
 }
 

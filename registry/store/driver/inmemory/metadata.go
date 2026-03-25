@@ -174,8 +174,7 @@ func (r *repositoryStore) PutManifest(digest digest.Digest, meta store.Manifest,
 		owners.manifests[digest] = nil
 	}
 
-	r.repo.blobs[digest] = newOwners()
-	return nil
+	return r.PutBlob(digest)
 }
 
 func (r *repositoryStore) DeleteManifest(id digest.Digest) ([]digest.Digest, error) {
@@ -214,7 +213,9 @@ func (r *repositoryStore) DeleteManifest(id digest.Digest) ([]digest.Digest, err
 	delete(r.repo.manifests, id)
 	deleted = append(deleted, id)
 
-	delete(r.repo.blobs, id)
+	if err := r.DeleteBlob(id); err != nil {
+		return nil, err
+	}
 
 	return deleted, nil
 }
