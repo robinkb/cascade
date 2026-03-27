@@ -17,10 +17,11 @@ var (
 
 	ErrManifestNotFound = errors.New("manifest not found")
 
-	ErrManifestInvalid        = errors.New("manifest invalid") // usually paired with more detailed errors below
-	ErrManifestConfigNotFound = errors.New("blob referenced in manifest config descriptor not found")
-	ErrManifestLayerNotFound  = errors.New("blob referenced in manifest layers not found")
-	ErrManifestImageNotFound  = errors.New("manifest referenced in image index not found")
+	ErrManifestInvalid         = errors.New("manifest invalid") // usually paired with more detailed errors below
+	ErrManifestConfigNotFound  = errors.New("blob referenced in manifest config descriptor not found")
+	ErrManifestLayerNotFound   = errors.New("blob referenced in manifest layers not found")
+	ErrManifestImageNotFound   = errors.New("manifest referenced in image index not found")
+	ErrManifestSubjectNotFound = errors.New("subject referenced in manifest not found")
 )
 
 type (
@@ -57,12 +58,12 @@ type (
 		PutManifest(digest digest.Digest, meta Manifest, refs References) error
 		DeleteManifest(digest digest.Digest) ([]digest.Digest, error)
 
+		ListReferrers(digest digest.Digest) ([]digest.Digest, error)
+
 		ListTags(count int, last string) ([]string, error)
 		GetTag(tag string) (digest.Digest, error)
 		PutTag(tag string, digest digest.Digest) error
 		DeleteTag(tag string) ([]digest.Digest, error)
-
-		ListReferrers(digest digest.Digest) ([]digest.Digest, error)
 
 		GetUploadSession(id string) (*UploadSession, error)
 		PutUploadSession(session *UploadSession) error

@@ -28,6 +28,7 @@ type (
 		BlobReader
 		// BlobWriter returns an io.Writer to write a blob in a streaming fashion.
 		// It should only be used for reconciliation. Clients must go through the upload flow.
+		// TODO: Get rid of this. Reconciliation should also go through the upload flow for the same reason as clients.
 		BlobWriter(id digest.Digest) (io.Writer, error)
 		// PutBlob writes content to the given path. Intended for smaller blobs that
 		// must be fully read into memory server-side, like manifests.

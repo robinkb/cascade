@@ -3,6 +3,8 @@ package inmemory2
 import (
 	"fmt"
 	"iter"
+	"maps"
+	"slices"
 
 	"github.com/opencontainers/go-digest"
 	"github.com/robinkb/cascade/registry/store"
@@ -41,8 +43,9 @@ type (
 
 	manifest struct {
 		owners
-		metadata store.Manifest
-		refs     store.References
+		metadata  store.Manifest
+		refs      store.References
+		referrers map[digest.Digest]any
 	}
 )
 
@@ -144,11 +147,7 @@ func (r *repositoryStore) GetManifest(digest digest.Digest) (store.Manifest, err
 }
 
 func (r *repositoryStore) PutManifest(digest digest.Digest, meta store.Manifest, refs store.References) error {
-	r.repo.manifests[digest] = manifest{
-		metadata: meta,
-		refs:     refs,
-		owners:   newOwners(),
-	}
+	r.repo.manifests[digest] = newManifest(meta, refs)
 
 	if refs.Config != "" {
 		owners, ok := r.repo.blobs[refs.Config]
@@ -167,11 +166,19 @@ func (r *repositoryStore) PutManifest(digest digest.Digest, meta store.Manifest,
 	}
 
 	for _, manifestDigest := range refs.Manifests {
-		owners, ok := r.repo.manifests[manifestDigest]
+		manifest, ok := r.repo.manifests[manifestDigest]
 		if !ok {
 			return fmt.Errorf("%w: %w: %s", store.ErrManifestInvalid, store.ErrManifestImageNotFound, manifestDigest)
 		}
-		owners.manifests[digest] = nil
+		manifest.manifests[digest] = nil
+	}
+
+	if refs.Subject != "" {
+		manifest, ok := r.repo.manifests[refs.Subject]
+		if !ok {
+			return fmt.Errorf("%w: %w: %s", store.ErrManifestInvalid, store.ErrManifestSubjectNotFound, refs.Subject)
+		}
+		manifest.referrers[digest] = nil
 	}
 
 	return r.PutBlob(digest)
@@ -210,6 +217,15 @@ func (r *repositoryStore) DeleteManifest(id digest.Digest) ([]digest.Digest, err
 		}
 	}
 
+	if manifest.refs.Subject != "" {
+		delete(r.repo.manifests[manifest.refs.Subject].referrers, id)
+	}
+
+	for referrerDigest := range manifest.referrers {
+		delete(r.repo.manifests, referrerDigest)
+		deleted = append(deleted, referrerDigest)
+	}
+
 	delete(r.repo.manifests, id)
 	deleted = append(deleted, id)
 
@@ -218,6 +234,22 @@ func (r *repositoryStore) DeleteManifest(id digest.Digest) ([]digest.Digest, err
 	}
 
 	return deleted, nil
+}
+
+func (r *repositoryStore) ListReferrers(subject digest.Digest) ([]digest.Digest, error) {
+	referrers := slices.Collect(
+		maps.Keys(r.repo.manifests[subject].referrers),
+	)
+	return referrers, nil
+}
+
+func newManifest(meta store.Manifest, refs store.References) manifest {
+	return manifest{
+		metadata:  meta,
+		refs:      refs,
+		owners:    newOwners(),
+		referrers: make(map[digest.Digest]any),
+	}
 }
 
 func newOwners() owners {

@@ -25,8 +25,14 @@ type MetadataSuite struct {
 	SkipBlob          bool // blob management
 	SkipListBlobs     bool // listing blobs across repositories
 	SkipManifest      bool // manifest management
-	SkipListManifests bool // listing blobs across repositories, including manifests
+	SkipListManifests bool // listing blobs across repositories, including manifest blobs
+	SkipReferrers     bool // tracking and retrieving referrers
+	SkipTags          bool // tag management and listing
+	SkipGC            bool // garbage collection of complex objects
 }
+
+// TODO: Add case to check that deleting a repository releases
+// all blob ownership claims of that repository.
 
 func (s *MetadataSuite) RepositoryConstructor(t *testing.T) store.Repository {
 	meta := s.Constructor()
@@ -586,6 +592,96 @@ func (s *MetadataSuite) TestListManifests() {
 		digests := slices.Collect(meta.Blobs())
 		AssertEqual(t, len(digests), 1).Require()
 		AssertEqual(t, digests[0], digest)
+	})
+}
+
+func (s *MetadataSuite) TestListReferrers() {
+	if s.SkipReferrers {
+		s.T().Skip()
+	}
+
+	s.T().Run("returns referrers for subject manifest", func(t *testing.T) {
+		repo := s.RepositoryConstructor(t)
+		subjectDigest := RandomDigest()
+		referrerDigests := make([]digest.Digest, 5)
+		for i := range referrerDigests {
+			referrerDigests[i] = RandomDigest()
+		}
+
+		err := repo.PutManifest(subjectDigest, store.Manifest{}, store.References{})
+		AssertNoError(t, err)
+
+		for _, referrerDigest := range referrerDigests {
+			err := repo.PutManifest(referrerDigest, store.Manifest{}, store.References{
+				Subject: subjectDigest,
+			})
+			AssertNoError(t, err)
+		}
+
+		got, err := repo.ListReferrers(subjectDigest)
+		slices.Sort(got)
+		slices.Sort(referrerDigests)
+		AssertSlicesEqual(t, got, referrerDigests)
+	})
+
+	s.T().Run("does not return deleted referrers", func(t *testing.T) {
+		repo := s.RepositoryConstructor(t)
+		referrerDigestA, referrerDigestB := RandomDigest(), RandomDigest()
+		subjectDigest := RandomDigest()
+
+		err := repo.PutManifest(subjectDigest, store.Manifest{}, store.References{})
+		AssertNoError(t, err)
+
+		err = repo.PutManifest(referrerDigestA, store.Manifest{}, store.References{
+			Subject: subjectDigest,
+		})
+		AssertNoError(t, err)
+
+		err = repo.PutManifest(referrerDigestB, store.Manifest{}, store.References{
+			Subject: subjectDigest,
+		})
+		AssertNoError(t, err)
+
+		_, err = repo.DeleteManifest(referrerDigestB)
+		AssertNoError(t, err)
+
+		referrers, err := repo.ListReferrers(subjectDigest)
+		AssertNoError(t, err)
+
+		AssertEqual(t, len(referrers), 1).Require()
+		AssertEqual(t, referrers[0], referrerDigestA)
+	})
+
+	s.T().Run("deletes referrers when subject is deleted", func(t *testing.T) {
+		repo := s.RepositoryConstructor(t)
+		subjectDigest, referrerDigest := RandomDigest(), RandomDigest()
+		digests := []digest.Digest{subjectDigest, referrerDigest}
+		slices.Sort(digests)
+
+		err := repo.PutManifest(subjectDigest, store.Manifest{}, store.References{})
+		AssertNoError(t, err)
+		err = repo.PutManifest(referrerDigest, store.Manifest{}, store.References{
+			Subject: subjectDigest,
+		})
+		AssertNoError(t, err)
+
+		deleted, err := repo.DeleteManifest(subjectDigest)
+		AssertNoError(t, err)
+		slices.Sort(deleted)
+		AssertSlicesEqual(t, deleted, digests)
+
+		_, err = repo.GetManifest(referrerDigest)
+		AssertErrorIs(t, err, store.ErrManifestNotFound)
+	})
+
+	s.T().Run("rejects manifest with unknown subject with ErrManifestSubjectNotFound", func(t *testing.T) {
+		repo := s.RepositoryConstructor(t)
+		digest := RandomDigest()
+
+		err := repo.PutManifest(digest, store.Manifest{}, store.References{
+			Subject: RandomDigest(),
+		})
+		AssertErrorIs(t, err, store.ErrManifestInvalid, store.ErrManifestSubjectNotFound)
 	})
 }
 
