@@ -1,6 +1,7 @@
 package suite
 
 import (
+	"bytes"
 	"slices"
 	"testing"
 	"time"
@@ -22,16 +23,17 @@ type MetadataSuite struct {
 	// When implementing a new Metadata driver,
 	// it is recommended to pass the tests from top to bottom.
 
-	SkipRepository     bool // repository management
-	SkipBlob           bool // blob management
-	SkipListBlobs      bool // listing blobs across repositories
-	SkipManifest       bool // manifest management
-	SkipListManifests  bool // listing blobs across repositories, including manifest blobs
-	SkipReferrers      bool // tracking and retrieving referrers
-	SkipTags           bool // tag management and listing
-	SkipListTags       bool // listing tags
-	SkipUploadSessions bool // upload session management
-	SkipRecursiveGC    bool // garbage collection of complex objects
+	SkipRepository      bool // repository management
+	SkipBlob            bool // blob management
+	SkipListBlobs       bool // listing blobs across repositories
+	SkipManifest        bool // manifest management
+	SkipListManifests   bool // listing blobs across repositories, including manifest blobs
+	SkipReferrers       bool // tracking and retrieving referrers
+	SkipTags            bool // tag management and listing
+	SkipListTags        bool // listing tags
+	SkipUploadSessions  bool // upload session management
+	SkipRecursiveGC     bool // garbage collection of complex objects
+	SkipSnapshotRestore bool // snapshotting and restoring
 }
 
 // TODO: Add case to check that deleting a repository releases
@@ -948,59 +950,67 @@ func (s *MetadataSuite) TestUploadSessions() {
 	})
 }
 
-// func (s *MetadataSuite) TestSnapshotRestore() {
-// 	s.T().Run("snapshot and restore into another MetadataStore", func(t *testing.T) {
-// 		// The store that we're taking a snapshot from.
-// 		snapshotStore := s.Constructor()
-// 		// The store that we're restoring into.
-// 		restoreStore := s.Constructor()
+func (s *MetadataSuite) TestSnapshotRestore() {
+	if s.SkipSnapshotRestore {
+		s.T().Skip()
+	}
 
-// 		name, digest := RandomName(), RandomDigest()
+	name, digest := RandomName(), RandomDigest()
 
-// 		err := snapshotStore.CreateRepository(name)
-// 		AssertNoError(t, err).Require()
+	s.T().Run("snapshot and restore into another MetadataStore", func(t *testing.T) {
+		// The store that we're taking a snapshot from.
+		snapshotStore := s.Constructor()
+		// The store that we're restoring into.
+		restoreStore := s.Constructor()
 
-// 		err = snapshotStore.PutBlob(name, digest)
-// 		AssertNoError(t, err).Require()
+		repo, err := snapshotStore.CreateRepository(name)
+		AssertNoError(t, err).Require()
 
-// 		snapshot := new(bytes.Buffer)
-// 		err = snapshotStore.Snapshot(snapshot)
-// 		AssertNoError(t, err).Require()
+		err = repo.PutBlob(digest)
+		AssertNoError(t, err).Require()
 
-// 		err = restoreStore.Restore(snapshot)
-// 		AssertNoError(t, err).Require()
+		snapshot := new(bytes.Buffer)
+		err = snapshotStore.Snapshot(snapshot)
+		AssertNoError(t, err).Require()
 
-// 		_, err = restoreStore.GetBlob(name, digest)
-// 		AssertNoError(t, err).Require()
-// 	})
+		err = restoreStore.Restore(snapshot)
+		AssertNoError(t, err).Require()
 
-// 	s.T().Run("snapshot and restore in-place", func(t *testing.T) {
-// 		ms := s.Constructor()
-// 		snapshot := new(bytes.Buffer)
+		repo, err = restoreStore.GetRepository(name)
+		AssertNoError(t, err).Require()
 
-// 		name, digest := RandomName(), RandomDigest()
+		err = repo.GetBlob(digest)
+		AssertNoError(t, err).Require()
+	})
 
-// 		err := ms.CreateRepository(name)
-// 		AssertNoError(t, err).Require()
-// 		err = ms.PutBlob(name, digest)
-// 		AssertNoError(t, err).Require()
+	s.T().Run("snapshot and restore in-place", func(t *testing.T) {
+		meta := s.Constructor()
+		snapshot := new(bytes.Buffer)
 
-// 		_, err = ms.GetBlob(name, digest)
-// 		AssertNoError(t, err).Require()
+		repo, err := meta.CreateRepository(name)
+		AssertNoError(t, err).Require()
+		err = repo.PutBlob(digest)
+		AssertNoError(t, err).Require()
 
-// 		err = ms.Snapshot(snapshot)
-// 		AssertNoError(t, err).Require()
+		err = repo.GetBlob(digest)
+		AssertNoError(t, err).Require()
 
-// 		err = ms.DeleteBlob(name, digest)
-// 		AssertNoError(t, err).Require()
+		err = meta.Snapshot(snapshot)
+		AssertNoError(t, err).Require()
 
-// 		_, err = ms.GetBlob(name, digest)
-// 		AssertErrorIs(t, err, store.ErrNotFound)
+		err = repo.DeleteBlob(digest)
+		AssertNoError(t, err).Require()
 
-// 		err = ms.Restore(snapshot)
-// 		AssertNoError(t, err).Require()
+		err = repo.GetBlob(digest)
+		AssertErrorIs(t, err, store.ErrRepositoryBlobNotFound)
 
-// 		_, err = ms.GetBlob(name, digest)
-// 		AssertNoError(t, err).Require()
-// 	})
-// }
+		err = meta.Restore(snapshot)
+		AssertNoError(t, err).Require()
+
+		repo, err = meta.GetRepository(name)
+		AssertNoError(t, err).Require()
+
+		err = repo.GetBlob(digest)
+		AssertNoError(t, err).Require()
+	})
+}
