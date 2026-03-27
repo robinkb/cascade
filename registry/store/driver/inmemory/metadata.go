@@ -1,4 +1,4 @@
-package inmemory2
+package inmemory
 
 import (
 	"fmt"
@@ -6,6 +6,7 @@ import (
 	"maps"
 	"slices"
 
+	"github.com/gofrs/uuid/v5"
 	"github.com/opencontainers/go-digest"
 	"github.com/robinkb/cascade/registry/store"
 )
@@ -40,6 +41,7 @@ type (
 		blobs     map[digest.Digest]owners
 		manifests map[digest.Digest]manifest
 		tags      map[string]digest.Digest
+		sessions  map[uuid.UUID]*store.UploadSession
 	}
 
 	manifest struct {
@@ -60,6 +62,7 @@ func (m *metadataStore) CreateRepository(name string) (store.Repository, error) 
 		blobs:     make(map[digest.Digest]owners),
 		manifests: make(map[digest.Digest]manifest),
 		tags:      make(map[string]digest.Digest),
+		sessions:  make(map[uuid.UUID]*store.UploadSession),
 	}
 	m.repositories[name] = repo
 	return newRepository(name, m.blobs, repo), nil
@@ -99,8 +102,6 @@ func newRepository(name string, blobs *blobs, repo *repository) store.Repository
 }
 
 type repositoryStore struct {
-	store.Repository
-
 	name  string
 	blobs *blobs
 	repo  *repository
@@ -308,6 +309,27 @@ func (r *repositoryStore) DeleteTag(tag string) ([]digest.Digest, error) {
 
 	delete(r.repo.tags, tag)
 	return deleted, nil
+}
+
+func (r *repositoryStore) GetUploadSession(id uuid.UUID) (*store.UploadSession, error) {
+	session, ok := r.repo.sessions[id]
+	if !ok {
+		return nil, fmt.Errorf("%w: %s", store.ErrUploadNotFound, id)
+	}
+	return session, nil
+}
+
+func (r *repositoryStore) PutUploadSession(session *store.UploadSession) error {
+	r.repo.sessions[session.ID] = session
+	return nil
+}
+
+func (r *repositoryStore) DeleteUploadSession(id uuid.UUID) error {
+	if _, ok := r.repo.sessions[id]; !ok {
+		return fmt.Errorf("%w: %s", store.ErrUploadNotFound, id)
+	}
+	delete(r.repo.sessions, id)
+	return nil
 }
 
 func newManifest(meta store.Manifest, refs store.References) manifest {

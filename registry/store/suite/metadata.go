@@ -3,6 +3,7 @@ package suite
 import (
 	"slices"
 	"testing"
+	"time"
 
 	"github.com/opencontainers/go-digest"
 	"github.com/robinkb/cascade/registry/store"
@@ -896,6 +897,55 @@ func (s *MetadataSuite) TestListTags() {
 			AssertSlicesEqual(t, got, tt.want)
 		})
 	}
+}
+
+func (s *MetadataSuite) TestUploadSessions() {
+	if s.SkipUploadSessions {
+		s.T().Skip()
+	}
+
+	session := &store.UploadSession{
+		ID:        RandomUUID(),
+		StartDate: time.Now(),
+		HashState: RandomBytes(8),
+	}
+
+	s.T().Run("creates new session", func(t *testing.T) {
+		repo := s.RepositoryConstructor(t)
+
+		_, err := repo.GetUploadSession(session.ID)
+		AssertErrorIs(t, err, store.ErrUploadNotFound)
+
+		err = repo.PutUploadSession(session)
+		AssertNoError(t, err)
+
+		got, err := repo.GetUploadSession(session.ID)
+		AssertNoError(t, err)
+		AssertDeepEqual(t, got, session)
+	})
+
+	s.T().Run("deletes an existing session", func(t *testing.T) {
+		repo := s.RepositoryConstructor(t)
+
+		err := repo.PutUploadSession(session)
+		AssertNoError(t, err)
+
+		_, err = repo.GetUploadSession(session.ID)
+		AssertNoError(t, err)
+
+		err = repo.DeleteUploadSession(session.ID)
+		AssertNoError(t, err)
+
+		_, err = repo.GetUploadSession(session.ID)
+		AssertErrorIs(t, err, store.ErrUploadNotFound)
+	})
+
+	s.T().Run("deleting unknown session returns ErrUploadNotFound", func(t *testing.T) {
+		repo := s.RepositoryConstructor(t)
+
+		err := repo.DeleteUploadSession(RandomUUID())
+		AssertErrorIs(t, err, store.ErrUploadNotFound)
+	})
 }
 
 // func (s *MetadataSuite) TestSnapshotRestore() {

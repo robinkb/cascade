@@ -1,4 +1,4 @@
-package inmemory2
+package inmemory
 
 import (
 	"testing"

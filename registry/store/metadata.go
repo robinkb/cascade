@@ -16,6 +16,7 @@ var (
 	ErrRepositoryBlobNotFound = errors.New("blob not found in repository")
 	ErrManifestNotFound       = errors.New("manifest not found")
 	ErrTagNotFound            = errors.New("tag not found")
+	ErrUploadNotFound         = errors.New("upload session not found")
 
 	ErrManifestInvalid         = errors.New("manifest invalid") // usually paired with more detailed errors below
 	ErrManifestConfigNotFound  = errors.New("blob referenced in manifest config descriptor not found")
@@ -46,13 +47,7 @@ type (
 		Restore(r io.Reader) error
 	}
 
-	// TODO: DeleteManifest and DeleteTag should probably return a []digest.Digest
-	// indicating which blobs were deleted from the store due to garbage collection.
-	// The business layer is then responsible for actually deleting them from the blob store.
-	// Any errors in doing so should only be logged as internal errors; the client
-	// should not be bothered with it. All they need to know is if the manifest or tag got deleted.
 	Repository interface {
-		ListBlobs() ([]digest.Digest, error)
 		GetBlob(digest digest.Digest) error
 		PutBlob(digest digest.Digest) error
 		DeleteBlob(digest digest.Digest) error
@@ -68,9 +63,9 @@ type (
 		PutTag(tag string, digest digest.Digest) error
 		DeleteTag(tag string) ([]digest.Digest, error)
 
-		GetUploadSession(id string) (*UploadSession, error)
+		GetUploadSession(id uuid.UUID) (*UploadSession, error)
 		PutUploadSession(session *UploadSession) error
-		DeleteUploadSession(id string) error
+		DeleteUploadSession(id uuid.UUID) error
 	}
 
 	// Manifest represents the metadata of a manifest that is stored in the MetadataStore.
@@ -83,10 +78,6 @@ type (
 
 	// References defines the various ways in which a manifest can point to other objects in the registry.
 	// These are mostly used to establish links between objects for garbage collection.
-	// TODO: According to the OCI Distribution spec, manifest uploads MAY be rejected if any of the referenced
-	// blobs or manifests do not exist in the registry. Doing so would allow greater guarantees of
-	// no stale references existing in the metadata store, and may eliminate the need of having an additional
-	// mechanism to verify that there are no stale references.
 	References struct {
 		// Config references a configuration object for a container like in an OCI Image Manifest.
 		// It is used for tracking links from image manifests to a blob for garbage collection.
