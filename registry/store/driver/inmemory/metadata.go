@@ -39,6 +39,7 @@ type (
 	repository struct {
 		blobs     map[digest.Digest]owners
 		manifests map[digest.Digest]manifest
+		tags      map[string]digest.Digest
 	}
 
 	manifest struct {
@@ -46,6 +47,7 @@ type (
 		metadata  store.Manifest
 		refs      store.References
 		referrers map[digest.Digest]any
+		tags      map[string]any
 	}
 )
 
@@ -57,6 +59,7 @@ func (m *metadataStore) CreateRepository(name string) (store.Repository, error) 
 	repo := &repository{
 		blobs:     make(map[digest.Digest]owners),
 		manifests: make(map[digest.Digest]manifest),
+		tags:      make(map[string]digest.Digest),
 	}
 	m.repositories[name] = repo
 	return newRepository(name, m.blobs, repo), nil
@@ -193,7 +196,7 @@ func (r *repositoryStore) DeleteManifest(id digest.Digest) ([]digest.Digest, err
 		return nil, store.ErrManifestNotFound
 	}
 
-	if len(manifest.manifests) != 0 {
+	if len(manifest.manifests) != 0 || len(manifest.tags) != 0 {
 		return nil, fmt.Errorf("%w: %s", store.ErrManifestInUse, id)
 	}
 
@@ -255,15 +258,35 @@ func (r *repositoryStore) ListTags(count int, last string) ([]string, error) {
 }
 
 func (r *repositoryStore) GetTag(tag string) (digest.Digest, error) {
-	return "", nil
+	digest, ok := r.repo.tags[tag]
+	if !ok {
+		return "", fmt.Errorf("%w: %s", store.ErrTagNotFound, tag)
+	}
+	return digest, nil
 }
 
 func (r *repositoryStore) PutTag(tag string, digest digest.Digest) error {
+	manifest, ok := r.repo.manifests[digest]
+	if !ok {
+		return fmt.Errorf("%w: %s", store.ErrManifestNotFound, digest)
+	}
+	manifest.tags[tag] = nil
+	r.repo.tags[tag] = digest
 	return nil
 }
 
 func (r *repositoryStore) DeleteTag(tag string) ([]digest.Digest, error) {
-	return nil, nil
+	if _, ok := r.repo.tags[tag]; !ok {
+		return nil, fmt.Errorf("%w: %s", store.ErrTagNotFound, tag)
+	}
+
+	deleted := make([]digest.Digest, 0)
+	digest := r.repo.tags[tag]
+	delete(r.repo.manifests, digest)
+	deleted = append(deleted, digest)
+
+	delete(r.repo.tags, tag)
+	return deleted, nil
 }
 
 func newManifest(meta store.Manifest, refs store.References) manifest {
@@ -272,6 +295,7 @@ func newManifest(meta store.Manifest, refs store.References) manifest {
 		refs:      refs,
 		owners:    newOwners(),
 		referrers: make(map[digest.Digest]any),
+		tags:      make(map[string]any),
 	}
 }
 

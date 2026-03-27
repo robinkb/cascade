@@ -731,9 +731,91 @@ func (s *MetadataSuite) TestReferrers() {
 }
 
 func (s *MetadataSuite) TestTags() {
-	// cannot delete a tagged manifest
-	s.T().Run("", func(t *testing.T) {
+	s.T().Run("tags a manifest digest", func(t *testing.T) {
+		repo := s.RepositoryConstructor(t)
+		digest, tag := RandomDigest(), RandomVersion()
 
+		err := repo.PutManifest(digest, store.Manifest{}, store.References{})
+		AssertNoError(t, err)
+
+		err = repo.PutTag(tag, digest)
+		AssertNoError(t, err)
+
+		got, err := repo.GetTag(tag)
+		AssertNoError(t, err)
+		AssertEqual(t, got, digest)
+	})
+
+	s.T().Run("deletes an existing tag", func(t *testing.T) {
+		repo := s.RepositoryConstructor(t)
+		digest, tag := RandomDigest(), RandomVersion()
+
+		err := repo.PutManifest(digest, store.Manifest{}, store.References{})
+		AssertNoError(t, err)
+		err = repo.PutTag(tag, digest)
+		AssertNoError(t, err)
+
+		_, err = repo.DeleteTag(tag)
+		AssertNoError(t, err)
+
+		_, err = repo.GetTag(tag)
+		AssertErrorIs(t, err, store.ErrTagNotFound)
+	})
+
+	s.T().Run("deletes the tag's associated manifest", func(t *testing.T) {
+		repo := s.RepositoryConstructor(t)
+		digest, tag := RandomDigest(), RandomVersion()
+
+		err := repo.PutManifest(digest, store.Manifest{}, store.References{})
+		AssertNoError(t, err)
+		err = repo.PutTag(tag, digest)
+		AssertNoError(t, err)
+
+		deleted, err := repo.DeleteTag(tag)
+		AssertNoError(t, err)
+		AssertEqual(t, len(deleted), 1).Require()
+		AssertEqual(t, deleted[0], digest)
+
+		_, err = repo.GetManifest(digest)
+		AssertErrorIs(t, err, store.ErrManifestNotFound)
+	})
+
+	s.T().Run("deleting tagged manifest returns ErrManifestInUse", func(t *testing.T) {
+		repo := s.RepositoryConstructor(t)
+		digest, tag := RandomDigest(), RandomVersion()
+
+		err := repo.PutManifest(digest, store.Manifest{}, store.References{})
+		AssertNoError(t, err)
+		err = repo.PutTag(tag, digest)
+		AssertNoError(t, err)
+
+		_, err = repo.DeleteManifest(digest)
+		AssertErrorIs(t, err, store.ErrManifestInUse)
+	})
+
+	s.T().Run("deleting unknown tag returns ErrTagNotFound", func(t *testing.T) {
+		repo := s.RepositoryConstructor(t)
+
+		_, err := repo.DeleteTag(RandomVersion())
+		AssertErrorIs(t, err, store.ErrTagNotFound)
+	})
+
+	s.T().Run("tagging unknown manifest returns ErrManifestNotFound", func(t *testing.T) {
+		repo := s.RepositoryConstructor(t)
+
+		err := repo.PutTag(RandomVersion(), RandomDigest())
+		AssertErrorIs(t, err, store.ErrManifestNotFound)
+	})
+
+	s.T().Run("tagging blob returns ErrManifestNotFound", func(t *testing.T) {
+		repo := s.RepositoryConstructor(t)
+		digest := RandomDigest()
+
+		err := repo.PutBlob(digest)
+		AssertNoError(t, err)
+
+		err = repo.PutTag(RandomVersion(), digest)
+		AssertErrorIs(t, err, store.ErrManifestNotFound)
 	})
 }
 
