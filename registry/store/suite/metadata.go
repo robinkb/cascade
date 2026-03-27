@@ -28,6 +28,7 @@ type MetadataSuite struct {
 	SkipListManifests  bool // listing blobs across repositories, including manifest blobs
 	SkipReferrers      bool // tracking and retrieving referrers
 	SkipTags           bool // tag management and listing
+	SkipListTags       bool // listing tags
 	SkipUploadSessions bool // upload session management
 	SkipRecursiveGC    bool // garbage collection of complex objects
 }
@@ -817,6 +818,84 @@ func (s *MetadataSuite) TestTags() {
 		err = repo.PutTag(RandomVersion(), digest)
 		AssertErrorIs(t, err, store.ErrManifestNotFound)
 	})
+}
+
+func (s *MetadataSuite) TestListTags() {
+	if s.SkipTags {
+		s.T().Skip()
+	}
+
+	tc := []struct {
+		name  string
+		tags  []string
+		count int
+		last  string
+		want  []string
+	}{
+		{
+			name:  "returns all tags in lexical order",
+			count: -1,
+			last:  "",
+			tags:  []string{"v4.13.59", "v2.5.51", "v0.7.56", "v2.4.7", "v1.1.29"},
+			want:  []string{"v0.7.56", "v1.1.29", "v2.4.7", "v2.5.51", "v4.13.59"},
+		},
+		{
+			name:  "returns number of tags equal to count param",
+			count: 5,
+			last:  "",
+			tags:  []string{"v4.12.3", "v4.7.34", "v1.19.31", "v4.17.50", "v0.15.21", "v0.6.40", "v0.9.27", "v0.8.23", "v4.18.33", "v4.12.17"},
+			want:  []string{"v0.15.21", "v0.6.40", "v0.8.23", "v0.9.27", "v1.19.31"},
+		},
+		{
+			name:  "returns empty list when count param is 0",
+			count: 0,
+			last:  "",
+			tags:  RandomTags(20),
+			want:  []string{},
+		},
+		{
+			name:  "returns all tags when count param is greater than number of tags",
+			count: 20,
+			last:  "",
+			tags:  []string{"v3.2.52", "v0.15.35", "v3.0.6", "v0.3.29", "v0.4.0", "v1.11.51", "v0.3.24", "v1.3.53", "v2.5.23", "v1.6.5"},
+			want:  []string{"v0.15.35", "v0.3.24", "v0.3.29", "v0.4.0", "v1.11.51", "v1.3.53", "v1.6.5", "v2.5.23", "v3.0.6", "v3.2.52"},
+		},
+		{
+			name:  "only returns tags after tag given as last",
+			count: 3,
+			last:  "v1.16.1",
+			tags:  []string{"v1.3.23", "v3.2.16", "v0.5.48", "v2.9.44", "v1.11.7", "v3.4.47", "v2.11.38", "v3.5.40", "v0.2.2", "v1.16.1"},
+			want:  []string{"v1.3.23", "v2.11.38", "v2.9.44"},
+		},
+		{
+			name:  "count may be set to -1 to return all tags after last tag",
+			count: -1,
+			last:  "v0.10.41",
+			tags:  []string{"v2.18.20", "v0.10.41", "v3.5.0", "v2.7.21", "v3.18.41", "v4.2.21", "v3.15.9", "v3.8.18", "v0.12.27", "v0.1.11"},
+			want:  []string{"v0.12.27", "v2.18.20", "v2.7.21", "v3.15.9", "v3.18.41", "v3.5.0", "v3.8.18", "v4.2.21"},
+		},
+	}
+
+	for _, tt := range tc {
+		s.T().Run(tt.name, func(t *testing.T) {
+			repo := s.RepositoryConstructor(t)
+			digest := RandomDigest()
+
+			err := repo.PutManifest(digest, store.Manifest{}, store.References{})
+			AssertNoError(t, err).Require()
+
+			for _, tag := range tt.tags {
+				err := repo.PutTag(tag, digest)
+				AssertNoError(t, err).Require()
+			}
+
+			slices.Sort(tt.tags)
+
+			got, err := repo.ListTags(tt.count, tt.last)
+			AssertNoError(t, err)
+			AssertSlicesEqual(t, got, tt.want)
+		})
+	}
 }
 
 // func (s *MetadataSuite) TestSnapshotRestore() {

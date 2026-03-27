@@ -254,7 +254,28 @@ func (r *repositoryStore) ListReferrers(subject digest.Digest) ([]digest.Digest,
 }
 
 func (r *repositoryStore) ListTags(count int, last string) ([]string, error) {
-	return nil, nil
+	tags := slices.Collect(maps.Keys(r.repo.tags))
+	slices.Sort(tags)
+
+	if count == -1 || count > len(tags) {
+		count = len(tags)
+	}
+
+	start := 0
+	if last != "" {
+		for _, tag := range tags {
+			start++
+			if tag == last {
+				break
+			}
+		}
+	}
+
+	if start+count > len(tags) {
+		count -= start
+	}
+
+	return tags[start : start+count], nil
 }
 
 func (r *repositoryStore) GetTag(tag string) (digest.Digest, error) {
