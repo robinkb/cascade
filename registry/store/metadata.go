@@ -17,6 +17,8 @@ var (
 
 	ErrManifestNotFound = errors.New("manifest not found")
 
+	ErrBlobInUse               = errors.New("blob cannot be deleted because it is in use")
+	ErrManifestInUse           = errors.New("manifest cannot be deleted because it is in use")
 	ErrManifestInvalid         = errors.New("manifest invalid") // usually paired with more detailed errors below
 	ErrManifestConfigNotFound  = errors.New("blob referenced in manifest config descriptor not found")
 	ErrManifestLayerNotFound   = errors.New("blob referenced in manifest layers not found")

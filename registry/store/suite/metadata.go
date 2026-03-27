@@ -21,14 +21,15 @@ type MetadataSuite struct {
 	// When implementing a new Metadata driver,
 	// it is recommended to pass the tests from top to bottom.
 
-	SkipRepository    bool // repository management
-	SkipBlob          bool // blob management
-	SkipListBlobs     bool // listing blobs across repositories
-	SkipManifest      bool // manifest management
-	SkipListManifests bool // listing blobs across repositories, including manifest blobs
-	SkipReferrers     bool // tracking and retrieving referrers
-	SkipTags          bool // tag management and listing
-	SkipGC            bool // garbage collection of complex objects
+	SkipRepository     bool // repository management
+	SkipBlob           bool // blob management
+	SkipListBlobs      bool // listing blobs across repositories
+	SkipManifest       bool // manifest management
+	SkipListManifests  bool // listing blobs across repositories, including manifest blobs
+	SkipReferrers      bool // tracking and retrieving referrers
+	SkipTags           bool // tag management and listing
+	SkipUploadSessions bool // upload session management
+	SkipRecursiveGC    bool // garbage collection of complex objects
 }
 
 // TODO: Add case to check that deleting a repository releases
@@ -369,6 +370,21 @@ func (s *MetadataSuite) TestManifests() {
 		AssertErrorIs(t, err, store.ErrManifestInvalid, store.ErrManifestConfigNotFound)
 	})
 
+	s.T().Run("cannot delete an owned config blob", func(t *testing.T) {
+		repo := s.RepositoryConstructor(t)
+		manifestDigest, configDigest := RandomDigest(), RandomDigest()
+
+		err := repo.PutBlob(configDigest)
+		AssertNoError(t, err)
+		err = repo.PutManifest(manifestDigest, store.Manifest{}, store.References{
+			Config: configDigest,
+		})
+		AssertNoError(t, err)
+
+		err = repo.DeleteBlob(configDigest)
+		AssertErrorIs(t, err, store.ErrBlobInUse)
+	})
+
 	s.T().Run("deletes referenced layers when deleting manifest", func(t *testing.T) {
 		repo := s.RepositoryConstructor(t)
 		manifestDigest := RandomDigest()
@@ -435,6 +451,20 @@ func (s *MetadataSuite) TestManifests() {
 
 		err = repo.GetBlob(layerDigest)
 		AssertErrorIs(t, err, store.ErrRepositoryBlobNotFound)
+	})
+
+	s.T().Run("deleting referenced layer blob returns ErrBlobInUse", func(t *testing.T) {
+		repo := s.RepositoryConstructor(t)
+		manifestDigest, layerDigest := RandomDigest(), RandomDigest()
+
+		err := repo.PutBlob(layerDigest)
+		AssertNoError(t, err)
+		err = repo.PutManifest(manifestDigest, store.Manifest{}, store.References{
+			Layers: []digest.Digest{layerDigest},
+		})
+
+		err = repo.DeleteBlob(layerDigest)
+		AssertErrorIs(t, err, store.ErrBlobInUse)
 	})
 
 	s.T().Run("creating manifest referencing unknown layer blob returns ErrManifestLayerNotFound", func(t *testing.T) {
@@ -507,6 +537,21 @@ func (s *MetadataSuite) TestManifests() {
 		AssertNoError(t, err)
 		slices.Sort(deleted)
 		AssertSlicesEqual(t, deleted, digests)
+	})
+
+	s.T().Run("deleting manifest referenced in index returns ErrManifestInUse", func(t *testing.T) {
+		repo := s.RepositoryConstructor(t)
+		indexDigest, imageDigest := RandomDigest(), RandomDigest()
+
+		err := repo.PutManifest(imageDigest, store.Manifest{}, store.References{})
+		AssertNoError(t, err)
+		err = repo.PutManifest(indexDigest, store.Manifest{}, store.References{
+			Manifests: []digest.Digest{imageDigest},
+		})
+		AssertNoError(t, err)
+
+		_, err = repo.DeleteManifest(imageDigest)
+		AssertErrorIs(t, err, store.ErrManifestInUse)
 	})
 
 	s.T().Run("creating index referencing unknown manifest returns ErrManifestImageNotFound", func(t *testing.T) {
@@ -595,7 +640,7 @@ func (s *MetadataSuite) TestListManifests() {
 	})
 }
 
-func (s *MetadataSuite) TestListReferrers() {
+func (s *MetadataSuite) TestReferrers() {
 	if s.SkipReferrers {
 		s.T().Skip()
 	}
@@ -682,6 +727,13 @@ func (s *MetadataSuite) TestListReferrers() {
 			Subject: RandomDigest(),
 		})
 		AssertErrorIs(t, err, store.ErrManifestInvalid, store.ErrManifestSubjectNotFound)
+	})
+}
+
+func (s *MetadataSuite) TestTags() {
+	// cannot delete a tagged manifest
+	s.T().Run("", func(t *testing.T) {
+
 	})
 }
 
