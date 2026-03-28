@@ -47,7 +47,7 @@ func (h *Handler) checkUploadHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	info, err := repo.StatUpload(name, reference)
+	info, err := repo.StatUpload(reference)
 	if err != nil {
 		errorHandler(w, r, err)
 		return
@@ -89,7 +89,7 @@ func (h *Handler) chunkedUploadHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := repo.AppendUpload(name, reference, bytes.NewBuffer(content), givenStart); err != nil {
+	if err := repo.AppendUpload(reference, bytes.NewBuffer(content), givenStart); err != nil {
 		errorHandler(w, r, err)
 		return
 	}
@@ -110,7 +110,7 @@ func (h *Handler) streamedUploadHandler(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	if err := repo.AppendUpload(name, reference, r.Body, 0); err != nil {
+	if err := repo.AppendUpload(reference, r.Body, 0); err != nil {
 		errorHandler(w, r, err)
 		return
 	}
@@ -158,7 +158,7 @@ func (h *Handler) closeUploadHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		err = repo.AppendUpload(name, reference, bytes.NewBuffer(content), offset)
+		err = repo.AppendUpload(reference, bytes.NewBuffer(content), offset)
 		if err != nil {
 			errorHandler(w, r, err)
 			return
@@ -171,7 +171,7 @@ func (h *Handler) closeUploadHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err = repo.CloseUpload(name, reference, digest)
+	err = repo.CloseUpload(reference, digest)
 	if err != nil {
 		errorHandler(w, r, err)
 		return

@@ -41,7 +41,7 @@ func (h *Handler) listTagsHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	tags, err := repo.ListTags(name, count, last)
+	tags, err := repo.ListTags(count, last)
 	if err != nil {
 		errorHandler(w, r, err)
 		return

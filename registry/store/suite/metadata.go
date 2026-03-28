@@ -116,7 +116,7 @@ func (s *MetadataSuite) TestBlobs() {
 		digest := RandomDigest()
 
 		err := repo.GetBlob(digest)
-		AssertErrorIs(t, err, store.ErrRepositoryBlobNotFound)
+		AssertErrorIs(t, err, store.ErrBlobNotFound)
 
 		err = repo.PutBlob(digest)
 		AssertNoError(t, err)
@@ -139,7 +139,7 @@ func (s *MetadataSuite) TestBlobs() {
 		AssertNoError(t, err)
 
 		err = repo.GetBlob(digest)
-		AssertErrorIs(t, err, store.ErrRepositoryBlobNotFound)
+		AssertErrorIs(t, err, store.ErrBlobNotFound)
 	})
 
 	s.T().Run("deleting unknown blob returns ErrRepositoryBlobNotFound", func(t *testing.T) {
@@ -147,7 +147,7 @@ func (s *MetadataSuite) TestBlobs() {
 		digest := RandomDigest()
 
 		err := repo.DeleteBlob(digest)
-		AssertErrorIs(t, err, store.ErrRepositoryBlobNotFound)
+		AssertErrorIs(t, err, store.ErrBlobNotFound)
 	})
 }
 
@@ -295,7 +295,7 @@ func (s *MetadataSuite) TestManifests() {
 		digest := RandomDigest()
 
 		err := repo.GetBlob(digest)
-		AssertErrorIs(t, err, store.ErrRepositoryBlobNotFound)
+		AssertErrorIs(t, err, store.ErrBlobNotFound)
 
 		err = repo.PutManifest(digest, store.Manifest{}, store.References{})
 		AssertNoError(t, err)
@@ -337,7 +337,7 @@ func (s *MetadataSuite) TestManifests() {
 		AssertNoError(t, err)
 
 		err = repo.GetBlob(digest)
-		AssertErrorIs(t, err, store.ErrRepositoryBlobNotFound)
+		AssertErrorIs(t, err, store.ErrBlobNotFound)
 	})
 
 	s.T().Run("deleting unknown manifest returns ErrManifestNotFound", func(t *testing.T) {
@@ -370,7 +370,7 @@ func (s *MetadataSuite) TestManifests() {
 		AssertSlicesEqual(t, deleted, digests)
 
 		err = repo.GetBlob(configDigest)
-		AssertErrorIs(t, err, store.ErrRepositoryBlobNotFound)
+		AssertErrorIs(t, err, store.ErrBlobNotFound)
 	})
 
 	// This case does not happen under normal circumstances; a config blob is unique to each manifest.
@@ -455,7 +455,7 @@ func (s *MetadataSuite) TestManifests() {
 
 		for _, digest := range layerDigests {
 			err = repo.GetBlob(digest)
-			AssertErrorIs(t, err, store.ErrRepositoryBlobNotFound)
+			AssertErrorIs(t, err, store.ErrBlobNotFound)
 		}
 	})
 
@@ -494,7 +494,7 @@ func (s *MetadataSuite) TestManifests() {
 		AssertSlicesEqual(t, deleted, wantDeleted)
 
 		err = repo.GetBlob(layerDigest)
-		AssertErrorIs(t, err, store.ErrRepositoryBlobNotFound)
+		AssertErrorIs(t, err, store.ErrBlobNotFound)
 	})
 
 	s.T().Run("deleting referenced layer blob returns ErrBlobInUse", func(t *testing.T) {
@@ -548,7 +548,7 @@ func (s *MetadataSuite) TestManifests() {
 			_, err = repo.GetManifest(digest)
 			AssertErrorIs(t, err, store.ErrManifestNotFound)
 			err = repo.GetBlob(digest)
-			AssertErrorIs(t, err, store.ErrRepositoryBlobNotFound)
+			AssertErrorIs(t, err, store.ErrBlobNotFound)
 		}
 	})
 
@@ -1098,7 +1098,7 @@ func (s *MetadataSuite) TestSnapshotRestore() {
 		AssertNoError(t, err).Require()
 
 		err = repo.GetBlob(digest)
-		AssertErrorIs(t, err, store.ErrRepositoryBlobNotFound)
+		AssertErrorIs(t, err, store.ErrBlobNotFound)
 
 		err = meta.Restore(snapshot)
 		AssertNoError(t, err).Require()

@@ -1,11 +1,8 @@
 package repository
 
 import (
-	"errors"
-
 	"github.com/opencontainers/go-digest"
 	v1 "github.com/opencontainers/image-spec/specs-go/v1"
-	"github.com/robinkb/cascade/registry/store"
 )
 
 type ListReferrersOptions struct {
@@ -17,17 +14,14 @@ type Referrers struct {
 	AppliedFilters []string
 }
 
-func (s *repositoryService) ListReferrers(name, reference string, opts *ListReferrersOptions) (*Referrers, error) {
+func (s *repositoryService) ListReferrers(reference string, opts *ListReferrersOptions) (*Referrers, error) {
 	digest, err := digest.Parse(reference)
 	if err != nil {
 		return nil, ErrDigestInvalid
 	}
 
-	referrers, err := s.metadata.ListReferrers(name, digest)
+	referrers, err := s.repo.ListReferrers(digest)
 	if err != nil {
-		if errors.Is(err, store.ErrNotFound) {
-			err = ErrNameUnknown
-		}
 		return nil, err
 	}
 
@@ -41,7 +35,7 @@ func (s *repositoryService) ListReferrers(name, reference string, opts *ListRefe
 	}
 
 	for _, referrer := range referrers {
-		meta, err := s.metadata.GetManifest(name, referrer)
+		meta, err := s.repo.GetManifest(referrer)
 		if err != nil {
 			return nil, err
 		}

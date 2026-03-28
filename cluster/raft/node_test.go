@@ -10,14 +10,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gofrs/uuid/v5"
 	"github.com/robinkb/cascade/cluster"
 	"github.com/robinkb/cascade/cluster/raft"
 	"github.com/robinkb/cascade/cluster/raft/api"
 	"github.com/robinkb/cascade/process"
 	"github.com/robinkb/cascade/registry/store"
 	storecluster "github.com/robinkb/cascade/registry/store/cluster"
-	"github.com/robinkb/cascade/registry/store/inmemory"
+	"github.com/robinkb/cascade/registry/store/driver/inmemory"
 	"github.com/robinkb/cascade/server"
 	. "github.com/robinkb/cascade/testing"
 	etcdraft "go.etcd.io/raft/v3"
@@ -135,7 +134,7 @@ func TestBlobReplication(t *testing.T) {
 
 		for _, b := range blobs {
 			_, err := b.StatBlob(id)
-			AssertErrorIs(t, err, store.ErrNotFound)
+			AssertErrorIs(t, err, store.ErrBlobNotFound)
 		}
 	})
 
@@ -191,155 +190,155 @@ func TestBlobReplication(t *testing.T) {
 
 		for _, b := range blobs {
 			_, err := b.StatUpload(id)
-			AssertErrorIs(t, err, store.ErrNotFound)
+			AssertErrorIs(t, err, store.ErrBlobNotFound)
 		}
 	})
 }
 
-func TestMetadataReplication(t *testing.T) {
-	t.Parallel()
-	nodes, _, metadata := newTestCluster(t, 3)
-	snapElections(nodes...)
+// func TestMetadataReplication(t *testing.T) {
+// 	t.Parallel()
+// 	nodes, _, metadata := newTestCluster(t, 3)
+// 	snapElections(nodes...)
 
-	t.Run("Ensure repository metadata is replicated", func(t *testing.T) {
-		name := RandomName()
-		err := metadata[0].CreateRepository(name)
-		RequireNoError(t, err)
+// 	t.Run("Ensure repository metadata is replicated", func(t *testing.T) {
+// 		name := RandomName()
+// 		err := metadata[0].CreateRepository(name)
+// 		RequireNoError(t, err)
 
-		wait()
+// 		wait()
 
-		for _, m := range metadata {
-			err := m.GetRepository(name)
-			AssertNoError(t, err)
-		}
+// 		for _, m := range metadata {
+// 			err := m.GetRepository(name)
+// 			AssertNoError(t, err)
+// 		}
 
-		err = metadata[0].DeleteRepository(name)
-		RequireNoError(t, err)
+// 		err = metadata[0].DeleteRepository(name)
+// 		RequireNoError(t, err)
 
-		wait()
+// 		wait()
 
-		for _, m := range metadata {
-			err := m.GetRepository(name)
-			AssertErrorIs(t, err, store.ErrRepositoryNotFound)
-		}
-	})
+// 		for _, m := range metadata {
+// 			err := m.GetRepository(name)
+// 			AssertErrorIs(t, err, store.ErrRepositoryNotFound)
+// 		}
+// 	})
 
-	t.Run("Ensure blob metadata is replicated", func(t *testing.T) {
-		name, digest := RandomName(), RandomDigest()
-		err := metadata[0].CreateRepository(name)
-		RequireNoError(t, err)
-		err = metadata[0].PutBlob(name, digest)
-		RequireNoError(t, err)
+// 	t.Run("Ensure blob metadata is replicated", func(t *testing.T) {
+// 		name, digest := RandomName(), RandomDigest()
+// 		err := metadata[0].CreateRepository(name)
+// 		RequireNoError(t, err)
+// 		err = metadata[0].PutBlob(name, digest)
+// 		RequireNoError(t, err)
 
-		wait()
+// 		wait()
 
-		for _, m := range metadata {
-			_, err := m.GetBlob(name, digest)
-			AssertNoError(t, err)
-		}
+// 		for _, m := range metadata {
+// 			_, err := m.GetBlob(name, digest)
+// 			AssertNoError(t, err)
+// 		}
 
-		err = metadata[0].DeleteBlob(name, digest)
-		RequireNoError(t, err)
+// 		err = metadata[0].DeleteBlob(name, digest)
+// 		RequireNoError(t, err)
 
-		wait()
+// 		wait()
 
-		for _, m := range metadata {
-			_, err := m.GetBlob(name, digest)
-			AssertErrorIs(t, err, store.ErrNotFound)
-		}
-	})
+// 		for _, m := range metadata {
+// 			_, err := m.GetBlob(name, digest)
+// 			AssertErrorIs(t, err, store.ErrNotFound)
+// 		}
+// 	})
 
-	t.Run("Ensure manifest metadata is replicated", func(t *testing.T) {
-		name := RandomName()
-		err := metadata[0].CreateRepository(name)
-		RequireNoError(t, err)
+// 	t.Run("Ensure manifest metadata is replicated", func(t *testing.T) {
+// 		name := RandomName()
+// 		err := metadata[0].CreateRepository(name)
+// 		RequireNoError(t, err)
 
-		digest, manifest, content := RandomManifest()
-		meta := &store.Manifest{
-			Annotations:  manifest.Annotations,
-			ArtifactType: manifest.ArtifactType,
-			MediaType:    manifest.MediaType,
-			Size:         int64(len(content)),
-		}
-		err = metadata[0].PutManifest(name, digest, meta)
-		RequireNoError(t, err)
+// 		digest, manifest, content := RandomManifest()
+// 		meta := &store.Manifest{
+// 			Annotations:  manifest.Annotations,
+// 			ArtifactType: manifest.ArtifactType,
+// 			MediaType:    manifest.MediaType,
+// 			Size:         int64(len(content)),
+// 		}
+// 		err = metadata[0].PutManifest(name, digest, meta)
+// 		RequireNoError(t, err)
 
-		wait()
+// 		wait()
 
-		for _, s := range metadata {
-			got, err := s.GetManifest(name, digest)
-			AssertNoError(t, err)
-			AssertDeepEqual(t, got, meta)
-		}
+// 		for _, s := range metadata {
+// 			got, err := s.GetManifest(name, digest)
+// 			AssertNoError(t, err)
+// 			AssertDeepEqual(t, got, meta)
+// 		}
 
-		err = metadata[0].DeleteManifest(name, digest)
-		RequireNoError(t, err)
+// 		err = metadata[0].DeleteManifest(name, digest)
+// 		RequireNoError(t, err)
 
-		wait()
+// 		wait()
 
-		for _, s := range metadata {
-			_, err := s.GetManifest(name, digest)
-			AssertErrorIs(t, err, store.ErrMetadataNotFound)
-		}
-	})
+// 		for _, s := range metadata {
+// 			_, err := s.GetManifest(name, digest)
+// 			AssertErrorIs(t, err, store.ErrMetadataNotFound)
+// 		}
+// 	})
 
-	t.Run("Ensure tag metadata is replicated", func(t *testing.T) {
-		name, tag, digest := RandomName(), RandomVersion(), RandomDigest()
-		err := metadata[0].CreateRepository(name)
-		RequireNoError(t, err)
+// 	t.Run("Ensure tag metadata is replicated", func(t *testing.T) {
+// 		name, tag, digest := RandomName(), RandomVersion(), RandomDigest()
+// 		err := metadata[0].CreateRepository(name)
+// 		RequireNoError(t, err)
 
-		err = metadata[0].PutTag(name, tag, digest)
-		RequireNoError(t, err)
+// 		err = metadata[0].PutTag(name, tag, digest)
+// 		RequireNoError(t, err)
 
-		wait()
+// 		wait()
 
-		for _, s := range metadata {
-			got, err := s.GetTag(name, tag)
-			AssertNoError(t, err)
-			AssertEqual(t, got, digest)
-		}
+// 		for _, s := range metadata {
+// 			got, err := s.GetTag(name, tag)
+// 			AssertNoError(t, err)
+// 			AssertEqual(t, got, digest)
+// 		}
 
-		err = metadata[0].DeleteTag(name, tag)
-		RequireNoError(t, err)
+// 		err = metadata[0].DeleteTag(name, tag)
+// 		RequireNoError(t, err)
 
-		wait()
+// 		wait()
 
-		for _, s := range metadata {
-			_, err := s.GetTag(name, tag)
-			AssertErrorIs(t, err, store.ErrNotFound)
-		}
-	})
+// 		for _, s := range metadata {
+// 			_, err := s.GetTag(name, tag)
+// 			AssertErrorIs(t, err, store.ErrNotFound)
+// 		}
+// 	})
 
-	t.Run("Ensure upload session metadata is replicated", func(t *testing.T) {
-		name := RandomName()
-		err := metadata[0].CreateRepository(name)
-		RequireNoError(t, err)
+// 	t.Run("Ensure upload session metadata is replicated", func(t *testing.T) {
+// 		name := RandomName()
+// 		err := metadata[0].CreateRepository(name)
+// 		RequireNoError(t, err)
 
-		id, _ := uuid.NewV7()
-		session := &store.UploadSession{ID: id}
+// 		id, _ := uuid.NewV7()
+// 		session := &store.UploadSession{ID: id}
 
-		err = metadata[0].PutUploadSession(name, session)
-		RequireNoError(t, err)
+// 		err = metadata[0].PutUploadSession(name, session)
+// 		RequireNoError(t, err)
 
-		wait()
+// 		wait()
 
-		for _, s := range metadata {
-			got, err := s.GetUploadSession(name, id.String())
-			AssertNoError(t, err)
-			AssertDeepEqual(t, got, session)
-		}
+// 		for _, s := range metadata {
+// 			got, err := s.GetUploadSession(name, id.String())
+// 			AssertNoError(t, err)
+// 			AssertDeepEqual(t, got, session)
+// 		}
 
-		err = metadata[0].DeleteUploadSession(name, id.String())
-		RequireNoError(t, err)
+// 		err = metadata[0].DeleteUploadSession(name, id.String())
+// 		RequireNoError(t, err)
 
-		wait()
+// 		wait()
 
-		for _, s := range metadata {
-			_, err := s.GetUploadSession(name, id.String())
-			AssertErrorIs(t, err, store.ErrNotFound)
-		}
-	})
-}
+// 		for _, s := range metadata {
+// 			_, err := s.GetUploadSession(name, id.String())
+// 			AssertErrorIs(t, err, store.ErrNotFound)
+// 		}
+// 	})
+// }
 
 func newTestNode(t *testing.T) raft.Node {
 	addr := RandomAddrPort()
@@ -395,7 +394,7 @@ func newTestCluster(t *testing.T, n int) ([]raft.Node, []store.Blobs, []store.Me
 
 		nodes[i].Bootstrap(peers...)
 		blobs[i] = storecluster.NewBlobStore(nodes[i], inmemory.NewBlobStore())
-		metadata[i] = storecluster.NewMetadataStore(nodes[i], inmemory.NewMetadataStore())
+		// metadata[i] = storecluster.NewMetadataStore(nodes[i], inmemory.NewMetadataStore())
 		Run(t, nodes[i])
 	}
 

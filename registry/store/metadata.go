@@ -11,12 +11,12 @@ import (
 )
 
 var (
-	ErrRepositoryNotFound     = errors.New("repository not found")
-	ErrRepositoryExists       = errors.New("repository with the given name already exists")
-	ErrRepositoryBlobNotFound = errors.New("blob not found in repository")
-	ErrManifestNotFound       = errors.New("manifest not found")
-	ErrTagNotFound            = errors.New("tag not found")
-	ErrUploadNotFound         = errors.New("upload session not found")
+	ErrRepositoryNotFound = errors.New("repository not found")
+	ErrRepositoryExists   = errors.New("repository with the given name already exists")
+	ErrBlobNotFound       = errors.New("blob not found in repository")
+	ErrManifestNotFound   = errors.New("manifest not found")
+	ErrTagNotFound        = errors.New("tag not found")
+	ErrUploadNotFound     = errors.New("upload session not found")
 
 	ErrManifestInvalid         = errors.New("manifest invalid") // usually paired with more detailed errors below
 	ErrManifestConfigNotFound  = errors.New("blob referenced in manifest config descriptor not found")

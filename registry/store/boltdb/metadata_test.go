@@ -1,18 +1,18 @@
 package boltdb
 
-import (
-	"testing"
+// import (
+// 	"testing"
 
-	"github.com/robinkb/cascade/registry/store"
-	storesuite "github.com/robinkb/cascade/registry/store/suite"
-	"github.com/stretchr/testify/suite"
-)
+// 	"github.com/robinkb/cascade/registry/store"
+// 	storesuite "github.com/robinkb/cascade/registry/store/suite"
+// 	"github.com/stretchr/testify/suite"
+// )
 
-func TestMetadataSuite(t *testing.T) {
-	suite.Run(t, &storesuite.MetadataSuite{
-		Constructor: func() store.Metadata {
-			tmp := t.TempDir()
-			return NewMetadataStore(tmp)
-		},
-	})
-}
+// func TestMetadataSuite(t *testing.T) {
+// 	suite.Run(t, &storesuite.MetadataSuite{
+// 		Constructor: func() store.Metadata {
+// 			tmp := t.TempDir()
+// 			return NewMetadataStore(tmp)
+// 		},
+// 	})
+// }

@@ -8,15 +8,15 @@ import (
 	"github.com/robinkb/cascade/registry/store"
 )
 
-func (s *repositoryService) StatBlob(repository, id string) (*store.BlobInfo, error) {
+func (s *repositoryService) StatBlob(id string) (*store.BlobInfo, error) {
 	digest, err := digest.Parse(id)
 	if err != nil {
 		return nil, ErrBlobUnknown
 	}
 
-	_, err = s.metadata.GetBlob(repository, digest)
+	err = s.repo.GetBlob(digest)
 	if err != nil {
-		if errors.Is(err, store.ErrNotFound) {
+		if errors.Is(err, store.ErrBlobNotFound) {
 			err = ErrBlobUnknown
 		}
 		return nil, err
@@ -25,15 +25,15 @@ func (s *repositoryService) StatBlob(repository, id string) (*store.BlobInfo, er
 	return s.blobs.StatBlob(digest)
 }
 
-func (s *repositoryService) GetBlob(repository, id string) (io.Reader, error) {
+func (s *repositoryService) GetBlob(id string) (io.Reader, error) {
 	digest, err := digest.Parse(id)
 	if err != nil {
 		return nil, ErrBlobUnknown
 	}
 
-	_, err = s.metadata.GetBlob(repository, digest)
+	err = s.repo.GetBlob(digest)
 	if err != nil {
-		if errors.Is(err, store.ErrNotFound) {
+		if errors.Is(err, store.ErrBlobNotFound) {
 			err = ErrBlobUnknown
 		}
 		return nil, err
@@ -42,11 +42,11 @@ func (s *repositoryService) GetBlob(repository, id string) (io.Reader, error) {
 	return s.blobs.BlobReader(digest)
 }
 
-func (s *repositoryService) DeleteBlob(repository, id string) error {
+func (s *repositoryService) DeleteBlob(id string) error {
 	digest, err := digest.Parse(id)
 	if err != nil {
 		return ErrBlobUnknown
 	}
 
-	return s.metadata.DeleteBlob(repository, digest)
+	return s.repo.DeleteBlob(digest)
 }

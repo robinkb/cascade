@@ -38,14 +38,14 @@ func (h *Handler) statManifestsHandler(w http.ResponseWriter, r *http.Request) {
 	// If the reference is a tag, fetch the digest first.
 	if repository.ValidateTag(reference) {
 		var err error
-		reference, err = repo.GetTag(name, reference)
+		reference, err = repo.GetTag(reference)
 		if err != nil {
 			errorHandler(w, r, err)
 			return
 		}
 	}
 
-	info, err := repo.StatManifest(name, reference)
+	info, err := repo.StatManifest(reference)
 	if err != nil {
 		errorHandler(w, r, err)
 		return
@@ -68,14 +68,14 @@ func (h *Handler) getManifestsHandler(w http.ResponseWriter, r *http.Request) {
 	// If the reference is a tag, fetch the digest first.
 	if repository.ValidateTag(reference) {
 		var err error
-		reference, err = repo.GetTag(name, reference)
+		reference, err = repo.GetTag(reference)
 		if err != nil {
 			errorHandler(w, r, err)
 			return
 		}
 	}
 
-	meta, content, err := repo.GetManifest(name, reference)
+	meta, content, err := repo.GetManifest(reference)
 	if err != nil {
 		errorHandler(w, r, err)
 		return
@@ -111,7 +111,7 @@ func (h *Handler) putManifestsHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	subject, err := repo.PutManifest(name, digest.String(), data)
+	subject, err := repo.PutManifest(digest.String(), data)
 	if err != nil {
 		errorHandler(w, r, err)
 		return
@@ -122,7 +122,7 @@ func (h *Handler) putManifestsHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if repository.ValidateTag(reference) {
-		err = repo.PutTag(name, reference, digest.String())
+		err = repo.PutTag(reference, digest.String())
 		if err != nil {
 			errorHandler(w, r, err)
 			return
@@ -144,7 +144,7 @@ func (h *Handler) deleteManifestsHandler(w http.ResponseWriter, r *http.Request)
 	}
 
 	if repository.ValidateTag(reference) {
-		err := repo.DeleteTag(name, reference)
+		err := repo.DeleteTag(reference)
 		if err != nil {
 			errorHandler(w, r, err)
 			return
@@ -154,7 +154,7 @@ func (h *Handler) deleteManifestsHandler(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	err = repo.DeleteManifest(name, reference)
+	err = repo.DeleteManifest(reference)
 	if err != nil {
 		errorHandler(w, r, err)
 		return

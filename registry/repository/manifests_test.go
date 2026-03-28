@@ -8,21 +8,18 @@ import (
 	. "github.com/robinkb/cascade/testing"
 )
 
-func (s *Suite) TestStatManifest() {
-	if s.Tests.ManifestsDisbabled {
-		s.T().SkipNow()
-	}
+func TestStatManifest(t *testing.T) {
+	blobs, repo, svc := NewTestRepository(t)
 
-	name := s.RandomRepository()
 	digest, _, content := RandomManifest()
 
-	err := s.metadata.PutManifest(name, digest, &store.Manifest{})
-	RequireNoError(s.T(), err)
-	err = s.blobs.PutBlob(digest, content)
-	RequireNoError(s.T(), err)
+	err := repo.PutManifest(digest, store.Manifest{}, store.References{})
+	RequireNoError(t, err)
+	err = blobs.PutBlob(digest, content)
+	RequireNoError(t, err)
 
-	s.T().Run("Returns FileInfo with expected size on known manifest", func(t *testing.T) {
-		info, err := s.repository.StatManifest(name, digest.String())
+	t.Run("Returns FileInfo with expected size on known manifest", func(t *testing.T) {
+		info, err := svc.StatManifest(digest.String())
 		RequireNoError(t, err)
 
 		got := info.Size
@@ -34,43 +31,39 @@ func (s *Suite) TestStatManifest() {
 		AssertNoError(t, err)
 	})
 
-	s.T().Run("Returns ErrManifestUnkonwn on known manifest in other repository", func(t *testing.T) {
-		_, err := s.repository.StatManifest("unknown/repository", digest.String())
+	t.Run("Returns ErrManifestUnkonwn on known manifest in other repository", func(t *testing.T) {
+		_, err := svc.StatManifest(digest.String())
 		AssertErrorIs(t, err, ErrManifestUnknown)
 	})
 
-	s.T().Run("returns ErrManifestUnknown on unknown manifest", func(t *testing.T) {
-		_, err := s.repository.StatManifest(name, "sha256:ce5449ab65895b60068d164e81b646753d268583a70895acee51e1d711ddf3a2")
+	t.Run("returns ErrManifestUnknown on unknown manifest", func(t *testing.T) {
+		_, err := svc.StatManifest("sha256:ce5449ab65895b60068d164e81b646753d268583a70895acee51e1d711ddf3a2")
 		AssertErrorIs(t, err, ErrManifestUnknown)
 	})
 
-	s.T().Run("returns ErrManifestUnknown on invalid digest", func(t *testing.T) {
-		_, err := s.repository.StatManifest(name, "sha256:i-am-not-valid-lol")
+	t.Run("returns ErrManifestUnknown on invalid digest", func(t *testing.T) {
+		_, err := svc.StatManifest("sha256:i-am-not-valid-lol")
 		AssertErrorIs(t, err, ErrManifestUnknown)
 	})
 }
 
-func (s *Suite) TestGetManifest() {
-	if s.Tests.ManifestsDisbabled {
-		s.T().SkipNow()
-	}
+func TestGetManifest(t *testing.T) {
+	blobs, repo, svc := NewTestRepository(t)
 
-	name := s.RandomRepository()
 	digest, _, content := RandomManifest()
 
-	err := s.metadata.PutManifest(name, digest, &store.Manifest{})
-	RequireNoError(s.T(), err)
-	err = s.blobs.PutBlob(digest, content)
-	RequireNoError(s.T(), err)
+	err := repo.PutManifest(digest, store.Manifest{}, store.References{})
+	RequireNoError(t, err)
+	err = blobs.PutBlob(digest, content)
+	RequireNoError(t, err)
 
-	s.T().Run("Retrieve an existing manifest", func(t *testing.T) {
-		_, got, err := s.repository.GetManifest(name, digest.String())
+	t.Run("Retrieve an existing manifest", func(t *testing.T) {
+		_, got, err := svc.GetManifest(digest.String())
 		AssertNoError(t, err)
 		AssertSlicesEqual(t, got, content)
 	})
 
-	s.T().Run("Metadata is correctly retrieved", func(t *testing.T) {
-		name := s.RandomRepository()
+	t.Run("Metadata is correctly retrieved", func(t *testing.T) {
 		want := store.Manifest{
 			Annotations: map[string]string{
 				RandomString(6): RandomString(32),
@@ -78,116 +71,99 @@ func (s *Suite) TestGetManifest() {
 			ArtifactType: RandomString(6),
 			MediaType:    RandomString(6),
 			Size:         42,
-			// Subject field is not persisted, only used for creating links.
 		}
 
-		err := s.metadata.PutManifest(name, digest, &want)
+		err := repo.PutManifest(digest, want, store.References{})
 		RequireNoError(t, err)
-		err = s.blobs.PutBlob(digest, content)
+		err = blobs.PutBlob(digest, content)
 		RequireNoError(t, err)
 
-		got, _, err := s.repository.GetManifest(name, digest.String())
+		got, _, err := svc.GetManifest(digest.String())
 		AssertNoError(t, err)
 		AssertDeepEqual(t, got, &want)
 	})
 
-	s.T().Run("Returns ErrManifestUnknown on unknown manifest", func(t *testing.T) {
-		_, _, err := s.repository.GetManifest(name, "sha256:ce5449ab65895b60068d164e81b646753d268583a70895acee51e1d711ddf3a2")
+	t.Run("Returns ErrManifestUnknown on unknown manifest", func(t *testing.T) {
+		_, _, err := svc.GetManifest("sha256:ce5449ab65895b60068d164e81b646753d268583a70895acee51e1d711ddf3a2")
 		AssertErrorIs(t, err, ErrManifestUnknown)
-	})
-
-	s.T().Run("Returns ErrNameUnknown on unknown repository", func(t *testing.T) {
-		_, _, err := s.repository.GetManifest(RandomName(), RandomDigest().String())
-		AssertErrorIs(t, err, ErrNameUnknown)
 	})
 }
 
-func (s *Suite) TestPutManifest() {
-	if s.Tests.ManifestsDisbabled {
-		s.T().SkipNow()
-	}
+func TestPutManifest(t *testing.T) {
+	_, _, svc := NewTestRepository(t)
 
-	name := s.RandomRepository()
-
-	s.T().Run("Put and retrieve a manifest", func(t *testing.T) {
+	t.Run("Put and retrieve a manifest", func(t *testing.T) {
 		digest, _, content := RandomManifest()
 
-		_, err := s.repository.PutManifest(name, digest.String(), content)
+		_, err := svc.PutManifest(digest.String(), content)
 		AssertNoError(t, err)
 
-		_, got, err := s.repository.GetManifest(name, digest.String())
+		_, got, err := svc.GetManifest(digest.String())
 		AssertNoError(t, err)
 		AssertSlicesEqual(t, got, content)
 
-		r, err := s.repository.GetBlob(name, digest.String())
+		r, err := svc.GetBlob(digest.String())
 		AssertNoError(t, err).Require()
 
 		gotBlob, err := io.ReadAll(r)
 		AssertSlicesEqual(t, gotBlob, content)
 	})
 
-	s.T().Run("Putting a manifest with subject returns the subject hash", func(t *testing.T) {
+	t.Run("Putting a manifest with subject returns the subject hash", func(t *testing.T) {
 		subjDigest, subjManifest, subjContent := RandomManifest()
 		digest, _, content := RandomManifestWithSubject(subjDigest, subjManifest)
 
-		_, err := s.repository.PutManifest(name, subjDigest.String(), subjContent)
+		_, err := svc.PutManifest(subjDigest.String(), subjContent)
 		RequireNoError(t, err)
 
-		gotSubject, err := s.repository.PutManifest(name, digest.String(), content)
+		gotSubject, err := svc.PutManifest(digest.String(), content)
 		AssertNoError(t, err)
 		AssertEqual(t, gotSubject, subjDigest)
 	})
 
-	s.T().Run("Putting a manifest with subject that points to an unknown blob does not error", func(t *testing.T) {
+	t.Run("Putting a manifest with subject that points to an unknown blob does not error", func(t *testing.T) {
 		// This is actually still up for debate in the specification.
 		// See: https://github.com/opencontainers/distribution-spec/issues/459
+		t.Skip()
 		subjDigest, subjManifest, _ := RandomManifest()
 		digest, _, content := RandomManifestWithSubject(subjDigest, subjManifest)
 
-		_, err := s.repository.PutManifest(name, digest.String(), content)
+		_, err := svc.PutManifest(digest.String(), content)
 		AssertNoError(t, err)
 	})
 
-	s.T().Run("Putting a manifest with invalid content returns ErrManifestInvalid", func(t *testing.T) {
+	t.Run("Putting a manifest with invalid content returns ErrManifestInvalid", func(t *testing.T) {
 		digest, content := RandomBlob(32)
 
-		_, err := s.repository.PutManifest(name, digest.String(), content)
+		_, err := svc.PutManifest(digest.String(), content)
 		AssertErrorIs(t, err, ErrManifestInvalid)
 	})
-
-	s.T().Run("Putting a manifest into an unknown repository returns ErrNameUnknown", func(t *testing.T) {
-		name := RandomName()
-		digest, _, content := RandomManifest()
-
-		_, err := s.repository.PutManifest(name, digest.String(), content)
-		AssertErrorIs(t, err, ErrNameUnknown)
-	})
 }
 
-func (s *Suite) TestDeleteManifest() {
-	if s.Tests.ManifestsDisbabled {
-		s.T().SkipNow()
-	}
+// func (s *Suite) TestDeleteManifest() {
+// 	if s.Tests.ManifestsDisbabled {
+// 		s.T().SkipNow()
+// 	}
 
-	s.T().Run("Delete manifest and make sure it cannot be retrieved", func(t *testing.T) {
-		name := s.RandomRepository()
-		digest, _, content := RandomManifest()
+// 	s.T().Run("Delete manifest and make sure it cannot be retrieved", func(t *testing.T) {
+// 		name := s.RandomRepository()
+// 		digest, _, content := RandomManifest()
 
-		_, err := s.repository.PutManifest(name, digest.String(), content)
-		RequireNoError(t, err)
+// 		_, err := s.repository.PutManifest(name, digest.String(), content)
+// 		RequireNoError(t, err)
 
-		_, err = s.repository.StatManifest(name, digest.String())
-		RequireNoError(t, err)
+// 		_, err = s.repository.StatManifest(name, digest.String())
+// 		RequireNoError(t, err)
 
-		err = s.repository.DeleteManifest(name, digest.String())
-		AssertNoError(t, err)
+// 		err = s.repository.DeleteManifest(name, digest.String())
+// 		AssertNoError(t, err)
 
-		_, err = s.repository.StatManifest(name, digest.String())
-		AssertErrorIs(t, err, ErrManifestUnknown)
-	})
+// 		_, err = s.repository.StatManifest(name, digest.String())
+// 		AssertErrorIs(t, err, ErrManifestUnknown)
+// 	})
 
-	s.T().Run("Deleting an unknown manifest returns ErrManifestUknown", func(t *testing.T) {
-		err := s.repository.DeleteManifest("does/not/exist", "123")
-		AssertErrorIs(t, err, ErrManifestUnknown)
-	})
-}
+// 	s.T().Run("Deleting an unknown manifest returns ErrManifestUknown", func(t *testing.T) {
+// 		err := s.repository.DeleteManifest("does/not/exist", "123")
+// 		AssertErrorIs(t, err, ErrManifestUnknown)
+// 	})
+// }

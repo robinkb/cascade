@@ -7,29 +7,24 @@ import (
 	"github.com/robinkb/cascade/registry/store"
 )
 
-func (s *repositoryService) ListTags(repository string, count int, last string) ([]string, error) {
-	repo, err := s.metadata.GetRepository(repository)
-	if err != nil {
-		return nil, err
-	}
-
-	return repo.ListTags(count, last)
+func (s *repositoryService) ListTags(count int, last string) ([]string, error) {
+	return s.repo.ListTags(count, last)
 }
 
-func (s *repositoryService) GetTag(repository, tag string) (string, error) {
+func (s *repositoryService) GetTag(tag string) (string, error) {
 	if !ValidateTag(tag) {
 		return "", ErrTagInvalid
 	}
 
-	digest, err := s.metadata.GetTag(repository, tag)
-	if errors.Is(err, store.ErrNotFound) {
+	digest, err := s.repo.GetTag(tag)
+	if errors.Is(err, store.ErrTagNotFound) {
 		err = ErrManifestUnknown
 	}
 
 	return digest.String(), err
 }
 
-func (s *repositoryService) PutTag(repository, tag, id string) error {
+func (s *repositoryService) PutTag(tag, id string) error {
 	if !ValidateTag(tag) {
 		return ErrTagInvalid
 	}
@@ -39,13 +34,14 @@ func (s *repositoryService) PutTag(repository, tag, id string) error {
 		return err
 	}
 
-	err = s.metadata.PutTag(repository, tag, digest)
+	err = s.repo.PutTag(tag, digest)
 	if errors.Is(err, store.ErrRepositoryNotFound) {
 		err = ErrNameUnknown
 	}
 	return err
 }
 
-func (s *repositoryService) DeleteTag(repository, tag string) error {
-	return s.metadata.DeleteTag(repository, tag)
+func (s *repositoryService) DeleteTag(tag string) error {
+	_, err := s.repo.DeleteTag(tag)
+	return err
 }

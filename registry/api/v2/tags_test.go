@@ -16,7 +16,7 @@ func TestListTags(t *testing.T) {
 	t.Run("Listing tags returns 200", func(t *testing.T) {
 		repo := mock.NewRepositoryService(t)
 		repo.EXPECT().
-			ListTags(name, -1, "").
+			ListTags(-1, "").
 			Return(tags, nil)
 
 		client := NewTestClientForRepository(t, name, repo)
@@ -35,7 +35,7 @@ func TestListTags(t *testing.T) {
 
 		repo := mock.NewRepositoryService(t)
 		repo.EXPECT().
-			ListTags(name, count, last).
+			ListTags(count, last).
 			Return(tags[10:13], nil)
 
 		client := NewTestClientForRepository(t, name, repo)

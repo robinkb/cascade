@@ -9,37 +9,34 @@ import (
 	"github.com/robinkb/cascade/registry/store"
 )
 
-func (s *repositoryService) StatManifest(repository, id string) (*store.BlobInfo, error) {
+func (s *repositoryService) StatManifest(id string) (*store.BlobInfo, error) {
 	digest, err := digest.Parse(id)
 	if err != nil {
 		return nil, ErrManifestUnknown
 	}
 
-	_, err = s.metadata.GetManifest(repository, digest)
+	_, err = s.repo.GetManifest(digest)
 	if err != nil {
 		return nil, ErrManifestUnknown
 	}
 
 	info, err := s.blobs.StatBlob(digest)
-	if errors.Is(err, store.ErrNotFound) {
+	if errors.Is(err, store.ErrBlobNotFound) {
 		return nil, ErrManifestUnknown
 	}
 
 	return info, err
 }
 
-func (s *repositoryService) GetManifest(repository, id string) (*store.Manifest, []byte, error) {
+func (s *repositoryService) GetManifest(id string) (*store.Manifest, []byte, error) {
 	digest, err := digest.Parse(id)
 	if err != nil {
 		return nil, nil, ErrBlobUnknown
 	}
 
-	meta, err := s.metadata.GetManifest(repository, digest)
+	meta, err := s.repo.GetManifest(digest)
 	if err != nil {
-		if errors.Is(err, store.ErrRepositoryNotFound) {
-			err = ErrNameUnknown
-		}
-		if errors.Is(err, store.ErrMetadataNotFound) {
+		if errors.Is(err, store.ErrManifestNotFound) {
 			err = ErrManifestUnknown
 		}
 		return nil, nil, err
@@ -50,23 +47,15 @@ func (s *repositoryService) GetManifest(repository, id string) (*store.Manifest,
 		return nil, nil, err
 	}
 
-	return meta, content, nil
+	return &meta, content, nil
 }
 
-func (s *repositoryService) PutManifest(repository, reference string, content []byte) (digest.Digest, error) {
+func (s *repositoryService) PutManifest(reference string, content []byte) (digest.Digest, error) {
 	var subject digest.Digest
 
 	digest, err := digest.Parse(reference)
 	if err != nil {
 		return "", ErrDigestInvalid
-	}
-
-	err = s.metadata.GetRepository(repository)
-	if err != nil {
-		if errors.Is(err, store.ErrRepositoryNotFound) {
-			err = ErrNameUnknown
-		}
-		return "", err
 	}
 
 	var manifest v1.Manifest
@@ -84,11 +73,10 @@ func (s *repositoryService) PutManifest(repository, reference string, content []
 		return "", err
 	}
 
-	meta := &store.Manifest{
+	meta := store.Manifest{
 		Annotations:  manifest.Annotations,
 		ArtifactType: manifest.ArtifactType,
 		MediaType:    manifest.MediaType,
-		Subject:      subject,
 		Size:         int64(len(content)),
 	}
 
@@ -96,21 +84,24 @@ func (s *repositoryService) PutManifest(repository, reference string, content []
 		meta.ArtifactType = manifest.Config.MediaType
 	}
 
-	err = s.metadata.PutManifest(repository, digest, meta)
+	err = s.repo.PutManifest(digest, meta, store.References{
+		Subject: subject,
+	})
 
 	return subject, err
 }
 
-func (s *repositoryService) DeleteManifest(repository, id string) error {
+func (s *repositoryService) DeleteManifest(id string) error {
 	digest, err := digest.Parse(id)
 	if err != nil {
 		return ErrManifestUnknown
 	}
 
-	_, err = s.metadata.GetManifest(repository, digest)
+	_, err = s.repo.GetManifest(digest)
 	if err != nil {
 		return ErrManifestUnknown
 	}
 
-	return s.metadata.DeleteManifest(repository, digest)
+	_, err = s.repo.DeleteManifest(digest)
+	return err
 }

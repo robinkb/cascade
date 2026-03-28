@@ -141,7 +141,7 @@ type (
 func (r *repositoryStore) GetBlob(digest digest.Digest) error {
 	_, ok := r.repo.Blobs[digest]
 	if !ok {
-		return fmt.Errorf("%w: %s", store.ErrRepositoryBlobNotFound, digest)
+		return fmt.Errorf("%w: %s", store.ErrBlobNotFound, digest)
 	}
 	return nil
 }
@@ -159,7 +159,7 @@ func (r *repositoryStore) PutBlob(digest digest.Digest) error {
 func (r *repositoryStore) DeleteBlob(digest digest.Digest) error {
 	owners, ok := r.repo.Blobs[digest]
 	if !ok {
-		return fmt.Errorf("%w: %s", store.ErrRepositoryBlobNotFound, digest)
+		return fmt.Errorf("%w: %s", store.ErrBlobNotFound, digest)
 	}
 	if len(owners) != 0 {
 		return fmt.Errorf("%w: %s", store.ErrBlobInUse, digest)

@@ -20,7 +20,7 @@ func (h *Handler) initUploadHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	session, err := repository.InitUpload(name)
+	session, err := repository.InitUpload()
 	if err != nil {
 		errorHandler(w, r, err)
 		return

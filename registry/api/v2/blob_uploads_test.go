@@ -19,10 +19,10 @@ func TestBlobUploadsMonolithic(t *testing.T) {
 
 		repo := mock.NewRepositoryService(t)
 		repo.EXPECT().
-			AppendUpload(name, sessionID, bytes.NewBuffer(content), int64(0)).
+			AppendUpload(sessionID, bytes.NewBuffer(content), int64(0)).
 			Return(nil)
 		repo.EXPECT().
-			CloseUpload(name, sessionID, digest.String()).
+			CloseUpload(sessionID, digest.String()).
 			Return(nil)
 
 		client := NewTestClientForRepository(t, name, repo)
@@ -40,7 +40,7 @@ func TestBlobUploadsMonolithic(t *testing.T) {
 
 		repo := mock.NewRepositoryService(t)
 		repo.EXPECT().
-			CloseUpload(name, sessionID, digest.String()).
+			CloseUpload(sessionID, digest.String()).
 			Return(repository.ErrBlobUploadUnknown)
 
 		client := NewTestClientForRepository(t, name, repo)
@@ -97,7 +97,7 @@ func TestBlobUploadsMonolithic(t *testing.T) {
 
 		repo := mock.NewRepositoryService(t)
 		repo.EXPECT().
-			CloseUpload(name, sessionID.String(), id).
+			CloseUpload(sessionID.String(), id).
 			Return(repository.ErrDigestInvalid)
 
 		client := NewTestClientForRepository(t, name, repo)
@@ -115,7 +115,7 @@ func TestBlobUploadsMonolithic(t *testing.T) {
 
 		repo := mock.NewRepositoryService(t)
 		repo.EXPECT().
-			CloseUpload(name, sessionID.String(), id.String()).
+			CloseUpload(sessionID.String(), id.String()).
 			Return(repository.ErrBlobUploadInvalid)
 
 		client := NewTestClientForRepository(t, name, repo)
@@ -134,7 +134,7 @@ func TestBlobUploadsChunked(t *testing.T) {
 
 		repo := mock.NewRepositoryService(t)
 		repo.EXPECT().
-			AppendUpload(name, sessionID, bytes.NewBuffer(content), int64(0)).
+			AppendUpload(sessionID, bytes.NewBuffer(content), int64(0)).
 			Return(nil)
 
 		location := newLocation(name, sessionID)
@@ -154,7 +154,7 @@ func TestBlobUploadsStreamed(t *testing.T) {
 
 		repository := mock.NewRepositoryService(t)
 		repository.EXPECT().
-			AppendUpload(name, sessionID, mock.AnythingOfType("io.nopCloserWriterTo"), int64(0)).
+			AppendUpload(sessionID, mock.AnythingOfType("io.nopCloserWriterTo"), int64(0)).
 			Return(nil)
 
 		client := NewTestClientForRepository(t, name, repository)
