@@ -2,6 +2,7 @@ package inmemory
 
 import (
 	"encoding/gob"
+	"errors"
 	"fmt"
 	"io"
 	"iter"
@@ -222,33 +223,36 @@ func (r *repositoryStore) DeleteManifest(id digest.Digest) ([]digest.Digest, err
 
 	if manifest.Refs.Config != "" {
 		delete(r.repo.Blobs[manifest.Refs.Config].Manifests, id)
-		if len(r.repo.Blobs[manifest.Refs.Config].Manifests) == 0 {
-			err := r.DeleteBlob(manifest.Refs.Config)
-			if err != nil {
+		if err := r.DeleteBlob(manifest.Refs.Config); err != nil {
+			if !errors.Is(err, store.ErrBlobInUse) {
 				return deleted, err
 			}
+		} else {
 			deleted = append(deleted, manifest.Refs.Config)
 		}
 	}
 
 	for _, layerDigest := range manifest.Refs.Layers {
 		delete(r.repo.Blobs[layerDigest].Manifests, id)
-		if len(r.repo.Blobs[layerDigest].Manifests) == 0 {
-			err := r.DeleteBlob(layerDigest)
-			if err != nil {
-				return deleted, err
+		if err := r.DeleteBlob(layerDigest); err != nil {
+			if errors.Is(err, store.ErrBlobInUse) {
+				continue
 			}
-			deleted = append(deleted, layerDigest)
+			return deleted, err
 		}
+		deleted = append(deleted, layerDigest)
 	}
 
 	for _, manifestDigest := range manifest.Refs.Manifests {
 		delete(r.repo.Manifests[manifestDigest].Manifests, id)
-		if len(r.repo.Manifests[manifestDigest].Manifests) == 0 {
-			delete(r.repo.Manifests, manifestDigest)
-			delete(r.repo.Blobs, manifestDigest)
-			deleted = append(deleted, manifestDigest)
+		digests, err := r.DeleteManifest(manifestDigest)
+		if err != nil {
+			if errors.Is(err, store.ErrManifestInUse) {
+				continue
+			}
+			return deleted, err
 		}
+		deleted = append(deleted, digests...)
 	}
 
 	if manifest.Refs.Subject != "" {
@@ -256,12 +260,14 @@ func (r *repositoryStore) DeleteManifest(id digest.Digest) ([]digest.Digest, err
 	}
 
 	for referrerDigest := range manifest.Referrers {
-		delete(r.repo.Manifests, referrerDigest)
-		err := r.DeleteBlob(referrerDigest)
+		digests, err := r.DeleteManifest(referrerDigest)
 		if err != nil {
+			if errors.Is(err, store.ErrManifestInUse) {
+				continue
+			}
 			return deleted, err
 		}
-		deleted = append(deleted, referrerDigest)
+		deleted = append(deleted, digests...)
 	}
 
 	delete(r.repo.Manifests, id)

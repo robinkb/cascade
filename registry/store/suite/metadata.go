@@ -481,7 +481,7 @@ func (s *MetadataSuite) TestManifests() {
 
 		deleted, err := repo.DeleteManifest(manifestDigestA)
 		AssertNoError(t, err)
-		AssertEqual(t, len(deleted), 1)
+		AssertEqual(t, len(deleted), 1).Require()
 		AssertEqual(t, deleted[0], manifestDigestA)
 
 		err = repo.GetBlob(layerDigest)
