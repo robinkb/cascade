@@ -27,43 +27,12 @@ type (
 		SharedBlobs  sharedBlobs
 		Repositories repositories
 	}
-
 	// sharedBlobs represents the metadata of blobs in the shared blob store.
 	sharedBlobs map[digest.Digest]sharedBlobOwners
 	// sharedBlobOwners tracks which repositories own a shared blob.
 	sharedBlobOwners map[string]any
-
-	repository struct {
-		Blobs     repoBlobs
-		Manifests manifests
-		Tags      tags
-		Sessions  sessions
-	}
-
-	// repositories tracks and contains the data of each repository in the metadata store.
+	// repositories contains all repositories in the metadata store..
 	repositories map[string]*repository
-
-	// repoBlobs tracks the blobs used by the repository.
-	repoBlobs map[digest.Digest]repoBlobOwners
-	// repoBlobOwners tracks which manifests reference a particular blob.
-	repoBlobOwners map[digest.Digest]any
-	// manifests tracks the manifests in the repository.
-	manifests map[digest.Digest]manifest
-	manifest  struct {
-		manifestOwners
-		Metadata  store.Manifest
-		Refs      store.References
-		Referrers map[digest.Digest]any
-	}
-	// manifestOwners tracks which manifests and tags reference a particular manifest.
-	manifestOwners struct {
-		Manifests map[digest.Digest]any
-		Tags      map[string]any
-	}
-	// tags tracks the tags in the repository.
-	tags map[string]digest.Digest
-	// sessions tracks the UploadSessions in the repository.
-	sessions map[uuid.UUID]*store.UploadSession
 )
 
 func (m *metadataStore) CreateRepository(name string) (store.Repository, error) {
@@ -131,12 +100,43 @@ func newRepository(name string, blobs sharedBlobs, repo *repository) store.Repos
 	}
 }
 
-// repository implements the store.Repository interface.
-type repositoryStore struct {
-	name  string
-	blobs sharedBlobs
-	repo  *repository
-}
+type (
+	// repository implements the store.Repository interface.
+	repositoryStore struct {
+		name  string
+		blobs sharedBlobs
+		repo  *repository
+	}
+	// repository tracks the data of a repository in the metadata store.
+	repository struct {
+		Blobs     repoBlobs
+		Manifests manifests
+		Tags      tags
+		Sessions  sessions
+	}
+	// repoBlobs tracks the blobs used by the repository.
+	repoBlobs map[digest.Digest]repoBlobOwners
+	// repoBlobOwners tracks which manifests reference a particular blob.
+	repoBlobOwners map[digest.Digest]any
+	// manifests tracks the manifests in the repository.
+	manifests map[digest.Digest]manifest
+	// manifest contains the metadata of a manifest.
+	manifest struct {
+		manifestOwners
+		Metadata  store.Manifest
+		Refs      store.References
+		Referrers map[digest.Digest]any
+	}
+	// manifestOwners tracks which manifests and tags reference a particular manifest.
+	manifestOwners struct {
+		Manifests map[digest.Digest]any
+		Tags      map[string]any
+	}
+	// tags tracks the tags in the repository.
+	tags map[string]digest.Digest
+	// sessions tracks the UploadSessions in the repository.
+	sessions map[uuid.UUID]*store.UploadSession
+)
 
 func (r *repositoryStore) GetBlob(digest digest.Digest) error {
 	_, ok := r.repo.Blobs[digest]
@@ -284,11 +284,7 @@ func (r *repositoryStore) DeleteManifest(id digest.Digest) ([]digest.Digest, err
 	delete(r.repo.Manifests, id)
 	deleted = append(deleted, id)
 
-	if err := r.DeleteBlob(id); err != nil {
-		return deleted, err
-	}
-
-	return deleted, nil
+	return deleted, r.DeleteBlob(id)
 }
 
 func (r *repositoryStore) ListReferrers(subject digest.Digest) ([]digest.Digest, error) {
@@ -336,6 +332,7 @@ func (r *repositoryStore) PutTag(tag string, digest digest.Digest) error {
 	if !ok {
 		return fmt.Errorf("%w: %s", store.ErrManifestNotFound, digest)
 	}
+
 	manifest.Tags[tag] = nil
 	r.repo.Tags[tag] = digest
 	return nil
@@ -350,12 +347,7 @@ func (r *repositoryStore) DeleteTag(tag string) ([]digest.Digest, error) {
 	delete(r.repo.Tags, tag)
 	delete(r.repo.Manifests[digest].Tags, tag)
 
-	deleted, err := r.DeleteManifest(digest)
-	if err != nil {
-		return nil, err
-	}
-
-	return deleted, nil
+	return r.DeleteManifest(digest)
 }
 
 func (r *repositoryStore) GetUploadSession(id uuid.UUID) (*store.UploadSession, error) {
