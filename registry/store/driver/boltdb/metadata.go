@@ -107,6 +107,15 @@ func (m *metadataStore) DeleteRepository(name string) error {
 			return store.ErrRepositoryNotFound
 		}
 
+		c := repo.Bucket(_BLOBS).Cursor()
+		sharedBlobs := tx.Bucket(_BLOBS)
+		for digest, _ := c.First(); digest != nil; digest, _ = c.Next() {
+			sharedBlobs.Bucket(digest).Delete([]byte(name))
+			if keys(sharedBlobs.Bucket(digest)) == 0 {
+				sharedBlobs.DeleteBucket(digest)
+			}
+		}
+
 		return tx.Bucket(_REPOSITORIES).DeleteBucket([]byte(name))
 	})
 }
@@ -154,7 +163,15 @@ func (r *repositoryStore) GetBlob(id digest.Digest) error {
 
 func (r *repositoryStore) PutBlob(id digest.Digest) error {
 	return r.db.Update(func(tx *bolt.Tx) error {
-		_, err := tx.Bucket(_BLOBS).CreateBucket([]byte(id))
+		sharedBlob, err := tx.Bucket(_BLOBS).CreateBucketIfNotExists([]byte(id))
+		if err != nil {
+			return err
+		}
+		err = sharedBlob.Put([]byte(r.name), nil)
+		if err != nil {
+			return err
+		}
+
 		_, err = r.self(tx).Bucket(_BLOBS).CreateBucket([]byte(id))
 		return err
 	})
@@ -162,6 +179,18 @@ func (r *repositoryStore) PutBlob(id digest.Digest) error {
 
 func (r *repositoryStore) DeleteBlob(id digest.Digest) error {
 	return r.db.Update(func(tx *bolt.Tx) error {
+		sharedBlob := tx.Bucket(_BLOBS).Bucket([]byte(id))
+		if sharedBlob == nil {
+			return store.ErrBlobNotFound
+		}
+		sharedBlob.Delete([]byte(r.name))
+		if keys(sharedBlob) == 0 {
+			err := tx.Bucket(_BLOBS).DeleteBucket([]byte(id))
+			if err != nil {
+				return err
+			}
+		}
+
 		blobs := r.self(tx).Bucket(_BLOBS)
 		if blobs.Bucket([]byte(id)) == nil {
 			return store.ErrBlobNotFound
@@ -174,4 +203,12 @@ func (r *repositoryStore) DeleteBlob(id digest.Digest) error {
 // self returns the root bucket for this repository.
 func (r *repositoryStore) self(tx *bbolt.Tx) *bbolt.Bucket {
 	return tx.Bucket(_REPOSITORIES).Bucket([]byte(r.name))
+}
+
+func keys(b *bbolt.Bucket) (n int) {
+	c := b.Cursor()
+	for k, _ := c.First(); k != nil; k, _ = c.Next() {
+		n++
+	}
+	return
 }
