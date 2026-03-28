@@ -36,9 +36,6 @@ type MetadataSuite struct {
 	SkipSnapshotRestore bool // snapshotting and restoring
 }
 
-// TODO: Add case to check that deleting a repository releases
-// all blob ownership claims of that repository.
-
 func (s *MetadataSuite) RepositoryConstructor(t *testing.T) store.Repository {
 	meta := s.Constructor()
 	name := RandomName()
@@ -990,6 +987,62 @@ func (s *MetadataSuite) TestUploadSessions() {
 
 		err := repo.DeleteUploadSession(RandomUUID())
 		AssertErrorIs(t, err, store.ErrUploadNotFound)
+	})
+}
+
+func (s *MetadataSuite) TestRecursiveGC() {
+	if s.SkipRecursiveGC {
+		s.T().Skip()
+	}
+
+	s.T().Run("deletes all blobs of tagged image manifest with referrer", func(t *testing.T) {
+		meta := s.Constructor()
+		name := RandomName()
+		repo, err := meta.CreateRepository(name)
+		AssertNoError(t, err)
+
+		configDigest := RandomDigest()
+		err = repo.PutBlob(configDigest)
+		AssertNoError(t, err)
+
+		layerDigests := make([]digest.Digest, 5)
+		for i := range layerDigests {
+			layerDigests[i] = RandomDigest()
+			err = repo.PutBlob(layerDigests[i])
+			AssertNoError(t, err)
+		}
+
+		manifestDigest := RandomDigest()
+		err = repo.PutManifest(manifestDigest, store.Manifest{}, store.References{
+			Config: configDigest,
+			Layers: layerDigests,
+		})
+		AssertNoError(t, err)
+
+		referrerDigest := RandomDigest()
+		err = repo.PutManifest(referrerDigest, store.Manifest{}, store.References{
+			Subject: manifestDigest,
+		})
+		AssertNoError(t, err)
+
+		tag := RandomVersion()
+		err = repo.PutTag(tag, manifestDigest)
+		AssertNoError(t, err)
+
+		allDigests := slices.Concat(layerDigests, []digest.Digest{configDigest, manifestDigest, referrerDigest})
+		slices.Sort(allDigests)
+
+		blobs := slices.Collect(meta.Blobs())
+		slices.Sort(blobs)
+		AssertSlicesEqual(t, allDigests, blobs)
+
+		deleted, err := repo.DeleteTag(tag)
+		AssertNoError(t, err)
+		slices.Sort(deleted)
+		AssertSlicesEqual(t, allDigests, deleted)
+
+		blobs = slices.Collect(meta.Blobs())
+		AssertEqual(t, len(blobs), 0)
 	})
 }
 

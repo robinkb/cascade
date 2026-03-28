@@ -223,7 +223,10 @@ func (r *repositoryStore) DeleteManifest(id digest.Digest) ([]digest.Digest, err
 	if manifest.Refs.Config != "" {
 		delete(r.repo.Blobs[manifest.Refs.Config].Manifests, id)
 		if len(r.repo.Blobs[manifest.Refs.Config].Manifests) == 0 {
-			delete(r.repo.Blobs, manifest.Refs.Config)
+			err := r.DeleteBlob(manifest.Refs.Config)
+			if err != nil {
+				return deleted, err
+			}
 			deleted = append(deleted, manifest.Refs.Config)
 		}
 	}
@@ -231,7 +234,10 @@ func (r *repositoryStore) DeleteManifest(id digest.Digest) ([]digest.Digest, err
 	for _, layerDigest := range manifest.Refs.Layers {
 		delete(r.repo.Blobs[layerDigest].Manifests, id)
 		if len(r.repo.Blobs[layerDigest].Manifests) == 0 {
-			delete(r.repo.Blobs, layerDigest)
+			err := r.DeleteBlob(layerDigest)
+			if err != nil {
+				return deleted, err
+			}
 			deleted = append(deleted, layerDigest)
 		}
 	}
@@ -251,6 +257,10 @@ func (r *repositoryStore) DeleteManifest(id digest.Digest) ([]digest.Digest, err
 
 	for referrerDigest := range manifest.Referrers {
 		delete(r.repo.Manifests, referrerDigest)
+		err := r.DeleteBlob(referrerDigest)
+		if err != nil {
+			return deleted, err
+		}
 		deleted = append(deleted, referrerDigest)
 	}
 
@@ -319,12 +329,15 @@ func (r *repositoryStore) DeleteTag(tag string) ([]digest.Digest, error) {
 		return nil, fmt.Errorf("%w: %s", store.ErrTagNotFound, tag)
 	}
 
-	deleted := make([]digest.Digest, 0)
 	digest := r.repo.Tags[tag]
-	delete(r.repo.Manifests, digest)
-	deleted = append(deleted, digest)
-
 	delete(r.repo.Tags, tag)
+	delete(r.repo.Manifests[digest].Tags, tag)
+
+	deleted, err := r.DeleteManifest(digest)
+	if err != nil {
+		return nil, err
+	}
+
 	return deleted, nil
 }
 
