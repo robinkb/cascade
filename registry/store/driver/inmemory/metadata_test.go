@@ -10,7 +10,7 @@ import (
 
 func TestMetadataSuite(t *testing.T) {
 	suite.Run(t, &storesuite.MetadataSuite{
-		Constructor: func() store.Metadata {
+		Constructor: func(_ *testing.T) store.Metadata {
 			return NewMetadataStore()
 		},
 	})

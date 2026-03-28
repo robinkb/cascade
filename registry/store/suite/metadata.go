@@ -12,7 +12,7 @@ import (
 	"github.com/stretchr/testify/suite"
 )
 
-type MetadataStoreConstructor func() store.Metadata
+type MetadataStoreConstructor func(t *testing.T) store.Metadata
 
 type MetadataSuite struct {
 	suite.Suite
@@ -37,7 +37,7 @@ type MetadataSuite struct {
 }
 
 func (s *MetadataSuite) RepositoryConstructor(t *testing.T) store.Repository {
-	meta := s.Constructor()
+	meta := s.Constructor(t)
 	name := RandomName()
 	repo, err := meta.CreateRepository(name)
 	AssertNoError(t, err).Require()
@@ -56,7 +56,7 @@ func (s *MetadataSuite) TestRepository() {
 	}
 
 	s.T().Run("creates a new repository", func(t *testing.T) {
-		meta := s.Constructor()
+		meta := s.Constructor(t)
 		name := RandomName()
 
 		_, err := meta.GetRepository(name)
@@ -70,7 +70,7 @@ func (s *MetadataSuite) TestRepository() {
 	})
 
 	s.T().Run("deletes an existing repository", func(t *testing.T) {
-		meta := s.Constructor()
+		meta := s.Constructor(t)
 		name := RandomName()
 
 		_, err := meta.CreateRepository(name)
@@ -87,7 +87,7 @@ func (s *MetadataSuite) TestRepository() {
 	})
 
 	s.T().Run("creating repository with the same name returns ErrRepositoryExists", func(t *testing.T) {
-		meta := s.Constructor()
+		meta := s.Constructor(t)
 		name := RandomName()
 
 		_, err := meta.CreateRepository(name)
@@ -98,7 +98,7 @@ func (s *MetadataSuite) TestRepository() {
 	})
 
 	s.T().Run("deleting unknown repository returns ErrRepositoryNotFound", func(t *testing.T) {
-		meta := s.Constructor()
+		meta := s.Constructor(t)
 		name := RandomName()
 
 		err := meta.DeleteRepository(name)
@@ -142,7 +142,7 @@ func (s *MetadataSuite) TestBlobs() {
 		AssertErrorIs(t, err, store.ErrBlobNotFound)
 	})
 
-	s.T().Run("deleting unknown blob returns ErrRepositoryBlobNotFound", func(t *testing.T) {
+	s.T().Run("deleting unknown blob returns ErrBlobNotFound", func(t *testing.T) {
 		repo := s.RepositoryConstructor(t)
 		digest := RandomDigest()
 
@@ -157,7 +157,7 @@ func (s *MetadataSuite) TestListBlobs() {
 	}
 
 	s.T().Run("lists blobs across repositories", func(t *testing.T) {
-		meta := s.Constructor()
+		meta := s.Constructor(t)
 		want := make([]digest.Digest, 5)
 		got := make([]digest.Digest, 0)
 
@@ -182,7 +182,7 @@ func (s *MetadataSuite) TestListBlobs() {
 	})
 
 	s.T().Run("does not return deleted blobs", func(t *testing.T) {
-		meta := s.Constructor()
+		meta := s.Constructor(t)
 		name, digest := RandomName(), RandomDigest()
 		repo, err := meta.CreateRepository(name)
 		AssertNoError(t, err).Require()
@@ -203,7 +203,7 @@ func (s *MetadataSuite) TestListBlobs() {
 	})
 
 	s.T().Run("returns a blob deleted in one repository but present in another", func(t *testing.T) {
-		meta := s.Constructor()
+		meta := s.Constructor(t)
 		count := 5
 		repos := make([]store.Repository, count)
 		digest := RandomDigest()
@@ -227,7 +227,7 @@ func (s *MetadataSuite) TestListBlobs() {
 	})
 
 	s.T().Run("does not return blobs from deleted repositories", func(t *testing.T) {
-		meta := s.Constructor()
+		meta := s.Constructor(t)
 		name := RandomName()
 		repo, err := meta.CreateRepository(name)
 		AssertNoError(t, err)
@@ -246,7 +246,7 @@ func (s *MetadataSuite) TestListBlobs() {
 	})
 
 	s.T().Run("returns blobs deleted in one repository and present in another", func(t *testing.T) {
-		meta := s.Constructor()
+		meta := s.Constructor(t)
 		digest := RandomDigest()
 		nameA, nameB := RandomName(), RandomName()
 		repoA, err := meta.CreateRepository(nameA)
@@ -614,7 +614,7 @@ func (s *MetadataSuite) TestListManifests() {
 	}
 
 	s.T().Run("lists manifest blobs across repositories", func(t *testing.T) {
-		meta := s.Constructor()
+		meta := s.Constructor(t)
 		want := make([]digest.Digest, 5)
 		got := make([]digest.Digest, 0)
 
@@ -639,7 +639,7 @@ func (s *MetadataSuite) TestListManifests() {
 	})
 
 	s.T().Run("does not return deleted manifest blobs", func(t *testing.T) {
-		meta := s.Constructor()
+		meta := s.Constructor(t)
 		name, digest := RandomName(), RandomDigest()
 		repo, err := meta.CreateRepository(name)
 		AssertNoError(t, err).Require()
@@ -660,7 +660,7 @@ func (s *MetadataSuite) TestListManifests() {
 	})
 
 	s.T().Run("returns a manifest blob deleted in one repository but present in another", func(t *testing.T) {
-		meta := s.Constructor()
+		meta := s.Constructor(t)
 		count := 5
 		repos := make([]store.Repository, count)
 		digest := RandomDigest()
@@ -775,6 +775,10 @@ func (s *MetadataSuite) TestReferrers() {
 }
 
 func (s *MetadataSuite) TestTags() {
+	if s.SkipTags {
+		s.T().Skip()
+	}
+
 	s.T().Run("tags a manifest digest", func(t *testing.T) {
 		repo := s.RepositoryConstructor(t)
 		digest, tag := RandomDigest(), RandomVersion()
@@ -996,7 +1000,7 @@ func (s *MetadataSuite) TestRecursiveGC() {
 	}
 
 	s.T().Run("deletes all blobs of tagged image manifest with referrer", func(t *testing.T) {
-		meta := s.Constructor()
+		meta := s.Constructor(t)
 		name := RandomName()
 		repo, err := meta.CreateRepository(name)
 		AssertNoError(t, err)
@@ -1055,9 +1059,9 @@ func (s *MetadataSuite) TestSnapshotRestore() {
 
 	s.T().Run("snapshot and restore into another MetadataStore", func(t *testing.T) {
 		// The store that we're taking a snapshot from.
-		snapshotStore := s.Constructor()
+		snapshotStore := s.Constructor(t)
 		// The store that we're restoring into.
-		restoreStore := s.Constructor()
+		restoreStore := s.Constructor(t)
 
 		repo, err := snapshotStore.CreateRepository(name)
 		AssertNoError(t, err).Require()
@@ -1080,7 +1084,7 @@ func (s *MetadataSuite) TestSnapshotRestore() {
 	})
 
 	s.T().Run("snapshot and restore in-place", func(t *testing.T) {
-		meta := s.Constructor()
+		meta := s.Constructor(t)
 		snapshot := new(bytes.Buffer)
 
 		repo, err := meta.CreateRepository(name)
