@@ -76,11 +76,20 @@ func (m *metadataStore) GetRepository(name string) (store.Repository, error) {
 }
 
 func (m *metadataStore) DeleteRepository(name string) error {
-	if _, ok := m.Repositories[name]; ok {
-		delete(m.Repositories, name)
-		return nil
+	repo, ok := m.Repositories[name]
+	if !ok {
+		return fmt.Errorf("%w: %s", store.ErrRepositoryNotFound, name)
 	}
-	return fmt.Errorf("%w: %s", store.ErrRepositoryNotFound, name)
+
+	for digest := range repo.Blobs {
+		delete(m.SharedBlobs.Digests[digest].Repositories, name)
+		if len(m.SharedBlobs.Digests[digest].Repositories) == 0 {
+			delete(m.SharedBlobs.Digests, digest)
+		}
+	}
+
+	delete(m.Repositories, name)
+	return nil
 }
 
 func (m *metadataStore) Blobs() iter.Seq[digest.Digest] {

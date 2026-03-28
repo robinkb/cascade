@@ -228,6 +228,49 @@ func (s *MetadataSuite) TestListBlobs() {
 		AssertEqual(t, len(digests), 1).Require()
 		AssertEqual(t, digests[0], digest)
 	})
+
+	s.T().Run("does not return blobs from deleted repositories", func(t *testing.T) {
+		meta := s.Constructor()
+		name := RandomName()
+		repo, err := meta.CreateRepository(name)
+		AssertNoError(t, err)
+
+		err = repo.PutBlob(RandomDigest())
+		AssertNoError(t, err)
+
+		blobs := slices.Collect(meta.Blobs())
+		AssertEqual(t, len(blobs), 1)
+
+		err = meta.DeleteRepository(name)
+		AssertNoError(t, err)
+
+		blobs = slices.Collect(meta.Blobs())
+		AssertEqual(t, len(blobs), 0)
+	})
+
+	s.T().Run("returns blobs deleted in one repository and present in another", func(t *testing.T) {
+		meta := s.Constructor()
+		digest := RandomDigest()
+		nameA, nameB := RandomName(), RandomName()
+		repoA, err := meta.CreateRepository(nameA)
+		AssertNoError(t, err)
+		repoB, err := meta.CreateRepository(nameB)
+		AssertNoError(t, err)
+
+		err = repoA.PutBlob(digest)
+		AssertNoError(t, err)
+		err = repoB.PutBlob(digest)
+		AssertNoError(t, err)
+
+		blobs := slices.Collect(meta.Blobs())
+		AssertEqual(t, len(blobs), 1)
+
+		err = meta.DeleteRepository(nameB)
+		AssertNoError(t, err)
+
+		blobs = slices.Collect(meta.Blobs())
+		AssertEqual(t, len(blobs), 1)
+	})
 }
 
 func (s *MetadataSuite) TestManifests() {
