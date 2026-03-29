@@ -30,6 +30,10 @@ var (
 	repositoryBuckets = [][]byte{
 		_BLOBS, _MANIFESTS, _TAGS, _UPLOADS,
 	}
+	// manifestBuckets list the default buckets in a manifest.
+	manifestBuckets = [][]byte{
+		_MANIFESTS, _TAGS,
+	}
 )
 
 func NewMetadataStore(path string) (store.Metadata, error) {
@@ -158,7 +162,7 @@ type repositoryStore struct {
 func (r *repositoryStore) GetBlob(id digest.Digest) error {
 	return r.db.View(func(tx *bolt.Tx) error {
 		blob := r.repository(tx).blobs().blob(id)
-		if blob.b == nil {
+		if !blob.found() {
 			return fmt.Errorf("%w: %s", store.ErrBlobNotFound, id)
 		}
 		return nil
@@ -172,7 +176,7 @@ func (r *repositoryStore) PutBlob(id digest.Digest) error {
 }
 
 func (r *repositoryStore) putBlob(tx *bolt.Tx, id digest.Digest) error {
-	r.blobs(tx).blob(id).addOwner(r.name)
+	r.blobs(tx).addBlob(id).addOwner(r.name)
 	r.repository(tx).blobs().addBlob(id)
 	return nil
 }
@@ -187,7 +191,7 @@ func (r *repositoryStore) deleteBlob(tx *bolt.Tx, id digest.Digest) error {
 	{ // repository blobs
 		blobs := r.repository(tx).blobs()
 		blob := blobs.blob(id)
-		if blob.b == nil {
+		if !blob.found() {
 			return fmt.Errorf("%w: %s", store.ErrBlobNotFound, id)
 		}
 		if blob.hasOwners() {
@@ -209,85 +213,54 @@ func (r *repositoryStore) deleteBlob(tx *bolt.Tx, id digest.Digest) error {
 }
 
 func (r *repositoryStore) GetManifest(id digest.Digest) (store.Manifest, error) {
-	var buf *bytes.Buffer
 	var meta store.Manifest
 
 	err := r.db.View(func(tx *bolt.Tx) error {
-		manifest := r.repo(tx).Bucket(_MANIFESTS).Bucket([]byte(id))
-		if manifest == nil {
+		manifest := r.repository(tx).manifests().manifest(id)
+		if !manifest.found() {
 			return fmt.Errorf("%w: %s", store.ErrManifestNotFound, id)
 		}
-		data := manifest.Get(_METADATA)
-		buf = bytes.NewBuffer(data)
+		meta = manifest.metadata()
 		return nil
 	})
 	if err != nil {
-		return store.Manifest{}, err
-	}
-
-	if err := gob.NewDecoder(buf).Decode(&meta); err != nil {
-		return store.Manifest{}, err
+		return meta, err
 	}
 
 	return meta, nil
 }
 
 func (r *repositoryStore) PutManifest(id digest.Digest, meta store.Manifest, refs store.References) error {
-	bufMeta, bufRefs := new(bytes.Buffer), new(bytes.Buffer)
-	err := gob.NewEncoder(bufMeta).Encode(&meta)
-	if err != nil {
-		return err
-	}
-	err = gob.NewEncoder(bufRefs).Encode(&refs)
-	if err != nil {
-		return err
-	}
-
 	return r.db.Update(func(tx *bolt.Tx) error {
-		manifest, err := r.repo(tx).Bucket(_MANIFESTS).CreateBucket([]byte(id))
-		if err != nil {
-			return err
-		}
+		repo := r.repository(tx)
 
-		_, err = manifest.CreateBucket(_MANIFESTS)
-		if err != nil {
-			return err
-		}
-
-		err = manifest.Put(_METADATA, bufMeta.Bytes())
-		if err != nil {
-			return err
-		}
-
-		err = manifest.Put(_REFERENCES, bufRefs.Bytes())
-		if err != nil {
-			return err
-		}
-
+		blobs := repo.blobs()
 		if refs.Config != "" {
-			owners := r.repo(tx).Bucket(_BLOBS).Bucket([]byte(refs.Config))
-			if owners == nil {
+			configBlob := blobs.blob(refs.Config)
+			if !configBlob.found() {
 				return fmt.Errorf("%w: %w: %s", store.ErrManifestInvalid, store.ErrManifestConfigNotFound, refs.Config)
 			}
-			owners.Put([]byte(id), []byte{})
+			configBlob.addOwner(id)
 		}
 
 		for _, layerDigest := range refs.Layers {
-			owners := r.repo(tx).Bucket(_BLOBS).Bucket([]byte(layerDigest))
-			if owners == nil {
+			layerBlob := blobs.blob(layerDigest)
+			if !layerBlob.found() {
 				return fmt.Errorf("%w: %w: %s", store.ErrManifestInvalid, store.ErrManifestLayerNotFound, layerDigest)
 			}
-			owners.Put([]byte(id), []byte{})
+			layerBlob.addOwner(id)
 		}
 
+		manifests := repo.manifests()
 		for _, manifestDigest := range refs.Manifests {
-			manifest := r.repo(tx).Bucket(_MANIFESTS).Bucket([]byte(manifestDigest))
-			if manifest == nil {
+			manifest := manifests.manifest(manifestDigest)
+			if !manifest.found() {
 				return fmt.Errorf("%w: %w: %s", store.ErrManifestInvalid, store.ErrManifestImageNotFound, manifestDigest)
 			}
-			manifest.Bucket(_MANIFESTS).Put([]byte(manifestDigest), nil)
+			manifest.addManifestOwner(id)
 		}
 
+		manifests.addManifest(id, meta, refs)
 		return r.putBlob(tx, id)
 	})
 }
@@ -312,24 +285,22 @@ func (r *repositoryStore) DeleteManifest(id digest.Digest) ([]digest.Digest, err
 func (r *repositoryStore) deleteManifest(tx *bbolt.Tx, id digest.Digest) ([]digest.Digest, error) {
 	deleted := make([]digest.Digest, 0)
 
-	manifest := r.repo(tx).Bucket(_MANIFESTS).Bucket([]byte(id))
-	if manifest == nil {
+	repo := r.repository(tx)
+	manifests := repo.manifests()
+	manifest := manifests.manifest(id)
+	if !manifest.found() {
 		return nil, fmt.Errorf("%w: %s", store.ErrManifestNotFound, id)
 	}
 
-	if keys(manifest.Bucket(_MANIFESTS)) != 0 {
+	if manifest.hasOwners() {
 		return nil, fmt.Errorf("%w: %s", store.ErrManifestInUse, id)
 	}
 
-	var refs store.References
-	refsData := manifest.Get(_REFERENCES)
-	err := gob.NewDecoder(bytes.NewBuffer(refsData)).Decode(&refs)
-	if err != nil {
-		return nil, err
-	}
+	refs := manifest.references()
 
+	blobs := repo.blobs()
 	if refs.Config != "" {
-		r.repo(tx).Bucket(_BLOBS).Bucket([]byte(refs.Config)).Delete([]byte(id))
+		blobs.blob(refs.Config).removeOwner(id)
 		if err := r.deleteBlob(tx, refs.Config); err != nil {
 			if !errors.Is(err, store.ErrBlobInUse) {
 				return nil, err
@@ -340,7 +311,7 @@ func (r *repositoryStore) deleteManifest(tx *bbolt.Tx, id digest.Digest) ([]dige
 	}
 
 	for _, layerDigest := range refs.Layers {
-		r.repo(tx).Bucket(_BLOBS).Bucket([]byte(layerDigest)).Delete([]byte(id))
+		blobs.blob(layerDigest).removeOwner(id)
 		if err := r.deleteBlob(tx, layerDigest); err != nil {
 			if errors.Is(err, store.ErrBlobInUse) {
 				continue
@@ -351,7 +322,7 @@ func (r *repositoryStore) deleteManifest(tx *bbolt.Tx, id digest.Digest) ([]dige
 	}
 
 	for _, manifestDigest := range refs.Manifests {
-		r.repo(tx).Bucket(_MANIFESTS).Bucket([]byte(manifestDigest)).Delete([]byte(id))
+		manifests.manifest(manifestDigest).removeManifestOwner(id)
 		digests, err := r.deleteManifest(tx, manifestDigest)
 		if err != nil {
 			if errors.Is(err, store.ErrManifestInUse) {
@@ -362,9 +333,7 @@ func (r *repositoryStore) deleteManifest(tx *bbolt.Tx, id digest.Digest) ([]dige
 		deleted = append(deleted, digests...)
 	}
 
-	if err := r.repo(tx).Bucket(_MANIFESTS).DeleteBucket([]byte(id)); err != nil {
-		return nil, err
-	}
+	manifests.removeManifest(id)
 
 	if err := r.deleteBlob(tx, id); err != nil {
 		return nil, err
@@ -378,11 +347,6 @@ func (r *repositoryStore) blobs(tx *bbolt.Tx) sharedBlobs {
 	return sharedBlobs{
 		b: tx.Bucket(_BLOBS),
 	}
-}
-
-// repo returns the bucket for this repository.
-func (r *repositoryStore) repo(tx *bbolt.Tx) *bbolt.Bucket {
-	return tx.Bucket(_REPOSITORIES).Bucket([]byte(r.name))
 }
 
 func (r *repositoryStore) repository(tx *bbolt.Tx) repository {
@@ -405,10 +369,12 @@ type sharedBlobs struct {
 }
 
 func (o sharedBlobs) blob(id digest.Digest) sharedBlob {
+	return sharedBlob{o.b.Bucket([]byte(id))}
+}
+
+func (o sharedBlobs) addBlob(id digest.Digest) sharedBlob {
 	b, _ := o.b.CreateBucketIfNotExists([]byte(id))
-	return sharedBlob{
-		b: b,
-	}
+	return sharedBlob{b}
 }
 
 func (o sharedBlobs) removeBlob(id digest.Digest) {
@@ -439,9 +405,11 @@ type repository struct {
 }
 
 func (o repository) blobs() repoBlobs {
-	return repoBlobs{
-		b: o.b.Bucket(_BLOBS),
-	}
+	return repoBlobs{o.b.Bucket(_BLOBS)}
+}
+
+func (o repository) manifests() manifests {
+	return manifests{o.b.Bucket(_MANIFESTS)}
 }
 
 // repoBlobs contains metadata of blobs belonging to a specific repository.
@@ -465,6 +433,84 @@ type repoBlob struct {
 	b *bbolt.Bucket
 }
 
+func (o repoBlob) found() bool { return o.b != nil }
+
+func (o repoBlob) addOwner(id digest.Digest) {
+	o.b.Put([]byte(id), nil)
+}
+
+func (o repoBlob) removeOwner(id digest.Digest) {
+	o.b.Delete([]byte(id))
+}
+
 func (o repoBlob) hasOwners() bool {
 	return o.b.Inspect().KeyN != 0
+}
+
+type manifests struct {
+	b *bbolt.Bucket
+}
+
+func (o manifests) manifest(id digest.Digest) manifest {
+	return manifest{o.b.Bucket([]byte(id))}
+}
+
+func (o manifests) addManifest(id digest.Digest, meta store.Manifest, refs store.References) manifest {
+	b, _ := o.b.CreateBucket([]byte(id))
+	for _, bucket := range manifestBuckets {
+		b.CreateBucket(bucket)
+	}
+
+	buf := new(bytes.Buffer)
+	if err := gob.NewEncoder(buf).Encode(&meta); err != nil {
+		panic(err)
+	}
+	b.Put(_METADATA, buf.Bytes())
+
+	buf = new(bytes.Buffer)
+	if err := gob.NewEncoder(buf).Encode(&refs); err != nil {
+		panic(err)
+	}
+	b.Put(_REFERENCES, buf.Bytes())
+
+	return manifest{b}
+}
+
+func (o manifests) removeManifest(id digest.Digest) {
+	o.b.DeleteBucket([]byte(id))
+}
+
+type manifest struct {
+	b *bbolt.Bucket
+}
+
+func (o manifest) found() bool { return o.b != nil }
+
+func (o manifest) metadata() (meta store.Manifest) {
+	data := o.b.Get(_METADATA)
+	buf := bytes.NewBuffer(data)
+	if err := gob.NewDecoder(buf).Decode(&meta); err != nil {
+		panic(err)
+	}
+	return
+}
+
+func (o manifest) references() (refs store.References) {
+	data := o.b.Get(_REFERENCES)
+	buf := bytes.NewBuffer(data)
+	gob.NewDecoder(buf).Decode(&refs)
+	return
+}
+
+func (o manifest) addManifestOwner(id digest.Digest) {
+	o.b.Bucket(_MANIFESTS).Put([]byte(id), nil)
+}
+
+func (o manifest) removeManifestOwner(id digest.Digest) {
+	o.b.Bucket(_MANIFESTS).Delete([]byte(id))
+}
+
+func (o manifest) hasOwners() bool {
+	return o.b.Bucket(_MANIFESTS).Inspect().KeyN != 0 ||
+		o.b.Bucket(_TAGS).Inspect().KeyN != 0
 }
