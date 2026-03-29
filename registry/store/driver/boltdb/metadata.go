@@ -212,12 +212,14 @@ func (r *repositoryStore) deleteBlob(tx *bolt.Tx, id digest.Digest) error {
 
 func (r *repositoryStore) GetManifest(id digest.Digest) (store.Manifest, error) {
 	var buf *bytes.Buffer
-	var manifest store.Manifest
+	var meta store.Manifest
+
 	err := r.db.View(func(tx *bolt.Tx) error {
-		data := r.repo(tx).Bucket(_MANIFESTS).Get([]byte(id))
-		if data == nil {
+		manifest := r.repo(tx).Bucket(_MANIFESTS).Bucket([]byte(id))
+		if manifest == nil {
 			return fmt.Errorf("%w: %s", store.ErrManifestNotFound, id)
 		}
+		data := manifest.Get(_METADATA)
 		buf = bytes.NewBuffer(data)
 		return nil
 	})
@@ -225,11 +227,11 @@ func (r *repositoryStore) GetManifest(id digest.Digest) (store.Manifest, error) 
 		return store.Manifest{}, err
 	}
 
-	if err := gob.NewDecoder(buf).Decode(&manifest); err != nil {
+	if err := gob.NewDecoder(buf).Decode(&meta); err != nil {
 		return store.Manifest{}, err
 	}
 
-	return manifest, nil
+	return meta, nil
 }
 
 func (r *repositoryStore) PutManifest(id digest.Digest, meta store.Manifest, refs store.References) error {
@@ -240,7 +242,13 @@ func (r *repositoryStore) PutManifest(id digest.Digest, meta store.Manifest, ref
 	}
 
 	return r.db.Update(func(tx *bolt.Tx) error {
-		if err := r.repo(tx).Bucket(_MANIFESTS).Put([]byte(id), buf.Bytes()); err != nil {
+		manifest, err := r.repo(tx).Bucket(_MANIFESTS).CreateBucket([]byte(id))
+		if err != nil {
+			return err
+		}
+
+		err = manifest.Put(_METADATA, buf.Bytes())
+		if err != nil {
 			return err
 		}
 
@@ -251,7 +259,10 @@ func (r *repositoryStore) PutManifest(id digest.Digest, meta store.Manifest, ref
 func (r *repositoryStore) DeleteManifest(id digest.Digest) ([]digest.Digest, error) {
 	deleted := make([]digest.Digest, 0)
 	err := r.db.Update(func(tx *bolt.Tx) error {
-		if err := r.repo(tx).Bucket(_MANIFESTS).Delete([]byte(id)); err != nil {
+		if err := r.repo(tx).Bucket(_MANIFESTS).DeleteBucket([]byte(id)); err != nil {
+			if errors.Is(err, bolterrors.ErrBucketNotFound) {
+				return fmt.Errorf("%w: %s", store.ErrManifestNotFound, id)
+			}
 			return err
 		}
 
