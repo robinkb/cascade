@@ -1,6 +1,8 @@
 package boltdb
 
 import (
+	"bytes"
+	"encoding/gob"
 	"errors"
 	"fmt"
 	"iter"
@@ -109,10 +111,11 @@ func (m *metadataStore) DeleteRepository(name string) error {
 
 		c := repo.Bucket(_BLOBS).Cursor()
 		sharedBlobs := tx.Bucket(_BLOBS)
-		for digest, _ := c.First(); digest != nil; digest, _ = c.Next() {
-			sharedBlobs.Bucket(digest).Delete([]byte(name))
-			if keys(sharedBlobs.Bucket(digest)) == 0 {
-				sharedBlobs.DeleteBucket(digest)
+		for id, _ := c.First(); id != nil; id, _ = c.Next() {
+			owners := sharedBlobs.Bucket(id)
+			owners.Delete([]byte(name))
+			if keys(owners) == 0 {
+				sharedBlobs.DeleteBucket(id)
 			}
 		}
 
@@ -124,9 +127,8 @@ func (m *metadataStore) Blobs() iter.Seq[digest.Digest] {
 	return func(yield func(digest.Digest) bool) {
 		err := m.db.View(func(tx *bolt.Tx) error {
 			c := tx.Bucket(_BLOBS).Cursor()
-
-			for k, _ := c.First(); k != nil; k, _ = c.Next() {
-				if !yield(digest.Digest(k)) {
+			for id, _ := c.First(); id != nil; id, _ = c.Next() {
+				if !yield(digest.Digest(id)) {
 					return nil
 				}
 			}
@@ -198,6 +200,45 @@ func (r *repositoryStore) DeleteBlob(id digest.Digest) error {
 
 		return blobs.DeleteBucket([]byte(id))
 	})
+}
+
+func (r *repositoryStore) GetManifest(id digest.Digest) (store.Manifest, error) {
+	var buf *bytes.Buffer
+	var manifest store.Manifest
+	err := r.db.View(func(tx *bolt.Tx) error {
+		data := r.self(tx).Bucket(_MANIFESTS).Get([]byte(id))
+		if data == nil {
+			return fmt.Errorf("%w: %s", store.ErrManifestNotFound, id)
+		}
+		buf = bytes.NewBuffer(data)
+		return nil
+	})
+	if err != nil {
+		return store.Manifest{}, err
+	}
+
+	if err := gob.NewDecoder(buf).Decode(&manifest); err != nil {
+		return store.Manifest{}, err
+	}
+
+	return manifest, nil
+}
+
+func (r *repositoryStore) PutManifest(id digest.Digest, meta store.Manifest, refs store.References) error {
+	buf := new(bytes.Buffer)
+	err := gob.NewEncoder(buf).Encode(&meta)
+	if err != nil {
+		return err
+	}
+
+	return r.db.Update(func(tx *bolt.Tx) error {
+		r.self(tx).Bucket(_MANIFESTS).Put([]byte(id), buf.Bytes())
+		return nil
+	})
+}
+
+func (r *repositoryStore) DeleteManifest(id digest.Digest) ([]digest.Digest, error) {
+	return nil, nil
 }
 
 // self returns the root bucket for this repository.

@@ -18,7 +18,6 @@ func TestMetadataSuite(t *testing.T) {
 			return meta
 		},
 
-		SkipManifest:        true,
 		SkipListManifests:   true,
 		SkipReferrers:       true,
 		SkipTags:            true,
