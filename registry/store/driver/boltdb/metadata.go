@@ -12,7 +12,6 @@ import (
 
 	"github.com/opencontainers/go-digest"
 	"github.com/robinkb/cascade/registry/store"
-	"go.etcd.io/bbolt"
 	bolt "go.etcd.io/bbolt"
 	bolterrors "go.etcd.io/bbolt/errors"
 )
@@ -142,7 +141,7 @@ func (m *metadataStore) Blobs() iter.Seq[digest.Digest] {
 	}
 }
 
-func newRepositoryStore(name string, db *bbolt.DB) store.Repository {
+func newRepositoryStore(name string, db *bolt.DB) store.Repository {
 	return &repositoryStore{
 		name: name,
 		db:   db,
@@ -152,7 +151,7 @@ func newRepositoryStore(name string, db *bbolt.DB) store.Repository {
 type repositoryStore struct {
 	store.Repository
 	name string
-	db   *bbolt.DB
+	db   *bolt.DB
 }
 
 func (r *repositoryStore) GetBlob(id digest.Digest) error {
@@ -286,7 +285,7 @@ func (r *repositoryStore) DeleteManifest(id digest.Digest) ([]digest.Digest, err
 	return deleted, nil
 }
 
-func (r *repositoryStore) deleteManifest(tx *bbolt.Tx, id digest.Digest) ([]digest.Digest, error) {
+func (r *repositoryStore) deleteManifest(tx *bolt.Tx, id digest.Digest) ([]digest.Digest, error) {
 	deleted := make([]digest.Digest, 0)
 
 	repo := r.repository(tx)
@@ -374,19 +373,19 @@ func (r *repositoryStore) ListReferrers(subject digest.Digest) ([]digest.Digest,
 	return refs, nil
 }
 
-func (r *repositoryStore) blobs(tx *bbolt.Tx) sharedBlobs {
+func (r *repositoryStore) blobs(tx *bolt.Tx) sharedBlobs {
 	return sharedBlobs{
 		b: tx.Bucket(_BLOBS),
 	}
 }
 
-func (r *repositoryStore) repository(tx *bbolt.Tx) repository {
+func (r *repositoryStore) repository(tx *bolt.Tx) repository {
 	return repository{
 		b: tx.Bucket(_REPOSITORIES).Bucket([]byte(r.name)),
 	}
 }
 
-func keys(b *bbolt.Bucket) (n int) {
+func keys(b *bolt.Bucket) (n int) {
 	c := b.Cursor()
 	for k, _ := c.First(); k != nil; k, _ = c.Next() {
 		n++
@@ -396,7 +395,7 @@ func keys(b *bbolt.Bucket) (n int) {
 
 // sharedBlobs contains the metadata of all the blobs in the blob store.
 type sharedBlobs struct {
-	b *bbolt.Bucket
+	b *bolt.Bucket
 }
 
 func (o sharedBlobs) blob(id digest.Digest) sharedBlob {
@@ -415,7 +414,7 @@ func (o sharedBlobs) removeBlob(id digest.Digest) {
 // sharedBlob represents a single blob in the blob store.
 // It tracks which repositories owns each blob.
 type sharedBlob struct {
-	b *bbolt.Bucket
+	b *bolt.Bucket
 }
 
 func (o sharedBlob) addOwner(name string) {
@@ -432,7 +431,7 @@ func (o sharedBlob) hasOwners() bool {
 
 // repository contains the metadata of a single repository.
 type repository struct {
-	b *bbolt.Bucket
+	b *bolt.Bucket
 }
 
 func (o repository) blobs() repoBlobs {
@@ -445,7 +444,7 @@ func (o repository) manifests() manifests {
 
 // repoBlobs contains metadata of blobs belonging to a specific repository.
 type repoBlobs struct {
-	b *bbolt.Bucket
+	b *bolt.Bucket
 }
 
 func (o repoBlobs) blob(id digest.Digest) repoBlob {
@@ -461,7 +460,7 @@ func (o repoBlobs) removeBlob(id digest.Digest) {
 }
 
 type repoBlob struct {
-	b *bbolt.Bucket
+	b *bolt.Bucket
 }
 
 func (o repoBlob) found() bool { return o.b != nil }
@@ -479,7 +478,7 @@ func (o repoBlob) hasOwners() bool {
 }
 
 type manifests struct {
-	b *bbolt.Bucket
+	b *bolt.Bucket
 }
 
 func (o manifests) manifest(id digest.Digest) manifest {
@@ -512,7 +511,7 @@ func (o manifests) removeManifest(id digest.Digest) {
 }
 
 type manifest struct {
-	b *bbolt.Bucket
+	b *bolt.Bucket
 }
 
 func (o manifest) found() bool { return o.b != nil }
