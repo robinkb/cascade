@@ -20,6 +20,7 @@ var (
 	_BLOBS        = []byte("BLOBS")
 	_MANIFESTS    = []byte("MANIFESTS")
 	_METADATA     = []byte("METADATA")
+	_REFERENCES   = []byte("REFERENCES")
 	_REFERRERS    = []byte("REFERRERS")
 	_REPOSITORIES = []byte("REPOSITORIES")
 	_TAGS         = []byte("TAGS")
@@ -190,21 +191,22 @@ func (r *repositoryStore) DeleteBlob(id digest.Digest) error {
 }
 
 func (r *repositoryStore) deleteBlob(tx *bolt.Tx, id digest.Digest) error {
-	sharedBlob := tx.Bucket(_BLOBS).Bucket([]byte(id))
-	if sharedBlob == nil {
-		return store.ErrBlobNotFound
+	blobs := r.repo(tx).Bucket(_BLOBS)
+	owners := blobs.Bucket([]byte(id))
+	if owners == nil {
+		return fmt.Errorf("%w: %s", store.ErrBlobNotFound, id)
 	}
+	if keys(owners) != 0 {
+		return fmt.Errorf("%w: %s", store.ErrBlobInUse, id)
+	}
+
+	sharedBlob := tx.Bucket(_BLOBS).Bucket([]byte(id))
 	sharedBlob.Delete([]byte(r.name))
 	if keys(sharedBlob) == 0 {
 		err := tx.Bucket(_BLOBS).DeleteBucket([]byte(id))
 		if err != nil {
 			return err
 		}
-	}
-
-	blobs := r.repo(tx).Bucket(_BLOBS)
-	if blobs.Bucket([]byte(id)) == nil {
-		return store.ErrBlobNotFound
 	}
 
 	return blobs.DeleteBucket([]byte(id))
@@ -235,8 +237,12 @@ func (r *repositoryStore) GetManifest(id digest.Digest) (store.Manifest, error) 
 }
 
 func (r *repositoryStore) PutManifest(id digest.Digest, meta store.Manifest, refs store.References) error {
-	buf := new(bytes.Buffer)
-	err := gob.NewEncoder(buf).Encode(&meta)
+	bufMeta, bufRefs := new(bytes.Buffer), new(bytes.Buffer)
+	err := gob.NewEncoder(bufMeta).Encode(&meta)
+	if err != nil {
+		return err
+	}
+	err = gob.NewEncoder(bufRefs).Encode(&refs)
 	if err != nil {
 		return err
 	}
@@ -247,9 +253,22 @@ func (r *repositoryStore) PutManifest(id digest.Digest, meta store.Manifest, ref
 			return err
 		}
 
-		err = manifest.Put(_METADATA, buf.Bytes())
+		err = manifest.Put(_METADATA, bufMeta.Bytes())
 		if err != nil {
 			return err
+		}
+
+		err = manifest.Put(_REFERENCES, bufRefs.Bytes())
+		if err != nil {
+			return err
+		}
+
+		if refs.Config != "" {
+			owners := r.repo(tx).Bucket(_BLOBS).Bucket([]byte(refs.Config))
+			if owners == nil {
+				return fmt.Errorf("%w: %w: %s", store.ErrManifestInvalid, store.ErrManifestConfigNotFound, refs.Config)
+			}
+			owners.Put([]byte(id), []byte{})
 		}
 
 		return r.putBlob(tx, id)
@@ -259,17 +278,37 @@ func (r *repositoryStore) PutManifest(id digest.Digest, meta store.Manifest, ref
 func (r *repositoryStore) DeleteManifest(id digest.Digest) ([]digest.Digest, error) {
 	deleted := make([]digest.Digest, 0)
 	err := r.db.Update(func(tx *bolt.Tx) error {
-		if err := r.repo(tx).Bucket(_MANIFESTS).DeleteBucket([]byte(id)); err != nil {
-			if errors.Is(err, bolterrors.ErrBucketNotFound) {
-				return fmt.Errorf("%w: %s", store.ErrManifestNotFound, id)
+		manifest := r.repo(tx).Bucket(_MANIFESTS).Bucket([]byte(id))
+		if manifest == nil {
+			return fmt.Errorf("%w: %s", store.ErrManifestNotFound, id)
+		}
+
+		var refs store.References
+		refsData := manifest.Get(_REFERENCES)
+		err := gob.NewDecoder(bytes.NewBuffer(refsData)).Decode(&refs)
+		if err != nil {
+			return err
+		}
+
+		if refs.Config != "" {
+			r.repo(tx).Bucket(_BLOBS).Bucket([]byte(refs.Config)).Delete([]byte(id))
+			if err := r.deleteBlob(tx, refs.Config); err != nil {
+				if !errors.Is(err, store.ErrBlobInUse) {
+					return err
+				}
+			} else {
+				deleted = append(deleted, refs.Config)
 			}
+		}
+
+		if err := r.repo(tx).Bucket(_MANIFESTS).DeleteBucket([]byte(id)); err != nil {
 			return err
 		}
 
 		return r.deleteBlob(tx, id)
 	})
 	if err != nil {
-		return deleted, err
+		return nil, err
 	}
 
 	deleted = append(deleted, id)
