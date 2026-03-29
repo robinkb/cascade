@@ -157,8 +157,9 @@ type repositoryStore struct {
 
 func (r *repositoryStore) GetBlob(id digest.Digest) error {
 	return r.db.View(func(tx *bolt.Tx) error {
-		if r.repo(tx).Bucket(_BLOBS).Bucket([]byte(id)) == nil {
-			return store.ErrBlobNotFound
+		blob := r.repository(tx).blobs().blob(id)
+		if blob.b == nil {
+			return fmt.Errorf("%w: %s", store.ErrBlobNotFound, id)
 		}
 		return nil
 	})
@@ -171,17 +172,9 @@ func (r *repositoryStore) PutBlob(id digest.Digest) error {
 }
 
 func (r *repositoryStore) putBlob(tx *bolt.Tx, id digest.Digest) error {
-	sharedBlob, err := tx.Bucket(_BLOBS).CreateBucketIfNotExists([]byte(id))
-	if err != nil {
-		return err
-	}
-	err = sharedBlob.Put([]byte(r.name), nil)
-	if err != nil {
-		return err
-	}
-
-	_, err = r.repo(tx).Bucket(_BLOBS).CreateBucket([]byte(id))
-	return err
+	r.blobs(tx).blob(id).addOwner(r.name)
+	r.repository(tx).blobs().addBlob(id)
+	return nil
 }
 
 func (r *repositoryStore) DeleteBlob(id digest.Digest) error {
@@ -191,25 +184,28 @@ func (r *repositoryStore) DeleteBlob(id digest.Digest) error {
 }
 
 func (r *repositoryStore) deleteBlob(tx *bolt.Tx, id digest.Digest) error {
-	blobs := r.repo(tx).Bucket(_BLOBS)
-	owners := blobs.Bucket([]byte(id))
-	if owners == nil {
-		return fmt.Errorf("%w: %s", store.ErrBlobNotFound, id)
-	}
-	if keys(owners) != 0 {
-		return fmt.Errorf("%w: %s", store.ErrBlobInUse, id)
-	}
+	{ // repository blobs
+		blobs := r.repository(tx).blobs()
+		blob := blobs.blob(id)
+		if blob.b == nil {
+			return fmt.Errorf("%w: %s", store.ErrBlobNotFound, id)
+		}
+		if blob.hasOwners() {
+			return fmt.Errorf("%w: %s", store.ErrBlobInUse, id)
+		}
 
-	sharedBlob := tx.Bucket(_BLOBS).Bucket([]byte(id))
-	sharedBlob.Delete([]byte(r.name))
-	if keys(sharedBlob) == 0 {
-		err := tx.Bucket(_BLOBS).DeleteBucket([]byte(id))
-		if err != nil {
-			return err
+		blobs.removeBlob(id)
+	}
+	{ // shared blobs
+		blobs := r.blobs(tx)
+		blob := blobs.blob(id)
+		blob.removeOwner(r.name)
+		if !blob.hasOwners() {
+			blobs.removeBlob(id)
 		}
 	}
 
-	return blobs.DeleteBucket([]byte(id))
+	return nil
 }
 
 func (r *repositoryStore) GetManifest(id digest.Digest) (store.Manifest, error) {
@@ -299,59 +295,78 @@ func (r *repositoryStore) PutManifest(id digest.Digest, meta store.Manifest, ref
 func (r *repositoryStore) DeleteManifest(id digest.Digest) ([]digest.Digest, error) {
 	deleted := make([]digest.Digest, 0)
 	err := r.db.Update(func(tx *bolt.Tx) error {
-		manifest := r.repo(tx).Bucket(_MANIFESTS).Bucket([]byte(id))
-		if manifest == nil {
-			return fmt.Errorf("%w: %s", store.ErrManifestNotFound, id)
-		}
-
-		var refs store.References
-		refsData := manifest.Get(_REFERENCES)
-		err := gob.NewDecoder(bytes.NewBuffer(refsData)).Decode(&refs)
+		digests, err := r.deleteManifest(tx, id)
 		if err != nil {
 			return err
 		}
-
-		if refs.Config != "" {
-			r.repo(tx).Bucket(_BLOBS).Bucket([]byte(refs.Config)).Delete([]byte(id))
-			if err := r.deleteBlob(tx, refs.Config); err != nil {
-				if !errors.Is(err, store.ErrBlobInUse) {
-					return err
-				}
-			} else {
-				deleted = append(deleted, refs.Config)
-			}
-		}
-
-		for _, layerDigest := range refs.Layers {
-			r.repo(tx).Bucket(_BLOBS).Bucket([]byte(layerDigest)).Delete([]byte(id))
-			if err := r.deleteBlob(tx, layerDigest); err != nil {
-				if errors.Is(err, store.ErrBlobInUse) {
-					continue
-				}
-				return err
-			}
-			deleted = append(deleted, layerDigest)
-		}
-
-		// for _, manifestDigest := range refs.Manifests {
-		// 	r.repo(tx).Bucket(_MANIFESTS).Bucket([]byte(manifestDigest)).Delete([]byte(id))
-		// 	digests, err := r.deleteManifest(tx, manifestDigest)
-		// 	if err != nil {
-		// 		if errors.Is(err, store.ErrManifestInUse) {
-		// 			continue
-		// 		}
-		// 		return err
-		// 	}
-		// 	deleted = append(deleted, digests...)
-		// }
-
-		if err := r.repo(tx).Bucket(_MANIFESTS).DeleteBucket([]byte(id)); err != nil {
-			return err
-		}
-
-		return r.deleteBlob(tx, id)
+		deleted = append(deleted, digests...)
+		return nil
 	})
 	if err != nil {
+		return nil, err
+	}
+
+	return deleted, nil
+}
+
+func (r *repositoryStore) deleteManifest(tx *bbolt.Tx, id digest.Digest) ([]digest.Digest, error) {
+	deleted := make([]digest.Digest, 0)
+
+	manifest := r.repo(tx).Bucket(_MANIFESTS).Bucket([]byte(id))
+	if manifest == nil {
+		return nil, fmt.Errorf("%w: %s", store.ErrManifestNotFound, id)
+	}
+
+	if keys(manifest.Bucket(_MANIFESTS)) != 0 {
+		return nil, fmt.Errorf("%w: %s", store.ErrManifestInUse, id)
+	}
+
+	var refs store.References
+	refsData := manifest.Get(_REFERENCES)
+	err := gob.NewDecoder(bytes.NewBuffer(refsData)).Decode(&refs)
+	if err != nil {
+		return nil, err
+	}
+
+	if refs.Config != "" {
+		r.repo(tx).Bucket(_BLOBS).Bucket([]byte(refs.Config)).Delete([]byte(id))
+		if err := r.deleteBlob(tx, refs.Config); err != nil {
+			if !errors.Is(err, store.ErrBlobInUse) {
+				return nil, err
+			}
+		} else {
+			deleted = append(deleted, refs.Config)
+		}
+	}
+
+	for _, layerDigest := range refs.Layers {
+		r.repo(tx).Bucket(_BLOBS).Bucket([]byte(layerDigest)).Delete([]byte(id))
+		if err := r.deleteBlob(tx, layerDigest); err != nil {
+			if errors.Is(err, store.ErrBlobInUse) {
+				continue
+			}
+			return nil, err
+		}
+		deleted = append(deleted, layerDigest)
+	}
+
+	for _, manifestDigest := range refs.Manifests {
+		r.repo(tx).Bucket(_MANIFESTS).Bucket([]byte(manifestDigest)).Delete([]byte(id))
+		digests, err := r.deleteManifest(tx, manifestDigest)
+		if err != nil {
+			if errors.Is(err, store.ErrManifestInUse) {
+				continue
+			}
+			return nil, err
+		}
+		deleted = append(deleted, digests...)
+	}
+
+	if err := r.repo(tx).Bucket(_MANIFESTS).DeleteBucket([]byte(id)); err != nil {
+		return nil, err
+	}
+
+	if err := r.deleteBlob(tx, id); err != nil {
 		return nil, err
 	}
 
@@ -359,9 +374,21 @@ func (r *repositoryStore) DeleteManifest(id digest.Digest) ([]digest.Digest, err
 	return deleted, nil
 }
 
+func (r *repositoryStore) blobs(tx *bbolt.Tx) sharedBlobs {
+	return sharedBlobs{
+		b: tx.Bucket(_BLOBS),
+	}
+}
+
 // repo returns the bucket for this repository.
 func (r *repositoryStore) repo(tx *bbolt.Tx) *bbolt.Bucket {
 	return tx.Bucket(_REPOSITORIES).Bucket([]byte(r.name))
+}
+
+func (r *repositoryStore) repository(tx *bbolt.Tx) repository {
+	return repository{
+		b: tx.Bucket(_REPOSITORIES).Bucket([]byte(r.name)),
+	}
 }
 
 func keys(b *bbolt.Bucket) (n int) {
@@ -370,4 +397,74 @@ func keys(b *bbolt.Bucket) (n int) {
 		n++
 	}
 	return
+}
+
+// sharedBlobs contains the metadata of all the blobs in the blob store.
+type sharedBlobs struct {
+	b *bbolt.Bucket
+}
+
+func (o sharedBlobs) blob(id digest.Digest) sharedBlob {
+	b, _ := o.b.CreateBucketIfNotExists([]byte(id))
+	return sharedBlob{
+		b: b,
+	}
+}
+
+func (o sharedBlobs) removeBlob(id digest.Digest) {
+	o.b.DeleteBucket([]byte(id))
+}
+
+// sharedBlob represents a single blob in the blob store.
+// It tracks which repositories owns each blob.
+type sharedBlob struct {
+	b *bbolt.Bucket
+}
+
+func (o sharedBlob) addOwner(name string) {
+	o.b.Put([]byte(name), nil)
+}
+
+func (o sharedBlob) removeOwner(name string) {
+	o.b.Delete([]byte(name))
+}
+
+func (o sharedBlob) hasOwners() bool {
+	return o.b.Inspect().KeyN != 0
+}
+
+// repository contains the metadata of a single repository.
+type repository struct {
+	b *bbolt.Bucket
+}
+
+func (o repository) blobs() repoBlobs {
+	return repoBlobs{
+		b: o.b.Bucket(_BLOBS),
+	}
+}
+
+// repoBlobs contains metadata of blobs belonging to a specific repository.
+type repoBlobs struct {
+	b *bbolt.Bucket
+}
+
+func (o repoBlobs) blob(id digest.Digest) repoBlob {
+	return repoBlob{o.b.Bucket([]byte(id))}
+}
+
+func (o repoBlobs) addBlob(id digest.Digest) {
+	o.b.CreateBucket([]byte(id))
+}
+
+func (o repoBlobs) removeBlob(id digest.Digest) {
+	o.b.DeleteBucket([]byte(id))
+}
+
+type repoBlob struct {
+	b *bbolt.Bucket
+}
+
+func (o repoBlob) hasOwners() bool {
+	return o.b.Inspect().KeyN != 0
 }
