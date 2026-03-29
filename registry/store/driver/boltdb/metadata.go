@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"iter"
 	"path/filepath"
+	"slices"
 	"time"
 
 	"github.com/opencontainers/go-digest"
@@ -32,7 +33,7 @@ var (
 	}
 	// manifestBuckets list the default buckets in a manifest.
 	manifestBuckets = [][]byte{
-		_MANIFESTS, _TAGS,
+		_REFERRERS, _MANIFESTS, _TAGS,
 	}
 )
 
@@ -130,19 +131,14 @@ func (m *metadataStore) DeleteRepository(name string) error {
 
 func (m *metadataStore) Blobs() iter.Seq[digest.Digest] {
 	return func(yield func(digest.Digest) bool) {
-		err := m.db.View(func(tx *bolt.Tx) error {
-			c := tx.Bucket(_BLOBS).Cursor()
-			for id, _ := c.First(); id != nil; id, _ = c.Next() {
+		_ = m.db.View(func(tx *bolt.Tx) error {
+			return tx.Bucket(_BLOBS).ForEachBucket(func(id []byte) error {
 				if !yield(digest.Digest(id)) {
 					return nil
 				}
-			}
-
-			return nil
+				return nil
+			})
 		})
-		if err != nil {
-			panic(err)
-		}
 	}
 }
 
@@ -260,6 +256,14 @@ func (r *repositoryStore) PutManifest(id digest.Digest, meta store.Manifest, ref
 			manifest.addManifestOwner(id)
 		}
 
+		if refs.Subject != "" {
+			manifest := manifests.manifest(refs.Subject)
+			if !manifest.found() {
+				return fmt.Errorf("%w: %w: %s", store.ErrManifestInvalid, store.ErrManifestSubjectNotFound, refs.Subject)
+			}
+			manifest.addReferrer(id)
+		}
+
 		manifests.addManifest(id, meta, refs)
 		return r.putBlob(tx, id)
 	})
@@ -333,6 +337,21 @@ func (r *repositoryStore) deleteManifest(tx *bbolt.Tx, id digest.Digest) ([]dige
 		deleted = append(deleted, digests...)
 	}
 
+	if refs.Subject != "" {
+		manifests.manifest(refs.Subject).removeReferrer(id)
+	}
+
+	for referrerDigest := range manifest.referrers() {
+		digests, err := r.deleteManifest(tx, referrerDigest)
+		if err != nil {
+			if errors.Is(err, store.ErrManifestInUse) {
+				continue
+			}
+			return deleted, err
+		}
+		deleted = append(deleted, digests...)
+	}
+
 	manifests.removeManifest(id)
 
 	if err := r.deleteBlob(tx, id); err != nil {
@@ -341,6 +360,18 @@ func (r *repositoryStore) deleteManifest(tx *bbolt.Tx, id digest.Digest) ([]dige
 
 	deleted = append(deleted, id)
 	return deleted, nil
+}
+
+func (r *repositoryStore) ListReferrers(subject digest.Digest) ([]digest.Digest, error) {
+	refs := make([]digest.Digest, 0)
+
+	_ = r.db.View(func(tx *bolt.Tx) error {
+		refs = slices.Collect(
+			r.repository(tx).manifests().manifest(subject).referrers(),
+		)
+		return nil
+	})
+	return refs, nil
 }
 
 func (r *repositoryStore) blobs(tx *bbolt.Tx) sharedBlobs {
@@ -500,6 +531,25 @@ func (o manifest) references() (refs store.References) {
 	buf := bytes.NewBuffer(data)
 	gob.NewDecoder(buf).Decode(&refs)
 	return
+}
+
+func (o manifest) referrers() iter.Seq[digest.Digest] {
+	return func(yield func(digest.Digest) bool) {
+		o.b.Bucket(_REFERRERS).ForEach(func(id, _ []byte) error {
+			if !yield(digest.Digest(id)) {
+				return nil
+			}
+			return nil
+		})
+	}
+}
+
+func (o manifest) addReferrer(id digest.Digest) {
+	o.b.Bucket(_REFERRERS).Put([]byte(id), nil)
+}
+
+func (o manifest) removeReferrer(id digest.Digest) {
+	o.b.Bucket(_REFERRERS).Delete([]byte(id))
 }
 
 func (o manifest) addManifestOwner(id digest.Digest) {
