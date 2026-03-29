@@ -156,7 +156,7 @@ type repositoryStore struct {
 
 func (r *repositoryStore) GetBlob(id digest.Digest) error {
 	return r.db.View(func(tx *bolt.Tx) error {
-		if r.self(tx).Bucket(_BLOBS).Bucket([]byte(id)) == nil {
+		if r.repo(tx).Bucket(_BLOBS).Bucket([]byte(id)) == nil {
 			return store.ErrBlobNotFound
 		}
 		return nil
@@ -165,48 +165,56 @@ func (r *repositoryStore) GetBlob(id digest.Digest) error {
 
 func (r *repositoryStore) PutBlob(id digest.Digest) error {
 	return r.db.Update(func(tx *bolt.Tx) error {
-		sharedBlob, err := tx.Bucket(_BLOBS).CreateBucketIfNotExists([]byte(id))
-		if err != nil {
-			return err
-		}
-		err = sharedBlob.Put([]byte(r.name), nil)
-		if err != nil {
-			return err
-		}
-
-		_, err = r.self(tx).Bucket(_BLOBS).CreateBucket([]byte(id))
-		return err
+		return r.putBlob(tx, id)
 	})
+}
+
+func (r *repositoryStore) putBlob(tx *bolt.Tx, id digest.Digest) error {
+	sharedBlob, err := tx.Bucket(_BLOBS).CreateBucketIfNotExists([]byte(id))
+	if err != nil {
+		return err
+	}
+	err = sharedBlob.Put([]byte(r.name), nil)
+	if err != nil {
+		return err
+	}
+
+	_, err = r.repo(tx).Bucket(_BLOBS).CreateBucket([]byte(id))
+	return err
 }
 
 func (r *repositoryStore) DeleteBlob(id digest.Digest) error {
 	return r.db.Update(func(tx *bolt.Tx) error {
-		sharedBlob := tx.Bucket(_BLOBS).Bucket([]byte(id))
-		if sharedBlob == nil {
-			return store.ErrBlobNotFound
-		}
-		sharedBlob.Delete([]byte(r.name))
-		if keys(sharedBlob) == 0 {
-			err := tx.Bucket(_BLOBS).DeleteBucket([]byte(id))
-			if err != nil {
-				return err
-			}
-		}
-
-		blobs := r.self(tx).Bucket(_BLOBS)
-		if blobs.Bucket([]byte(id)) == nil {
-			return store.ErrBlobNotFound
-		}
-
-		return blobs.DeleteBucket([]byte(id))
+		return r.deleteBlob(tx, id)
 	})
+}
+
+func (r *repositoryStore) deleteBlob(tx *bolt.Tx, id digest.Digest) error {
+	sharedBlob := tx.Bucket(_BLOBS).Bucket([]byte(id))
+	if sharedBlob == nil {
+		return store.ErrBlobNotFound
+	}
+	sharedBlob.Delete([]byte(r.name))
+	if keys(sharedBlob) == 0 {
+		err := tx.Bucket(_BLOBS).DeleteBucket([]byte(id))
+		if err != nil {
+			return err
+		}
+	}
+
+	blobs := r.repo(tx).Bucket(_BLOBS)
+	if blobs.Bucket([]byte(id)) == nil {
+		return store.ErrBlobNotFound
+	}
+
+	return blobs.DeleteBucket([]byte(id))
 }
 
 func (r *repositoryStore) GetManifest(id digest.Digest) (store.Manifest, error) {
 	var buf *bytes.Buffer
 	var manifest store.Manifest
 	err := r.db.View(func(tx *bolt.Tx) error {
-		data := r.self(tx).Bucket(_MANIFESTS).Get([]byte(id))
+		data := r.repo(tx).Bucket(_MANIFESTS).Get([]byte(id))
 		if data == nil {
 			return fmt.Errorf("%w: %s", store.ErrManifestNotFound, id)
 		}
@@ -232,17 +240,33 @@ func (r *repositoryStore) PutManifest(id digest.Digest, meta store.Manifest, ref
 	}
 
 	return r.db.Update(func(tx *bolt.Tx) error {
-		r.self(tx).Bucket(_MANIFESTS).Put([]byte(id), buf.Bytes())
-		return nil
+		if err := r.repo(tx).Bucket(_MANIFESTS).Put([]byte(id), buf.Bytes()); err != nil {
+			return err
+		}
+
+		return r.putBlob(tx, id)
 	})
 }
 
 func (r *repositoryStore) DeleteManifest(id digest.Digest) ([]digest.Digest, error) {
-	return nil, nil
+	deleted := make([]digest.Digest, 0)
+	err := r.db.Update(func(tx *bolt.Tx) error {
+		if err := r.repo(tx).Bucket(_MANIFESTS).Delete([]byte(id)); err != nil {
+			return err
+		}
+
+		return r.deleteBlob(tx, id)
+	})
+	if err != nil {
+		return deleted, err
+	}
+
+	deleted = append(deleted, id)
+	return deleted, nil
 }
 
-// self returns the root bucket for this repository.
-func (r *repositoryStore) self(tx *bbolt.Tx) *bbolt.Bucket {
+// repo returns the bucket for this repository.
+func (r *repositoryStore) repo(tx *bbolt.Tx) *bbolt.Bucket {
 	return tx.Bucket(_REPOSITORIES).Bucket([]byte(r.name))
 }
 
