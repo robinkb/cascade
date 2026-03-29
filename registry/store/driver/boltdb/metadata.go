@@ -253,6 +253,11 @@ func (r *repositoryStore) PutManifest(id digest.Digest, meta store.Manifest, ref
 			return err
 		}
 
+		_, err = manifest.CreateBucket(_MANIFESTS)
+		if err != nil {
+			return err
+		}
+
 		err = manifest.Put(_METADATA, bufMeta.Bytes())
 		if err != nil {
 			return err
@@ -269,6 +274,22 @@ func (r *repositoryStore) PutManifest(id digest.Digest, meta store.Manifest, ref
 				return fmt.Errorf("%w: %w: %s", store.ErrManifestInvalid, store.ErrManifestConfigNotFound, refs.Config)
 			}
 			owners.Put([]byte(id), []byte{})
+		}
+
+		for _, layerDigest := range refs.Layers {
+			owners := r.repo(tx).Bucket(_BLOBS).Bucket([]byte(layerDigest))
+			if owners == nil {
+				return fmt.Errorf("%w: %w: %s", store.ErrManifestInvalid, store.ErrManifestLayerNotFound, layerDigest)
+			}
+			owners.Put([]byte(id), []byte{})
+		}
+
+		for _, manifestDigest := range refs.Manifests {
+			manifest := r.repo(tx).Bucket(_MANIFESTS).Bucket([]byte(manifestDigest))
+			if manifest == nil {
+				return fmt.Errorf("%w: %w: %s", store.ErrManifestInvalid, store.ErrManifestImageNotFound, manifestDigest)
+			}
+			manifest.Bucket(_MANIFESTS).Put([]byte(manifestDigest), nil)
 		}
 
 		return r.putBlob(tx, id)
@@ -300,6 +321,29 @@ func (r *repositoryStore) DeleteManifest(id digest.Digest) ([]digest.Digest, err
 				deleted = append(deleted, refs.Config)
 			}
 		}
+
+		for _, layerDigest := range refs.Layers {
+			r.repo(tx).Bucket(_BLOBS).Bucket([]byte(layerDigest)).Delete([]byte(id))
+			if err := r.deleteBlob(tx, layerDigest); err != nil {
+				if errors.Is(err, store.ErrBlobInUse) {
+					continue
+				}
+				return err
+			}
+			deleted = append(deleted, layerDigest)
+		}
+
+		// for _, manifestDigest := range refs.Manifests {
+		// 	r.repo(tx).Bucket(_MANIFESTS).Bucket([]byte(manifestDigest)).Delete([]byte(id))
+		// 	digests, err := r.deleteManifest(tx, manifestDigest)
+		// 	if err != nil {
+		// 		if errors.Is(err, store.ErrManifestInUse) {
+		// 			continue
+		// 		}
+		// 		return err
+		// 	}
+		// 	deleted = append(deleted, digests...)
+		// }
 
 		if err := r.repo(tx).Bucket(_MANIFESTS).DeleteBucket([]byte(id)); err != nil {
 			return err
