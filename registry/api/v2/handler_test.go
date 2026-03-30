@@ -10,7 +10,7 @@ import (
 
 	"github.com/robinkb/cascade/registry"
 	"github.com/robinkb/cascade/registry/repository"
-	"github.com/robinkb/cascade/registry/store/inmemory"
+	"github.com/robinkb/cascade/registry/store/driver/inmemory"
 	. "github.com/robinkb/cascade/testing"
 	testclient "github.com/robinkb/cascade/testing/client"
 	"github.com/robinkb/cascade/testing/mock"

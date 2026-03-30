@@ -28,12 +28,15 @@ func (r *Result) Require() {
 	}
 }
 
-func AssertErrorIs(t testing.TB, got, want error) *Result {
+// AssertErrorIs uses errors.Is to assert that the given error matches all of the given targets.
+func AssertErrorIs(t testing.TB, got error, want ...error) *Result {
 	t.Helper()
 
-	if !errors.Is(got, want) {
-		t.Errorf("unexpected error: got %q, want %q", got, want)
-		return &Result{t, false}
+	for _, w := range want {
+		if !errors.Is(got, w) {
+			t.Errorf("unexpected error: got %q, want %q", got, want)
+			return &Result{t, false}
+		}
 	}
 	return &Result{t, true}
 }

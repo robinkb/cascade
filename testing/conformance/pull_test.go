@@ -7,7 +7,7 @@ import (
 
 	"github.com/robinkb/cascade/registry"
 	v2 "github.com/robinkb/cascade/registry/api/v2"
-	"github.com/robinkb/cascade/registry/store/inmemory"
+	"github.com/robinkb/cascade/registry/store/driver/inmemory"
 	. "github.com/robinkb/cascade/testing"
 	testclient "github.com/robinkb/cascade/testing/client"
 )

@@ -41,16 +41,16 @@ func (_m *RepositoryService) EXPECT() *RepositoryService_Expecter {
 }
 
 // AppendUpload provides a mock function for the type RepositoryService
-func (_mock *RepositoryService) AppendUpload(repository string, sessionID string, r io.Reader, offset int64) error {
-	ret := _mock.Called(repository, sessionID, r, offset)
+func (_mock *RepositoryService) AppendUpload(sessionID string, r io.Reader, offset int64) error {
+	ret := _mock.Called(sessionID, r, offset)
 
 	if len(ret) == 0 {
 		panic("no return value specified for AppendUpload")
 	}
 
 	var r0 error
-	if returnFunc, ok := ret.Get(0).(func(string, string, io.Reader, int64) error); ok {
-		r0 = returnFunc(repository, sessionID, r, offset)
+	if returnFunc, ok := ret.Get(0).(func(string, io.Reader, int64) error); ok {
+		r0 = returnFunc(sessionID, r, offset)
 	} else {
 		r0 = ret.Error(0)
 	}
@@ -63,37 +63,31 @@ type RepositoryService_AppendUpload_Call struct {
 }
 
 // AppendUpload is a helper method to define mock.On call
-//   - repository string
 //   - sessionID string
 //   - r io.Reader
 //   - offset int64
-func (_e *RepositoryService_Expecter) AppendUpload(repository interface{}, sessionID interface{}, r interface{}, offset interface{}) *RepositoryService_AppendUpload_Call {
-	return &RepositoryService_AppendUpload_Call{Call: _e.mock.On("AppendUpload", repository, sessionID, r, offset)}
+func (_e *RepositoryService_Expecter) AppendUpload(sessionID interface{}, r interface{}, offset interface{}) *RepositoryService_AppendUpload_Call {
+	return &RepositoryService_AppendUpload_Call{Call: _e.mock.On("AppendUpload", sessionID, r, offset)}
 }
 
-func (_c *RepositoryService_AppendUpload_Call) Run(run func(repository string, sessionID string, r io.Reader, offset int64)) *RepositoryService_AppendUpload_Call {
+func (_c *RepositoryService_AppendUpload_Call) Run(run func(sessionID string, r io.Reader, offset int64)) *RepositoryService_AppendUpload_Call {
 	_c.Call.Run(func(args mock.Arguments) {
 		var arg0 string
 		if args[0] != nil {
 			arg0 = args[0].(string)
 		}
-		var arg1 string
+		var arg1 io.Reader
 		if args[1] != nil {
-			arg1 = args[1].(string)
+			arg1 = args[1].(io.Reader)
 		}
-		var arg2 io.Reader
+		var arg2 int64
 		if args[2] != nil {
-			arg2 = args[2].(io.Reader)
-		}
-		var arg3 int64
-		if args[3] != nil {
-			arg3 = args[3].(int64)
+			arg2 = args[2].(int64)
 		}
 		run(
 			arg0,
 			arg1,
 			arg2,
-			arg3,
 		)
 	})
 	return _c
@@ -104,22 +98,22 @@ func (_c *RepositoryService_AppendUpload_Call) Return(err error) *RepositoryServ
 	return _c
 }
 
-func (_c *RepositoryService_AppendUpload_Call) RunAndReturn(run func(repository string, sessionID string, r io.Reader, offset int64) error) *RepositoryService_AppendUpload_Call {
+func (_c *RepositoryService_AppendUpload_Call) RunAndReturn(run func(sessionID string, r io.Reader, offset int64) error) *RepositoryService_AppendUpload_Call {
 	_c.Call.Return(run)
 	return _c
 }
 
 // CloseUpload provides a mock function for the type RepositoryService
-func (_mock *RepositoryService) CloseUpload(repository string, id string, digest string) error {
-	ret := _mock.Called(repository, id, digest)
+func (_mock *RepositoryService) CloseUpload(id string, digest string) error {
+	ret := _mock.Called(id, digest)
 
 	if len(ret) == 0 {
 		panic("no return value specified for CloseUpload")
 	}
 
 	var r0 error
-	if returnFunc, ok := ret.Get(0).(func(string, string, string) error); ok {
-		r0 = returnFunc(repository, id, digest)
+	if returnFunc, ok := ret.Get(0).(func(string, string) error); ok {
+		r0 = returnFunc(id, digest)
 	} else {
 		r0 = ret.Error(0)
 	}
@@ -132,14 +126,13 @@ type RepositoryService_CloseUpload_Call struct {
 }
 
 // CloseUpload is a helper method to define mock.On call
-//   - repository string
 //   - id string
 //   - digest string
-func (_e *RepositoryService_Expecter) CloseUpload(repository interface{}, id interface{}, digest interface{}) *RepositoryService_CloseUpload_Call {
-	return &RepositoryService_CloseUpload_Call{Call: _e.mock.On("CloseUpload", repository, id, digest)}
+func (_e *RepositoryService_Expecter) CloseUpload(id interface{}, digest interface{}) *RepositoryService_CloseUpload_Call {
+	return &RepositoryService_CloseUpload_Call{Call: _e.mock.On("CloseUpload", id, digest)}
 }
 
-func (_c *RepositoryService_CloseUpload_Call) Run(run func(repository string, id string, digest string)) *RepositoryService_CloseUpload_Call {
+func (_c *RepositoryService_CloseUpload_Call) Run(run func(id string, digest string)) *RepositoryService_CloseUpload_Call {
 	_c.Call.Run(func(args mock.Arguments) {
 		var arg0 string
 		if args[0] != nil {
@@ -149,14 +142,9 @@ func (_c *RepositoryService_CloseUpload_Call) Run(run func(repository string, id
 		if args[1] != nil {
 			arg1 = args[1].(string)
 		}
-		var arg2 string
-		if args[2] != nil {
-			arg2 = args[2].(string)
-		}
 		run(
 			arg0,
 			arg1,
-			arg2,
 		)
 	})
 	return _c
@@ -167,22 +155,22 @@ func (_c *RepositoryService_CloseUpload_Call) Return(err error) *RepositoryServi
 	return _c
 }
 
-func (_c *RepositoryService_CloseUpload_Call) RunAndReturn(run func(repository string, id string, digest string) error) *RepositoryService_CloseUpload_Call {
+func (_c *RepositoryService_CloseUpload_Call) RunAndReturn(run func(id string, digest string) error) *RepositoryService_CloseUpload_Call {
 	_c.Call.Return(run)
 	return _c
 }
 
 // DeleteBlob provides a mock function for the type RepositoryService
-func (_mock *RepositoryService) DeleteBlob(repository string, digest string) error {
-	ret := _mock.Called(repository, digest)
+func (_mock *RepositoryService) DeleteBlob(digest string) error {
+	ret := _mock.Called(digest)
 
 	if len(ret) == 0 {
 		panic("no return value specified for DeleteBlob")
 	}
 
 	var r0 error
-	if returnFunc, ok := ret.Get(0).(func(string, string) error); ok {
-		r0 = returnFunc(repository, digest)
+	if returnFunc, ok := ret.Get(0).(func(string) error); ok {
+		r0 = returnFunc(digest)
 	} else {
 		r0 = ret.Error(0)
 	}
@@ -195,25 +183,19 @@ type RepositoryService_DeleteBlob_Call struct {
 }
 
 // DeleteBlob is a helper method to define mock.On call
-//   - repository string
 //   - digest string
-func (_e *RepositoryService_Expecter) DeleteBlob(repository interface{}, digest interface{}) *RepositoryService_DeleteBlob_Call {
-	return &RepositoryService_DeleteBlob_Call{Call: _e.mock.On("DeleteBlob", repository, digest)}
+func (_e *RepositoryService_Expecter) DeleteBlob(digest interface{}) *RepositoryService_DeleteBlob_Call {
+	return &RepositoryService_DeleteBlob_Call{Call: _e.mock.On("DeleteBlob", digest)}
 }
 
-func (_c *RepositoryService_DeleteBlob_Call) Run(run func(repository string, digest string)) *RepositoryService_DeleteBlob_Call {
+func (_c *RepositoryService_DeleteBlob_Call) Run(run func(digest string)) *RepositoryService_DeleteBlob_Call {
 	_c.Call.Run(func(args mock.Arguments) {
 		var arg0 string
 		if args[0] != nil {
 			arg0 = args[0].(string)
 		}
-		var arg1 string
-		if args[1] != nil {
-			arg1 = args[1].(string)
-		}
 		run(
 			arg0,
-			arg1,
 		)
 	})
 	return _c
@@ -224,22 +206,22 @@ func (_c *RepositoryService_DeleteBlob_Call) Return(err error) *RepositoryServic
 	return _c
 }
 
-func (_c *RepositoryService_DeleteBlob_Call) RunAndReturn(run func(repository string, digest string) error) *RepositoryService_DeleteBlob_Call {
+func (_c *RepositoryService_DeleteBlob_Call) RunAndReturn(run func(digest string) error) *RepositoryService_DeleteBlob_Call {
 	_c.Call.Return(run)
 	return _c
 }
 
 // DeleteManifest provides a mock function for the type RepositoryService
-func (_mock *RepositoryService) DeleteManifest(repository string, reference string) error {
-	ret := _mock.Called(repository, reference)
+func (_mock *RepositoryService) DeleteManifest(reference string) error {
+	ret := _mock.Called(reference)
 
 	if len(ret) == 0 {
 		panic("no return value specified for DeleteManifest")
 	}
 
 	var r0 error
-	if returnFunc, ok := ret.Get(0).(func(string, string) error); ok {
-		r0 = returnFunc(repository, reference)
+	if returnFunc, ok := ret.Get(0).(func(string) error); ok {
+		r0 = returnFunc(reference)
 	} else {
 		r0 = ret.Error(0)
 	}
@@ -252,25 +234,19 @@ type RepositoryService_DeleteManifest_Call struct {
 }
 
 // DeleteManifest is a helper method to define mock.On call
-//   - repository string
 //   - reference string
-func (_e *RepositoryService_Expecter) DeleteManifest(repository interface{}, reference interface{}) *RepositoryService_DeleteManifest_Call {
-	return &RepositoryService_DeleteManifest_Call{Call: _e.mock.On("DeleteManifest", repository, reference)}
+func (_e *RepositoryService_Expecter) DeleteManifest(reference interface{}) *RepositoryService_DeleteManifest_Call {
+	return &RepositoryService_DeleteManifest_Call{Call: _e.mock.On("DeleteManifest", reference)}
 }
 
-func (_c *RepositoryService_DeleteManifest_Call) Run(run func(repository string, reference string)) *RepositoryService_DeleteManifest_Call {
+func (_c *RepositoryService_DeleteManifest_Call) Run(run func(reference string)) *RepositoryService_DeleteManifest_Call {
 	_c.Call.Run(func(args mock.Arguments) {
 		var arg0 string
 		if args[0] != nil {
 			arg0 = args[0].(string)
 		}
-		var arg1 string
-		if args[1] != nil {
-			arg1 = args[1].(string)
-		}
 		run(
 			arg0,
-			arg1,
 		)
 	})
 	return _c
@@ -281,22 +257,22 @@ func (_c *RepositoryService_DeleteManifest_Call) Return(err error) *RepositorySe
 	return _c
 }
 
-func (_c *RepositoryService_DeleteManifest_Call) RunAndReturn(run func(repository string, reference string) error) *RepositoryService_DeleteManifest_Call {
+func (_c *RepositoryService_DeleteManifest_Call) RunAndReturn(run func(reference string) error) *RepositoryService_DeleteManifest_Call {
 	_c.Call.Return(run)
 	return _c
 }
 
 // DeleteTag provides a mock function for the type RepositoryService
-func (_mock *RepositoryService) DeleteTag(repository string, tag string) error {
-	ret := _mock.Called(repository, tag)
+func (_mock *RepositoryService) DeleteTag(tag string) error {
+	ret := _mock.Called(tag)
 
 	if len(ret) == 0 {
 		panic("no return value specified for DeleteTag")
 	}
 
 	var r0 error
-	if returnFunc, ok := ret.Get(0).(func(string, string) error); ok {
-		r0 = returnFunc(repository, tag)
+	if returnFunc, ok := ret.Get(0).(func(string) error); ok {
+		r0 = returnFunc(tag)
 	} else {
 		r0 = ret.Error(0)
 	}
@@ -309,25 +285,19 @@ type RepositoryService_DeleteTag_Call struct {
 }
 
 // DeleteTag is a helper method to define mock.On call
-//   - repository string
 //   - tag string
-func (_e *RepositoryService_Expecter) DeleteTag(repository interface{}, tag interface{}) *RepositoryService_DeleteTag_Call {
-	return &RepositoryService_DeleteTag_Call{Call: _e.mock.On("DeleteTag", repository, tag)}
+func (_e *RepositoryService_Expecter) DeleteTag(tag interface{}) *RepositoryService_DeleteTag_Call {
+	return &RepositoryService_DeleteTag_Call{Call: _e.mock.On("DeleteTag", tag)}
 }
 
-func (_c *RepositoryService_DeleteTag_Call) Run(run func(repository string, tag string)) *RepositoryService_DeleteTag_Call {
+func (_c *RepositoryService_DeleteTag_Call) Run(run func(tag string)) *RepositoryService_DeleteTag_Call {
 	_c.Call.Run(func(args mock.Arguments) {
 		var arg0 string
 		if args[0] != nil {
 			arg0 = args[0].(string)
 		}
-		var arg1 string
-		if args[1] != nil {
-			arg1 = args[1].(string)
-		}
 		run(
 			arg0,
-			arg1,
 		)
 	})
 	return _c
@@ -338,14 +308,14 @@ func (_c *RepositoryService_DeleteTag_Call) Return(err error) *RepositoryService
 	return _c
 }
 
-func (_c *RepositoryService_DeleteTag_Call) RunAndReturn(run func(repository string, tag string) error) *RepositoryService_DeleteTag_Call {
+func (_c *RepositoryService_DeleteTag_Call) RunAndReturn(run func(tag string) error) *RepositoryService_DeleteTag_Call {
 	_c.Call.Return(run)
 	return _c
 }
 
 // GetBlob provides a mock function for the type RepositoryService
-func (_mock *RepositoryService) GetBlob(repository string, digest string) (io.Reader, error) {
-	ret := _mock.Called(repository, digest)
+func (_mock *RepositoryService) GetBlob(digest string) (io.Reader, error) {
+	ret := _mock.Called(digest)
 
 	if len(ret) == 0 {
 		panic("no return value specified for GetBlob")
@@ -353,18 +323,18 @@ func (_mock *RepositoryService) GetBlob(repository string, digest string) (io.Re
 
 	var r0 io.Reader
 	var r1 error
-	if returnFunc, ok := ret.Get(0).(func(string, string) (io.Reader, error)); ok {
-		return returnFunc(repository, digest)
+	if returnFunc, ok := ret.Get(0).(func(string) (io.Reader, error)); ok {
+		return returnFunc(digest)
 	}
-	if returnFunc, ok := ret.Get(0).(func(string, string) io.Reader); ok {
-		r0 = returnFunc(repository, digest)
+	if returnFunc, ok := ret.Get(0).(func(string) io.Reader); ok {
+		r0 = returnFunc(digest)
 	} else {
 		if ret.Get(0) != nil {
 			r0 = ret.Get(0).(io.Reader)
 		}
 	}
-	if returnFunc, ok := ret.Get(1).(func(string, string) error); ok {
-		r1 = returnFunc(repository, digest)
+	if returnFunc, ok := ret.Get(1).(func(string) error); ok {
+		r1 = returnFunc(digest)
 	} else {
 		r1 = ret.Error(1)
 	}
@@ -377,25 +347,19 @@ type RepositoryService_GetBlob_Call struct {
 }
 
 // GetBlob is a helper method to define mock.On call
-//   - repository string
 //   - digest string
-func (_e *RepositoryService_Expecter) GetBlob(repository interface{}, digest interface{}) *RepositoryService_GetBlob_Call {
-	return &RepositoryService_GetBlob_Call{Call: _e.mock.On("GetBlob", repository, digest)}
+func (_e *RepositoryService_Expecter) GetBlob(digest interface{}) *RepositoryService_GetBlob_Call {
+	return &RepositoryService_GetBlob_Call{Call: _e.mock.On("GetBlob", digest)}
 }
 
-func (_c *RepositoryService_GetBlob_Call) Run(run func(repository string, digest string)) *RepositoryService_GetBlob_Call {
+func (_c *RepositoryService_GetBlob_Call) Run(run func(digest string)) *RepositoryService_GetBlob_Call {
 	_c.Call.Run(func(args mock.Arguments) {
 		var arg0 string
 		if args[0] != nil {
 			arg0 = args[0].(string)
 		}
-		var arg1 string
-		if args[1] != nil {
-			arg1 = args[1].(string)
-		}
 		run(
 			arg0,
-			arg1,
 		)
 	})
 	return _c
@@ -406,41 +370,41 @@ func (_c *RepositoryService_GetBlob_Call) Return(reader io.Reader, err error) *R
 	return _c
 }
 
-func (_c *RepositoryService_GetBlob_Call) RunAndReturn(run func(repository string, digest string) (io.Reader, error)) *RepositoryService_GetBlob_Call {
+func (_c *RepositoryService_GetBlob_Call) RunAndReturn(run func(digest string) (io.Reader, error)) *RepositoryService_GetBlob_Call {
 	_c.Call.Return(run)
 	return _c
 }
 
 // GetManifest provides a mock function for the type RepositoryService
-func (_mock *RepositoryService) GetManifest(repository string, reference string) (*store.ManifestMetadata, []byte, error) {
-	ret := _mock.Called(repository, reference)
+func (_mock *RepositoryService) GetManifest(reference string) (*store.Manifest, []byte, error) {
+	ret := _mock.Called(reference)
 
 	if len(ret) == 0 {
 		panic("no return value specified for GetManifest")
 	}
 
-	var r0 *store.ManifestMetadata
+	var r0 *store.Manifest
 	var r1 []byte
 	var r2 error
-	if returnFunc, ok := ret.Get(0).(func(string, string) (*store.ManifestMetadata, []byte, error)); ok {
-		return returnFunc(repository, reference)
+	if returnFunc, ok := ret.Get(0).(func(string) (*store.Manifest, []byte, error)); ok {
+		return returnFunc(reference)
 	}
-	if returnFunc, ok := ret.Get(0).(func(string, string) *store.ManifestMetadata); ok {
-		r0 = returnFunc(repository, reference)
+	if returnFunc, ok := ret.Get(0).(func(string) *store.Manifest); ok {
+		r0 = returnFunc(reference)
 	} else {
 		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(*store.ManifestMetadata)
+			r0 = ret.Get(0).(*store.Manifest)
 		}
 	}
-	if returnFunc, ok := ret.Get(1).(func(string, string) []byte); ok {
-		r1 = returnFunc(repository, reference)
+	if returnFunc, ok := ret.Get(1).(func(string) []byte); ok {
+		r1 = returnFunc(reference)
 	} else {
 		if ret.Get(1) != nil {
 			r1 = ret.Get(1).([]byte)
 		}
 	}
-	if returnFunc, ok := ret.Get(2).(func(string, string) error); ok {
-		r2 = returnFunc(repository, reference)
+	if returnFunc, ok := ret.Get(2).(func(string) error); ok {
+		r2 = returnFunc(reference)
 	} else {
 		r2 = ret.Error(2)
 	}
@@ -453,43 +417,37 @@ type RepositoryService_GetManifest_Call struct {
 }
 
 // GetManifest is a helper method to define mock.On call
-//   - repository string
 //   - reference string
-func (_e *RepositoryService_Expecter) GetManifest(repository interface{}, reference interface{}) *RepositoryService_GetManifest_Call {
-	return &RepositoryService_GetManifest_Call{Call: _e.mock.On("GetManifest", repository, reference)}
+func (_e *RepositoryService_Expecter) GetManifest(reference interface{}) *RepositoryService_GetManifest_Call {
+	return &RepositoryService_GetManifest_Call{Call: _e.mock.On("GetManifest", reference)}
 }
 
-func (_c *RepositoryService_GetManifest_Call) Run(run func(repository string, reference string)) *RepositoryService_GetManifest_Call {
+func (_c *RepositoryService_GetManifest_Call) Run(run func(reference string)) *RepositoryService_GetManifest_Call {
 	_c.Call.Run(func(args mock.Arguments) {
 		var arg0 string
 		if args[0] != nil {
 			arg0 = args[0].(string)
 		}
-		var arg1 string
-		if args[1] != nil {
-			arg1 = args[1].(string)
-		}
 		run(
 			arg0,
-			arg1,
 		)
 	})
 	return _c
 }
 
-func (_c *RepositoryService_GetManifest_Call) Return(manifestMetadata *store.ManifestMetadata, bytes []byte, err error) *RepositoryService_GetManifest_Call {
-	_c.Call.Return(manifestMetadata, bytes, err)
+func (_c *RepositoryService_GetManifest_Call) Return(manifest *store.Manifest, bytes []byte, err error) *RepositoryService_GetManifest_Call {
+	_c.Call.Return(manifest, bytes, err)
 	return _c
 }
 
-func (_c *RepositoryService_GetManifest_Call) RunAndReturn(run func(repository string, reference string) (*store.ManifestMetadata, []byte, error)) *RepositoryService_GetManifest_Call {
+func (_c *RepositoryService_GetManifest_Call) RunAndReturn(run func(reference string) (*store.Manifest, []byte, error)) *RepositoryService_GetManifest_Call {
 	_c.Call.Return(run)
 	return _c
 }
 
 // GetTag provides a mock function for the type RepositoryService
-func (_mock *RepositoryService) GetTag(repository string, tag string) (string, error) {
-	ret := _mock.Called(repository, tag)
+func (_mock *RepositoryService) GetTag(tag string) (string, error) {
+	ret := _mock.Called(tag)
 
 	if len(ret) == 0 {
 		panic("no return value specified for GetTag")
@@ -497,16 +455,16 @@ func (_mock *RepositoryService) GetTag(repository string, tag string) (string, e
 
 	var r0 string
 	var r1 error
-	if returnFunc, ok := ret.Get(0).(func(string, string) (string, error)); ok {
-		return returnFunc(repository, tag)
+	if returnFunc, ok := ret.Get(0).(func(string) (string, error)); ok {
+		return returnFunc(tag)
 	}
-	if returnFunc, ok := ret.Get(0).(func(string, string) string); ok {
-		r0 = returnFunc(repository, tag)
+	if returnFunc, ok := ret.Get(0).(func(string) string); ok {
+		r0 = returnFunc(tag)
 	} else {
 		r0 = ret.Get(0).(string)
 	}
-	if returnFunc, ok := ret.Get(1).(func(string, string) error); ok {
-		r1 = returnFunc(repository, tag)
+	if returnFunc, ok := ret.Get(1).(func(string) error); ok {
+		r1 = returnFunc(tag)
 	} else {
 		r1 = ret.Error(1)
 	}
@@ -519,25 +477,19 @@ type RepositoryService_GetTag_Call struct {
 }
 
 // GetTag is a helper method to define mock.On call
-//   - repository string
 //   - tag string
-func (_e *RepositoryService_Expecter) GetTag(repository interface{}, tag interface{}) *RepositoryService_GetTag_Call {
-	return &RepositoryService_GetTag_Call{Call: _e.mock.On("GetTag", repository, tag)}
+func (_e *RepositoryService_Expecter) GetTag(tag interface{}) *RepositoryService_GetTag_Call {
+	return &RepositoryService_GetTag_Call{Call: _e.mock.On("GetTag", tag)}
 }
 
-func (_c *RepositoryService_GetTag_Call) Run(run func(repository string, tag string)) *RepositoryService_GetTag_Call {
+func (_c *RepositoryService_GetTag_Call) Run(run func(tag string)) *RepositoryService_GetTag_Call {
 	_c.Call.Run(func(args mock.Arguments) {
 		var arg0 string
 		if args[0] != nil {
 			arg0 = args[0].(string)
 		}
-		var arg1 string
-		if args[1] != nil {
-			arg1 = args[1].(string)
-		}
 		run(
 			arg0,
-			arg1,
 		)
 	})
 	return _c
@@ -548,14 +500,14 @@ func (_c *RepositoryService_GetTag_Call) Return(s string, err error) *Repository
 	return _c
 }
 
-func (_c *RepositoryService_GetTag_Call) RunAndReturn(run func(repository string, tag string) (string, error)) *RepositoryService_GetTag_Call {
+func (_c *RepositoryService_GetTag_Call) RunAndReturn(run func(tag string) (string, error)) *RepositoryService_GetTag_Call {
 	_c.Call.Return(run)
 	return _c
 }
 
 // InitUpload provides a mock function for the type RepositoryService
-func (_mock *RepositoryService) InitUpload(repository string) (*store.UploadSession, error) {
-	ret := _mock.Called(repository)
+func (_mock *RepositoryService) InitUpload() (*store.UploadSession, error) {
+	ret := _mock.Called()
 
 	if len(ret) == 0 {
 		panic("no return value specified for InitUpload")
@@ -563,18 +515,18 @@ func (_mock *RepositoryService) InitUpload(repository string) (*store.UploadSess
 
 	var r0 *store.UploadSession
 	var r1 error
-	if returnFunc, ok := ret.Get(0).(func(string) (*store.UploadSession, error)); ok {
-		return returnFunc(repository)
+	if returnFunc, ok := ret.Get(0).(func() (*store.UploadSession, error)); ok {
+		return returnFunc()
 	}
-	if returnFunc, ok := ret.Get(0).(func(string) *store.UploadSession); ok {
-		r0 = returnFunc(repository)
+	if returnFunc, ok := ret.Get(0).(func() *store.UploadSession); ok {
+		r0 = returnFunc()
 	} else {
 		if ret.Get(0) != nil {
 			r0 = ret.Get(0).(*store.UploadSession)
 		}
 	}
-	if returnFunc, ok := ret.Get(1).(func(string) error); ok {
-		r1 = returnFunc(repository)
+	if returnFunc, ok := ret.Get(1).(func() error); ok {
+		r1 = returnFunc()
 	} else {
 		r1 = ret.Error(1)
 	}
@@ -587,20 +539,13 @@ type RepositoryService_InitUpload_Call struct {
 }
 
 // InitUpload is a helper method to define mock.On call
-//   - repository string
-func (_e *RepositoryService_Expecter) InitUpload(repository interface{}) *RepositoryService_InitUpload_Call {
-	return &RepositoryService_InitUpload_Call{Call: _e.mock.On("InitUpload", repository)}
+func (_e *RepositoryService_Expecter) InitUpload() *RepositoryService_InitUpload_Call {
+	return &RepositoryService_InitUpload_Call{Call: _e.mock.On("InitUpload")}
 }
 
-func (_c *RepositoryService_InitUpload_Call) Run(run func(repository string)) *RepositoryService_InitUpload_Call {
+func (_c *RepositoryService_InitUpload_Call) Run(run func()) *RepositoryService_InitUpload_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		var arg0 string
-		if args[0] != nil {
-			arg0 = args[0].(string)
-		}
-		run(
-			arg0,
-		)
+		run()
 	})
 	return _c
 }
@@ -610,14 +555,14 @@ func (_c *RepositoryService_InitUpload_Call) Return(uploadSession *store.UploadS
 	return _c
 }
 
-func (_c *RepositoryService_InitUpload_Call) RunAndReturn(run func(repository string) (*store.UploadSession, error)) *RepositoryService_InitUpload_Call {
+func (_c *RepositoryService_InitUpload_Call) RunAndReturn(run func() (*store.UploadSession, error)) *RepositoryService_InitUpload_Call {
 	_c.Call.Return(run)
 	return _c
 }
 
 // ListReferrers provides a mock function for the type RepositoryService
-func (_mock *RepositoryService) ListReferrers(repository1 string, digest string, opts *repository.ListReferrersOptions) (*repository.Referrers, error) {
-	ret := _mock.Called(repository1, digest, opts)
+func (_mock *RepositoryService) ListReferrers(digest string, opts *repository.ListReferrersOptions) (*repository.Referrers, error) {
+	ret := _mock.Called(digest, opts)
 
 	if len(ret) == 0 {
 		panic("no return value specified for ListReferrers")
@@ -625,18 +570,18 @@ func (_mock *RepositoryService) ListReferrers(repository1 string, digest string,
 
 	var r0 *repository.Referrers
 	var r1 error
-	if returnFunc, ok := ret.Get(0).(func(string, string, *repository.ListReferrersOptions) (*repository.Referrers, error)); ok {
-		return returnFunc(repository1, digest, opts)
+	if returnFunc, ok := ret.Get(0).(func(string, *repository.ListReferrersOptions) (*repository.Referrers, error)); ok {
+		return returnFunc(digest, opts)
 	}
-	if returnFunc, ok := ret.Get(0).(func(string, string, *repository.ListReferrersOptions) *repository.Referrers); ok {
-		r0 = returnFunc(repository1, digest, opts)
+	if returnFunc, ok := ret.Get(0).(func(string, *repository.ListReferrersOptions) *repository.Referrers); ok {
+		r0 = returnFunc(digest, opts)
 	} else {
 		if ret.Get(0) != nil {
 			r0 = ret.Get(0).(*repository.Referrers)
 		}
 	}
-	if returnFunc, ok := ret.Get(1).(func(string, string, *repository.ListReferrersOptions) error); ok {
-		r1 = returnFunc(repository1, digest, opts)
+	if returnFunc, ok := ret.Get(1).(func(string, *repository.ListReferrersOptions) error); ok {
+		r1 = returnFunc(digest, opts)
 	} else {
 		r1 = ret.Error(1)
 	}
@@ -649,31 +594,25 @@ type RepositoryService_ListReferrers_Call struct {
 }
 
 // ListReferrers is a helper method to define mock.On call
-//   - repository1 string
 //   - digest string
 //   - opts *repository.ListReferrersOptions
-func (_e *RepositoryService_Expecter) ListReferrers(repository1 interface{}, digest interface{}, opts interface{}) *RepositoryService_ListReferrers_Call {
-	return &RepositoryService_ListReferrers_Call{Call: _e.mock.On("ListReferrers", repository1, digest, opts)}
+func (_e *RepositoryService_Expecter) ListReferrers(digest interface{}, opts interface{}) *RepositoryService_ListReferrers_Call {
+	return &RepositoryService_ListReferrers_Call{Call: _e.mock.On("ListReferrers", digest, opts)}
 }
 
-func (_c *RepositoryService_ListReferrers_Call) Run(run func(repository1 string, digest string, opts *repository.ListReferrersOptions)) *RepositoryService_ListReferrers_Call {
+func (_c *RepositoryService_ListReferrers_Call) Run(run func(digest string, opts *repository.ListReferrersOptions)) *RepositoryService_ListReferrers_Call {
 	_c.Call.Run(func(args mock.Arguments) {
 		var arg0 string
 		if args[0] != nil {
 			arg0 = args[0].(string)
 		}
-		var arg1 string
+		var arg1 *repository.ListReferrersOptions
 		if args[1] != nil {
-			arg1 = args[1].(string)
-		}
-		var arg2 *repository.ListReferrersOptions
-		if args[2] != nil {
-			arg2 = args[2].(*repository.ListReferrersOptions)
+			arg1 = args[1].(*repository.ListReferrersOptions)
 		}
 		run(
 			arg0,
 			arg1,
-			arg2,
 		)
 	})
 	return _c
@@ -684,14 +623,14 @@ func (_c *RepositoryService_ListReferrers_Call) Return(referrers *repository.Ref
 	return _c
 }
 
-func (_c *RepositoryService_ListReferrers_Call) RunAndReturn(run func(repository1 string, digest string, opts *repository.ListReferrersOptions) (*repository.Referrers, error)) *RepositoryService_ListReferrers_Call {
+func (_c *RepositoryService_ListReferrers_Call) RunAndReturn(run func(digest string, opts *repository.ListReferrersOptions) (*repository.Referrers, error)) *RepositoryService_ListReferrers_Call {
 	_c.Call.Return(run)
 	return _c
 }
 
 // ListTags provides a mock function for the type RepositoryService
-func (_mock *RepositoryService) ListTags(repository1 string, count int, from string) ([]string, error) {
-	ret := _mock.Called(repository1, count, from)
+func (_mock *RepositoryService) ListTags(count int, from string) ([]string, error) {
+	ret := _mock.Called(count, from)
 
 	if len(ret) == 0 {
 		panic("no return value specified for ListTags")
@@ -699,18 +638,18 @@ func (_mock *RepositoryService) ListTags(repository1 string, count int, from str
 
 	var r0 []string
 	var r1 error
-	if returnFunc, ok := ret.Get(0).(func(string, int, string) ([]string, error)); ok {
-		return returnFunc(repository1, count, from)
+	if returnFunc, ok := ret.Get(0).(func(int, string) ([]string, error)); ok {
+		return returnFunc(count, from)
 	}
-	if returnFunc, ok := ret.Get(0).(func(string, int, string) []string); ok {
-		r0 = returnFunc(repository1, count, from)
+	if returnFunc, ok := ret.Get(0).(func(int, string) []string); ok {
+		r0 = returnFunc(count, from)
 	} else {
 		if ret.Get(0) != nil {
 			r0 = ret.Get(0).([]string)
 		}
 	}
-	if returnFunc, ok := ret.Get(1).(func(string, int, string) error); ok {
-		r1 = returnFunc(repository1, count, from)
+	if returnFunc, ok := ret.Get(1).(func(int, string) error); ok {
+		r1 = returnFunc(count, from)
 	} else {
 		r1 = ret.Error(1)
 	}
@@ -723,31 +662,25 @@ type RepositoryService_ListTags_Call struct {
 }
 
 // ListTags is a helper method to define mock.On call
-//   - repository1 string
 //   - count int
 //   - from string
-func (_e *RepositoryService_Expecter) ListTags(repository1 interface{}, count interface{}, from interface{}) *RepositoryService_ListTags_Call {
-	return &RepositoryService_ListTags_Call{Call: _e.mock.On("ListTags", repository1, count, from)}
+func (_e *RepositoryService_Expecter) ListTags(count interface{}, from interface{}) *RepositoryService_ListTags_Call {
+	return &RepositoryService_ListTags_Call{Call: _e.mock.On("ListTags", count, from)}
 }
 
-func (_c *RepositoryService_ListTags_Call) Run(run func(repository1 string, count int, from string)) *RepositoryService_ListTags_Call {
+func (_c *RepositoryService_ListTags_Call) Run(run func(count int, from string)) *RepositoryService_ListTags_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		var arg0 string
+		var arg0 int
 		if args[0] != nil {
-			arg0 = args[0].(string)
+			arg0 = args[0].(int)
 		}
-		var arg1 int
+		var arg1 string
 		if args[1] != nil {
-			arg1 = args[1].(int)
-		}
-		var arg2 string
-		if args[2] != nil {
-			arg2 = args[2].(string)
+			arg1 = args[1].(string)
 		}
 		run(
 			arg0,
 			arg1,
-			arg2,
 		)
 	})
 	return _c
@@ -758,14 +691,14 @@ func (_c *RepositoryService_ListTags_Call) Return(strings []string, err error) *
 	return _c
 }
 
-func (_c *RepositoryService_ListTags_Call) RunAndReturn(run func(repository1 string, count int, from string) ([]string, error)) *RepositoryService_ListTags_Call {
+func (_c *RepositoryService_ListTags_Call) RunAndReturn(run func(count int, from string) ([]string, error)) *RepositoryService_ListTags_Call {
 	_c.Call.Return(run)
 	return _c
 }
 
 // PutManifest provides a mock function for the type RepositoryService
-func (_mock *RepositoryService) PutManifest(repository1 string, reference string, content []byte) (digest.Digest, error) {
-	ret := _mock.Called(repository1, reference, content)
+func (_mock *RepositoryService) PutManifest(reference string, content []byte) (digest.Digest, error) {
+	ret := _mock.Called(reference, content)
 
 	if len(ret) == 0 {
 		panic("no return value specified for PutManifest")
@@ -773,16 +706,16 @@ func (_mock *RepositoryService) PutManifest(repository1 string, reference string
 
 	var r0 digest.Digest
 	var r1 error
-	if returnFunc, ok := ret.Get(0).(func(string, string, []byte) (digest.Digest, error)); ok {
-		return returnFunc(repository1, reference, content)
+	if returnFunc, ok := ret.Get(0).(func(string, []byte) (digest.Digest, error)); ok {
+		return returnFunc(reference, content)
 	}
-	if returnFunc, ok := ret.Get(0).(func(string, string, []byte) digest.Digest); ok {
-		r0 = returnFunc(repository1, reference, content)
+	if returnFunc, ok := ret.Get(0).(func(string, []byte) digest.Digest); ok {
+		r0 = returnFunc(reference, content)
 	} else {
 		r0 = ret.Get(0).(digest.Digest)
 	}
-	if returnFunc, ok := ret.Get(1).(func(string, string, []byte) error); ok {
-		r1 = returnFunc(repository1, reference, content)
+	if returnFunc, ok := ret.Get(1).(func(string, []byte) error); ok {
+		r1 = returnFunc(reference, content)
 	} else {
 		r1 = ret.Error(1)
 	}
@@ -795,31 +728,25 @@ type RepositoryService_PutManifest_Call struct {
 }
 
 // PutManifest is a helper method to define mock.On call
-//   - repository1 string
 //   - reference string
 //   - content []byte
-func (_e *RepositoryService_Expecter) PutManifest(repository1 interface{}, reference interface{}, content interface{}) *RepositoryService_PutManifest_Call {
-	return &RepositoryService_PutManifest_Call{Call: _e.mock.On("PutManifest", repository1, reference, content)}
+func (_e *RepositoryService_Expecter) PutManifest(reference interface{}, content interface{}) *RepositoryService_PutManifest_Call {
+	return &RepositoryService_PutManifest_Call{Call: _e.mock.On("PutManifest", reference, content)}
 }
 
-func (_c *RepositoryService_PutManifest_Call) Run(run func(repository1 string, reference string, content []byte)) *RepositoryService_PutManifest_Call {
+func (_c *RepositoryService_PutManifest_Call) Run(run func(reference string, content []byte)) *RepositoryService_PutManifest_Call {
 	_c.Call.Run(func(args mock.Arguments) {
 		var arg0 string
 		if args[0] != nil {
 			arg0 = args[0].(string)
 		}
-		var arg1 string
+		var arg1 []byte
 		if args[1] != nil {
-			arg1 = args[1].(string)
-		}
-		var arg2 []byte
-		if args[2] != nil {
-			arg2 = args[2].([]byte)
+			arg1 = args[1].([]byte)
 		}
 		run(
 			arg0,
 			arg1,
-			arg2,
 		)
 	})
 	return _c
@@ -830,22 +757,22 @@ func (_c *RepositoryService_PutManifest_Call) Return(digest1 digest.Digest, err 
 	return _c
 }
 
-func (_c *RepositoryService_PutManifest_Call) RunAndReturn(run func(repository1 string, reference string, content []byte) (digest.Digest, error)) *RepositoryService_PutManifest_Call {
+func (_c *RepositoryService_PutManifest_Call) RunAndReturn(run func(reference string, content []byte) (digest.Digest, error)) *RepositoryService_PutManifest_Call {
 	_c.Call.Return(run)
 	return _c
 }
 
 // PutTag provides a mock function for the type RepositoryService
-func (_mock *RepositoryService) PutTag(repository1 string, tag string, digest1 string) error {
-	ret := _mock.Called(repository1, tag, digest1)
+func (_mock *RepositoryService) PutTag(tag string, digest1 string) error {
+	ret := _mock.Called(tag, digest1)
 
 	if len(ret) == 0 {
 		panic("no return value specified for PutTag")
 	}
 
 	var r0 error
-	if returnFunc, ok := ret.Get(0).(func(string, string, string) error); ok {
-		r0 = returnFunc(repository1, tag, digest1)
+	if returnFunc, ok := ret.Get(0).(func(string, string) error); ok {
+		r0 = returnFunc(tag, digest1)
 	} else {
 		r0 = ret.Error(0)
 	}
@@ -858,14 +785,13 @@ type RepositoryService_PutTag_Call struct {
 }
 
 // PutTag is a helper method to define mock.On call
-//   - repository1 string
 //   - tag string
 //   - digest1 string
-func (_e *RepositoryService_Expecter) PutTag(repository1 interface{}, tag interface{}, digest1 interface{}) *RepositoryService_PutTag_Call {
-	return &RepositoryService_PutTag_Call{Call: _e.mock.On("PutTag", repository1, tag, digest1)}
+func (_e *RepositoryService_Expecter) PutTag(tag interface{}, digest1 interface{}) *RepositoryService_PutTag_Call {
+	return &RepositoryService_PutTag_Call{Call: _e.mock.On("PutTag", tag, digest1)}
 }
 
-func (_c *RepositoryService_PutTag_Call) Run(run func(repository1 string, tag string, digest1 string)) *RepositoryService_PutTag_Call {
+func (_c *RepositoryService_PutTag_Call) Run(run func(tag string, digest1 string)) *RepositoryService_PutTag_Call {
 	_c.Call.Run(func(args mock.Arguments) {
 		var arg0 string
 		if args[0] != nil {
@@ -875,14 +801,9 @@ func (_c *RepositoryService_PutTag_Call) Run(run func(repository1 string, tag st
 		if args[1] != nil {
 			arg1 = args[1].(string)
 		}
-		var arg2 string
-		if args[2] != nil {
-			arg2 = args[2].(string)
-		}
 		run(
 			arg0,
 			arg1,
-			arg2,
 		)
 	})
 	return _c
@@ -893,14 +814,14 @@ func (_c *RepositoryService_PutTag_Call) Return(err error) *RepositoryService_Pu
 	return _c
 }
 
-func (_c *RepositoryService_PutTag_Call) RunAndReturn(run func(repository1 string, tag string, digest1 string) error) *RepositoryService_PutTag_Call {
+func (_c *RepositoryService_PutTag_Call) RunAndReturn(run func(tag string, digest1 string) error) *RepositoryService_PutTag_Call {
 	_c.Call.Return(run)
 	return _c
 }
 
 // StatBlob provides a mock function for the type RepositoryService
-func (_mock *RepositoryService) StatBlob(repository1 string, digest1 string) (*store.BlobInfo, error) {
-	ret := _mock.Called(repository1, digest1)
+func (_mock *RepositoryService) StatBlob(digest1 string) (*store.BlobInfo, error) {
+	ret := _mock.Called(digest1)
 
 	if len(ret) == 0 {
 		panic("no return value specified for StatBlob")
@@ -908,18 +829,18 @@ func (_mock *RepositoryService) StatBlob(repository1 string, digest1 string) (*s
 
 	var r0 *store.BlobInfo
 	var r1 error
-	if returnFunc, ok := ret.Get(0).(func(string, string) (*store.BlobInfo, error)); ok {
-		return returnFunc(repository1, digest1)
+	if returnFunc, ok := ret.Get(0).(func(string) (*store.BlobInfo, error)); ok {
+		return returnFunc(digest1)
 	}
-	if returnFunc, ok := ret.Get(0).(func(string, string) *store.BlobInfo); ok {
-		r0 = returnFunc(repository1, digest1)
+	if returnFunc, ok := ret.Get(0).(func(string) *store.BlobInfo); ok {
+		r0 = returnFunc(digest1)
 	} else {
 		if ret.Get(0) != nil {
 			r0 = ret.Get(0).(*store.BlobInfo)
 		}
 	}
-	if returnFunc, ok := ret.Get(1).(func(string, string) error); ok {
-		r1 = returnFunc(repository1, digest1)
+	if returnFunc, ok := ret.Get(1).(func(string) error); ok {
+		r1 = returnFunc(digest1)
 	} else {
 		r1 = ret.Error(1)
 	}
@@ -932,25 +853,19 @@ type RepositoryService_StatBlob_Call struct {
 }
 
 // StatBlob is a helper method to define mock.On call
-//   - repository1 string
 //   - digest1 string
-func (_e *RepositoryService_Expecter) StatBlob(repository1 interface{}, digest1 interface{}) *RepositoryService_StatBlob_Call {
-	return &RepositoryService_StatBlob_Call{Call: _e.mock.On("StatBlob", repository1, digest1)}
+func (_e *RepositoryService_Expecter) StatBlob(digest1 interface{}) *RepositoryService_StatBlob_Call {
+	return &RepositoryService_StatBlob_Call{Call: _e.mock.On("StatBlob", digest1)}
 }
 
-func (_c *RepositoryService_StatBlob_Call) Run(run func(repository1 string, digest1 string)) *RepositoryService_StatBlob_Call {
+func (_c *RepositoryService_StatBlob_Call) Run(run func(digest1 string)) *RepositoryService_StatBlob_Call {
 	_c.Call.Run(func(args mock.Arguments) {
 		var arg0 string
 		if args[0] != nil {
 			arg0 = args[0].(string)
 		}
-		var arg1 string
-		if args[1] != nil {
-			arg1 = args[1].(string)
-		}
 		run(
 			arg0,
-			arg1,
 		)
 	})
 	return _c
@@ -961,14 +876,14 @@ func (_c *RepositoryService_StatBlob_Call) Return(blobInfo *store.BlobInfo, err 
 	return _c
 }
 
-func (_c *RepositoryService_StatBlob_Call) RunAndReturn(run func(repository1 string, digest1 string) (*store.BlobInfo, error)) *RepositoryService_StatBlob_Call {
+func (_c *RepositoryService_StatBlob_Call) RunAndReturn(run func(digest1 string) (*store.BlobInfo, error)) *RepositoryService_StatBlob_Call {
 	_c.Call.Return(run)
 	return _c
 }
 
 // StatManifest provides a mock function for the type RepositoryService
-func (_mock *RepositoryService) StatManifest(repository1 string, reference string) (*store.BlobInfo, error) {
-	ret := _mock.Called(repository1, reference)
+func (_mock *RepositoryService) StatManifest(reference string) (*store.BlobInfo, error) {
+	ret := _mock.Called(reference)
 
 	if len(ret) == 0 {
 		panic("no return value specified for StatManifest")
@@ -976,18 +891,18 @@ func (_mock *RepositoryService) StatManifest(repository1 string, reference strin
 
 	var r0 *store.BlobInfo
 	var r1 error
-	if returnFunc, ok := ret.Get(0).(func(string, string) (*store.BlobInfo, error)); ok {
-		return returnFunc(repository1, reference)
+	if returnFunc, ok := ret.Get(0).(func(string) (*store.BlobInfo, error)); ok {
+		return returnFunc(reference)
 	}
-	if returnFunc, ok := ret.Get(0).(func(string, string) *store.BlobInfo); ok {
-		r0 = returnFunc(repository1, reference)
+	if returnFunc, ok := ret.Get(0).(func(string) *store.BlobInfo); ok {
+		r0 = returnFunc(reference)
 	} else {
 		if ret.Get(0) != nil {
 			r0 = ret.Get(0).(*store.BlobInfo)
 		}
 	}
-	if returnFunc, ok := ret.Get(1).(func(string, string) error); ok {
-		r1 = returnFunc(repository1, reference)
+	if returnFunc, ok := ret.Get(1).(func(string) error); ok {
+		r1 = returnFunc(reference)
 	} else {
 		r1 = ret.Error(1)
 	}
@@ -1000,25 +915,19 @@ type RepositoryService_StatManifest_Call struct {
 }
 
 // StatManifest is a helper method to define mock.On call
-//   - repository1 string
 //   - reference string
-func (_e *RepositoryService_Expecter) StatManifest(repository1 interface{}, reference interface{}) *RepositoryService_StatManifest_Call {
-	return &RepositoryService_StatManifest_Call{Call: _e.mock.On("StatManifest", repository1, reference)}
+func (_e *RepositoryService_Expecter) StatManifest(reference interface{}) *RepositoryService_StatManifest_Call {
+	return &RepositoryService_StatManifest_Call{Call: _e.mock.On("StatManifest", reference)}
 }
 
-func (_c *RepositoryService_StatManifest_Call) Run(run func(repository1 string, reference string)) *RepositoryService_StatManifest_Call {
+func (_c *RepositoryService_StatManifest_Call) Run(run func(reference string)) *RepositoryService_StatManifest_Call {
 	_c.Call.Run(func(args mock.Arguments) {
 		var arg0 string
 		if args[0] != nil {
 			arg0 = args[0].(string)
 		}
-		var arg1 string
-		if args[1] != nil {
-			arg1 = args[1].(string)
-		}
 		run(
 			arg0,
-			arg1,
 		)
 	})
 	return _c
@@ -1029,14 +938,14 @@ func (_c *RepositoryService_StatManifest_Call) Return(blobInfo *store.BlobInfo, 
 	return _c
 }
 
-func (_c *RepositoryService_StatManifest_Call) RunAndReturn(run func(repository1 string, reference string) (*store.BlobInfo, error)) *RepositoryService_StatManifest_Call {
+func (_c *RepositoryService_StatManifest_Call) RunAndReturn(run func(reference string) (*store.BlobInfo, error)) *RepositoryService_StatManifest_Call {
 	_c.Call.Return(run)
 	return _c
 }
 
 // StatUpload provides a mock function for the type RepositoryService
-func (_mock *RepositoryService) StatUpload(repository1 string, sessionID string) (*store.BlobInfo, error) {
-	ret := _mock.Called(repository1, sessionID)
+func (_mock *RepositoryService) StatUpload(sessionID string) (*store.BlobInfo, error) {
+	ret := _mock.Called(sessionID)
 
 	if len(ret) == 0 {
 		panic("no return value specified for StatUpload")
@@ -1044,18 +953,18 @@ func (_mock *RepositoryService) StatUpload(repository1 string, sessionID string)
 
 	var r0 *store.BlobInfo
 	var r1 error
-	if returnFunc, ok := ret.Get(0).(func(string, string) (*store.BlobInfo, error)); ok {
-		return returnFunc(repository1, sessionID)
+	if returnFunc, ok := ret.Get(0).(func(string) (*store.BlobInfo, error)); ok {
+		return returnFunc(sessionID)
 	}
-	if returnFunc, ok := ret.Get(0).(func(string, string) *store.BlobInfo); ok {
-		r0 = returnFunc(repository1, sessionID)
+	if returnFunc, ok := ret.Get(0).(func(string) *store.BlobInfo); ok {
+		r0 = returnFunc(sessionID)
 	} else {
 		if ret.Get(0) != nil {
 			r0 = ret.Get(0).(*store.BlobInfo)
 		}
 	}
-	if returnFunc, ok := ret.Get(1).(func(string, string) error); ok {
-		r1 = returnFunc(repository1, sessionID)
+	if returnFunc, ok := ret.Get(1).(func(string) error); ok {
+		r1 = returnFunc(sessionID)
 	} else {
 		r1 = ret.Error(1)
 	}
@@ -1068,25 +977,19 @@ type RepositoryService_StatUpload_Call struct {
 }
 
 // StatUpload is a helper method to define mock.On call
-//   - repository1 string
 //   - sessionID string
-func (_e *RepositoryService_Expecter) StatUpload(repository1 interface{}, sessionID interface{}) *RepositoryService_StatUpload_Call {
-	return &RepositoryService_StatUpload_Call{Call: _e.mock.On("StatUpload", repository1, sessionID)}
+func (_e *RepositoryService_Expecter) StatUpload(sessionID interface{}) *RepositoryService_StatUpload_Call {
+	return &RepositoryService_StatUpload_Call{Call: _e.mock.On("StatUpload", sessionID)}
 }
 
-func (_c *RepositoryService_StatUpload_Call) Run(run func(repository1 string, sessionID string)) *RepositoryService_StatUpload_Call {
+func (_c *RepositoryService_StatUpload_Call) Run(run func(sessionID string)) *RepositoryService_StatUpload_Call {
 	_c.Call.Run(func(args mock.Arguments) {
 		var arg0 string
 		if args[0] != nil {
 			arg0 = args[0].(string)
 		}
-		var arg1 string
-		if args[1] != nil {
-			arg1 = args[1].(string)
-		}
 		run(
 			arg0,
-			arg1,
 		)
 	})
 	return _c
@@ -1097,7 +1000,7 @@ func (_c *RepositoryService_StatUpload_Call) Return(blobInfo *store.BlobInfo, er
 	return _c
 }
 
-func (_c *RepositoryService_StatUpload_Call) RunAndReturn(run func(repository1 string, sessionID string) (*store.BlobInfo, error)) *RepositoryService_StatUpload_Call {
+func (_c *RepositoryService_StatUpload_Call) RunAndReturn(run func(sessionID string) (*store.BlobInfo, error)) *RepositoryService_StatUpload_Call {
 	_c.Call.Return(run)
 	return _c
 }

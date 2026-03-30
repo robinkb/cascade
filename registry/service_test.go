@@ -6,8 +6,8 @@ import (
 
 	"github.com/robinkb/cascade/registry/repository"
 	"github.com/robinkb/cascade/registry/store"
-	"github.com/robinkb/cascade/registry/store/boltdb"
-	"github.com/robinkb/cascade/registry/store/inmemory"
+	"github.com/robinkb/cascade/registry/store/driver/boltdb"
+	"github.com/robinkb/cascade/registry/store/driver/inmemory"
 	. "github.com/robinkb/cascade/testing"
 )
 
@@ -27,7 +27,8 @@ func TestRepository(t *testing.T) {
 		{
 			"With BoltDB metadata store",
 			func() (store.Metadata, store.Blobs) {
-				metadata := boltdb.NewMetadataStore(t.TempDir())
+				metadata, err := boltdb.NewMetadataStore(t.TempDir())
+				AssertNoError(t, err).Require()
 				blobs := inmemory.NewBlobStore()
 				return metadata, blobs
 			},
@@ -40,23 +41,17 @@ func TestRepository(t *testing.T) {
 		t.Run(tt.description, func(t *testing.T) {
 			t.Run("Create a repository, do something with it, and delete it", func(t *testing.T) {
 				name := RandomName()
-				err := service.CreateRepository(name)
-				AssertNoError(t, err)
-
-				repo, err := service.GetRepository(name)
+				repo, err := service.CreateRepository(name)
 				AssertNoError(t, err)
 
 				id, _, content := RandomManifest()
-				_, err = repo.PutManifest(name, id.String(), content)
+				_, err = repo.PutManifest(id.String(), content)
 				RequireNoError(t, err)
-				_, _, err = repo.GetManifest(name, id.String())
+				_, _, err = repo.GetManifest(id.String())
 				AssertNoError(t, err)
 
 				err = service.DeleteRepository(name)
 				AssertNoError(t, err)
-
-				_, _, err = repo.GetManifest(name, id.String())
-				AssertErrorIs(t, err, repository.ErrNameUnknown)
 			})
 
 			t.Run("An unknown repository is automatically created", func(t *testing.T) {
@@ -84,7 +79,7 @@ func TestRepository(t *testing.T) {
 				wg.Add(routines)
 				for range routines {
 					go func() {
-						err := service.CreateRepository(name)
+						_, err := service.CreateRepository(name)
 						AssertNoError(t, err)
 						wg.Done()
 					}()

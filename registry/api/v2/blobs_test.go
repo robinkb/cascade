@@ -21,7 +21,7 @@ func TestStatBlob(t *testing.T) {
 
 		repo := mock.NewRepositoryService(t)
 		repo.EXPECT().
-			StatBlob(name, digest.String()).
+			StatBlob(digest.String()).
 			Return(&store.BlobInfo{Size: size}, nil)
 
 		client := NewTestClientForRepository(t, name, repo)
@@ -36,7 +36,7 @@ func TestStatBlob(t *testing.T) {
 	t.Run("unknown blob returns 404", func(t *testing.T) {
 		repo := mock.NewRepositoryService(t)
 		repo.EXPECT().
-			StatBlob(name, digest.String()).
+			StatBlob(digest.String()).
 			Return(nil, repository.ErrBlobUnknown)
 
 		client := NewTestClientForRepository(t, name, repo)
@@ -65,7 +65,7 @@ func TestGetBlob(t *testing.T) {
 	t.Run("Get blob returns 200", func(t *testing.T) {
 		repo := mock.NewRepositoryService(t)
 		repo.EXPECT().
-			GetBlob(name, digest.String()).
+			GetBlob(digest.String()).
 			Return(bytes.NewBuffer(content), nil)
 
 		client := NewTestClientForRepository(t, name, repo)
@@ -79,7 +79,7 @@ func TestGetBlob(t *testing.T) {
 	t.Run("returns 404 on unknown blob", func(t *testing.T) {
 		repo := mock.NewRepositoryService(t)
 		repo.EXPECT().
-			GetBlob(name, digest.String()).
+			GetBlob(digest.String()).
 			Return(nil, repository.ErrBlobUnknown)
 
 		client := NewTestClientForRepository(t, name, repo)
@@ -108,7 +108,7 @@ func TestDeleteBlob(t *testing.T) {
 	t.Run("Delete blob returns 202", func(t *testing.T) {
 		repo := mock.NewRepositoryService(t)
 		repo.EXPECT().
-			DeleteBlob(name, digest.String()).
+			DeleteBlob(digest.String()).
 			Return(nil)
 
 		client := NewTestClientForRepository(t, name, repo)

@@ -1,15 +1,16 @@
-package cluster
+package cluster_test
 
 import (
 	"math/rand/v2"
 	"testing"
 
+	"github.com/robinkb/cascade/cluster"
 	. "github.com/robinkb/cascade/testing"
 )
 
 func TestClients(t *testing.T) {
 	t.Run("adds and retrieves a client", func(t *testing.T) {
-		clients := NewClients[testClient]()
+		clients := cluster.NewClients[testClient]()
 
 		want := newTestClient()
 		err := clients.Add(want.Peer, want)
@@ -21,9 +22,9 @@ func TestClients(t *testing.T) {
 	})
 
 	t.Run("adding the same client twice returns error", func(t *testing.T) {
-		clients := NewClients[testClient]()
+		clients := cluster.NewClients[testClient]()
 
-		want := ErrDuplicateClient
+		want := cluster.ErrDuplicateClient
 
 		c := newTestClient()
 		got := clients.Add(c.Peer, c)
@@ -33,17 +34,17 @@ func TestClients(t *testing.T) {
 	})
 
 	t.Run("getting non-existent client returns error", func(t *testing.T) {
-		clients := NewClients[testClient]()
+		clients := cluster.NewClients[testClient]()
 
-		want := ErrClientNotFound
+		want := cluster.ErrClientNotFound
 		_, got := clients.Get(rand.Uint64())
 		AssertErrorIs(t, got, want)
 	})
 
 	t.Run("deleted client is not retrievable", func(t *testing.T) {
-		clients := NewClients[testClient]()
+		clients := cluster.NewClients[testClient]()
 
-		want := ErrClientNotFound
+		want := cluster.ErrClientNotFound
 
 		c := newTestClient()
 		err := clients.Add(c.Peer, c)
@@ -58,12 +59,12 @@ func TestClients(t *testing.T) {
 }
 
 type testClient struct {
-	Peer
+	cluster.Peer
 }
 
 func newTestClient() *testClient {
 	return &testClient{
-		Peer: Peer{
+		Peer: cluster.Peer{
 			ID: rand.Uint64(),
 		},
 	}

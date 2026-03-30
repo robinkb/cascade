@@ -53,7 +53,7 @@ func (s *blobStore) GetBlob(id digest.Digest) ([]byte, error) {
 	path := s.digestToPath(id)
 	data, ok := s.store[path]
 	if !ok {
-		return nil, store.ErrNotFound
+		return nil, store.ErrBlobNotFound
 	}
 	return data, nil
 }
@@ -146,7 +146,7 @@ func (s *blobStore) stat(path string) (*store.BlobInfo, error) {
 
 	data, ok := s.store[path]
 	if !ok {
-		return nil, store.ErrNotFound
+		return nil, store.ErrBlobNotFound
 	}
 
 	return &store.BlobInfo{

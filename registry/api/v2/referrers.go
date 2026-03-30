@@ -33,7 +33,7 @@ func (h *Handler) listReferrersHandler(w http.ResponseWriter, r *http.Request) {
 		ArtifactType: artifactType,
 	}
 
-	referrers, err := repo.ListReferrers(name, digest, &opts)
+	referrers, err := repo.ListReferrers(digest, &opts)
 	if err != nil {
 		errorHandler(w, r, err)
 		return

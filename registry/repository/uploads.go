@@ -12,13 +12,15 @@ import (
 	"github.com/robinkb/cascade/registry/store"
 )
 
-func (s *repositoryService) StatUpload(repository, sessionID string) (*store.BlobInfo, error) {
-	session, err := s.metadata.GetUploadSession(repository, sessionID)
+func (s *repositoryService) StatUpload(sessionID string) (*store.BlobInfo, error) {
+	id, err := uuid.FromString(sessionID)
 	if err != nil {
-		if errors.Is(err, store.ErrRepositoryNotFound) {
-			err = ErrNameUnknown
-		}
-		if errors.Is(err, store.ErrNotFound) {
+		return nil, err
+	}
+
+	session, err := s.repo.GetUploadSession(id)
+	if err != nil {
+		if errors.Is(err, store.ErrUploadNotFound) {
 			err = ErrBlobUploadUnknown
 		}
 		return nil, err
@@ -28,7 +30,7 @@ func (s *repositoryService) StatUpload(repository, sessionID string) (*store.Blo
 }
 
 // TODO: This should verify that upload sessions cannot be overwritten _just in case_ the generated UUID is not unique... lol.
-func (s *repositoryService) InitUpload(repository string) (*store.UploadSession, error) {
+func (s *repositoryService) InitUpload() (*store.UploadSession, error) {
 	id, _ := uuid.NewV7()
 
 	hash := sha256.New()
@@ -53,7 +55,7 @@ func (s *repositoryService) InitUpload(repository string) (*store.UploadSession,
 		return nil, err
 	}
 
-	err = s.metadata.PutUploadSession(repository, &session)
+	err = s.repo.PutUploadSession(&session)
 	if err != nil {
 		if errors.Is(err, store.ErrRepositoryNotFound) {
 			err = ErrNameUnknown
@@ -64,10 +66,15 @@ func (s *repositoryService) InitUpload(repository string) (*store.UploadSession,
 	return &session, nil
 }
 
-func (s *repositoryService) AppendUpload(repository, sessionID string, r io.Reader, offset int64) error {
-	session, err := s.metadata.GetUploadSession(repository, sessionID)
+func (s *repositoryService) AppendUpload(sessionID string, r io.Reader, offset int64) error {
+	id, err := uuid.FromString(sessionID)
 	if err != nil {
-		if errors.Is(err, store.ErrNotFound) {
+		return err
+	}
+
+	session, err := s.repo.GetUploadSession(id)
+	if err != nil {
+		if errors.Is(err, store.ErrUploadNotFound) {
 			err = ErrBlobUploadUnknown
 		}
 		return err
@@ -109,11 +116,16 @@ func (s *repositoryService) AppendUpload(repository, sessionID string, r io.Read
 		return err
 	}
 
-	return s.metadata.PutUploadSession(repository, session)
+	return s.repo.PutUploadSession(session)
 }
 
-func (s *repositoryService) CloseUpload(repository, sessionID, digest string) error {
-	session, err := s.metadata.GetUploadSession(repository, sessionID)
+func (s *repositoryService) CloseUpload(sessionID, digest string) error {
+	sid, err := uuid.FromString(sessionID)
+	if err != nil {
+		return err
+	}
+
+	session, err := s.repo.GetUploadSession(sid)
 	if err != nil {
 		return err
 	}
@@ -139,10 +151,10 @@ func (s *repositoryService) CloseUpload(repository, sessionID, digest string) er
 		return err
 	}
 
-	err = s.metadata.PutBlob(repository, calculatedId)
+	err = s.repo.PutBlob(calculatedId)
 	if err != nil {
 		return err
 	}
 
-	return s.metadata.DeleteUploadSession(repository, sessionID)
+	return s.repo.DeleteUploadSession(sid)
 }

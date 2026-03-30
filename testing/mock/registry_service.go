@@ -37,20 +37,31 @@ func (_m *RegistryService) EXPECT() *RegistryService_Expecter {
 }
 
 // CreateRepository provides a mock function for the type RegistryService
-func (_mock *RegistryService) CreateRepository(name string) error {
+func (_mock *RegistryService) CreateRepository(name string) (repository.Service, error) {
 	ret := _mock.Called(name)
 
 	if len(ret) == 0 {
 		panic("no return value specified for CreateRepository")
 	}
 
-	var r0 error
-	if returnFunc, ok := ret.Get(0).(func(string) error); ok {
+	var r0 repository.Service
+	var r1 error
+	if returnFunc, ok := ret.Get(0).(func(string) (repository.Service, error)); ok {
+		return returnFunc(name)
+	}
+	if returnFunc, ok := ret.Get(0).(func(string) repository.Service); ok {
 		r0 = returnFunc(name)
 	} else {
-		r0 = ret.Error(0)
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(repository.Service)
+		}
 	}
-	return r0
+	if returnFunc, ok := ret.Get(1).(func(string) error); ok {
+		r1 = returnFunc(name)
+	} else {
+		r1 = ret.Error(1)
+	}
+	return r0, r1
 }
 
 // RegistryService_CreateRepository_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'CreateRepository'
@@ -77,12 +88,12 @@ func (_c *RegistryService_CreateRepository_Call) Run(run func(name string)) *Reg
 	return _c
 }
 
-func (_c *RegistryService_CreateRepository_Call) Return(err error) *RegistryService_CreateRepository_Call {
-	_c.Call.Return(err)
+func (_c *RegistryService_CreateRepository_Call) Return(service repository.Service, err error) *RegistryService_CreateRepository_Call {
+	_c.Call.Return(service, err)
 	return _c
 }
 
-func (_c *RegistryService_CreateRepository_Call) RunAndReturn(run func(name string) error) *RegistryService_CreateRepository_Call {
+func (_c *RegistryService_CreateRepository_Call) RunAndReturn(run func(name string) (repository.Service, error)) *RegistryService_CreateRepository_Call {
 	_c.Call.Return(run)
 	return _c
 }

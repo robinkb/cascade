@@ -9,7 +9,7 @@ import (
 
 	"github.com/robinkb/cascade/registry"
 	v2 "github.com/robinkb/cascade/registry/api/v2"
-	"github.com/robinkb/cascade/registry/store/inmemory"
+	"github.com/robinkb/cascade/registry/store/driver/inmemory"
 	. "github.com/robinkb/cascade/testing"
 	testclient "github.com/robinkb/cascade/testing/client"
 )
@@ -216,10 +216,13 @@ func TestPush(t *testing.T) {
 			client := testclient.NewTestClientForHandler(t, srv)
 
 			name := RandomName()
-			subjectDigest, subjectManifest, _ := RandomManifest()
+			subjectDigest, subjectManifest, subjectContent := RandomManifest()
 			digest, _, content := RandomManifestWithSubject(subjectDigest, subjectManifest)
 
-			resp := client.PutManifest(name, digest.String(), content)
+			resp := client.PutManifest(name, subjectDigest.String(), subjectContent)
+			AssertResponseCode(t, resp, http.StatusCreated)
+
+			resp = client.PutManifest(name, digest.String(), content)
 
 			// When processing a request for an image manifest with the subject field,
 			// a registry implementation that supports the referrers API MUST respond with the

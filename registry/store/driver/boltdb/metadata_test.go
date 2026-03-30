@@ -5,14 +5,17 @@ import (
 
 	"github.com/robinkb/cascade/registry/store"
 	storesuite "github.com/robinkb/cascade/registry/store/suite"
+	. "github.com/robinkb/cascade/testing" // nolint: staticcheck
 	"github.com/stretchr/testify/suite"
 )
 
 func TestMetadataSuite(t *testing.T) {
 	suite.Run(t, &storesuite.MetadataSuite{
-		Constructor: func() store.Metadata {
+		Constructor: func(t *testing.T) store.Metadata {
 			tmp := t.TempDir()
-			return NewMetadataStore(tmp)
+			meta, err := NewMetadataStore(tmp)
+			AssertNoError(t, err).Require()
+			return meta
 		},
 	})
 }

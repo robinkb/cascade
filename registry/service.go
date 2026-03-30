@@ -9,41 +9,48 @@ import (
 
 type (
 	Service interface {
-		CreateRepository(name string) error
+		CreateRepository(name string) (repository.Service, error)
 		GetRepository(name string) (repository.Service, error)
 		DeleteRepository(name string) error
 	}
 )
 
-func NewService(metadata store.Metadata, blobs store.Blobs) Service {
+func NewService(meta store.Metadata, blobs store.Blobs) Service {
 	return &registryService{
-		metadata: metadata,
-		blobs:    blobs,
+		meta:  meta,
+		blobs: blobs,
 	}
 }
 
 type registryService struct {
-	metadata store.Metadata
-	blobs    store.Blobs
+	meta  store.Metadata
+	blobs store.Blobs
 }
 
-func (r *registryService) CreateRepository(name string) error {
-	return r.metadata.CreateRepository(name)
+func (r *registryService) CreateRepository(name string) (repository.Service, error) {
+	repo, err := r.meta.CreateRepository(name)
+	if err != nil {
+		if !errors.Is(err, store.ErrRepositoryExists) {
+			return nil, err
+		}
+	}
+	return repository.NewRepositoryService(r.blobs, repo), nil
 }
 
 func (r *registryService) GetRepository(name string) (repository.Service, error) {
-	if err := r.metadata.GetRepository(name); err != nil {
+	repo, err := r.meta.GetRepository(name)
+	if err != nil {
 		if !errors.Is(err, store.ErrRepositoryNotFound) {
 			return nil, err
 		}
-		err := r.metadata.CreateRepository(name)
+		repo, err = r.meta.CreateRepository(name)
 		if err != nil {
 			return nil, err
 		}
 	}
-	return repository.NewRepositoryService(r.metadata, r.blobs), nil
+	return repository.NewRepositoryService(r.blobs, repo), nil
 }
 
 func (r *registryService) DeleteRepository(name string) error {
-	return r.metadata.DeleteRepository(name)
+	return r.meta.DeleteRepository(name)
 }

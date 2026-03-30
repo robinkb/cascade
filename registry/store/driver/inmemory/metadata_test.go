@@ -8,13 +8,10 @@ import (
 	"github.com/stretchr/testify/suite"
 )
 
-func TestReconcilerSuite(t *testing.T) {
-	suite.Run(t, &storesuite.ReconcilerSuite{
-		MetadataStoreConstructor: func() store.Metadata {
+func TestMetadataSuite(t *testing.T) {
+	suite.Run(t, &storesuite.MetadataSuite{
+		Constructor: func(_ *testing.T) store.Metadata {
 			return NewMetadataStore()
-		},
-		BlobStoreConstructor: func() store.Blobs {
-			return NewBlobStore()
 		},
 	})
 }

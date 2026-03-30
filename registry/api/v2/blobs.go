@@ -29,7 +29,7 @@ func (h *Handler) statBlobsHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	info, err := repo.StatBlob(name, digest)
+	info, err := repo.StatBlob(digest)
 	if err != nil {
 		errorHandler(w, r, err)
 		return
@@ -49,7 +49,7 @@ func (h *Handler) getBlobsHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	blob, err := repo.GetBlob(name, digest)
+	blob, err := repo.GetBlob(digest)
 	if err != nil {
 		errorHandler(w, r, err)
 		return
@@ -69,7 +69,7 @@ func (h *Handler) deleteBlobsHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err = repo.DeleteBlob(name, digest)
+	err = repo.DeleteBlob(digest)
 	if err != nil {
 		errorHandler(w, r, err)
 		return

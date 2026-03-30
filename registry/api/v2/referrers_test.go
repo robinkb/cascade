@@ -25,7 +25,7 @@ func TestListReferrers(t *testing.T) {
 
 		repo := mock.NewRepositoryService(t)
 		repo.EXPECT().
-			ListReferrers(wantName, wantDigest.String(), mock.Anything).
+			ListReferrers(wantDigest.String(), mock.Anything).
 			Return(&wantReferrers, nil)
 
 		client := NewTestClientForRepository(t, wantName, repo)
@@ -52,7 +52,7 @@ func TestListReferrers(t *testing.T) {
 
 		repo := mock.NewRepositoryService(t)
 		repo.EXPECT().
-			ListReferrers(wantName, wantDigest.String(), &wantOpts).
+			ListReferrers(wantDigest.String(), &wantOpts).
 			Return(&wantReferrers, nil)
 
 		client := NewTestClientForRepository(t, wantName, repo)
@@ -74,7 +74,7 @@ func TestListReferrers(t *testing.T) {
 
 		repo := mock.NewRepositoryService(t)
 		repo.EXPECT().
-			ListReferrers(wantName, wantDigest, mock.Anything).
+			ListReferrers(wantDigest, mock.Anything).
 			Return(nil, wantErr)
 
 		client := NewTestClientForRepository(t, wantName, repo)
@@ -87,7 +87,7 @@ func TestListReferrers(t *testing.T) {
 	t.Run("Unknown service errors return a 500 internal server error", func(t *testing.T) {
 		repo := mock.NewRepositoryService(t)
 		repo.EXPECT().
-			ListReferrers(wantName, wantDigest.String(), mock.Anything).
+			ListReferrers(wantDigest.String(), mock.Anything).
 			Return(nil, errors.New("unknown"))
 
 		client := NewTestClientForRepository(t, wantName, repo)

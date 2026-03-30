@@ -9,37 +9,37 @@ import (
 
 type (
 	Service interface {
-		StatBlob(repository, digest string) (*store.BlobInfo, error)
-		GetBlob(repository, digest string) (io.Reader, error)
-		DeleteBlob(repository, digest string) error
+		StatBlob(digest string) (*store.BlobInfo, error)
+		GetBlob(digest string) (io.Reader, error)
+		DeleteBlob(digest string) error
 
-		StatManifest(repository, reference string) (*store.BlobInfo, error)
-		GetManifest(repository, reference string) (*store.ManifestMetadata, []byte, error)
-		PutManifest(repository, reference string, content []byte) (digest.Digest, error)
-		DeleteManifest(repository, reference string) error
+		StatManifest(reference string) (*store.BlobInfo, error)
+		GetManifest(reference string) (*store.Manifest, []byte, error)
+		PutManifest(reference string, content []byte) (digest.Digest, error)
+		DeleteManifest(reference string) error
 
-		ListTags(repository string, count int, from string) ([]string, error)
-		GetTag(repository, tag string) (string, error)
-		PutTag(repository, tag, digest string) error
-		DeleteTag(repository, tag string) error
+		ListTags(count int, from string) ([]string, error)
+		GetTag(tag string) (string, error)
+		PutTag(tag, digest string) error
+		DeleteTag(tag string) error
 
-		ListReferrers(repository, digest string, opts *ListReferrersOptions) (*Referrers, error)
+		ListReferrers(digest string, opts *ListReferrersOptions) (*Referrers, error)
 
-		InitUpload(repository string) (*store.UploadSession, error)
-		StatUpload(repository, sessionID string) (*store.BlobInfo, error)
-		AppendUpload(repository, sessionID string, r io.Reader, offset int64) error
-		CloseUpload(repository, id, digest string) error
+		InitUpload() (*store.UploadSession, error)
+		StatUpload(sessionID string) (*store.BlobInfo, error)
+		AppendUpload(sessionID string, r io.Reader, offset int64) error
+		CloseUpload(id, digest string) error
 	}
 )
 
-func NewRepositoryService(metadata store.Metadata, blobs store.Blobs) *repositoryService {
+func NewRepositoryService(blobs store.Blobs, repo store.Repository) *repositoryService {
 	return &repositoryService{
-		metadata: metadata,
-		blobs:    blobs,
+		blobs: blobs,
+		repo:  repo,
 	}
 }
 
 type repositoryService struct {
-	blobs    store.Blobs
-	metadata store.Metadata
+	blobs store.Blobs
+	repo  store.Repository
 }

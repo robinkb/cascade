@@ -21,7 +21,7 @@ func TestBlobUploadSession(t *testing.T) {
 		uuid := RandomUUID()
 		repo := mock.NewRepositoryService(t)
 		repo.EXPECT().
-			InitUpload(name).
+			InitUpload().
 			Return(&store.UploadSession{ID: uuid}, nil)
 
 		client := NewTestClientForRepository(t, name, repo)
@@ -35,7 +35,7 @@ func TestBlobUploadSession(t *testing.T) {
 	t.Run("Checking active session returns 200", func(t *testing.T) {
 		repo := mock.NewRepositoryService(t)
 		repo.EXPECT().
-			StatUpload(name, sessionID.String()).
+			StatUpload(sessionID.String()).
 			Return(&store.BlobInfo{}, nil)
 
 		client := NewTestClientForRepository(t, name, repo)
@@ -50,7 +50,7 @@ func TestBlobUploadSession(t *testing.T) {
 	t.Run("Checking status of an unknown upload session returns 404 and ErrBlobUploadUnknown", func(t *testing.T) {
 		repo := mock.NewRepositoryService(t)
 		repo.EXPECT().
-			StatUpload(name, sessionID.String()).
+			StatUpload(sessionID.String()).
 			Return(nil, repository.ErrBlobUploadUnknown)
 
 		client := NewTestClientForRepository(t, name, repo)

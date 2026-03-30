@@ -216,7 +216,7 @@ func (s *blobStore) stat(path string) (*store.BlobInfo, error) {
 	f, err := os.Open(path)
 	if err != nil {
 		if errors.Is(err, fs.ErrNotExist) {
-			return nil, store.ErrNotFound
+			return nil, store.ErrBlobNotFound
 		}
 		return nil, err
 	}
