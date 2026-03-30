@@ -9,7 +9,7 @@ import (
 	"github.com/robinkb/cascade/registry/store"
 	. "github.com/robinkb/cascade/testing"
 	testclient "github.com/robinkb/cascade/testing/client"
-	"github.com/robinkb/cascade/testing/mock"
+	mock "github.com/robinkb/cascade/testing/mock/repository"
 )
 
 func TestBlobUploadSession(t *testing.T) {
@@ -19,7 +19,7 @@ func TestBlobUploadSession(t *testing.T) {
 
 	t.Run("Initialize upload session returns 200 with session ID", func(t *testing.T) {
 		uuid := RandomUUID()
-		repo := mock.NewRepositoryService(t)
+		repo := mock.NewService(t)
 		repo.EXPECT().
 			InitUpload().
 			Return(&store.UploadSession{ID: uuid}, nil)
@@ -33,7 +33,7 @@ func TestBlobUploadSession(t *testing.T) {
 	})
 
 	t.Run("Checking active session returns 200", func(t *testing.T) {
-		repo := mock.NewRepositoryService(t)
+		repo := mock.NewService(t)
 		repo.EXPECT().
 			StatUpload(sessionID.String()).
 			Return(&store.BlobInfo{}, nil)
@@ -48,7 +48,7 @@ func TestBlobUploadSession(t *testing.T) {
 	})
 
 	t.Run("Checking status of an unknown upload session returns 404 and ErrBlobUploadUnknown", func(t *testing.T) {
-		repo := mock.NewRepositoryService(t)
+		repo := mock.NewService(t)
 		repo.EXPECT().
 			StatUpload(sessionID.String()).
 			Return(nil, repository.ErrBlobUploadUnknown)

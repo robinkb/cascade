@@ -6,7 +6,7 @@ import (
 
 	. "github.com/robinkb/cascade/testing"
 	testclient "github.com/robinkb/cascade/testing/client"
-	"github.com/robinkb/cascade/testing/mock"
+	mock "github.com/robinkb/cascade/testing/mock/repository"
 )
 
 func TestListTags(t *testing.T) {
@@ -14,7 +14,7 @@ func TestListTags(t *testing.T) {
 	tags := RandomTags(20)
 
 	t.Run("Listing tags returns 200", func(t *testing.T) {
-		repo := mock.NewRepositoryService(t)
+		repo := mock.NewService(t)
 		repo.EXPECT().
 			ListTags(-1, "").
 			Return(tags, nil)
@@ -33,7 +33,7 @@ func TestListTags(t *testing.T) {
 		count := 3
 		last := tags[10]
 
-		repo := mock.NewRepositoryService(t)
+		repo := mock.NewService(t)
 		repo.EXPECT().
 			ListTags(count, last).
 			Return(tags[10:13], nil)

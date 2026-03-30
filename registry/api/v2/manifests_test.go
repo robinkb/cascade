@@ -11,7 +11,7 @@ import (
 	"github.com/robinkb/cascade/registry/store"
 	. "github.com/robinkb/cascade/testing"
 	testclient "github.com/robinkb/cascade/testing/client"
-	"github.com/robinkb/cascade/testing/mock"
+	mock "github.com/robinkb/cascade/testing/mock/repository"
 )
 
 func TestStatManifests(t *testing.T) {
@@ -21,7 +21,7 @@ func TestStatManifests(t *testing.T) {
 	tag := RandomVersion()
 
 	t.Run("Stat existing manifest returns 200 with correct size in Content-Length header", func(t *testing.T) {
-		repo := mock.NewRepositoryService(t)
+		repo := mock.NewService(t)
 		repo.EXPECT().
 			StatManifest(digest.String()).
 			Return(&store.BlobInfo{Size: int64(length)}, nil)
@@ -36,7 +36,7 @@ func TestStatManifests(t *testing.T) {
 	})
 
 	t.Run("Stat existing manifest by tag returns 200 with correct size in Content-Length header", func(t *testing.T) {
-		repo := mock.NewRepositoryService(t)
+		repo := mock.NewService(t)
 		repo.EXPECT().
 			GetTag(tag).
 			Return(digest.String(), nil)
@@ -54,7 +54,7 @@ func TestStatManifests(t *testing.T) {
 	})
 
 	t.Run("Stat non-existent manifest returns 404 and ErrManifestUknown", func(t *testing.T) {
-		repo := mock.NewRepositoryService(t)
+		repo := mock.NewService(t)
 		repo.EXPECT().
 			StatManifest(digest.String()).
 			Return(nil, repository.ErrManifestUnknown)
@@ -67,7 +67,7 @@ func TestStatManifests(t *testing.T) {
 	})
 
 	t.Run("Stat non-existent manifest by tag returns 404 and ErrManifestUknown", func(t *testing.T) {
-		repo := mock.NewRepositoryService(t)
+		repo := mock.NewService(t)
 		repo.EXPECT().
 			GetTag(tag).
 			Return("", repository.ErrManifestUnknown)
@@ -89,7 +89,7 @@ func TestGetManifests(t *testing.T) {
 	tag := RandomVersion()
 
 	t.Run("Retrieving an existing manifest returns 200", func(t *testing.T) {
-		repo := mock.NewRepositoryService(t)
+		repo := mock.NewService(t)
 		repo.EXPECT().
 			GetManifest(digest.String()).
 			Return(meta, content, nil)
@@ -104,7 +104,7 @@ func TestGetManifests(t *testing.T) {
 	})
 
 	t.Run("Retrieving a manifest by tag returns 200", func(t *testing.T) {
-		repo := mock.NewRepositoryService(t)
+		repo := mock.NewService(t)
 		repo.EXPECT().
 			GetTag(tag).
 			Return(digest.String(), nil)
@@ -121,7 +121,7 @@ func TestGetManifests(t *testing.T) {
 	})
 
 	t.Run("Retrieving a non-existent manifest returns status 404 and ErrManifestUnknown", func(t *testing.T) {
-		repo := mock.NewRepositoryService(t)
+		repo := mock.NewService(t)
 		repo.EXPECT().
 			GetManifest(digest.String()).
 			Return(nil, nil, repository.ErrManifestUnknown)
@@ -141,7 +141,7 @@ func TestPutManifest(t *testing.T) {
 	tag := RandomVersion()
 
 	t.Run("Uploading a manifest by digest returns code 201", func(t *testing.T) {
-		repo := mock.NewRepositoryService(t)
+		repo := mock.NewService(t)
 		repo.EXPECT().
 			PutManifest(digest.String(), content).
 			Return("", nil)
@@ -156,7 +156,7 @@ func TestPutManifest(t *testing.T) {
 	})
 
 	t.Run("Uploading a manifest by tag returns code 201", func(t *testing.T) {
-		repo := mock.NewRepositoryService(t)
+		repo := mock.NewService(t)
 		repo.EXPECT().
 			PutTag(tag, digest.String()).
 			Return(nil)
@@ -177,7 +177,7 @@ func TestPutManifest(t *testing.T) {
 		subjectDigest, subjectManifest := digest, manifest
 		digest, _, content := RandomManifestWithSubject(subjectDigest, subjectManifest)
 
-		repo := mock.NewRepositoryService(t)
+		repo := mock.NewService(t)
 		repo.EXPECT().
 			PutManifest(digest.String(), content).
 			Return(subjectDigest, nil)
@@ -193,7 +193,7 @@ func TestPutManifest(t *testing.T) {
 	})
 
 	t.Run("Uploading an invalid manifest returns 400 and ErrManifestInvalid", func(t *testing.T) {
-		repo := mock.NewRepositoryService(t)
+		repo := mock.NewService(t)
 		repo.EXPECT().
 			PutManifest(digest.String(), content).
 			Return("", repository.ErrManifestInvalid)
@@ -207,7 +207,7 @@ func TestPutManifest(t *testing.T) {
 	})
 
 	t.Run("Other service error returns 500", func(t *testing.T) {
-		repo := mock.NewRepositoryService(t)
+		repo := mock.NewService(t)
 		repo.EXPECT().
 			PutManifest(digest.String(), content).
 			Return("", errors.New("unknown"))
@@ -226,7 +226,7 @@ func TestDeleteManifest(t *testing.T) {
 	tag := RandomVersion()
 
 	t.Run("Deleting a manifest returns code 202", func(t *testing.T) {
-		repo := mock.NewRepositoryService(t)
+		repo := mock.NewService(t)
 		repo.EXPECT().
 			DeleteManifest(digest.String()).
 			Return(nil)
@@ -239,7 +239,7 @@ func TestDeleteManifest(t *testing.T) {
 	})
 
 	t.Run("Deleting a manifest by tag returns 202", func(t *testing.T) {
-		repo := mock.NewRepositoryService(t)
+		repo := mock.NewService(t)
 		repo.EXPECT().
 			DeleteTag(tag).
 			Return(nil)
@@ -252,7 +252,7 @@ func TestDeleteManifest(t *testing.T) {
 	})
 
 	t.Run("Deleting an unknown manifest returns 404", func(t *testing.T) {
-		repo := mock.NewRepositoryService(t)
+		repo := mock.NewService(t)
 		repo.EXPECT().
 			DeleteManifest(digest.String()).
 			Return(repository.ErrManifestUnknown)

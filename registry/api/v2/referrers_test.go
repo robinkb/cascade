@@ -10,7 +10,8 @@ import (
 	"github.com/robinkb/cascade/registry/repository"
 	. "github.com/robinkb/cascade/testing"
 	testclient "github.com/robinkb/cascade/testing/client"
-	"github.com/robinkb/cascade/testing/mock"
+	mock "github.com/robinkb/cascade/testing/mock/repository"
+	tmock "github.com/stretchr/testify/mock"
 )
 
 func TestListReferrers(t *testing.T) {
@@ -23,9 +24,9 @@ func TestListReferrers(t *testing.T) {
 			Index: wantIndex,
 		}
 
-		repo := mock.NewRepositoryService(t)
+		repo := mock.NewService(t)
 		repo.EXPECT().
-			ListReferrers(wantDigest.String(), mock.Anything).
+			ListReferrers(wantDigest.String(), tmock.Anything).
 			Return(&wantReferrers, nil)
 
 		client := NewTestClientForRepository(t, wantName, repo)
@@ -50,7 +51,7 @@ func TestListReferrers(t *testing.T) {
 			AppliedFilters: []string{"artifactType"},
 		}
 
-		repo := mock.NewRepositoryService(t)
+		repo := mock.NewService(t)
 		repo.EXPECT().
 			ListReferrers(wantDigest.String(), &wantOpts).
 			Return(&wantReferrers, nil)
@@ -72,9 +73,9 @@ func TestListReferrers(t *testing.T) {
 		wantDigest := "invalid"
 		wantErr := repository.ErrDigestInvalid
 
-		repo := mock.NewRepositoryService(t)
+		repo := mock.NewService(t)
 		repo.EXPECT().
-			ListReferrers(wantDigest, mock.Anything).
+			ListReferrers(wantDigest, tmock.Anything).
 			Return(nil, wantErr)
 
 		client := NewTestClientForRepository(t, wantName, repo)
@@ -85,9 +86,9 @@ func TestListReferrers(t *testing.T) {
 	})
 
 	t.Run("Unknown service errors return a 500 internal server error", func(t *testing.T) {
-		repo := mock.NewRepositoryService(t)
+		repo := mock.NewService(t)
 		repo.EXPECT().
-			ListReferrers(wantDigest.String(), mock.Anything).
+			ListReferrers(wantDigest.String(), tmock.Anything).
 			Return(nil, errors.New("unknown"))
 
 		client := NewTestClientForRepository(t, wantName, repo)

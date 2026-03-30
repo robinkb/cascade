@@ -10,7 +10,8 @@ import (
 	"github.com/robinkb/cascade/registry/store"
 	. "github.com/robinkb/cascade/testing"
 	testclient "github.com/robinkb/cascade/testing/client"
-	"github.com/robinkb/cascade/testing/mock"
+	regmock "github.com/robinkb/cascade/testing/mock/registry"
+	repomock "github.com/robinkb/cascade/testing/mock/repository"
 )
 
 func TestStatBlob(t *testing.T) {
@@ -19,7 +20,7 @@ func TestStatBlob(t *testing.T) {
 	t.Run("known blob returns 200", func(t *testing.T) {
 		var size int64 = 42
 
-		repo := mock.NewRepositoryService(t)
+		repo := repomock.NewService(t)
 		repo.EXPECT().
 			StatBlob(digest.String()).
 			Return(&store.BlobInfo{Size: size}, nil)
@@ -34,7 +35,7 @@ func TestStatBlob(t *testing.T) {
 	})
 
 	t.Run("unknown blob returns 404", func(t *testing.T) {
-		repo := mock.NewRepositoryService(t)
+		repo := repomock.NewService(t)
 		repo.EXPECT().
 			StatBlob(digest.String()).
 			Return(nil, repository.ErrBlobUnknown)
@@ -47,7 +48,7 @@ func TestStatBlob(t *testing.T) {
 	})
 
 	t.Run("unknown repository returns 404", func(t *testing.T) {
-		registry := mock.NewRegistryService(t)
+		registry := regmock.NewService(t)
 		registry.EXPECT().
 			GetRepository(name).
 			Return(nil, repository.ErrNameUnknown)
@@ -63,7 +64,7 @@ func TestGetBlob(t *testing.T) {
 	digest, content := RandomBlob(32)
 
 	t.Run("Get blob returns 200", func(t *testing.T) {
-		repo := mock.NewRepositoryService(t)
+		repo := repomock.NewService(t)
 		repo.EXPECT().
 			GetBlob(digest.String()).
 			Return(bytes.NewBuffer(content), nil)
@@ -77,7 +78,7 @@ func TestGetBlob(t *testing.T) {
 	})
 
 	t.Run("returns 404 on unknown blob", func(t *testing.T) {
-		repo := mock.NewRepositoryService(t)
+		repo := repomock.NewService(t)
 		repo.EXPECT().
 			GetBlob(digest.String()).
 			Return(nil, repository.ErrBlobUnknown)
@@ -91,7 +92,7 @@ func TestGetBlob(t *testing.T) {
 	})
 
 	t.Run("unknown repository returns 404", func(t *testing.T) {
-		registry := mock.NewRegistryService(t)
+		registry := regmock.NewService(t)
 		registry.EXPECT().
 			GetRepository(name).
 			Return(nil, repository.ErrNameUnknown)
@@ -106,7 +107,7 @@ func TestDeleteBlob(t *testing.T) {
 	name, digest := RandomName(), RandomDigest()
 
 	t.Run("Delete blob returns 202", func(t *testing.T) {
-		repo := mock.NewRepositoryService(t)
+		repo := repomock.NewService(t)
 		repo.EXPECT().
 			DeleteBlob(digest.String()).
 			Return(nil)
@@ -119,7 +120,7 @@ func TestDeleteBlob(t *testing.T) {
 	})
 
 	t.Run("unknown repository returns 404", func(t *testing.T) {
-		registry := mock.NewRegistryService(t)
+		registry := regmock.NewService(t)
 		registry.EXPECT().
 			GetRepository(name).
 			Return(nil, repository.ErrNameUnknown)
