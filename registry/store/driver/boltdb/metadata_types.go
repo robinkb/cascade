@@ -27,7 +27,7 @@ func (o sharedBlobs) addBlob(id digest.Digest) sharedBlob {
 }
 
 func (o sharedBlobs) removeBlob(id digest.Digest) {
-	o.b.DeleteBucket([]byte(id))
+	_ = o.b.DeleteBucket([]byte(id))
 }
 
 // sharedBlob represents a single blob in the blob store.
@@ -37,11 +37,11 @@ type sharedBlob struct {
 }
 
 func (o sharedBlob) addOwner(name string) {
-	o.b.Put([]byte(name), nil)
+	_ = o.b.Put([]byte(name), nil)
 }
 
 func (o sharedBlob) removeOwner(name string) {
-	o.b.Delete([]byte(name))
+	_ = o.b.Delete([]byte(name))
 }
 
 func (o sharedBlob) hasOwners() bool {
@@ -78,12 +78,14 @@ func (o repoBlobs) blob(id digest.Digest) repoBlob {
 	return repoBlob{o.b.Bucket([]byte(id))}
 }
 
-func (o repoBlobs) addBlob(id digest.Digest) {
-	o.b.CreateBucket([]byte(id))
+func (o repoBlobs) addBlob(id digest.Digest) repoBlob {
+	b, _ := o.b.CreateBucket([]byte(id))
+	return repoBlob{b}
+
 }
 
 func (o repoBlobs) removeBlob(id digest.Digest) {
-	o.b.DeleteBucket([]byte(id))
+	_ = o.b.DeleteBucket([]byte(id))
 }
 
 type repoBlob struct {
@@ -93,11 +95,11 @@ type repoBlob struct {
 func (o repoBlob) found() bool { return o.b != nil }
 
 func (o repoBlob) addOwner(id digest.Digest) {
-	o.b.Put([]byte(id), nil)
+	_ = o.b.Put([]byte(id), nil)
 }
 
 func (o repoBlob) removeOwner(id digest.Digest) {
-	o.b.Delete([]byte(id))
+	_ = o.b.Delete([]byte(id))
 }
 
 func (o repoBlob) hasOwners() bool {
@@ -115,26 +117,26 @@ func (o manifests) manifest(id digest.Digest) manifest {
 func (o manifests) addManifest(id digest.Digest, meta store.Manifest, refs store.References) manifest {
 	b, _ := o.b.CreateBucket([]byte(id))
 	for _, bucket := range manifestBuckets {
-		b.CreateBucket(bucket)
+		_, _ = b.CreateBucket(bucket)
 	}
 
 	buf := new(bytes.Buffer)
 	if err := gob.NewEncoder(buf).Encode(&meta); err != nil {
 		panic(err)
 	}
-	b.Put(_METADATA, buf.Bytes())
+	_ = b.Put(_METADATA, buf.Bytes())
 
 	buf = new(bytes.Buffer)
 	if err := gob.NewEncoder(buf).Encode(&refs); err != nil {
 		panic(err)
 	}
-	b.Put(_REFERENCES, buf.Bytes())
+	_ = b.Put(_REFERENCES, buf.Bytes())
 
 	return manifest{b}
 }
 
 func (o manifests) removeManifest(id digest.Digest) {
-	o.b.DeleteBucket([]byte(id))
+	_ = o.b.DeleteBucket([]byte(id))
 }
 
 type manifest struct {
@@ -155,13 +157,15 @@ func (o manifest) metadata() (meta store.Manifest) {
 func (o manifest) references() (refs store.References) {
 	data := o.b.Get(_REFERENCES)
 	buf := bytes.NewBuffer(data)
-	gob.NewDecoder(buf).Decode(&refs)
+	if err := gob.NewDecoder(buf).Decode(&refs); err != nil {
+		panic(err)
+	}
 	return
 }
 
 func (o manifest) referrers() iter.Seq[digest.Digest] {
 	return func(yield func(digest.Digest) bool) {
-		o.b.Bucket(_REFERRERS).ForEach(func(id, _ []byte) error {
+		_ = o.b.Bucket(_REFERRERS).ForEach(func(id, _ []byte) error {
 			if !yield(digest.Digest(id)) {
 				return nil
 			}
@@ -171,27 +175,27 @@ func (o manifest) referrers() iter.Seq[digest.Digest] {
 }
 
 func (o manifest) addReferrer(id digest.Digest) {
-	o.b.Bucket(_REFERRERS).Put([]byte(id), nil)
+	_ = o.b.Bucket(_REFERRERS).Put([]byte(id), nil)
 }
 
 func (o manifest) removeReferrer(id digest.Digest) {
-	o.b.Bucket(_REFERRERS).Delete([]byte(id))
+	_ = o.b.Bucket(_REFERRERS).Delete([]byte(id))
 }
 
 func (o manifest) addManifestOwner(id digest.Digest) {
-	o.b.Bucket(_MANIFESTS).Put([]byte(id), nil)
+	_ = o.b.Bucket(_MANIFESTS).Put([]byte(id), nil)
 }
 
 func (o manifest) removeManifestOwner(id digest.Digest) {
-	o.b.Bucket(_MANIFESTS).Delete([]byte(id))
+	_ = o.b.Bucket(_MANIFESTS).Delete([]byte(id))
 }
 
 func (o manifest) addTagOwner(tag string) {
-	o.b.Bucket(_TAGS).Put([]byte(tag), nil)
+	_ = o.b.Bucket(_TAGS).Put([]byte(tag), nil)
 }
 
 func (o manifest) removeTagOwner(tag string) {
-	o.b.Bucket(_TAGS).Delete([]byte(tag))
+	_ = o.b.Bucket(_TAGS).Delete([]byte(tag))
 }
 
 func (o manifest) hasOwners() bool {
@@ -208,11 +212,11 @@ func (o tags) tag(t string) digest.Digest {
 }
 
 func (o tags) addTag(t string, id digest.Digest) {
-	o.b.Put([]byte(t), []byte(id))
+	_ = o.b.Put([]byte(t), []byte(id))
 }
 
 func (o tags) removeTag(t string) {
-	o.b.Delete([]byte(t))
+	_ = o.b.Delete([]byte(t))
 }
 
 type uploads struct {
@@ -237,9 +241,9 @@ func (o uploads) putUpload(upload *store.UploadSession) {
 	if err := gob.NewEncoder(buf).Encode(upload); err != nil {
 		panic(err)
 	}
-	o.b.Put(upload.ID.Bytes(), buf.Bytes())
+	_ = o.b.Put(upload.ID.Bytes(), buf.Bytes())
 }
 
 func (o uploads) removeUpload(id uuid.UUID) {
-	o.b.Delete(id.Bytes())
+	_ = o.b.Delete(id.Bytes())
 }

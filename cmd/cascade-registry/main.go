@@ -16,10 +16,7 @@ import (
 )
 
 var (
-	port         int
-	raftId       int
-	raftHostPort string
-	raftPeers    string
+	port int
 )
 
 func main() {
@@ -34,6 +31,9 @@ func main() {
 	mgr := process.NewManager()
 
 	metadata, err := boltdb.NewMetadataStore(path)
+	if err != nil {
+		log.Fatalf("failed to create metadata store backed by boltdb: %s", err)
+	}
 	blobs := fs.NewBlobStore(path)
 
 	srv := server.New(server.Options{

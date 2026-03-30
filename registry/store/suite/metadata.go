@@ -506,6 +506,7 @@ func (s *MetadataSuite) TestManifests() {
 		err = repo.PutManifest(manifestDigest, store.Manifest{}, store.References{
 			Layers: []digest.Digest{layerDigest},
 		})
+		AssertNoError(t, err)
 
 		err = repo.DeleteBlob(layerDigest)
 		AssertErrorIs(t, err, store.ErrBlobInUse)
@@ -571,6 +572,7 @@ func (s *MetadataSuite) TestManifests() {
 		err = repo.PutManifest(indexDigestB, store.Manifest{}, store.References{
 			Manifests: []digest.Digest{imageDigest},
 		})
+		AssertNoError(t, err)
 
 		deleted, err := repo.DeleteManifest(indexDigestA)
 		AssertNoError(t, err)
@@ -708,6 +710,7 @@ func (s *MetadataSuite) TestReferrers() {
 		}
 
 		got, err := repo.ListReferrers(subjectDigest)
+		AssertNoError(t, err)
 		slices.Sort(got)
 		slices.Sort(referrerDigests)
 		AssertSlicesEqual(t, got, referrerDigests)

@@ -121,9 +121,9 @@ func (m *metadataStore) DeleteRepository(name string) error {
 		sharedBlobs := tx.Bucket(_BLOBS)
 		for id, _ := c.First(); id != nil; id, _ = c.Next() {
 			owners := sharedBlobs.Bucket(id)
-			owners.Delete([]byte(name))
+			_ = owners.Delete([]byte(name))
 			if owners.Inspect().KeyN == 0 {
-				sharedBlobs.DeleteBucket(id)
+				_ = sharedBlobs.DeleteBucket(id)
 			}
 		}
 
