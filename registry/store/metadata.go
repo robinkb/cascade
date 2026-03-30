@@ -48,15 +48,15 @@ type (
 	}
 
 	Repository interface {
-		GetBlob(digest digest.Digest) error
-		PutBlob(digest digest.Digest) error
-		DeleteBlob(digest digest.Digest) error
+		GetBlob(id digest.Digest) error
+		PutBlob(id digest.Digest) error
+		DeleteBlob(id digest.Digest) error
 
-		GetManifest(digest digest.Digest) (Manifest, error)
-		PutManifest(digest digest.Digest, meta Manifest, refs References) error
-		DeleteManifest(digest digest.Digest) ([]digest.Digest, error)
+		GetManifest(id digest.Digest) (Manifest, error)
+		PutManifest(id digest.Digest, meta Manifest, refs References) error
+		DeleteManifest(id digest.Digest) ([]digest.Digest, error)
 
-		ListReferrers(digest digest.Digest) ([]digest.Digest, error)
+		ListReferrers(subject digest.Digest) ([]digest.Digest, error)
 
 		ListTags(count int, last string) ([]string, error)
 		GetTag(tag string) (digest.Digest, error)

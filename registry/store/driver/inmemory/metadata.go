@@ -138,59 +138,59 @@ type (
 	sessions map[uuid.UUID]*store.UploadSession
 )
 
-func (r *repositoryStore) GetBlob(digest digest.Digest) error {
-	_, ok := r.repo.Blobs[digest]
+func (r *repositoryStore) GetBlob(id digest.Digest) error {
+	_, ok := r.repo.Blobs[id]
 	if !ok {
-		return fmt.Errorf("%w: %s", store.ErrBlobNotFound, digest)
+		return fmt.Errorf("%w: %s", store.ErrBlobNotFound, id)
 	}
 	return nil
 }
 
-func (r *repositoryStore) PutBlob(digest digest.Digest) error {
-	_, ok := r.blobs[digest]
+func (r *repositoryStore) PutBlob(id digest.Digest) error {
+	_, ok := r.blobs[id]
 	if !ok {
-		r.blobs[digest] = make(sharedBlobOwners)
+		r.blobs[id] = make(sharedBlobOwners)
 	}
-	r.blobs[digest][r.name] = nil
-	r.repo.Blobs[digest] = make(repoBlobOwners)
+	r.blobs[id][r.name] = nil
+	r.repo.Blobs[id] = make(repoBlobOwners)
 	return nil
 }
 
-func (r *repositoryStore) DeleteBlob(digest digest.Digest) error {
-	owners, ok := r.repo.Blobs[digest]
+func (r *repositoryStore) DeleteBlob(id digest.Digest) error {
+	owners, ok := r.repo.Blobs[id]
 	if !ok {
-		return fmt.Errorf("%w: %s", store.ErrBlobNotFound, digest)
+		return fmt.Errorf("%w: %s", store.ErrBlobNotFound, id)
 	}
 	if len(owners) != 0 {
-		return fmt.Errorf("%w: %s", store.ErrBlobInUse, digest)
+		return fmt.Errorf("%w: %s", store.ErrBlobInUse, id)
 	}
 
-	delete(r.blobs[digest], r.name)
-	if len(r.blobs[digest]) == 0 {
-		delete(r.blobs, digest)
+	delete(r.blobs[id], r.name)
+	if len(r.blobs[id]) == 0 {
+		delete(r.blobs, id)
 	}
 
-	delete(r.repo.Blobs, digest)
+	delete(r.repo.Blobs, id)
 	return nil
 }
 
-func (r *repositoryStore) GetManifest(digest digest.Digest) (store.Manifest, error) {
-	manifest, ok := r.repo.Manifests[digest]
+func (r *repositoryStore) GetManifest(id digest.Digest) (store.Manifest, error) {
+	manifest, ok := r.repo.Manifests[id]
 	if !ok {
 		return store.Manifest{}, store.ErrManifestNotFound
 	}
 	return manifest.Metadata, nil
 }
 
-func (r *repositoryStore) PutManifest(digest digest.Digest, meta store.Manifest, refs store.References) error {
-	r.repo.Manifests[digest] = newManifest(meta, refs)
+func (r *repositoryStore) PutManifest(id digest.Digest, meta store.Manifest, refs store.References) error {
+	r.repo.Manifests[id] = newManifest(meta, refs)
 
 	if refs.Config != "" {
 		owners, ok := r.repo.Blobs[refs.Config]
 		if !ok {
 			return fmt.Errorf("%w: %w: %s", store.ErrManifestInvalid, store.ErrManifestConfigNotFound, refs.Config)
 		}
-		owners[digest] = nil
+		owners[id] = nil
 	}
 
 	for _, layerDigest := range refs.Layers {
@@ -198,7 +198,7 @@ func (r *repositoryStore) PutManifest(digest digest.Digest, meta store.Manifest,
 		if !ok {
 			return fmt.Errorf("%w: %w: %s", store.ErrManifestInvalid, store.ErrManifestLayerNotFound, layerDigest)
 		}
-		owners[digest] = nil
+		owners[id] = nil
 	}
 
 	for _, manifestDigest := range refs.Manifests {
@@ -206,7 +206,7 @@ func (r *repositoryStore) PutManifest(digest digest.Digest, meta store.Manifest,
 		if !ok {
 			return fmt.Errorf("%w: %w: %s", store.ErrManifestInvalid, store.ErrManifestImageNotFound, manifestDigest)
 		}
-		manifest.Manifests[digest] = nil
+		manifest.Manifests[id] = nil
 	}
 
 	if refs.Subject != "" {
@@ -214,10 +214,10 @@ func (r *repositoryStore) PutManifest(digest digest.Digest, meta store.Manifest,
 		if !ok {
 			return fmt.Errorf("%w: %w: %s", store.ErrManifestInvalid, store.ErrManifestSubjectNotFound, refs.Subject)
 		}
-		manifest.Referrers[digest] = nil
+		manifest.Referrers[id] = nil
 	}
 
-	return r.PutBlob(digest)
+	return r.PutBlob(id)
 }
 
 func (r *repositoryStore) DeleteManifest(id digest.Digest) ([]digest.Digest, error) {
