@@ -13,7 +13,7 @@ import (
 	"github.com/robinkb/cascade/registry/store/driver/inmemory"
 	. "github.com/robinkb/cascade/testing"
 	testclient "github.com/robinkb/cascade/testing/client"
-	"github.com/robinkb/cascade/testing/mock"
+	mock "github.com/robinkb/cascade/testing/mock/registry"
 )
 
 func TestRoot(t *testing.T) {
@@ -42,7 +42,7 @@ func newLocation(name, sessionID string) *url.URL {
 // for a registry that only returns the given RepositoryService under the specified name.
 // Attempting to create, read, update, or delete objects in any other repository will panic.
 func NewTestClientForRepository(t *testing.T, name string, service repository.Service) *testclient.Client {
-	registry := mock.NewRegistryService(t)
+	registry := mock.NewService(t)
 	registry.EXPECT().
 		GetRepository(name).
 		Return(service, nil)

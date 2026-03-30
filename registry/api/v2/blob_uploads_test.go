@@ -9,7 +9,8 @@ import (
 	"github.com/opencontainers/go-digest"
 	"github.com/robinkb/cascade/registry/repository"
 	. "github.com/robinkb/cascade/testing"
-	"github.com/robinkb/cascade/testing/mock"
+	mock "github.com/robinkb/cascade/testing/mock/repository"
+	tmock "github.com/stretchr/testify/mock"
 )
 
 func TestBlobUploadsMonolithic(t *testing.T) {
@@ -17,7 +18,7 @@ func TestBlobUploadsMonolithic(t *testing.T) {
 		name, digest, content := RandomName(), RandomDigest(), RandomBytes(32)
 		sessionID := RandomString(8)
 
-		repo := mock.NewRepositoryService(t)
+		repo := mock.NewService(t)
 		repo.EXPECT().
 			AppendUpload(sessionID, bytes.NewBuffer(content), int64(0)).
 			Return(nil)
@@ -38,7 +39,7 @@ func TestBlobUploadsMonolithic(t *testing.T) {
 		name, digest := RandomName(), RandomDigest()
 		sessionID := "i-do-not-exist"
 
-		repo := mock.NewRepositoryService(t)
+		repo := mock.NewService(t)
 		repo.EXPECT().
 			CloseUpload(sessionID, digest.String()).
 			Return(repository.ErrBlobUploadUnknown)
@@ -61,7 +62,7 @@ func TestBlobUploadsMonolithic(t *testing.T) {
 		query.Add("digest", digest.String())
 		location.RawQuery = query.Encode()
 
-		client := NewTestClientForRepository(t, name, mock.NewRepositoryService(t))
+		client := NewTestClientForRepository(t, name, mock.NewService(t))
 
 		resp := client.Do(
 			http.MethodPut,
@@ -78,7 +79,7 @@ func TestBlobUploadsMonolithic(t *testing.T) {
 		sessionID, _ := uuid.NewV7()
 		location := newLocation(name, sessionID.String())
 
-		client := NewTestClientForRepository(t, name, mock.NewRepositoryService(t))
+		client := NewTestClientForRepository(t, name, mock.NewService(t))
 
 		resp := client.Do(
 			http.MethodPut,
@@ -95,7 +96,7 @@ func TestBlobUploadsMonolithic(t *testing.T) {
 		sessionID, _ := uuid.NewV7()
 		location := newLocation(name, sessionID.String())
 
-		repo := mock.NewRepositoryService(t)
+		repo := mock.NewService(t)
 		repo.EXPECT().
 			CloseUpload(sessionID.String(), id).
 			Return(repository.ErrDigestInvalid)
@@ -113,7 +114,7 @@ func TestBlobUploadsMonolithic(t *testing.T) {
 		sessionID, _ := uuid.NewV7()
 		location := newLocation(name, sessionID.String())
 
-		repo := mock.NewRepositoryService(t)
+		repo := mock.NewService(t)
 		repo.EXPECT().
 			CloseUpload(sessionID.String(), id.String()).
 			Return(repository.ErrBlobUploadInvalid)
@@ -132,7 +133,7 @@ func TestBlobUploadsChunked(t *testing.T) {
 		name, _, content := RandomName(), RandomDigest(), RandomBytes(32)
 		sessionID := RandomString(8)
 
-		repo := mock.NewRepositoryService(t)
+		repo := mock.NewService(t)
 		repo.EXPECT().
 			AppendUpload(sessionID, bytes.NewBuffer(content), int64(0)).
 			Return(nil)
@@ -152,9 +153,9 @@ func TestBlobUploadsStreamed(t *testing.T) {
 		name, content := RandomName(), RandomBytes(32)
 		sessionID := RandomString(6)
 
-		repository := mock.NewRepositoryService(t)
+		repository := mock.NewService(t)
 		repository.EXPECT().
-			AppendUpload(sessionID, mock.AnythingOfType("io.nopCloserWriterTo"), int64(0)).
+			AppendUpload(sessionID, tmock.AnythingOfType("io.nopCloserWriterTo"), int64(0)).
 			Return(nil)
 
 		client := NewTestClientForRepository(t, name, repository)
