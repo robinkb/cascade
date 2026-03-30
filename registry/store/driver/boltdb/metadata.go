@@ -1,15 +1,16 @@
 package boltdb
 
 import (
-	"bytes"
-	"encoding/gob"
 	"errors"
 	"fmt"
+	"io"
 	"iter"
+	"os"
 	"path/filepath"
 	"slices"
 	"time"
 
+	"github.com/gofrs/uuid/v5"
 	"github.com/opencontainers/go-digest"
 	"github.com/robinkb/cascade/registry/store"
 	bolt "go.etcd.io/bbolt"
@@ -62,14 +63,16 @@ func NewMetadataStore(path string) (store.Metadata, error) {
 	}
 
 	return &metadataStore{
-		db: db,
+		db:   db,
+		opts: opts,
 	}, nil
 }
 
 type metadataStore struct {
 	store.Metadata
 
-	db *bolt.DB
+	db   *bolt.DB
+	opts *bolt.Options
 }
 
 func (m *metadataStore) CreateRepository(name string) (store.Repository, error) {
@@ -119,7 +122,7 @@ func (m *metadataStore) DeleteRepository(name string) error {
 		for id, _ := c.First(); id != nil; id, _ = c.Next() {
 			owners := sharedBlobs.Bucket(id)
 			owners.Delete([]byte(name))
-			if keys(owners) == 0 {
+			if owners.Inspect().KeyN == 0 {
 				sharedBlobs.DeleteBucket(id)
 			}
 		}
@@ -139,6 +142,47 @@ func (m *metadataStore) Blobs() iter.Seq[digest.Digest] {
 			})
 		})
 	}
+}
+
+func (m *metadataStore) Snapshot(w io.Writer) error {
+	return m.db.View(func(tx *bolt.Tx) error {
+		_, err := tx.WriteTo(w)
+		return err
+	})
+}
+
+func (m *metadataStore) Restore(r io.Reader) error {
+	path := m.db.Path()
+	tmp := path + ".tmp"
+
+	f, err := os.OpenFile(tmp, os.O_CREATE|os.O_WRONLY, 0600)
+	if err != nil {
+		return err
+	}
+	_, err = io.Copy(f, r)
+	if err != nil {
+		return err
+	}
+	err = f.Close()
+	if err != nil {
+		return err
+	}
+
+	err = m.db.Close()
+	if err != nil {
+		return err
+	}
+	err = os.Rename(tmp, path)
+	if err != nil {
+		return err
+	}
+	db, err := bolt.Open(path, 0600, m.opts)
+	if err != nil {
+		return err
+	}
+
+	m.db = db
+	return nil
 }
 
 func newRepositoryStore(name string, db *bolt.DB) store.Repository {
@@ -373,6 +417,106 @@ func (r *repositoryStore) ListReferrers(subject digest.Digest) ([]digest.Digest,
 	return refs, nil
 }
 
+func (r *repositoryStore) ListTags(count int, last string) ([]string, error) {
+	tags := make([]string, 0)
+
+	_ = r.db.View(func(tx *bolt.Tx) error {
+		c := r.repository(tx).tags().b.Cursor()
+
+		k, _ := c.Seek([]byte(last))
+		if last != "" {
+			// If 'last' is not empty, we should start at the tag after the last one.
+			k, _ = c.Next()
+		}
+		for i := 0; k != nil && (count == -1 || i < count); i++ {
+			tags = append(tags, string(k))
+			k, _ = c.Next()
+		}
+
+		return nil
+	})
+
+	return tags, nil
+}
+
+func (r *repositoryStore) GetTag(tag string) (digest.Digest, error) {
+	var id digest.Digest
+	err := r.db.View(func(tx *bolt.Tx) error {
+		id = r.repository(tx).tags().tag(tag)
+		if id == "" {
+			return fmt.Errorf("%w: %s", store.ErrTagNotFound, tag)
+		}
+		return nil
+	})
+
+	return id, err
+}
+
+func (r *repositoryStore) PutTag(tag string, id digest.Digest) error {
+	return r.db.Update(func(tx *bolt.Tx) error {
+		repo := r.repository(tx)
+		manifest := repo.manifests().manifest(id)
+		if !manifest.found() {
+			return fmt.Errorf("%w: %s", store.ErrManifestNotFound, id)
+		}
+
+		manifest.addTagOwner(tag)
+		repo.tags().addTag(tag, id)
+		return nil
+	})
+}
+
+func (r *repositoryStore) DeleteTag(tag string) ([]digest.Digest, error) {
+	var deleted []digest.Digest
+
+	err := r.db.Update(func(tx *bolt.Tx) error {
+		repo := r.repository(tx)
+		id := repo.tags().tag(tag)
+		if id == "" {
+			return fmt.Errorf("%w: %s", store.ErrTagNotFound, tag)
+		}
+
+		repo.tags().removeTag(tag)
+		repo.manifests().manifest(id).removeTagOwner(tag)
+
+		var err error
+		deleted, err = r.deleteManifest(tx, id)
+		return err
+	})
+
+	return deleted, err
+}
+
+func (r *repositoryStore) GetUploadSession(id uuid.UUID) (*store.UploadSession, error) {
+	var upload *store.UploadSession
+	err := r.db.View(func(tx *bolt.Tx) error {
+		upload = r.repository(tx).uploads().upload(id)
+		if upload == nil {
+			return fmt.Errorf("%w: %s", store.ErrUploadNotFound, id)
+		}
+		return nil
+	})
+	return upload, err
+}
+
+func (r *repositoryStore) PutUploadSession(session *store.UploadSession) error {
+	return r.db.Update(func(tx *bolt.Tx) error {
+		r.repository(tx).uploads().putUpload(session)
+		return nil
+	})
+}
+
+func (r *repositoryStore) DeleteUploadSession(id uuid.UUID) error {
+	return r.db.Update(func(tx *bolt.Tx) error {
+		upload := r.repository(tx).uploads().upload(id)
+		if upload == nil {
+			return fmt.Errorf("%w: %s", store.ErrUploadNotFound, id)
+		}
+		r.repository(tx).uploads().removeUpload(id)
+		return nil
+	})
+}
+
 func (r *repositoryStore) blobs(tx *bolt.Tx) sharedBlobs {
 	return sharedBlobs{
 		b: tx.Bucket(_BLOBS),
@@ -383,183 +527,4 @@ func (r *repositoryStore) repository(tx *bolt.Tx) repository {
 	return repository{
 		b: tx.Bucket(_REPOSITORIES).Bucket([]byte(r.name)),
 	}
-}
-
-func keys(b *bolt.Bucket) (n int) {
-	c := b.Cursor()
-	for k, _ := c.First(); k != nil; k, _ = c.Next() {
-		n++
-	}
-	return
-}
-
-// sharedBlobs contains the metadata of all the blobs in the blob store.
-type sharedBlobs struct {
-	b *bolt.Bucket
-}
-
-func (o sharedBlobs) blob(id digest.Digest) sharedBlob {
-	return sharedBlob{o.b.Bucket([]byte(id))}
-}
-
-func (o sharedBlobs) addBlob(id digest.Digest) sharedBlob {
-	b, _ := o.b.CreateBucketIfNotExists([]byte(id))
-	return sharedBlob{b}
-}
-
-func (o sharedBlobs) removeBlob(id digest.Digest) {
-	o.b.DeleteBucket([]byte(id))
-}
-
-// sharedBlob represents a single blob in the blob store.
-// It tracks which repositories owns each blob.
-type sharedBlob struct {
-	b *bolt.Bucket
-}
-
-func (o sharedBlob) addOwner(name string) {
-	o.b.Put([]byte(name), nil)
-}
-
-func (o sharedBlob) removeOwner(name string) {
-	o.b.Delete([]byte(name))
-}
-
-func (o sharedBlob) hasOwners() bool {
-	return o.b.Inspect().KeyN != 0
-}
-
-// repository contains the metadata of a single repository.
-type repository struct {
-	b *bolt.Bucket
-}
-
-func (o repository) blobs() repoBlobs {
-	return repoBlobs{o.b.Bucket(_BLOBS)}
-}
-
-func (o repository) manifests() manifests {
-	return manifests{o.b.Bucket(_MANIFESTS)}
-}
-
-// repoBlobs contains metadata of blobs belonging to a specific repository.
-type repoBlobs struct {
-	b *bolt.Bucket
-}
-
-func (o repoBlobs) blob(id digest.Digest) repoBlob {
-	return repoBlob{o.b.Bucket([]byte(id))}
-}
-
-func (o repoBlobs) addBlob(id digest.Digest) {
-	o.b.CreateBucket([]byte(id))
-}
-
-func (o repoBlobs) removeBlob(id digest.Digest) {
-	o.b.DeleteBucket([]byte(id))
-}
-
-type repoBlob struct {
-	b *bolt.Bucket
-}
-
-func (o repoBlob) found() bool { return o.b != nil }
-
-func (o repoBlob) addOwner(id digest.Digest) {
-	o.b.Put([]byte(id), nil)
-}
-
-func (o repoBlob) removeOwner(id digest.Digest) {
-	o.b.Delete([]byte(id))
-}
-
-func (o repoBlob) hasOwners() bool {
-	return o.b.Inspect().KeyN != 0
-}
-
-type manifests struct {
-	b *bolt.Bucket
-}
-
-func (o manifests) manifest(id digest.Digest) manifest {
-	return manifest{o.b.Bucket([]byte(id))}
-}
-
-func (o manifests) addManifest(id digest.Digest, meta store.Manifest, refs store.References) manifest {
-	b, _ := o.b.CreateBucket([]byte(id))
-	for _, bucket := range manifestBuckets {
-		b.CreateBucket(bucket)
-	}
-
-	buf := new(bytes.Buffer)
-	if err := gob.NewEncoder(buf).Encode(&meta); err != nil {
-		panic(err)
-	}
-	b.Put(_METADATA, buf.Bytes())
-
-	buf = new(bytes.Buffer)
-	if err := gob.NewEncoder(buf).Encode(&refs); err != nil {
-		panic(err)
-	}
-	b.Put(_REFERENCES, buf.Bytes())
-
-	return manifest{b}
-}
-
-func (o manifests) removeManifest(id digest.Digest) {
-	o.b.DeleteBucket([]byte(id))
-}
-
-type manifest struct {
-	b *bolt.Bucket
-}
-
-func (o manifest) found() bool { return o.b != nil }
-
-func (o manifest) metadata() (meta store.Manifest) {
-	data := o.b.Get(_METADATA)
-	buf := bytes.NewBuffer(data)
-	if err := gob.NewDecoder(buf).Decode(&meta); err != nil {
-		panic(err)
-	}
-	return
-}
-
-func (o manifest) references() (refs store.References) {
-	data := o.b.Get(_REFERENCES)
-	buf := bytes.NewBuffer(data)
-	gob.NewDecoder(buf).Decode(&refs)
-	return
-}
-
-func (o manifest) referrers() iter.Seq[digest.Digest] {
-	return func(yield func(digest.Digest) bool) {
-		o.b.Bucket(_REFERRERS).ForEach(func(id, _ []byte) error {
-			if !yield(digest.Digest(id)) {
-				return nil
-			}
-			return nil
-		})
-	}
-}
-
-func (o manifest) addReferrer(id digest.Digest) {
-	o.b.Bucket(_REFERRERS).Put([]byte(id), nil)
-}
-
-func (o manifest) removeReferrer(id digest.Digest) {
-	o.b.Bucket(_REFERRERS).Delete([]byte(id))
-}
-
-func (o manifest) addManifestOwner(id digest.Digest) {
-	o.b.Bucket(_MANIFESTS).Put([]byte(id), nil)
-}
-
-func (o manifest) removeManifestOwner(id digest.Digest) {
-	o.b.Bucket(_MANIFESTS).Delete([]byte(id))
-}
-
-func (o manifest) hasOwners() bool {
-	return o.b.Bucket(_MANIFESTS).Inspect().KeyN != 0 ||
-		o.b.Bucket(_TAGS).Inspect().KeyN != 0
 }

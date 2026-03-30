@@ -17,11 +17,5 @@ func TestMetadataSuite(t *testing.T) {
 			AssertNoError(t, err).Require()
 			return meta
 		},
-
-		SkipTags:            true,
-		SkipListTags:        true,
-		SkipUploadSessions:  true,
-		SkipRecursiveGC:     true,
-		SkipSnapshotRestore: true,
 	})
 }

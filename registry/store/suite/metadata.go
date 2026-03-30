@@ -952,7 +952,7 @@ func (s *MetadataSuite) TestUploadSessions() {
 
 	session := &store.UploadSession{
 		ID:        RandomUUID(),
-		StartDate: time.Now(),
+		StartDate: time.Now().Round(0),
 		HashState: RandomBytes(8),
 	}
 
