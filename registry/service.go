@@ -30,7 +30,9 @@ type registryService struct {
 func (r *registryService) CreateRepository(name string) (repository.Service, error) {
 	repo, err := r.meta.CreateRepository(name)
 	if err != nil {
-		return nil, err
+		if !errors.Is(err, store.ErrRepositoryExists) {
+			return nil, err
+		}
 	}
 	return repository.NewRepositoryService(r.blobs, repo), nil
 }

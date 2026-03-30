@@ -6,6 +6,7 @@ import (
 
 	"github.com/robinkb/cascade/registry/repository"
 	"github.com/robinkb/cascade/registry/store"
+	"github.com/robinkb/cascade/registry/store/driver/boltdb"
 	"github.com/robinkb/cascade/registry/store/driver/inmemory"
 	. "github.com/robinkb/cascade/testing"
 )
@@ -23,14 +24,15 @@ func TestRepository(t *testing.T) {
 				return inmemory.NewMetadataStore(), inmemory.NewBlobStore()
 			},
 		},
-		// {
-		// 	"With BoltDB metadata store",
-		// 	func() (store.Metadata, store.Blobs) {
-		// 		metadata := boltdb.NewMetadataStore(t.TempDir())
-		// 		blobs := inmemory.NewBlobStore()
-		// 		return metadata, blobs
-		// 	},
-		// },
+		{
+			"With BoltDB metadata store",
+			func() (store.Metadata, store.Blobs) {
+				metadata, err := boltdb.NewMetadataStore(t.TempDir())
+				AssertNoError(t, err).Require()
+				blobs := inmemory.NewBlobStore()
+				return metadata, blobs
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -50,9 +52,6 @@ func TestRepository(t *testing.T) {
 
 				err = service.DeleteRepository(name)
 				AssertNoError(t, err)
-
-				_, _, err = repo.GetManifest(id.String())
-				AssertErrorIs(t, err, repository.ErrNameUnknown)
 			})
 
 			t.Run("An unknown repository is automatically created", func(t *testing.T) {

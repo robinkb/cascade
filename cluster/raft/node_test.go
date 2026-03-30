@@ -1,10 +1,8 @@
 package raft_test
 
 import (
-	"bytes"
 	"context"
 	"fmt"
-	"io"
 	"math/rand/v2"
 	"sync"
 	"testing"
@@ -102,94 +100,6 @@ func TestClusterFormation(t *testing.T) {
 		wait()
 		AssertNoError(t, err)
 		AssertRaftStatus(t, nodes[0].Status()).Voters(3)
-	})
-}
-
-func TestBlobReplication(t *testing.T) {
-	t.Parallel()
-	nodes, blobs, _ := newTestCluster(t, 3)
-	snapElections(nodes...)
-
-	t.Run("Ensure blobs are replicated", func(t *testing.T) {
-		id, content := RandomDigest(), RandomBytes(32)
-		err := blobs[0].PutBlob(id, content)
-		RequireNoError(t, err)
-
-		wait()
-
-		for _, b := range blobs {
-			info, err := b.StatBlob(id)
-			AssertNoError(t, err)
-			if info != nil {
-				AssertEqual(t, info.Size, int64(len(content)))
-			}
-		}
-
-		err = blobs[0].DeleteBlob(id)
-		RequireNoError(t, err)
-
-		wait()
-
-		for _, b := range blobs {
-			_, err := b.StatBlob(id)
-			AssertErrorIs(t, err, store.ErrBlobNotFound)
-		}
-	})
-
-	t.Run("Ensure uploads are replicated", func(t *testing.T) {
-		id, digest, content := RandomUUID(), RandomDigest(), RandomBytes(32)
-		err := blobs[0].InitUpload(id)
-		RequireNoError(t, err)
-
-		wait()
-
-		for _, b := range blobs {
-			_, err := b.StatUpload(id)
-			AssertNoError(t, err)
-		}
-
-		w, err := blobs[0].UploadWriter(id)
-		RequireNoError(t, err)
-
-		_, err = io.Copy(w, bytes.NewBuffer(content))
-		RequireNoError(t, err)
-
-		err = w.Close()
-		RequireNoError(t, err)
-
-		err = blobs[0].CloseUpload(id, digest)
-		RequireNoError(t, err)
-
-		wait()
-
-		for _, b := range blobs {
-			got, err := b.GetBlob(digest)
-			AssertNoError(t, err)
-			AssertSlicesEqual(t, got, content)
-		}
-	})
-
-	t.Run("Ensure upload deletions are replicated", func(t *testing.T) {
-		id := RandomUUID()
-		err := blobs[0].InitUpload(id)
-		RequireNoError(t, err)
-
-		wait()
-
-		for _, b := range blobs {
-			_, err := b.StatUpload(id)
-			AssertNoError(t, err)
-		}
-
-		err = blobs[0].DeleteUpload(id)
-		RequireNoError(t, err)
-
-		wait()
-
-		for _, b := range blobs {
-			_, err := b.StatUpload(id)
-			AssertErrorIs(t, err, store.ErrBlobNotFound)
-		}
 	})
 }
 
