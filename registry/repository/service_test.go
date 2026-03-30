@@ -4,8 +4,9 @@ import (
 	"testing"
 
 	"github.com/robinkb/cascade/registry/store"
+	"github.com/robinkb/cascade/registry/store/driver/boltdb"
+	"github.com/robinkb/cascade/registry/store/driver/fs"
 	"github.com/robinkb/cascade/registry/store/driver/inmemory"
-	"github.com/robinkb/cascade/registry/store/fs"
 	. "github.com/robinkb/cascade/testing"
 	"github.com/stretchr/testify/suite"
 )
@@ -68,16 +69,17 @@ func TestWithInMemoryStore(t *testing.T) {
 	})
 }
 
-// func TestWithBoltDBStore(t *testing.T) {
-// 	suite.Run(t, &Suite{
-// 		StoreConstructor: func() (store.Metadata, store.Blobs) {
-// 			metadata := boltdb.NewMetadataStore(t.TempDir())
-// 			blobs := inmemory.NewBlobStore()
+func TestWithBoltDBStore(t *testing.T) {
+	suite.Run(t, &Suite{
+		StoreConstructor: func() (store.Metadata, store.Blobs) {
+			metadata, err := boltdb.NewMetadataStore(t.TempDir())
+			AssertNoError(t, err).Require()
+			blobs := inmemory.NewBlobStore()
 
-// 			return metadata, blobs
-// 		},
-// 	})
-// }
+			return metadata, blobs
+		},
+	})
+}
 
 func TestWithFilesystemStore(t *testing.T) {
 	suite.Run(t, &Suite{

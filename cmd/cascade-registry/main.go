@@ -10,8 +10,8 @@ import (
 	"github.com/robinkb/cascade/process"
 	"github.com/robinkb/cascade/registry"
 	registryapi "github.com/robinkb/cascade/registry/api/v2"
-	"github.com/robinkb/cascade/registry/store/driver/inmemory"
-	"github.com/robinkb/cascade/registry/store/fs"
+	"github.com/robinkb/cascade/registry/store/driver/boltdb"
+	"github.com/robinkb/cascade/registry/store/driver/fs"
 	"github.com/robinkb/cascade/server"
 )
 
@@ -36,8 +36,7 @@ func main() {
 
 	mgr := process.NewManager()
 
-	// TODO: Flip back to Bolt DB
-	metadata := inmemory.NewMetadataStore()
+	metadata, err := boltdb.NewMetadataStore(path)
 	blobs := fs.NewBlobStore(path)
 
 	// TODO: Raft borked for now
