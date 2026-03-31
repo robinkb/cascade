@@ -51,9 +51,7 @@ func (s *repositoryService) GetManifest(id string) (*store.Manifest, []byte, err
 }
 
 func (s *repositoryService) PutManifest(reference string, content []byte) (digest.Digest, error) {
-	var subject digest.Digest
-
-	digest, err := digest.Parse(reference)
+	id, err := digest.Parse(reference)
 	if err != nil {
 		return "", ErrDigestInvalid
 	}
@@ -64,11 +62,17 @@ func (s *repositoryService) PutManifest(reference string, content []byte) (diges
 		return "", ErrManifestInvalid
 	}
 
+	layers := make([]digest.Digest, len(manifest.Layers))
+	for i, layer := range manifest.Layers {
+		layers[i] = layer.Digest
+	}
+
+	var subject digest.Digest
 	if manifest.Subject != nil {
 		subject = manifest.Subject.Digest
 	}
 
-	err = s.blobs.PutBlob(digest, content)
+	err = s.blobs.PutBlob(id, content)
 	if err != nil {
 		return "", err
 	}
@@ -84,7 +88,9 @@ func (s *repositoryService) PutManifest(reference string, content []byte) (diges
 		meta.ArtifactType = manifest.Config.MediaType
 	}
 
-	err = s.repo.PutManifest(digest, meta, store.References{
+	err = s.repo.PutManifest(id, meta, store.References{
+		Config:  manifest.Config.Digest,
+		Layers:  layers,
 		Subject: subject,
 	})
 
