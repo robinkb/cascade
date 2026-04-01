@@ -35,6 +35,34 @@ type (
 	repositories map[string]*repository
 )
 
+func (m *metadataStore) ListRepositories(count int, last string) ([]string, error) {
+	names := slices.Collect(maps.Keys(m.Repositories))
+	slices.Sort(names)
+
+	if count == -1 || count > len(names) {
+		count = len(names)
+	}
+
+	start := 0
+	if last != "" {
+		found := false
+		for _, tag := range names {
+			start++
+			if tag == last {
+				found = true
+				break
+			}
+		}
+		if !found {
+			return nil, fmt.Errorf("%w: %s", store.ErrRepositoryNotFound, last)
+		}
+	}
+
+	end := min(start+count, len(names))
+
+	return names[start:end], nil
+}
+
 func (m *metadataStore) CreateRepository(name string) (store.Repository, error) {
 	if _, ok := m.Repositories[name]; ok {
 		return nil, fmt.Errorf("%w: %s", store.ErrRepositoryExists, name)
@@ -311,19 +339,22 @@ func (r *repositoryStore) ListTags(count int, last string) ([]string, error) {
 
 	start := 0
 	if last != "" {
+		found := false
 		for _, tag := range tags {
 			start++
 			if tag == last {
+				found = true
 				break
 			}
 		}
+		if !found {
+			return nil, fmt.Errorf("%w: %s", store.ErrTagNotFound, last)
+		}
 	}
 
-	if start+count > len(tags) {
-		count -= start
-	}
+	end := min(start+count, len(tags))
 
-	return tags[start : start+count], nil
+	return tags[start:end], nil
 }
 
 func (r *repositoryStore) GetTag(tag string) (digest.Digest, error) {

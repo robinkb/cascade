@@ -30,6 +30,14 @@ func RandomName() string {
 	return b.String()
 }
 
+func RandomNames(n int) []string {
+	names := make([]string, n)
+	for i := range n {
+		names[i] = RandomName()
+	}
+	return names
+}
+
 func RandomBytes(length int64) []byte {
 	data := make([]byte, length)
 	// nolint: errcheck

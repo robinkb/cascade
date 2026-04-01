@@ -75,6 +75,32 @@ type metadataStore struct {
 	opts *bolt.Options
 }
 
+func (m *metadataStore) ListRepositories(count int, last string) ([]string, error) {
+	result := make([]string, 0)
+
+	err := m.db.View(func(tx *bolt.Tx) error {
+		repos := tx.Bucket(_REPOSITORIES)
+		c := repos.Cursor()
+
+		k, _ := c.Seek([]byte(last))
+		if last != "" {
+			if repo := repos.Bucket([]byte(last)); repo == nil {
+				return fmt.Errorf("%w: %s", store.ErrRepositoryNotFound, last)
+			}
+			// If 'last' is not empty, we should start at the name after the last one.
+			k, _ = c.Next()
+		}
+		for i := 0; k != nil && (count == -1 || i < count); i++ {
+			result = append(result, string(k))
+			k, _ = c.Next()
+		}
+
+		return nil
+	})
+
+	return result, err
+}
+
 func (m *metadataStore) CreateRepository(name string) (store.Repository, error) {
 	err := m.db.Update(func(tx *bolt.Tx) error {
 		repo, err := tx.Bucket(_REPOSITORIES).CreateBucket([]byte(name))
@@ -423,25 +449,29 @@ func (r *repositoryStore) ListReferrers(subject digest.Digest) ([]digest.Digest,
 }
 
 func (r *repositoryStore) ListTags(count int, last string) ([]string, error) {
-	tags := make([]string, 0)
+	result := make([]string, 0)
 
-	_ = r.db.View(func(tx *bolt.Tx) error {
-		c := r.repository(tx).tags().b.Cursor()
+	err := r.db.View(func(tx *bolt.Tx) error {
+		tags := r.repository(tx).tags()
+		c := tags.b.Cursor()
 
 		k, _ := c.Seek([]byte(last))
 		if last != "" {
+			if tag := tags.tag(last); tag == "" {
+				return fmt.Errorf("%w: %s", store.ErrTagNotFound, tag)
+			}
 			// If 'last' is not empty, we should start at the tag after the last one.
 			k, _ = c.Next()
 		}
 		for i := 0; k != nil && (count == -1 || i < count); i++ {
-			tags = append(tags, string(k))
+			result = append(result, string(k))
 			k, _ = c.Next()
 		}
 
 		return nil
 	})
 
-	return tags, nil
+	return result, err
 }
 
 func (r *repositoryStore) GetTag(tag string) (digest.Digest, error) {

@@ -9,6 +9,7 @@ import (
 
 type (
 	Service interface {
+		ListRepositories(count int, last string) ([]string, error)
 		CreateRepository(name string) (repository.Service, error)
 		GetRepository(name string) (repository.Service, error)
 		DeleteRepository(name string) error
@@ -25,6 +26,10 @@ func NewService(meta store.Metadata, blobs store.Blobs) Service {
 type registryService struct {
 	meta  store.Metadata
 	blobs store.Blobs
+}
+
+func (r *registryService) ListRepositories(count int, last string) ([]string, error) {
+	return r.meta.ListRepositories(count, last)
 }
 
 func (r *registryService) CreateRepository(name string) (repository.Service, error) {

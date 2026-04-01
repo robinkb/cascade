@@ -116,7 +116,8 @@ func (o manifests) manifest(id digest.Digest) manifest {
 }
 
 func (o manifests) addManifest(id digest.Digest, meta store.Manifest, refs store.References) manifest {
-	b, _ := o.b.CreateBucket([]byte(id))
+	b, err := o.b.CreateBucket([]byte(id))
+	must(err)
 	for _, bucket := range manifestBuckets {
 		must(b.CreateBucket(bucket))
 	}
@@ -244,7 +245,7 @@ func must(parameters ...any) {
 		if err, ok := p.(error); ok {
 			if err != nil {
 				msg := fmt.Sprintf(
-					"unexpected error in the boltdb metadata store driver;"+
+					"unexpected error in the boltdb metadata store driver; "+
 						"this should never happen and should be reported as a bug: %s", err,
 				)
 				panic(msg)
