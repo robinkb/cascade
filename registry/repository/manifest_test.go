@@ -146,7 +146,6 @@ func loadTestimageIndex(t *testing.T) (id digest.Digest, data []byte) {
 	index := new(v1.Index)
 	f, err := os.Open("testdata/image_index.json")
 	AssertNoError(t, err).Require()
-	defer f.Close()
 
 	data, err = io.ReadAll(f)
 	AssertNoError(t, err).Require()
