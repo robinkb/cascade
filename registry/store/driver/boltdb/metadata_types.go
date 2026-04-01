@@ -122,15 +122,11 @@ func (o manifests) addManifest(id digest.Digest, meta store.Manifest, refs store
 	}
 
 	buf := new(bytes.Buffer)
-	if err := gob.NewEncoder(buf).Encode(&meta); err != nil {
-		panic(err)
-	}
+	must(gob.NewEncoder(buf).Encode(&meta))
 	must(b.Put(_METADATA, buf.Bytes()))
 
 	buf = new(bytes.Buffer)
-	if err := gob.NewEncoder(buf).Encode(&refs); err != nil {
-		panic(err)
-	}
+	must(gob.NewEncoder(buf).Encode(&refs))
 	must(b.Put(_REFERENCES, buf.Bytes()))
 
 	return manifest{b}
@@ -149,18 +145,14 @@ func (o manifest) found() bool { return o.b != nil }
 func (o manifest) metadata() (meta store.Manifest) {
 	data := o.b.Get(_METADATA)
 	buf := bytes.NewBuffer(data)
-	if err := gob.NewDecoder(buf).Decode(&meta); err != nil {
-		panic(err)
-	}
+	must(gob.NewDecoder(buf).Decode(&meta))
 	return
 }
 
 func (o manifest) references() (refs store.References) {
 	data := o.b.Get(_REFERENCES)
 	buf := bytes.NewBuffer(data)
-	if err := gob.NewDecoder(buf).Decode(&refs); err != nil {
-		panic(err)
-	}
+	must(gob.NewDecoder(buf).Decode(&refs))
 	return
 }
 
@@ -231,17 +223,13 @@ func (o uploads) upload(id uuid.UUID) *store.UploadSession {
 	}
 	var upload *store.UploadSession
 	buf := bytes.NewBuffer(data)
-	if err := gob.NewDecoder(buf).Decode(&upload); err != nil {
-		panic(err)
-	}
+	must(gob.NewDecoder(buf).Decode(&upload))
 	return upload
 }
 
 func (o uploads) putUpload(upload *store.UploadSession) {
 	buf := new(bytes.Buffer)
-	if err := gob.NewEncoder(buf).Encode(upload); err != nil {
-		panic(err)
-	}
+	must(gob.NewEncoder(buf).Encode(upload))
 	must(o.b.Put(upload.ID.Bytes(), buf.Bytes()))
 }
 
