@@ -101,6 +101,31 @@ func TestPutManifest(t *testing.T) {
 	})
 }
 
+func TestDeleteManifest(t *testing.T) {
+	t.Run("deletes garbage collected blobs", func(t *testing.T) {
+		manifest := NewImageManifestBuilder(t).WithLayers(5).Build()
+
+		repo := mockstore.NewRepository(t)
+		repo.EXPECT().
+			GetManifest(manifest.Digest).
+			Return(store.Manifest{}, nil)
+		repo.EXPECT().
+			DeleteManifest(manifest.Digest).
+			Return(manifest.LayersAsDigests(), nil)
+
+		blobs := mockstore.NewBlobs(t)
+		for _, layer := range manifest.Manifest.Layers {
+			blobs.EXPECT().
+				DeleteBlob(layer.Digest).
+				Return(nil)
+		}
+
+		svc := NewRepositoryService(blobs, repo)
+		err := svc.DeleteManifest(manifest.Digest.String())
+		AssertNoError(t, err)
+	})
+}
+
 func loadTestimageManifest(t *testing.T) (id digest.Digest, data []byte) {
 	manifest := new(v1.Manifest)
 	f, err := os.Open("testdata/image_manifest.json")
