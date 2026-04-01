@@ -43,7 +43,7 @@ func TestPutManifest(t *testing.T) {
 			PutManifest(id, wantMetadata, wantReferences).
 			Return(nil)
 
-		svc := NewRepositoryService(blobs, repo)
+		svc := New(blobs, repo)
 		subj, err := svc.PutManifest(id.String(), data)
 		AssertEqual(t, subj, "")
 		AssertNoError(t, err)
@@ -63,7 +63,7 @@ func TestPutManifest(t *testing.T) {
 			PutManifest(referrer.Digest, referrer.Metadata(), referrer.References()).
 			Return(nil)
 
-		svc := NewRepositoryService(blobs, repo)
+		svc := New(blobs, repo)
 		id, err := svc.PutManifest(referrer.Digest.String(), referrer.Bytes)
 		AssertNoError(t, err)
 		AssertEqual(t, id, subject.Digest)
@@ -94,7 +94,7 @@ func TestPutManifest(t *testing.T) {
 			PutManifest(id, wantMedata, wantReferences).
 			Return(nil)
 
-		svc := NewRepositoryService(blobs, repo)
+		svc := New(blobs, repo)
 		subj, err := svc.PutManifest(id.String(), data)
 		AssertNoError(t, err)
 		AssertEqual(t, subj, "")
@@ -120,7 +120,7 @@ func TestDeleteManifest(t *testing.T) {
 				Return(nil)
 		}
 
-		svc := NewRepositoryService(blobs, repo)
+		svc := New(blobs, repo)
 		err := svc.DeleteManifest(manifest.Digest.String())
 		AssertNoError(t, err)
 	})

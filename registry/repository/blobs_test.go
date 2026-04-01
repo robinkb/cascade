@@ -25,7 +25,7 @@ func TestStatBlob(t *testing.T) {
 			GetBlob(id).
 			Return(nil)
 
-		r := NewRepositoryService(blobs, repo)
+		r := New(blobs, repo)
 		got, err := r.StatBlob(id.String())
 		AssertNoError(t, err)
 		AssertDeepEqual(t, got, info)

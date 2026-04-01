@@ -34,7 +34,7 @@ func (r *registryService) CreateRepository(name string) (repository.Service, err
 			return nil, err
 		}
 	}
-	return repository.NewRepositoryService(r.blobs, repo), nil
+	return repository.New(r.blobs, repo), nil
 }
 
 func (r *registryService) GetRepository(name string) (repository.Service, error) {
@@ -43,12 +43,9 @@ func (r *registryService) GetRepository(name string) (repository.Service, error)
 		if !errors.Is(err, store.ErrRepositoryNotFound) {
 			return nil, err
 		}
-		repo, err = r.meta.CreateRepository(name)
-		if err != nil {
-			return nil, err
-		}
+		return r.CreateRepository(name)
 	}
-	return repository.NewRepositoryService(r.blobs, repo), nil
+	return repository.New(r.blobs, repo), nil
 }
 
 func (r *registryService) DeleteRepository(name string) error {

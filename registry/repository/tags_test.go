@@ -25,7 +25,7 @@ func TestDeleteTags(t *testing.T) {
 				Return(nil)
 		}
 
-		svc := NewRepositoryService(blobs, repo)
+		svc := New(blobs, repo)
 		err := svc.DeleteTag(tag)
 		AssertNoError(t, err)
 	})
