@@ -130,12 +130,13 @@ func loadTestimageManifest(t *testing.T) (id digest.Digest, data []byte) {
 	manifest := new(v1.Manifest)
 	f, err := os.Open("testdata/image_manifest.json")
 	AssertNoError(t, err).Require()
-	defer f.Close()
 
 	data, err = io.ReadAll(f)
 	AssertNoError(t, err).Require()
-	id = digest.FromBytes(data)
+	err = f.Close()
+	AssertNoError(t, err).Require()
 
+	id = digest.FromBytes(data)
 	err = json.Unmarshal(data, manifest)
 	AssertNoError(t, err).Require()
 	return
@@ -149,8 +150,10 @@ func loadTestimageIndex(t *testing.T) (id digest.Digest, data []byte) {
 
 	data, err = io.ReadAll(f)
 	AssertNoError(t, err).Require()
-	id = digest.FromBytes(data)
+	err = f.Close()
+	AssertNoError(t, err).Require()
 
+	id = digest.FromBytes(data)
 	err = json.Unmarshal(data, index)
 	AssertNoError(t, err).Require()
 	return

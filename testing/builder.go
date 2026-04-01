@@ -107,18 +107,3 @@ func (m *ImageManifest) LayersAsDigests() []digest.Digest {
 	}
 	return digests
 }
-
-func NewImageIndexBuilder(t *testing.T) ImageIndexBuilder {
-	return ImageIndexBuilder{
-		t: t,
-	}
-}
-
-type ImageIndexBuilder struct {
-	t *testing.T
-}
-
-type ImageIndex struct {
-	// Index is the struct representation of the generated image index.
-	index v1.Index
-}
