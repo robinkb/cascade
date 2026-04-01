@@ -69,20 +69,18 @@ func TestRepository(t *testing.T) {
 				AssertErrorIs(t, err, repository.ErrNameUnknown)
 			})
 
-			t.Run("Attempting to create the same repository concurrently doesn't fail", func(t *testing.T) {
+			t.Run("Attempting to get the same repository concurrently doesn't fail", func(t *testing.T) {
 				// This can occur when repositories are created ad-hoc during an image push,
 				// where multiple layers are pushed concurrently.
 				name := RandomName()
-				routines := 3
+				routines := 10
 
 				var wg sync.WaitGroup
-				wg.Add(routines)
 				for range routines {
-					go func() {
-						_, err := service.CreateRepository(name)
+					wg.Go(func() {
+						_, err := service.GetRepository(name)
 						AssertNoError(t, err)
-						wg.Done()
-					}()
+					})
 				}
 				wg.Wait()
 			})

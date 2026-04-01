@@ -32,7 +32,7 @@ type (
 	}
 )
 
-func NewRepositoryService(blobs store.Blobs, repo store.Repository) Service {
+func New(blobs store.Blobs, repo store.Repository) Service {
 	return &repositoryService{
 		blobs: blobs,
 		repo:  repo,
