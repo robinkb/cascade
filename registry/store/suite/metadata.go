@@ -340,6 +340,17 @@ func (s *MetadataSuite) TestManifests() {
 		AssertErrorIs(t, err, store.ErrBlobNotFound)
 	})
 
+	s.T().Run("manifest owns its own blob", func(t *testing.T) {
+		repo := s.RepositoryConstructor(t)
+		id := RandomDigest()
+
+		err := repo.PutManifest(id, store.Manifest{}, store.References{})
+		AssertNoError(t, err)
+
+		err = repo.DeleteBlob(id)
+		AssertErrorIs(t, err, store.ErrBlobInUse)
+	})
+
 	s.T().Run("deleting unknown manifest returns ErrManifestNotFound", func(t *testing.T) {
 		repo := s.RepositoryConstructor(t)
 		digest := RandomDigest()

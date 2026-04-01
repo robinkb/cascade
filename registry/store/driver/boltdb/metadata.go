@@ -308,7 +308,11 @@ func (r *repositoryStore) PutManifest(id digest.Digest, meta store.Manifest, ref
 		}
 
 		manifests.addManifest(id, meta, refs)
-		return r.putBlob(tx, id)
+		if err := r.putBlob(tx, id); err != nil {
+			return err
+		}
+		blobs.blob(id).addOwner(id)
+		return nil
 	})
 }
 
@@ -397,6 +401,7 @@ func (r *repositoryStore) deleteManifest(tx *bolt.Tx, id digest.Digest) ([]diges
 
 	manifests.removeManifest(id)
 
+	blobs.blob(id).removeOwner(id)
 	if err := r.deleteBlob(tx, id); err != nil {
 		return nil, err
 	}
