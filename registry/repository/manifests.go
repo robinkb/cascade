@@ -56,20 +56,29 @@ func (s *repositoryService) PutManifest(reference string, content []byte) (diges
 		return "", ErrDigestInvalid
 	}
 
-	var manifest v1.Manifest
-	err = json.Unmarshal(content, &manifest)
+	// Parse a manifest as a v1.Descriptor to access the MediaType field
+	// to find out which type it is.
+	// TODO: Read the Content-Type header instead, and pass the type into this method?
+	// Should find out of Podman et al set the header correctly.
+	var desc v1.Descriptor
+	err = json.Unmarshal(content, &desc)
 	if err != nil {
 		return "", ErrManifestInvalid
 	}
 
-	layers := make([]digest.Digest, len(manifest.Layers))
-	for i, layer := range manifest.Layers {
-		layers[i] = layer.Digest
-	}
+	var metadata store.Manifest
+	var references store.References
 
-	var subject digest.Digest
-	if manifest.Subject != nil {
-		subject = manifest.Subject.Digest
+	switch desc.MediaType {
+	case v1.MediaTypeImageManifest:
+		err = s.processImageManifest(content, &metadata, &references)
+	case v1.MediaTypeImageIndex:
+		err = s.processImageIndex(content, &metadata, &references)
+	default:
+		return "", ErrManifestInvalid
+	}
+	if err != nil {
+		return "", ErrManifestInvalid
 	}
 
 	err = s.blobs.PutBlob(id, content)
@@ -77,24 +86,67 @@ func (s *repositoryService) PutManifest(reference string, content []byte) (diges
 		return "", err
 	}
 
-	meta := store.Manifest{
-		Annotations:  manifest.Annotations,
-		ArtifactType: manifest.ArtifactType,
-		MediaType:    manifest.MediaType,
-		Size:         int64(len(content)),
+	err = s.repo.PutManifest(id, metadata, references)
+
+	return references.Subject, err
+}
+
+func (s *repositoryService) processImageManifest(content []byte, metadata *store.Manifest, references *store.References) error {
+	var manifest v1.Manifest
+	err := json.Unmarshal(content, &manifest)
+	if err != nil {
+		return ErrManifestInvalid
 	}
 
-	if meta.ArtifactType == "" && manifest.MediaType == v1.MediaTypeImageManifest {
-		meta.ArtifactType = manifest.Config.MediaType
+	references.Config = manifest.Config.Digest
+
+	if len(manifest.Layers) > 0 {
+		references.Layers = make([]digest.Digest, len(manifest.Layers))
+		for i, layer := range manifest.Layers {
+			references.Layers[i] = layer.Digest
+		}
 	}
 
-	err = s.repo.PutManifest(id, meta, store.References{
-		Config:  manifest.Config.Digest,
-		Layers:  layers,
-		Subject: subject,
-	})
+	if manifest.Subject != nil {
+		references.Subject = manifest.Subject.Digest
+	}
 
-	return subject, err
+	metadata.Annotations = manifest.Annotations
+	metadata.ArtifactType = manifest.ArtifactType
+	metadata.MediaType = manifest.MediaType
+	metadata.Size = int64(len(content))
+
+	if metadata.ArtifactType == "" && manifest.MediaType == v1.MediaTypeImageManifest {
+		metadata.ArtifactType = manifest.Config.MediaType
+	}
+
+	return nil
+}
+
+func (s *repositoryService) processImageIndex(content []byte, metadata *store.Manifest, references *store.References) error {
+	var index v1.Index
+	err := json.Unmarshal(content, &index)
+	if err != nil {
+		return ErrManifestInvalid
+	}
+
+	if len(index.Manifests) > 0 {
+		references.Manifests = make([]digest.Digest, len(index.Manifests))
+		for i, manifest := range index.Manifests {
+			references.Manifests[i] = manifest.Digest
+		}
+	}
+
+	if index.Subject != nil {
+		references.Subject = index.Subject.Digest
+	}
+
+	metadata.Annotations = index.Annotations
+	metadata.ArtifactType = index.ArtifactType
+	metadata.MediaType = index.MediaType
+	metadata.Size = int64(len(content))
+
+	return nil
 }
 
 func (s *repositoryService) DeleteManifest(id string) error {

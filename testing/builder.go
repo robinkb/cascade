@@ -97,6 +97,10 @@ func (m *ImageManifest) References() store.References {
 }
 
 func (m *ImageManifest) LayersAsDigests() []digest.Digest {
+	if len(m.Manifest.Layers) == 0 {
+		return nil
+	}
+
 	digests := make([]digest.Digest, len(m.Manifest.Layers))
 	for i, layer := range m.Manifest.Layers {
 		digests[i] = layer.Digest
