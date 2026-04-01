@@ -1,0 +1,21 @@
+{
+  "schemaVersion": 2,
+  "mediaType": "application/vnd.oci.image.manifest.v1+json",
+  "config": {
+    "mediaType": "application/vnd.oci.image.config.v1+json",
+    "digest": "sha256:01fd43ca5fd99acc99a708d48d94b2b6e3deb81e8ee1c76202a612cd3fdd4eea",
+    "size": 865
+  },
+  "layers": [
+    {
+      "mediaType": "application/vnd.oci.image.layer.v1.tar+gzip",
+      "digest": "sha256:51a96c573d269b0aeaf05ac2bbf812a3a2a8d9a6a6d6cd51dcee27f2662ecc61",
+      "size": 363919015
+    }
+  ],
+  "annotations": {
+    "org.opencontainers.image.base.digest": "",
+    "org.opencontainers.image.base.name": "",
+    "org.opencontainers.image.created": "2026-04-01T07:53:33.547482297Z"
+  }
+}

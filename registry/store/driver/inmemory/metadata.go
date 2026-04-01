@@ -217,7 +217,13 @@ func (r *repositoryStore) PutManifest(id digest.Digest, meta store.Manifest, ref
 		manifest.Referrers[id] = nil
 	}
 
-	return r.PutBlob(id)
+	if err := r.PutBlob(id); err != nil {
+		return err
+	}
+
+	r.repo.Blobs[id][id] = nil
+
+	return nil
 }
 
 func (r *repositoryStore) DeleteManifest(id digest.Digest) ([]digest.Digest, error) {
@@ -284,6 +290,7 @@ func (r *repositoryStore) DeleteManifest(id digest.Digest) ([]digest.Digest, err
 	delete(r.repo.Manifests, id)
 	deleted = append(deleted, id)
 
+	delete(r.repo.Blobs[id], id)
 	return deleted, r.DeleteBlob(id)
 }
 
