@@ -210,3 +210,71 @@ func (_c *Service_GetRepository_Call) RunAndReturn(run func(name string) (reposi
 	_c.Call.Return(run)
 	return _c
 }
+
+// ListRepositories provides a mock function for the type Service
+func (_mock *Service) ListRepositories(count int, last string) ([]string, error) {
+	ret := _mock.Called(count, last)
+
+	if len(ret) == 0 {
+		panic("no return value specified for ListRepositories")
+	}
+
+	var r0 []string
+	var r1 error
+	if returnFunc, ok := ret.Get(0).(func(int, string) ([]string, error)); ok {
+		return returnFunc(count, last)
+	}
+	if returnFunc, ok := ret.Get(0).(func(int, string) []string); ok {
+		r0 = returnFunc(count, last)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]string)
+		}
+	}
+	if returnFunc, ok := ret.Get(1).(func(int, string) error); ok {
+		r1 = returnFunc(count, last)
+	} else {
+		r1 = ret.Error(1)
+	}
+	return r0, r1
+}
+
+// Service_ListRepositories_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'ListRepositories'
+type Service_ListRepositories_Call struct {
+	*mock.Call
+}
+
+// ListRepositories is a helper method to define mock.On call
+//   - count int
+//   - last string
+func (_e *Service_Expecter) ListRepositories(count interface{}, last interface{}) *Service_ListRepositories_Call {
+	return &Service_ListRepositories_Call{Call: _e.mock.On("ListRepositories", count, last)}
+}
+
+func (_c *Service_ListRepositories_Call) Run(run func(count int, last string)) *Service_ListRepositories_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		var arg0 int
+		if args[0] != nil {
+			arg0 = args[0].(int)
+		}
+		var arg1 string
+		if args[1] != nil {
+			arg1 = args[1].(string)
+		}
+		run(
+			arg0,
+			arg1,
+		)
+	})
+	return _c
+}
+
+func (_c *Service_ListRepositories_Call) Return(strings []string, err error) *Service_ListRepositories_Call {
+	_c.Call.Return(strings, err)
+	return _c
+}
+
+func (_c *Service_ListRepositories_Call) RunAndReturn(run func(count int, last string) ([]string, error)) *Service_ListRepositories_Call {
+	_c.Call.Return(run)
+	return _c
+}

@@ -30,6 +30,8 @@ var (
 
 type (
 	Metadata interface {
+		// ListRepository returns a list of repository names.
+		ListRepositories(count int, last string) ([]string, error)
 		// GetRepository verifies that a repository with the given name exists in the store.
 		// If a repository does not exists, it returns ErrRepositoryNotFound.
 		GetRepository(name string) (Repository, error)
@@ -41,9 +43,9 @@ type (
 		DeleteRepository(name string) error
 		// Blobs iterates over all blobs in the Metadata store.
 		Blobs() iter.Seq[digest.Digest]
-		// Snapshot writes a snapshot of the MetadataStore to the given Writer.
+		// Snapshot writes a snapshot of the Metadata store to the given Writer.
 		Snapshot(w io.Writer) error
-		// Restore reads a snapshot of the MetadataStore from the given Reader.
+		// Restore reads a snapshot of the Metadata store from the given Reader.
 		Restore(r io.Reader) error
 	}
 

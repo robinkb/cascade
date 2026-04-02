@@ -53,7 +53,7 @@ func TestStatBlob(t *testing.T) {
 			GetRepository(name).
 			Return(nil, repository.ErrNameUnknown)
 
-		client := testclient.NewTestClientForHandler(t, New(registry))
+		client := testclient.NewForHandler(t, New(registry))
 		resp := client.CheckBlob(name, digest)
 		AssertResponseCode(t, resp, http.StatusNotFound)
 	})
@@ -97,7 +97,7 @@ func TestGetBlob(t *testing.T) {
 			GetRepository(name).
 			Return(nil, repository.ErrNameUnknown)
 
-		client := testclient.NewTestClientForHandler(t, New(registry))
+		client := testclient.NewForHandler(t, New(registry))
 		resp := client.GetBlob(name, digest)
 		AssertResponseCode(t, resp, http.StatusNotFound)
 	})
@@ -125,7 +125,7 @@ func TestDeleteBlob(t *testing.T) {
 			GetRepository(name).
 			Return(nil, repository.ErrNameUnknown)
 
-		client := testclient.NewTestClientForHandler(t, New(registry))
+		client := testclient.NewForHandler(t, New(registry))
 		resp := client.DeleteBlob(name, digest)
 		AssertResponseCode(t, resp, http.StatusNotFound)
 	})
@@ -133,7 +133,7 @@ func TestDeleteBlob(t *testing.T) {
 
 func TestBlobsOthers(t *testing.T) {
 	t.Run("other methods return 405", func(t *testing.T) {
-		client := testclient.NewTestClientForHandler(t, New(nil))
+		client := testclient.NewForHandler(t, New(nil))
 
 		resp := client.Do(http.MethodConnect, "/v2/library/fedora/blobs/123", nil, nil)
 

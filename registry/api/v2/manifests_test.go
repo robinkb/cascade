@@ -268,7 +268,7 @@ func TestDeleteManifest(t *testing.T) {
 
 func TestManifestsOthers(t *testing.T) {
 	t.Run("Other methods are not allowed", func(t *testing.T) {
-		client := testclient.NewTestClientForHandler(t, New(nil))
+		client := testclient.NewForHandler(t, New(nil))
 
 		resp := client.Do(
 			http.MethodTrace,

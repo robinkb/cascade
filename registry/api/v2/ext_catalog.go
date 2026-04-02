@@ -8,25 +8,18 @@ import (
 	v1 "github.com/opencontainers/distribution-spec/specs-go/v1"
 )
 
-func (h *Handler) tagsHandler(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) handleCatalog(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case http.MethodGet:
-		h.listTagsHandler(w, r)
+		h.handleListRepositories(w, r)
 	default:
 		w.WriteHeader(http.StatusMethodNotAllowed)
 	}
 }
 
-func (h *Handler) listTagsHandler(w http.ResponseWriter, r *http.Request) {
-	name := r.PathValue("name")
+func (h *Handler) handleListRepositories(w http.ResponseWriter, r *http.Request) {
 	n := r.URL.Query().Get("n")
 	last := r.URL.Query().Get("last")
-
-	repo, err := h.service.GetRepository(name)
-	if err != nil {
-		errorHandler(w, r, err)
-		return
-	}
 
 	count := -1
 	if n != "" {
@@ -38,15 +31,14 @@ func (h *Handler) listTagsHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	tags, err := repo.ListTags(count, last)
+	repositories, err := h.service.ListRepositories(count, last)
 	if err != nil {
 		errorHandler(w, r, err)
 		return
 	}
 
-	response := v1.TagList{
-		Name: name,
-		Tags: tags,
+	response := v1.RepositoryList{
+		Repositories: repositories,
 	}
 
 	encodeOrLog(json.NewEncoder(w).Encode(response))

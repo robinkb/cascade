@@ -62,7 +62,7 @@ func TestBlobUploadSession(t *testing.T) {
 	})
 
 	t.Run("Other methods are not allowed", func(t *testing.T) {
-		client := testclient.NewTestClientForHandler(t, New(nil))
+		client := testclient.NewForHandler(t, New(nil))
 		resp := client.Do(http.MethodConnect, "/v2/my/repo/blobs/uploads/", nil, nil)
 		AssertResponseCode(t, resp, http.StatusMethodNotAllowed)
 	})

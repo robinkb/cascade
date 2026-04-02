@@ -62,6 +62,7 @@ func New(service registry.Service) *Handler {
 	})
 
 	router := http.NewServeMux()
+	router.HandleFunc("/v2/_catalog", h.handleCatalog)
 	router.Handle("/v2/", http.StripPrefix("/v2", registryRouter))
 
 	h.Handler = router
