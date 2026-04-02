@@ -6,7 +6,6 @@ import (
 
 	v1 "github.com/opencontainers/distribution-spec/specs-go/v1"
 	. "github.com/robinkb/cascade/testing"
-	"github.com/robinkb/cascade/testing/client"
 	testclient "github.com/robinkb/cascade/testing/client"
 	mock "github.com/robinkb/cascade/testing/mock/registry"
 )
@@ -21,7 +20,7 @@ func TestListRepositories(t *testing.T) {
 			Return(names, nil)
 
 		srv := New(svc)
-		client := client.NewForHandler(t, srv)
+		client := testclient.NewForHandler(t, srv)
 
 		resp := client.ListRepositories(nil)
 		AssertResponseCode(t, resp, http.StatusOK)
@@ -40,7 +39,7 @@ func TestListRepositories(t *testing.T) {
 			Return(names[10:13], nil)
 
 		srv := New(svc)
-		client := client.NewForHandler(t, srv)
+		client := testclient.NewForHandler(t, srv)
 
 		resp := client.ListRepositories(&testclient.ListOptions{
 			N:    testclient.Pointer(count),
