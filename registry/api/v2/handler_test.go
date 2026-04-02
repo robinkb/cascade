@@ -47,7 +47,7 @@ func NewTestClientForRepository(t *testing.T, name string, service repository.Se
 		GetRepository(name).
 		Return(service, nil)
 
-	return testclient.NewTestClientForHandler(t, New(registry))
+	return testclient.NewForHandler(t, New(registry))
 }
 
 func AssertResponseBodyContainsError(t *testing.T, got *http.Response, want repository.Error) *Result {

@@ -16,8 +16,8 @@ import (
 	. "github.com/robinkb/cascade/testing" //nolint: staticcheck
 )
 
-// NewTestClientForHandler returns a test client for the given handler, likely a registry server.
-func NewTestClientForHandler(t *testing.T, handler http.Handler) *Client {
+// NewForHandler returns a test client for the given handler, likely a registry server.
+func NewForHandler(t *testing.T, handler http.Handler) *Client {
 	return &Client{
 		t:       t,
 		handler: handler,
@@ -30,6 +30,25 @@ func NewTestClientForHandler(t *testing.T, handler http.Handler) *Client {
 type Client struct {
 	handler http.Handler
 	t       *testing.T
+}
+
+func (c *Client) ListRepositories(opts *ListOptions) *http.Response {
+	u := url.URL{
+		Path: "/v2/_catalog",
+	}
+
+	if opts != nil {
+		query := make(url.Values, 0)
+		if opts.N != nil {
+			query.Set("n", strconv.Itoa(*opts.N))
+		}
+		if opts.Last != "" {
+			query.Set("last", opts.Last)
+		}
+		u.RawQuery = query.Encode()
+	}
+
+	return c.Do(http.MethodGet, u.RequestURI(), nil, nil)
 }
 
 func (c *Client) CheckBlob(name string, digest digest.Digest) *http.Response {
@@ -87,12 +106,7 @@ func (c *Client) DeleteManifest(name string, digest digest.Digest) *http.Respons
 	return c.Do(http.MethodDelete, path, nil, nil)
 }
 
-type ListTagsOptions struct {
-	N    *int
-	Last string
-}
-
-func (c *Client) ListTags(name string, opts *ListTagsOptions) *http.Response {
+func (c *Client) ListTags(name string, opts *ListOptions) *http.Response {
 	u := url.URL{
 		Path: fmt.Sprintf("/v2/%s/tags/list", name),
 	}
@@ -224,4 +238,9 @@ func (c *Client) Do(method string, path string, headers http.Header, body io.Rea
 
 func Pointer[K any](val K) *K {
 	return &val
+}
+
+type ListOptions struct {
+	N    *int
+	Last string
 }

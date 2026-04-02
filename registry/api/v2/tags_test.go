@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"testing"
 
+	v1 "github.com/opencontainers/distribution-spec/specs-go/v1"
 	. "github.com/robinkb/cascade/testing"
 	testclient "github.com/robinkb/cascade/testing/client"
 	mock "github.com/robinkb/cascade/testing/mock/repository"
@@ -24,9 +25,9 @@ func TestListTags(t *testing.T) {
 		resp := client.ListTags(name, nil)
 
 		AssertResponseCode(t, resp, http.StatusOK)
-		var tagsList TagsListResponse
-		AssertResponseBodyUnmarshals(t, resp, &tagsList)
-		AssertSlicesEqual(t, tagsList.Tags, tags)
+		var tagList v1.TagList
+		AssertResponseBodyUnmarshals(t, resp, &tagList)
+		AssertSlicesEqual(t, tagList.Tags, tags)
 	})
 
 	t.Run("n and last query parameters are handled correctly", func(t *testing.T) {
@@ -40,14 +41,14 @@ func TestListTags(t *testing.T) {
 
 		client := NewTestClientForRepository(t, name, repo)
 
-		resp := client.ListTags(name, &testclient.ListTagsOptions{
+		resp := client.ListTags(name, &testclient.ListOptions{
 			N:    testclient.Pointer(count),
 			Last: last,
 		})
 
 		AssertResponseCode(t, resp, http.StatusOK)
-		var tagsList TagsListResponse
-		AssertResponseBodyUnmarshals(t, resp, &tagsList)
-		AssertSlicesEqual(t, tagsList.Tags, tags[10:13])
+		var tagList v1.TagList
+		AssertResponseBodyUnmarshals(t, resp, &tagList)
+		AssertSlicesEqual(t, tagList.Tags, tags[10:13])
 	})
 }
