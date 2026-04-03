@@ -280,7 +280,8 @@ func (r *repositoryStore) DeleteManifest(id digest.Digest) ([]digest.Digest, err
 	for _, layerDigest := range manifest.Refs.Layers {
 		delete(r.repo.Blobs[layerDigest], id)
 		if err := r.DeleteBlob(layerDigest); err != nil {
-			if errors.Is(err, store.ErrBlobInUse) {
+			if errors.Is(err, store.ErrBlobInUse) ||
+				errors.Is(err, store.ErrBlobNotFound) {
 				continue
 			}
 			return deleted, err
@@ -292,7 +293,8 @@ func (r *repositoryStore) DeleteManifest(id digest.Digest) ([]digest.Digest, err
 		delete(r.repo.Manifests[manifestDigest].Manifests, id)
 		digests, err := r.DeleteManifest(manifestDigest)
 		if err != nil {
-			if errors.Is(err, store.ErrManifestInUse) {
+			if errors.Is(err, store.ErrManifestInUse) ||
+				errors.Is(err, store.ErrManifestNotFound) {
 				continue
 			}
 			return deleted, err
