@@ -704,6 +704,26 @@ func (s *MetadataSuite) TestManifests() {
 		AssertSlicesEqual(t, deleted, digests)
 	})
 
+	// I do not see this happening in reality, but let's be safe and design defensively.
+	s.T().Run("does not error when deleting index with 'duplicate' manifests", func(t *testing.T) {
+		repo := s.RepositoryConstructor(t)
+		indexDigest, manifestDigest := RandomDigest(), RandomDigest()
+		wantDeleted := []digest.Digest{indexDigest, manifestDigest}
+		slices.Sort(wantDeleted)
+
+		err := repo.PutManifest(manifestDigest, store.Manifest{}, store.References{})
+		AssertNoError(t, err)
+		err = repo.PutManifest(indexDigest, store.Manifest{}, store.References{
+			Manifests: []digest.Digest{manifestDigest, manifestDigest},
+		})
+		AssertNoError(t, err)
+
+		deleted, err := repo.DeleteManifest(indexDigest)
+		AssertNoError(t, err)
+		slices.Sort(deleted)
+		AssertSlicesEqual(t, deleted, wantDeleted)
+	})
+
 	s.T().Run("deleting manifest referenced in index returns ErrManifestInUse", func(t *testing.T) {
 		repo := s.RepositoryConstructor(t)
 		indexDigest, imageDigest := RandomDigest(), RandomDigest()
