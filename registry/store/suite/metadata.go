@@ -597,6 +597,25 @@ func (s *MetadataSuite) TestManifests() {
 		AssertErrorIs(t, err, store.ErrBlobNotFound)
 	})
 
+	s.T().Run("does not error when deleting manifest with 'duplicate' layers", func(t *testing.T) {
+		repo := s.RepositoryConstructor(t)
+		manifestDigest, layerDigest := RandomDigest(), RandomDigest()
+		wantDeleted := []digest.Digest{manifestDigest, layerDigest}
+		slices.Sort(wantDeleted)
+
+		err := repo.PutBlob(layerDigest)
+		AssertNoError(t, err)
+		err = repo.PutManifest(manifestDigest, store.Manifest{}, store.References{
+			Layers: []digest.Digest{layerDigest, layerDigest},
+		})
+		AssertNoError(t, err)
+
+		deleted, err := repo.DeleteManifest(manifestDigest)
+		AssertNoError(t, err)
+		slices.Sort(deleted)
+		AssertSlicesEqual(t, deleted, wantDeleted)
+	})
+
 	s.T().Run("deleting referenced layer blob returns ErrBlobInUse", func(t *testing.T) {
 		repo := s.RepositoryConstructor(t)
 		manifestDigest, layerDigest := RandomDigest(), RandomDigest()

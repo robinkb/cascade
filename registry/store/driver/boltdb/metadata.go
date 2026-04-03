@@ -388,7 +388,12 @@ func (r *repositoryStore) deleteManifest(tx *bolt.Tx, id digest.Digest) ([]diges
 	}
 
 	for _, layerDigest := range refs.Layers {
-		blobs.blob(layerDigest).removeOwner(id)
+		blob := blobs.blob(layerDigest)
+		if !blob.found() {
+			continue
+		}
+		blob.removeOwner(id)
+
 		if err := r.deleteBlob(tx, layerDigest); err != nil {
 			if errors.Is(err, store.ErrBlobInUse) {
 				continue
