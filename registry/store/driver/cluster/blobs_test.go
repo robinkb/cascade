@@ -1,25 +1,21 @@
-package fs
+package cluster
 
 import (
-	"os"
 	"testing"
 
+	"github.com/robinkb/cascade/cluster"
 	"github.com/robinkb/cascade/registry/store"
+	"github.com/robinkb/cascade/registry/store/driver/inmemory"
 	storesuite "github.com/robinkb/cascade/registry/store/suite"
-	. "github.com/robinkb/cascade/testing" // nolint: staticcheck
 	"github.com/stretchr/testify/suite"
 )
 
 func TestBlobSuite(t *testing.T) {
 	suite.Run(t, &storesuite.BlobSuite{
 		Constructor: func(t *testing.T) store.Blobs {
-			tmp := t.TempDir()
-			t.Cleanup(func() {
-				err := os.RemoveAll(tmp)
-				AssertNoError(t, err).Require()
-			})
-
-			return NewBlobStore(tmp)
+			proposer := cluster.NewFakeProposer()
+			blobs := inmemory.NewBlobStore()
+			return NewBlobStore(proposer, blobs)
 		},
 	})
 }

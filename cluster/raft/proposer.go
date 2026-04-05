@@ -5,7 +5,7 @@ import (
 	"context"
 	"encoding/gob"
 	"log"
-	"reflect"
+	"math/rand/v2"
 	"sync"
 	"time"
 
@@ -16,77 +16,105 @@ import (
 func newProposer(node raft.Node) *proposer {
 	return &proposer{
 		raft:         node,
-		handlerFuncs: make(map[reflect.Type]cluster.HandlerFunc),
-		errs:         newErrCs(),
+		handlerFuncs: make(map[cluster.Operation]cluster.HandlerFunc),
+		results:      newResultReporter(),
 	}
 }
 
 // proposer implements cluster.Proposer
 type proposer struct {
 	raft         raft.Node
-	handlerFuncs map[reflect.Type]cluster.HandlerFunc
-	errs         errCs
+	handlerFuncs map[cluster.Operation]cluster.HandlerFunc
+	results      resultReporter
 }
 
-func (p *proposer) Handle(proposal cluster.Proposal, f cluster.HandlerFunc) {
-	t := reflect.TypeOf(proposal)
+func (p *proposer) Handle(t cluster.Operation, f cluster.HandlerFunc) {
 	if _, ok := p.handlerFuncs[t]; ok {
-		log.Fatalf("proposal type already registered: %T", proposal)
+		log.Fatalf("proposal type already registered: %s", t)
 	}
-	p.handlerFuncs[reflect.TypeOf(proposal)] = f
-	gob.Register(proposal)
+	p.handlerFuncs[t] = f
 }
 
-// TODO: Pass a context here.
-func (p *proposer) Propose(proposal cluster.Proposal) error {
+func (p *proposer) Propose(req cluster.Request) cluster.Response {
+	ctx := context.Background()
+	ctx, cancel := context.WithTimeout(ctx, time.Second)
+	defer cancel()
+
+	req.ID = rand.Uint64()
+
 	var buf bytes.Buffer
-	if err := gob.NewEncoder(&buf).Encode(&proposal); err != nil {
+	if err := gob.NewEncoder(&buf).Encode(&req); err != nil {
 		log.Panicf("failed to encode proposal: %s\n", err)
 	}
 
-	errC := p.errs.create(proposal.ID())
-	defer p.errs.delete(proposal.ID())
+	resultC := p.results.create(req.ID)
+	defer p.results.delete(req.ID)
 
-	// Propose blocks until accepted by the cluster.
-	err := p.raft.Propose(context.TODO(), buf.Bytes())
+	err := p.raft.Propose(ctx, buf.Bytes())
 	if err != nil {
-		return err
+		return cluster.Response{Err: err}
 	}
 
 	select {
-	// TODO: And wait for ctx.Done() instead of this dumb timeout.
-	case <-time.Tick(5 * time.Second):
-		panic("timed out")
-	case err := <-errC:
-		return err
+	case <-ctx.Done():
+		return cluster.Response{Err: ctx.Err()}
+	case result := <-resultC:
+		return result
 	}
 }
 
-// commit decodes the payload into a registered proposal type,
-// and calls its HandlerFunc.
-//
-// commit panics if a HandlerFunc has not been registered
-// for the given proposal type using Handle.
 func (p *proposer) commit(data []byte) {
 	buf := bytes.NewBuffer(data)
 
-	var proposal cluster.Proposal
-	err := gob.NewDecoder(buf).Decode(&proposal)
+	var req cluster.Request
+	err := gob.NewDecoder(buf).Decode(&req)
 	if err != nil {
 		log.Panicf("unable to decode as proposal: %s", err)
 	}
 
-	f, ok := p.handlerFuncs[reflect.TypeOf(proposal)]
+	f, ok := p.handlerFuncs[req.Op]
 	if !ok {
-		log.Panicf("unknown proposal type received: %T", proposal)
+		log.Panicf("unknown proposal type received: %s", req.Op)
 	}
 
-	err = f(proposal)
+	resp := f(req)
 
-	errC, ok := p.errs.get(proposal.ID())
+	result, ok := p.results.get(req.ID)
 	if ok {
-		errC <- err
+		result <- resp
 	}
+}
+
+func newResultReporter() resultReporter {
+	return resultReporter{
+		results: make(map[uint64]chan cluster.Response),
+	}
+}
+
+type resultReporter struct {
+	mu      sync.Mutex
+	results map[uint64]chan cluster.Response
+}
+
+func (r *resultReporter) create(id uint64) chan cluster.Response {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.results[id] = make(chan cluster.Response)
+	return r.results[id]
+}
+
+func (r *resultReporter) get(id uint64) (chan cluster.Response, bool) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	resultC, err := r.results[id]
+	return resultC, err
+}
+
+func (r *resultReporter) delete(id uint64) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	close(r.results[id])
+	delete(r.results, id)
 }
 
 func newErrCs() errCs {
