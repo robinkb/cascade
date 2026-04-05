@@ -106,7 +106,7 @@ func main() {
 		LoggerEnabled: true,
 	})
 
-	service := registry.NewService(metadata, blobs)
+	service := registry.New(metadata, blobs)
 	srv.Handle("/", registryapi.New(service))
 
 	mgr.Register(srv)

@@ -36,7 +36,7 @@ func TestRepository(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		service := NewService(tt.constructor())
+		service := New(tt.constructor())
 
 		t.Run(tt.description, func(t *testing.T) {
 			t.Run("Create a repository, do something with it, and delete it", func(t *testing.T) {

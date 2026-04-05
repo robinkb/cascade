@@ -16,7 +16,7 @@ type (
 	}
 )
 
-func NewService(meta store.Metadata, blobs store.Blobs) Service {
+func New(meta store.Metadata, blobs store.Blobs) Service {
 	return &registryService{
 		meta:  meta,
 		blobs: blobs,

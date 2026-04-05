@@ -17,7 +17,7 @@ import (
 func TestPush(t *testing.T) {
 	metadata := inmemory.NewMetadataStore()
 	blobs := inmemory.NewBlobStore()
-	service := registry.NewService(metadata, blobs)
+	service := registry.New(metadata, blobs)
 	srv := v2.New(service)
 
 	t.Run("Pushing blobs", func(t *testing.T) {

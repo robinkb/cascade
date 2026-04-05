@@ -15,7 +15,7 @@ import (
 func TestPull(t *testing.T) {
 	metadata := inmemory.NewMetadataStore()
 	blobs := inmemory.NewBlobStore()
-	service := registry.NewService(metadata, blobs)
+	service := registry.New(metadata, blobs)
 	srv := v2.New(service)
 
 	t.Run("Pulling manifests", func(t *testing.T) {
