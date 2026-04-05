@@ -35,22 +35,23 @@ func (r *registryService) ListRepositories(count int, last string) ([]string, er
 func (r *registryService) CreateRepository(name string) (repository.Service, error) {
 	repo, err := r.meta.CreateRepository(name)
 	if err != nil {
-		if !errors.Is(err, store.ErrRepositoryExists) {
-			return nil, err
+		if errors.Is(err, store.ErrRepositoryExists) {
+			return r.GetRepository(name)
 		}
+		return nil, err
 	}
-	return repository.New(r.blobs, repo), nil
+	return repository.New(r.blobs, repo), err
 }
 
 func (r *registryService) GetRepository(name string) (repository.Service, error) {
 	repo, err := r.meta.GetRepository(name)
 	if err != nil {
-		if !errors.Is(err, store.ErrRepositoryNotFound) {
-			return nil, err
+		if errors.Is(err, store.ErrRepositoryNotFound) {
+			return r.CreateRepository(name)
 		}
-		return r.CreateRepository(name)
+		return nil, err
 	}
-	return repository.New(r.blobs, repo), nil
+	return repository.New(r.blobs, repo), err
 }
 
 func (r *registryService) DeleteRepository(name string) error {

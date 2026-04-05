@@ -78,8 +78,11 @@ func TestRepository(t *testing.T) {
 				var wg sync.WaitGroup
 				for range routines {
 					wg.Go(func() {
-						_, err := service.GetRepository(name)
-						AssertNoError(t, err)
+						repo, err := service.GetRepository(name)
+						AssertNoError(t, err).Require()
+
+						_, err = repo.StatBlob(RandomDigest().String())
+						AssertErrorIs(t, err, repository.ErrBlobUnknown)
 					})
 				}
 				wg.Wait()
