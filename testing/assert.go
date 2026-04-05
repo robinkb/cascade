@@ -219,7 +219,7 @@ func AssertDeepEqual(t testing.TB, got, want any) *Result {
 	t.Helper()
 
 	if !reflect.DeepEqual(got, want) {
-		t.Errorf("structs are not equal;\ngot:\n%+v\nwant:\n%+v", got, want)
+		t.Errorf("structs are not equal;\ngot:\n%#v\nwant:\n%#v", got, want)
 		return &Result{t, false}
 	}
 
