@@ -91,6 +91,9 @@ func (s *blobStore) GetBlob(id digest.Digest) ([]byte, error) {
 
 	f, err := os.Open(path)
 	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return nil, fmt.Errorf("%w: %s", store.ErrBlobNotFound, id)
+		}
 		return nil, err
 	}
 
@@ -139,7 +142,11 @@ func (s *blobStore) PutBlob(id digest.Digest, content []byte) error {
 // DeleteBlob removes a blob from the blob store.
 func (s *blobStore) DeleteBlob(id digest.Digest) error {
 	path := s.digestToPath(id)
-	return os.Remove(path)
+	err := os.Remove(path)
+	if errors.Is(err, os.ErrNotExist) {
+		err = fmt.Errorf("%w: %s", store.ErrBlobNotFound, id)
+	}
+	return err
 }
 
 // StatBlob returns basic file info about the upload with the given UUID.
@@ -227,7 +234,6 @@ func (s *blobStore) stat(path string) (*store.BlobInfo, error) {
 	}
 
 	return &store.BlobInfo{
-		Name: path,
 		Size: info.Size(),
 	}, nil
 }

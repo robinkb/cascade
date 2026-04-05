@@ -34,7 +34,7 @@ func AssertErrorIs(t testing.TB, got error, want ...error) *Result {
 
 	for _, w := range want {
 		if !errors.Is(got, w) {
-			t.Errorf("unexpected error: got %q, want %q", got, want)
+			t.Errorf("unexpected error: got %s (type %T), want %s", got, got, want)
 			return &Result{t, false}
 		}
 	}

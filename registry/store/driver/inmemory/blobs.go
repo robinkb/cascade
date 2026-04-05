@@ -83,6 +83,9 @@ func (s *blobStore) PutBlob(id digest.Digest, content []byte) error {
 
 func (s *blobStore) DeleteBlob(id digest.Digest) error {
 	path := s.digestToPath(id)
+	if _, ok := s.store[path]; !ok {
+		return fmt.Errorf("%w: %s", store.ErrBlobNotFound, id)
+	}
 	return s.delete(path)
 }
 
@@ -150,7 +153,6 @@ func (s *blobStore) stat(path string) (*store.BlobInfo, error) {
 	}
 
 	return &store.BlobInfo{
-		Name: path,
 		Size: int64(len(data)),
 	}, nil
 }

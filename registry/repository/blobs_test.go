@@ -13,7 +13,6 @@ func TestStatBlob(t *testing.T) {
 	t.Run("returns blob info for digest", func(t *testing.T) {
 		id := RandomDigest()
 		info := &store.BlobInfo{
-			Name: RandomName(),
 			Size: rand.Int64(),
 		}
 		blobs := mockstore.NewBlobs(t)
