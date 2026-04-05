@@ -6,32 +6,32 @@ import (
 )
 
 type (
-	// Proposal defines an interface for creating proposal types.
-	// Implementers must return a stored random ID, but can include additional attributes.
-	// These attributes can be retrieved by asserting the Proposal back to its concrete type.
-	// TODO: Returning the payload as bytes in a Context or Body method makes way more sense.
-	// Body would be more like an HTTP request, while Context would be more like the rest of the Raft library.
-	Proposal interface {
-		ID() uint64
+	Operation string
+
+	Request struct {
+		ID   uint64
+		Op   Operation
+		Data []byte
+	}
+
+	Response struct {
+		Data []byte
+		Err  error
 	}
 
 	// HandlerFunc is a function that handles committing a proposal type.
-	// They typically type assert the given proposal into its concrete type,
-	// and process the payload by committing it to the state machine.
-	// HandlerFuncs can assume that they are never passed a Proposal of the wrong concrete type.
-	HandlerFunc func(p Proposal) error
+	HandlerFunc func(req Request) Response
 
-	// Proposer encapsulates making proposals to the cluster,
+	// Proposer encapsulates making proposals to a cluster,
 	// and handling those proposals once they are accepted.
 	Proposer interface {
 		// Consumers must call Handle() to register a function that commits
-		// proposals of a certain concrete type.
-		Handle(p Proposal, f HandlerFunc)
-		// Propose makes a proposal to the Raft log.
-		//
+		// proposals of a given operation type.
+		Handle(t Operation, f HandlerFunc)
+		// Propose makes a proposal to the cluster.
 		// Propose panics if a HandlerFunc has not been registered
 		// for the given proposal type using Handle.
-		Propose(p Proposal) error
+		Propose(req Request) Response
 	}
 
 	// Snapshotter wraps the basic Snapshot method.
