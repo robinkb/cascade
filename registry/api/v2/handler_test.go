@@ -18,7 +18,7 @@ import (
 
 func TestRoot(t *testing.T) {
 	server := New(
-		registry.NewService(
+		registry.New(
 			inmemory.NewMetadataStore(),
 			inmemory.NewBlobStore(),
 		),

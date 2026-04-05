@@ -116,10 +116,10 @@ func (o manifests) manifest(id digest.Digest) manifest {
 }
 
 func (o manifests) addManifest(id digest.Digest, meta store.Manifest, refs store.References) manifest {
-	b, err := o.b.CreateBucket([]byte(id))
+	b, err := o.b.CreateBucketIfNotExists([]byte(id))
 	must(err)
 	for _, bucket := range manifestBuckets {
-		must(b.CreateBucket(bucket))
+		must(b.CreateBucketIfNotExists(bucket))
 	}
 
 	buf := new(bytes.Buffer)

@@ -14,7 +14,7 @@ import (
 func TestContentManagement(t *testing.T) {
 	metadata := inmemory.NewMetadataStore()
 	blobs := inmemory.NewBlobStore()
-	service := registry.NewService(metadata, blobs)
+	service := registry.New(metadata, blobs)
 	srv := v2.New(service)
 
 	t.Run("Deleting tags", func(t *testing.T) {

@@ -448,6 +448,16 @@ func (s *MetadataSuite) TestManifests() {
 		AssertErrorIs(t, err, store.ErrManifestNotFound)
 	})
 
+	s.T().Run("update an existing manifest", func(t *testing.T) {
+		repo := s.RepositoryConstructor(t)
+		id := RandomDigest()
+
+		err := repo.PutManifest(id, store.Manifest{}, store.References{})
+		AssertNoError(t, err)
+		err = repo.PutManifest(id, store.Manifest{}, store.References{})
+		AssertNoError(t, err)
+	})
+
 	s.T().Run("deletes a referenced manifest config blob", func(t *testing.T) {
 		repo := s.RepositoryConstructor(t)
 		configDigest, manifestDigest := RandomDigest(), RandomDigest()
