@@ -6,14 +6,14 @@ import (
 	"math/rand/v2"
 )
 
+// NewFakeProposer returns a Proposer that handles proposals without actually
+// submitting them to a cluster.
 func NewFakeProposer() Proposer {
 	return &fakeProposer{
 		handlerFuncs: make(map[Operation]HandlerFunc),
 	}
 }
 
-// fakeProposer implements the Proposer interface without actually
-// making proposals to a  Great for testing.
 type fakeProposer struct {
 	handlerFuncs map[Operation]HandlerFunc
 }
