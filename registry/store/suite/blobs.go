@@ -86,12 +86,18 @@ func (s *BlobSuite) TestUploads() {
 		w, err := blobs.UploadWriter(sessionID)
 		AssertNoError(t, err)
 
-		// TODO: This calls Write() only once with the entire blob.
-		// Should find out how to make it call in 32kB chunks for a more effective test.
+		var written int64
+		var chunkSize int64 = 32 << 10
 		r := bytes.NewBuffer(content)
-		n, err := io.Copy(w, r)
-		AssertNoError(t, err)
-		AssertEqual(t, n, int64(len(content)))
+		for {
+			n, err := io.CopyN(w, r, chunkSize)
+			written += n
+			if err == io.EOF {
+				break
+			}
+			AssertNoError(t, err).Require()
+		}
+		AssertEqual(t, written, int64(len(content)))
 
 		err = blobs.CloseUpload(sessionID, id)
 		AssertNoError(t, err)

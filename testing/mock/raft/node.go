@@ -235,8 +235,8 @@ func (_c *Node_Bootstrap_Call) RunAndReturn(run func(peers ...cluster.Peer)) *No
 }
 
 // Handle provides a mock function for the type Node
-func (_mock *Node) Handle(t cluster.Operation, f cluster.HandlerFunc) {
-	_mock.Called(t, f)
+func (_mock *Node) Handle(p cluster.Proposal, f cluster.HandlerFunc) {
+	_mock.Called(p, f)
 	return
 }
 
@@ -246,17 +246,17 @@ type Node_Handle_Call struct {
 }
 
 // Handle is a helper method to define mock.On call
-//   - t cluster.ProposalType
+//   - p cluster.Proposal
 //   - f cluster.HandlerFunc
-func (_e *Node_Expecter) Handle(t interface{}, f interface{}) *Node_Handle_Call {
-	return &Node_Handle_Call{Call: _e.mock.On("Handle", t, f)}
+func (_e *Node_Expecter) Handle(p interface{}, f interface{}) *Node_Handle_Call {
+	return &Node_Handle_Call{Call: _e.mock.On("Handle", p, f)}
 }
 
-func (_c *Node_Handle_Call) Run(run func(t cluster.Operation, f cluster.HandlerFunc)) *Node_Handle_Call {
+func (_c *Node_Handle_Call) Run(run func(p cluster.Proposal, f cluster.HandlerFunc)) *Node_Handle_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		var arg0 cluster.Operation
+		var arg0 cluster.Proposal
 		if args[0] != nil {
-			arg0 = args[0].(cluster.Operation)
+			arg0 = args[0].(cluster.Proposal)
 		}
 		var arg1 cluster.HandlerFunc
 		if args[1] != nil {
@@ -275,7 +275,7 @@ func (_c *Node_Handle_Call) Return() *Node_Handle_Call {
 	return _c
 }
 
-func (_c *Node_Handle_Call) RunAndReturn(run func(t cluster.Operation, f cluster.HandlerFunc)) *Node_Handle_Call {
+func (_c *Node_Handle_Call) RunAndReturn(run func(p cluster.Proposal, f cluster.HandlerFunc)) *Node_Handle_Call {
 	_c.Run(run)
 	return _c
 }
@@ -369,18 +369,20 @@ func (_c *Node_NodeID_Call) RunAndReturn(run func() uint64) *Node_NodeID_Call {
 }
 
 // Propose provides a mock function for the type Node
-func (_mock *Node) Propose(req cluster.Request) cluster.Response {
-	ret := _mock.Called(req)
+func (_mock *Node) Propose(p cluster.Proposal) cluster.Response {
+	ret := _mock.Called(p)
 
 	if len(ret) == 0 {
 		panic("no return value specified for Propose")
 	}
 
 	var r0 cluster.Response
-	if returnFunc, ok := ret.Get(0).(func(cluster.Request) cluster.Response); ok {
-		r0 = returnFunc(req)
+	if returnFunc, ok := ret.Get(0).(func(cluster.Proposal) cluster.Response); ok {
+		r0 = returnFunc(p)
 	} else {
-		r0 = ret.Get(0).(cluster.Response)
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(cluster.Response)
+		}
 	}
 	return r0
 }
@@ -391,16 +393,16 @@ type Node_Propose_Call struct {
 }
 
 // Propose is a helper method to define mock.On call
-//   - req cluster.Request
-func (_e *Node_Expecter) Propose(req interface{}) *Node_Propose_Call {
-	return &Node_Propose_Call{Call: _e.mock.On("Propose", req)}
+//   - p cluster.Proposal
+func (_e *Node_Expecter) Propose(p interface{}) *Node_Propose_Call {
+	return &Node_Propose_Call{Call: _e.mock.On("Propose", p)}
 }
 
-func (_c *Node_Propose_Call) Run(run func(req cluster.Request)) *Node_Propose_Call {
+func (_c *Node_Propose_Call) Run(run func(p cluster.Proposal)) *Node_Propose_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		var arg0 cluster.Request
+		var arg0 cluster.Proposal
 		if args[0] != nil {
-			arg0 = args[0].(cluster.Request)
+			arg0 = args[0].(cluster.Proposal)
 		}
 		run(
 			arg0,
@@ -414,7 +416,7 @@ func (_c *Node_Propose_Call) Return(response cluster.Response) *Node_Propose_Cal
 	return _c
 }
 
-func (_c *Node_Propose_Call) RunAndReturn(run func(req cluster.Request) cluster.Response) *Node_Propose_Call {
+func (_c *Node_Propose_Call) RunAndReturn(run func(p cluster.Proposal) cluster.Response) *Node_Propose_Call {
 	_c.Call.Return(run)
 	return _c
 }

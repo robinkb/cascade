@@ -2,8 +2,6 @@ package cluster
 
 import (
 	"bytes"
-	"encoding/binary"
-	"encoding/json"
 	"io"
 
 	"github.com/gofrs/uuid/v5"
@@ -13,27 +11,18 @@ import (
 	"github.com/robinkb/cascade/registry/store"
 )
 
-const (
-	opPutBlob      = "B_PUT_BLOB"
-	opDeleteBlob   = "B_DELETE_BLOB"
-	opInitUpload   = "B_INIT_UPLOAD"
-	opAppendUpload = "B_APPEND_UPLOAD"
-	opCloseUpload  = "B_CLOSE_UPLOAD"
-	opDeleteUpload = "B_DELETE_UPLOAD"
-)
-
 func NewBlobStore(proposer cluster.Proposer, blobs store.Blobs) store.Blobs {
 	s := &blobStore{
 		Blobs:    blobs,
 		proposer: proposer,
 	}
 
-	proposer.Handle(opPutBlob, s.putBlob)
-	proposer.Handle(opDeleteBlob, s.deleteBlob)
-	proposer.Handle(opInitUpload, s.initUpload)
-	proposer.Handle(opAppendUpload, s.appendUpload)
-	proposer.Handle(opCloseUpload, s.closeUpload)
-	proposer.Handle(opDeleteUpload, s.deleteUpload)
+	proposer.Handle(&pPutBlob{}, s.putBlob)
+	proposer.Handle(&pDeleteBlob{}, s.deleteBlob)
+	proposer.Handle(&pInitUpload{}, s.initUpload)
+	proposer.Handle(&pAppendUpload{}, s.appendUpload)
+	proposer.Handle(&pCloseUpload{}, s.closeUpload)
+	proposer.Handle(&pDeleteUpload{}, s.deleteUpload)
 
 	return s
 }
@@ -43,119 +32,77 @@ type blobStore struct {
 	proposer cluster.Proposer
 }
 
-type putBlobRequest struct {
+type pPutBlob struct {
+	cluster.ProposalBase
 	ID      digest.Digest
 	Content []byte
 }
 
 func (s *blobStore) PutBlob(id digest.Digest, content []byte) error {
-	req := &putBlobRequest{
+	p := &pPutBlob{
 		ID:      id,
 		Content: content,
 	}
-	data, err := json.Marshal(&req)
-	if err != nil {
-		return err
-	}
-
-	resp := s.proposer.Propose(cluster.Request{
-		Op:   opPutBlob,
-		Data: data,
-	})
-
-	return resp.Err
+	return s.proposer.Propose(p)
 }
 
-func (s *blobStore) putBlob(req cluster.Request) (resp cluster.Response) {
-	var putBlobRequest putBlobRequest
-	err := json.Unmarshal(req.Data, &putBlobRequest)
-	if err != nil {
-		resp.Err = err
-		return
-	}
-
-	resp.Err = s.Blobs.PutBlob(putBlobRequest.ID, putBlobRequest.Content)
-	return
+func (s *blobStore) putBlob(p cluster.Proposal) cluster.Response {
+	v := p.(*pPutBlob)
+	return s.Blobs.PutBlob(v.ID, v.Content)
 }
 
-type deleteBlobRequest struct {
+type pDeleteBlob struct {
+	cluster.ProposalBase
 	ID digest.Digest
 }
 
 func (s *blobStore) DeleteBlob(id digest.Digest) error {
-	req := &deleteBlobRequest{
+	p := &pDeleteBlob{
 		ID: id,
 	}
-	data, err := json.Marshal(&req)
-	if err != nil {
-		return err
-	}
-
-	resp := s.proposer.Propose(cluster.Request{
-		Op:   opDeleteBlob,
-		Data: data,
-	})
-
-	return resp.Err
+	return s.proposer.Propose(p)
 }
 
-func (s *blobStore) deleteBlob(req cluster.Request) (resp cluster.Response) {
-	var deleteBlobRequest deleteBlobRequest
-	err := json.Unmarshal(req.Data, &deleteBlobRequest)
-	if err != nil {
-		resp.Err = err
-		return
-	}
-
-	resp.Err = s.Blobs.DeleteBlob(deleteBlobRequest.ID)
-	return
+func (s *blobStore) deleteBlob(p cluster.Proposal) cluster.Response {
+	v := p.(*pDeleteBlob)
+	return s.Blobs.DeleteBlob(v.ID)
 }
 
-type initUploadRequest struct {
+type pInitUpload struct {
+	cluster.ProposalBase
 	SessionID uuid.UUID
 }
 
 func (s *blobStore) InitUpload(id uuid.UUID) error {
-	req := initUploadRequest{
+	p := &pInitUpload{
 		SessionID: id,
 	}
-	data, err := json.Marshal(&req)
-	if err != nil {
-		return err
-	}
-
-	resp := s.proposer.Propose(cluster.Request{
-		Op:   opInitUpload,
-		Data: data,
-	})
-
-	return resp.Err
+	return s.proposer.Propose(p)
 }
 
-func (s *blobStore) initUpload(req cluster.Request) (resp cluster.Response) {
-	var initUploadRequest initUploadRequest
-	err := json.Unmarshal(req.Data, &initUploadRequest)
-	if err != nil {
-		resp.Err = err
-		return
-	}
-
-	resp.Err = s.Blobs.InitUpload(initUploadRequest.SessionID)
-	return
+func (s *blobStore) initUpload(p cluster.Proposal) cluster.Response {
+	v := p.(*pInitUpload)
+	return s.Blobs.InitUpload(v.SessionID)
 }
 
 func (s *blobStore) UploadWriter(id uuid.UUID) (io.WriteCloser, error) {
-	return &writer{
-		buf:       new(bytes.Buffer),
-		proposer:  s.proposer,
-		sessionId: id,
-	}, nil
+	return newWriter(s.proposer, id), nil
 }
 
 const (
 	// TODO: Make this configurable?
 	writeBufferSize = 1 << 20
 )
+
+func newWriter(proposer cluster.Proposer, sessionId uuid.UUID) *writer {
+	w := &writer{
+		proposer:  proposer,
+		sessionId: sessionId,
+		buf:       new(bytes.Buffer),
+	}
+
+	return w
+}
 
 type writer struct {
 	proposer  cluster.Proposer
@@ -174,31 +121,25 @@ func (w *writer) Write(p []byte) (n int, err error) {
 	return w.buf.Write(p)
 }
 
-type appendUploadRequest struct {
+type pAppendUpload struct {
+	cluster.ProposalBase
 	SessionID uuid.UUID
 	Chunk     []byte
 }
 
+type rAppendUpload struct {
+	cluster.ResponseBase
+	N int
+}
+
 func (w *writer) flush() (n int, err error) {
 	defer w.buf.Reset()
-
-	req := &appendUploadRequest{
+	p := &pAppendUpload{
 		SessionID: w.sessionId,
 		Chunk:     w.buf.Bytes(),
 	}
-	data, err := json.Marshal(req)
-	if err != nil {
-		return 0, err
-	}
-
-	resp := w.proposer.Propose(cluster.Request{
-		Op:   opAppendUpload,
-		Data: data,
-	})
-
-	n = int(binary.LittleEndian.Uint64(resp.Data))
-	err = resp.Err
-	return
+	r := w.proposer.Propose(p).(*rAppendUpload)
+	return r.N, r.Err
 }
 
 func (w *writer) Close() error {
@@ -206,92 +147,53 @@ func (w *writer) Close() error {
 	return err
 }
 
-func (s *blobStore) appendUpload(req cluster.Request) (resp cluster.Response) {
-	var appendUploadRequest appendUploadRequest
-	err := json.Unmarshal(req.Data, &appendUploadRequest)
+func (s *blobStore) appendUpload(p cluster.Proposal) cluster.Response {
+	v := p.(*pAppendUpload)
+	w, err := s.Blobs.UploadWriter(v.SessionID)
 	if err != nil {
-		resp.Err = err
-		return
+		return err
 	}
 
-	w, err := s.Blobs.UploadWriter(appendUploadRequest.SessionID)
-	if err != nil {
-		resp.Err = err
-		return
-	}
-
-	buf := bytes.NewBuffer(appendUploadRequest.Chunk)
+	buf := bytes.NewBuffer(v.Chunk)
 	n, err := io.Copy(w, buf)
-	resp.Data = make([]byte, 8)
-	binary.LittleEndian.PutUint64(resp.Data, uint64(n))
-	resp.Err = err
-	return
+	r := new(rAppendUpload)
+	r.N = int(n)
+	r.Err = err
+	return r
 }
 
-type closeUploadRequest struct {
+type pCloseUpload struct {
+	cluster.ProposalBase
 	SessionID uuid.UUID
 	Digest    digest.Digest
 }
 
 func (s *blobStore) CloseUpload(id uuid.UUID, digest digest.Digest) error {
-	req := &closeUploadRequest{
+	p := &pCloseUpload{
 		SessionID: id,
 		Digest:    digest,
 	}
-	data, err := json.Marshal(&req)
-	if err != nil {
-		return err
-	}
-
-	resp := s.proposer.Propose(cluster.Request{
-		Op:   opCloseUpload,
-		Data: data,
-	})
-
-	return resp.Err
+	return s.proposer.Propose(p)
 }
 
-func (s *blobStore) closeUpload(req cluster.Request) (resp cluster.Response) {
-	var closeUploadRequest closeUploadRequest
-	err := json.Unmarshal(req.Data, &closeUploadRequest)
-	if err != nil {
-		resp.Err = err
-		return
-	}
-
-	resp.Err = s.Blobs.CloseUpload(closeUploadRequest.SessionID, closeUploadRequest.Digest)
-	return
+func (s *blobStore) closeUpload(p cluster.Proposal) cluster.Response {
+	v := p.(*pCloseUpload)
+	return s.Blobs.CloseUpload(v.SessionID, v.Digest)
 }
 
-type deleteUploadRequest struct {
+type pDeleteUpload struct {
+	cluster.ProposalBase
 	SessionID uuid.UUID
 }
 
 func (s *blobStore) DeleteUpload(id uuid.UUID) error {
-	req := deleteUploadRequest{
+	p := &pDeleteUpload{
 		SessionID: id,
 	}
-	data, err := json.Marshal(&req)
-	if err != nil {
-		return err
-	}
-
-	resp := s.proposer.Propose(cluster.Request{
-		Op:   opDeleteUpload,
-		Data: data,
-	})
-
-	return resp.Err
+	return s.proposer.Propose(p)
 }
 
-func (s *blobStore) deleteUpload(req cluster.Request) (resp cluster.Response) {
-	var deleteUploadRequest deleteUploadRequest
-	err := json.Unmarshal(req.Data, &deleteUploadRequest)
-	if err != nil {
-		resp.Err = err
-		return
-	}
-
-	resp.Err = s.Blobs.DeleteUpload(deleteUploadRequest.SessionID)
-	return
+func (s *blobStore) deleteUpload(p cluster.Proposal) cluster.Response {
+	v := p.(*pDeleteUpload)
+	return s.Blobs.DeleteUpload(v.SessionID)
 }
