@@ -188,7 +188,6 @@ func (s *MetadataSuite) TestListRepositories() {
 			}
 
 			got, err := meta.ListRepositories(tt.count, tt.last)
-			t.Logf("%#v", got)
 			AssertErrorIs(t, err, tt.err)
 			AssertSlicesEqual(t, got, tt.want)
 		})
