@@ -1,7 +1,6 @@
 package testing
 
 import (
-	crand "crypto/rand"
 	"encoding/json"
 	"fmt"
 	"math/rand/v2"
@@ -40,8 +39,6 @@ func RandomNames(n int) []string {
 
 func RandomBytes(length int64) []byte {
 	data := make([]byte, length)
-	// nolint: errcheck
-	crand.Read(data)
 	return data
 }
 
