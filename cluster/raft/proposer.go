@@ -43,13 +43,13 @@ func (p *proposer) Propose(prop cluster.Proposal) cluster.Response {
 	ctx, cancel := context.WithTimeout(ctx, time.Second)
 	defer cancel()
 
+	resultC := p.results.create(prop.ProposalID())
+	defer p.results.delete(prop.ProposalID())
+
 	var buf bytes.Buffer
 	if err := gob.NewEncoder(&buf).Encode(&prop); err != nil {
 		log.Panicf("failed to encode proposal: %s\n", err)
 	}
-
-	resultC := p.results.create(prop.ProposalID())
-	defer p.results.delete(prop.ProposalID())
 
 	err := p.raft.Propose(ctx, buf.Bytes())
 	if err != nil {
@@ -58,7 +58,7 @@ func (p *proposer) Propose(prop cluster.Proposal) cluster.Response {
 
 	select {
 	case <-ctx.Done():
-		return ctx.Err()
+		return fmt.Errorf("failed to submit proposal: %w", ctx.Err())
 	case result := <-resultC:
 		return result
 	}
