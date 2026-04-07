@@ -30,8 +30,9 @@ jobs:
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          # type=raw,value=latest,enable={{is_default_branch}}
           tags: |
-            type=raw,value=latest,enable={{is_default_branch}}
+            type=raw,value=latest
             type=ref,event=tag,prefix=
       - name: Build and push container
         id: build-and-push
