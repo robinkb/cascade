@@ -13,7 +13,5 @@ RUN --mount=type=cache,target=/root/.cache/go-build \
 
 FROM scratch
 WORKDIR /app
-
 COPY --from=builder /app/cascade-registry .
-
 ENTRYPOINT ["./cascade-registry"]
