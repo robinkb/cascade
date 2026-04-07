@@ -23,6 +23,12 @@ import (
 	clusterstore "github.com/robinkb/cascade/registry/store/driver/cluster"
 	"github.com/robinkb/cascade/registry/store/driver/fs"
 	"github.com/robinkb/cascade/server"
+
+	// Embed tzdata to run from scratch.
+	_ "time/tzdata"
+
+	// Embed CA certificates to run from scratch.
+	_ "golang.org/x/crypto/x509roots/fallback"
 )
 
 var (
