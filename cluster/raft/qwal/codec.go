@@ -29,7 +29,7 @@ func (r *record) size() int64 {
 	return int64(RecordHeaderLength + len(r.Value))
 }
 
-// newEncoder returns an Encoder that writes encoded Records to the io.Writer.
+// newEncoder returns an Encoder that writes encoded Records to the [io.WriteSeeker].
 func newEncoder(w io.WriteSeeker) *encoder {
 	return &encoder{
 		dst: w,
@@ -67,12 +67,12 @@ func (e *encoder) Encode(r *record) (int64, error) {
 	return int64(n), err
 }
 
-// Seek wraps the io.Seek method of the Encoder's backing io.WriteSeeker.
+// Seek wraps the [io.Seek] method of the Encoder's backing [io.WriteSeeker].
 func (e *encoder) Seek(offset int64, whence int) (int64, error) {
 	return e.dst.Seek(offset, whence)
 }
 
-// newDecoder returns a Decoder that reads decoded Records from the io.ReaderAt.
+// newDecoder returns a Decoder that reads decoded Records from the [io.ReaderAt].
 func newDecoder(r io.ReaderAt) *decoder {
 	return &decoder{
 		src: r,
@@ -86,7 +86,7 @@ type decoder struct {
 	buf *bytes.Buffer
 }
 
-// RecordAt is a wrapper around an io.ReaderAt for decoding Records.
+// RecordAt is a wrapper around an [io.ReaderAt] for decoding Records.
 // It returns the amount of bytes read and an error, if any.
 func (d *decoder) RecordAt(r *record, off int64) (int64, error) {
 	d.buf.Reset()
@@ -141,8 +141,8 @@ func (d *decoder) RecordAt(r *record, off int64) (int64, error) {
 	return read, nil
 }
 
-// ValueAt is a wrapper around an io.ReaderAt for reading Record values.
-// Its behavior is the same as io.ReaderAt.
+// ValueAt is a wrapper around an [io.ReaderAt] for reading Record values.
+// Its behavior is the same as [io.ReaderAt].
 func (d *decoder) ValueAt(p []byte, off int64) (int, error) {
 	return d.src.ReadAt(p, off)
 }

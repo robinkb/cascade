@@ -317,7 +317,7 @@ func (d *db) compact() error {
 		return err
 	}
 
-	if err := os.Remove(log.File.Name()); err != nil {
+	if err := os.Remove(log.Writer.Name()); err != nil {
 		return err
 	}
 

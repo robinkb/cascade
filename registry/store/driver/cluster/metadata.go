@@ -1,25 +1,10 @@
 package cluster
 
 import (
-	"encoding/json"
-
 	"github.com/gofrs/uuid/v5"
 	"github.com/opencontainers/go-digest"
 	"github.com/robinkb/cascade/cluster"
 	"github.com/robinkb/cascade/registry/store"
-)
-
-const (
-	opCreateRepository    = "M_CREATE_REPOSITORY"
-	opDeleteRepository    = "M_DELETE_REPOSITORY"
-	opPutBlobMeta         = "M_PUT_BLOB"
-	opDeleteBlobMeta      = "M_DELETE_BLOB"
-	opPutManifest         = "M_PUT_MANIFEST"
-	opDeleteManifest      = "M_DELETE_MANIFEST"
-	opPutTag              = "M_PUT_TAG"
-	opDeleteTag           = "M_DELETE_TAG"
-	opPutUploadSession    = "M_PUT_UPLOAD"
-	opDeleteUploadSession = "M_DELETE_UPLOAD"
 )
 
 func NewMetadataStore(proposer cluster.Proposer, meta store.Metadata) store.Metadata {
@@ -28,16 +13,16 @@ func NewMetadataStore(proposer cluster.Proposer, meta store.Metadata) store.Meta
 		proposer: proposer,
 	}
 
-	proposer.Handle(opCreateRepository, s.createRepository)
-	proposer.Handle(opDeleteRepository, s.deleteRepository)
-	proposer.Handle(opPutBlobMeta, s.putBlob)
-	proposer.Handle(opDeleteBlobMeta, s.deleteBlob)
-	proposer.Handle(opPutManifest, s.putManifest)
-	proposer.Handle(opDeleteManifest, s.deleteManifest)
-	proposer.Handle(opPutTag, s.putTag)
-	proposer.Handle(opDeleteTag, s.deleteTag)
-	proposer.Handle(opPutUploadSession, s.putUploadSession)
-	proposer.Handle(opDeleteUploadSession, s.deleteUploadSession)
+	proposer.Handle(&pCreateRepository{}, s.createRepository)
+	proposer.Handle(&pDeleteRepository{}, s.deleteRepository)
+	proposer.Handle(&pPutBlobMeta{}, s.putBlob)
+	proposer.Handle(&pDeleteBlobMeta{}, s.deleteBlob)
+	proposer.Handle(&pPutManifest{}, s.putManifest)
+	proposer.Handle(&pDeleteManifest{}, s.deleteManifest)
+	proposer.Handle(&pPutTag{}, s.putTag)
+	proposer.Handle(&pDeleteTag{}, s.deleteTag)
+	proposer.Handle(&pPutUploadSession{}, s.putUploadSession)
+	proposer.Handle(&pDeleteUploadSession{}, s.deleteUploadSession)
 
 	return s
 }
@@ -47,25 +32,27 @@ type metadataStore struct {
 	proposer cluster.Proposer
 }
 
+type pCreateRepository struct {
+	cluster.ProposalBase
+	Name string
+}
+
 func (m *metadataStore) CreateRepository(name string) (store.Repository, error) {
-	resp := m.proposer.Propose(cluster.Request{
-		Op:   opCreateRepository,
-		Data: []byte(name),
-	})
-	if resp.Err != nil {
-		return nil, resp.Err
+	p := &pCreateRepository{
+		Name: name,
+	}
+	resp := m.proposer.Propose(p)
+	if resp != nil {
+		return nil, resp
 	}
 
 	return m.GetRepository(name)
 }
 
-func (m *metadataStore) createRepository(req cluster.Request) cluster.Response {
-	name := string(req.Data)
-
-	_, err := m.Metadata.CreateRepository(name)
-	return cluster.Response{
-		Err: err,
-	}
+func (m *metadataStore) createRepository(p cluster.Proposal) cluster.Response {
+	v := p.(*pCreateRepository)
+	_, err := m.Metadata.CreateRepository(v.Name)
+	return err
 }
 
 func (m *metadataStore) GetRepository(name string) (store.Repository, error) {
@@ -73,25 +60,24 @@ func (m *metadataStore) GetRepository(name string) (store.Repository, error) {
 	if err != nil {
 		return nil, err
 	}
-
 	return newRepository(repo, name, m.proposer)
 }
 
-func (m *metadataStore) DeleteRepository(name string) error {
-	resp := m.proposer.Propose(cluster.Request{
-		Op:   opDeleteRepository,
-		Data: []byte(name),
-	})
-	return resp.Err
+type pDeleteRepository struct {
+	cluster.ProposalBase
+	Name string
 }
 
-func (m *metadataStore) deleteRepository(req cluster.Request) cluster.Response {
-	name := string(req.Data)
-
-	err := m.Metadata.DeleteRepository(name)
-	return cluster.Response{
-		Err: err,
+func (m *metadataStore) DeleteRepository(name string) error {
+	p := &pDeleteRepository{
+		Name: name,
 	}
+	return m.proposer.Propose(p)
+}
+
+func (m *metadataStore) deleteRepository(p cluster.Proposal) cluster.Response {
+	v := p.(*pDeleteRepository)
+	return m.Metadata.DeleteRepository(v.Name)
 }
 
 func newRepository(repo store.Repository, name string, proposer cluster.Proposer) (store.Repository, error) {
@@ -108,358 +94,216 @@ type repositoryStore struct {
 	name     string
 }
 
-type putBlobRequestParams struct {
+type pPutBlobMeta struct {
+	cluster.ProposalBase
 	Name string
 	ID   digest.Digest
 }
 
-func (r *repositoryStore) PutBlob(id digest.Digest) error {
-	req := &putBlobRequestParams{
-		Name: r.name,
+func (s *repositoryStore) PutBlob(id digest.Digest) error {
+	p := &pPutBlobMeta{
+		Name: s.name,
 		ID:   id,
 	}
-	data, err := json.Marshal(&req)
+	return s.proposer.Propose(p)
+}
+
+func (m *metadataStore) putBlob(p cluster.Proposal) cluster.Response {
+	v := p.(*pPutBlobMeta)
+	repo, err := m.Metadata.GetRepository(v.Name)
 	if err != nil {
 		return err
 	}
-
-	resp := r.proposer.Propose(cluster.Request{
-		Op:   opPutBlobMeta,
-		Data: data,
-	})
-
-	return resp.Err
+	return repo.PutBlob(v.ID)
 }
 
-func (m *metadataStore) putBlob(req cluster.Request) (resp cluster.Response) {
-	var p putBlobRequestParams
-	err := json.Unmarshal(req.Data, &p)
-	if err != nil {
-		resp.Err = err
-		return
-	}
-
-	repo, err := m.Metadata.GetRepository(p.Name)
-	if err != nil {
-		resp.Err = err
-		return
-	}
-
-	resp.Err = repo.PutBlob(p.ID)
-	return
-}
-
-type deleteBlobMetaParams struct {
+type pDeleteBlobMeta struct {
+	cluster.ProposalBase
 	Name string
 	ID   digest.Digest
 }
 
-func (r *repositoryStore) DeleteBlob(id digest.Digest) error {
-	req := &deleteBlobMetaParams{
-		Name: r.name,
+func (s *repositoryStore) DeleteBlob(id digest.Digest) error {
+	p := &pDeleteBlobMeta{
+		Name: s.name,
 		ID:   id,
 	}
-	data, err := json.Marshal(&req)
+	return s.proposer.Propose(p)
+}
+
+func (m *metadataStore) deleteBlob(p cluster.Proposal) cluster.Response {
+	v := p.(*pDeleteBlobMeta)
+	repo, err := m.Metadata.GetRepository(v.Name)
 	if err != nil {
 		return err
 	}
-
-	resp := r.proposer.Propose(cluster.Request{
-		Op:   opDeleteBlobMeta,
-		Data: data,
-	})
-
-	return resp.Err
+	return repo.DeleteBlob(v.ID)
 }
 
-func (m *metadataStore) deleteBlob(req cluster.Request) (resp cluster.Response) {
-	var p deleteBlobMetaParams
-	err := json.Unmarshal(req.Data, &p)
-	if err != nil {
-		resp.Err = err
-		return
-	}
-
-	repo, err := m.Metadata.GetRepository(p.Name)
-	if err != nil {
-		resp.Err = err
-		return
-	}
-
-	resp.Err = repo.DeleteBlob(p.ID)
-	return
-}
-
-type putManifestMetaParams struct {
+type pPutManifest struct {
+	cluster.ProposalBase
 	Name string
 	ID   digest.Digest
 	Meta store.Manifest
 	Refs store.References
 }
 
-func (r *repositoryStore) PutManifest(id digest.Digest, meta store.Manifest, refs store.References) error {
-	req := &putManifestMetaParams{
-		Name: r.name,
+func (s *repositoryStore) PutManifest(id digest.Digest, meta store.Manifest, refs store.References) error {
+	p := &pPutManifest{
+		Name: s.name,
 		ID:   id,
 		Meta: meta,
 		Refs: refs,
 	}
-	data, err := json.Marshal(&req)
+	return s.proposer.Propose(p)
+}
+
+func (m *metadataStore) putManifest(p cluster.Proposal) cluster.Response {
+	v := p.(*pPutManifest)
+	repo, err := m.Metadata.GetRepository(v.Name)
 	if err != nil {
 		return err
 	}
 
-	resp := r.proposer.Propose(cluster.Request{
-		Op:   opPutManifest,
-		Data: data,
-	})
-
-	return resp.Err
+	return repo.PutManifest(v.ID, v.Meta, v.Refs)
 }
 
-func (m *metadataStore) putManifest(req cluster.Request) (resp cluster.Response) {
-	var p putManifestMetaParams
-	err := json.Unmarshal(req.Data, &p)
-	if err != nil {
-		resp.Err = err
-		return
-	}
-
-	repo, err := m.Metadata.GetRepository(p.Name)
-	if err != nil {
-		resp.Err = err
-		return
-	}
-
-	resp.Err = repo.PutManifest(p.ID, p.Meta, p.Refs)
-	return
-}
-
-type deleteManifestMetaParams struct {
+type pDeleteManifest struct {
+	cluster.ProposalBase
 	Name string
 	ID   digest.Digest
 }
 
-func (r *repositoryStore) DeleteManifest(id digest.Digest) ([]digest.Digest, error) {
-	p := &deleteManifestMetaParams{
-		Name: r.name,
+type rDeleteManifest struct {
+	cluster.ResponseBase
+	IDs []digest.Digest
+}
+
+func (s *repositoryStore) DeleteManifest(id digest.Digest) ([]digest.Digest, error) {
+	p := &pDeleteManifest{
+		Name: s.name,
 		ID:   id,
 	}
-	data, err := json.Marshal(&p)
-	if err != nil {
-		return nil, err
-	}
-
-	resp := r.proposer.Propose(cluster.Request{
-		Op:   opDeleteManifest,
-		Data: data,
-	})
-	if resp.Err != nil {
-		return nil, resp.Err
-	}
-
-	digests := make([]digest.Digest, 0)
-	err = json.Unmarshal(resp.Data, &digests)
-	return digests, err
+	r := s.proposer.Propose(p).(*rDeleteManifest)
+	return r.IDs, r.Err
 }
 
-func (m *metadataStore) deleteManifest(req cluster.Request) (resp cluster.Response) {
-	var p deleteManifestMetaParams
-	err := json.Unmarshal(req.Data, &p)
+func (m *metadataStore) deleteManifest(p cluster.Proposal) cluster.Response {
+	v := p.(*pDeleteManifest)
+	repo, err := m.Metadata.GetRepository(v.Name)
 	if err != nil {
-		resp.Err = err
-		return
+		return err
 	}
 
-	repo, err := m.Metadata.GetRepository(p.Name)
-	if err != nil {
-		resp.Err = err
-		return
-	}
-
-	digests, err := repo.DeleteManifest(p.ID)
-	if err != nil {
-		resp.Err = err
-		return
-	}
-
-	resp.Data, resp.Err = json.Marshal(digests)
-	return
+	digests, err := repo.DeleteManifest(v.ID)
+	r := new(rDeleteManifest)
+	r.IDs = digests
+	r.Err = err
+	return r
 }
 
-type putTagParams struct {
+type pPutTag struct {
+	cluster.ProposalBase
 	Name   string
 	Tag    string
 	Digest digest.Digest
 }
 
-func (r *repositoryStore) PutTag(tag string, digest digest.Digest) error {
-	req := &putTagParams{
-		Name:   r.name,
+func (s *repositoryStore) PutTag(tag string, digest digest.Digest) error {
+	p := &pPutTag{
+		Name:   s.name,
 		Tag:    tag,
 		Digest: digest,
 	}
-	data, err := json.Marshal(&req)
+	return s.proposer.Propose(p)
+}
+
+func (m *metadataStore) putTag(p cluster.Proposal) cluster.Response {
+	v := p.(*pPutTag)
+	repo, err := m.Metadata.GetRepository(v.Name)
 	if err != nil {
 		return err
 	}
 
-	resp := r.proposer.Propose(cluster.Request{
-		Op:   opPutTag,
-		Data: data,
-	})
-
-	return resp.Err
+	return repo.PutTag(v.Tag, v.Digest)
 }
 
-func (m *metadataStore) putTag(req cluster.Request) (resp cluster.Response) {
-	var p putTagParams
-	err := json.Unmarshal(req.Data, &p)
-	if err != nil {
-		resp.Err = err
-		return
-	}
-
-	repo, err := m.Metadata.GetRepository(p.Name)
-	if err != nil {
-		resp.Err = err
-		return
-	}
-
-	resp.Err = repo.PutTag(p.Tag, p.Digest)
-	return
-}
-
-type deleteTagParams struct {
+type pDeleteTag struct {
+	cluster.ProposalBase
 	Name string
 	Tag  string
 }
 
-func (r *repositoryStore) DeleteTag(tag string) ([]digest.Digest, error) {
-	p := &deleteTagParams{
-		Name: r.name,
+type rDeleteTag struct {
+	cluster.ResponseBase
+	IDs []digest.Digest
+}
+
+func (s *repositoryStore) DeleteTag(tag string) ([]digest.Digest, error) {
+	p := &pDeleteTag{
+		Name: s.name,
 		Tag:  tag,
 	}
-	data, err := json.Marshal(&p)
-	if err != nil {
-		return nil, err
-	}
-
-	resp := r.proposer.Propose(cluster.Request{
-		Op:   opDeleteTag,
-		Data: data,
-	})
-	if resp.Err != nil {
-		return nil, resp.Err
-	}
-
-	digests := make([]digest.Digest, 0)
-	err = json.Unmarshal(resp.Data, &digests)
-	return digests, err
+	r := s.proposer.Propose(p).(*rDeleteTag)
+	return r.IDs, r.Err
 }
 
-func (m *metadataStore) deleteTag(req cluster.Request) (resp cluster.Response) {
-	var p deleteTagParams
-	err := json.Unmarshal(req.Data, &p)
+func (m *metadataStore) deleteTag(p cluster.Proposal) cluster.Response {
+	v := p.(*pDeleteTag)
+	repo, err := m.Metadata.GetRepository(v.Name)
 	if err != nil {
-		resp.Err = err
-		return
+		return err
 	}
 
-	repo, err := m.Metadata.GetRepository(p.Name)
-	if err != nil {
-		resp.Err = err
-		return
-	}
-
-	digests, err := repo.DeleteTag(p.Tag)
-	if err != nil {
-		resp.Err = err
-		return
-	}
-
-	resp.Data, resp.Err = json.Marshal(digests)
-	return
+	digests, err := repo.DeleteTag(v.Tag)
+	r := new(rDeleteTag)
+	r.IDs = digests
+	r.Err = err
+	return r
 }
 
-type putUploadSessionParams struct {
+type pPutUploadSession struct {
+	cluster.ProposalBase
 	Name    string
 	Session *store.UploadSession
 }
 
-func (r *repositoryStore) PutUploadSession(session *store.UploadSession) error {
-	req := &putUploadSessionParams{
-		Name:    r.name,
+func (s *repositoryStore) PutUploadSession(session *store.UploadSession) error {
+	p := &pPutUploadSession{
+		Name:    s.name,
 		Session: session,
 	}
-	data, err := json.Marshal(&req)
+	return s.proposer.Propose(p)
+}
+
+func (m *metadataStore) putUploadSession(p cluster.Proposal) cluster.Response {
+	v := p.(*pPutUploadSession)
+	repo, err := m.Metadata.GetRepository(v.Name)
 	if err != nil {
 		return err
 	}
-
-	resp := r.proposer.Propose(cluster.Request{
-		Op:   opPutUploadSession,
-		Data: data,
-	})
-
-	return resp.Err
+	return repo.PutUploadSession(v.Session)
 }
 
-func (m *metadataStore) putUploadSession(req cluster.Request) (resp cluster.Response) {
-	var p putUploadSessionParams
-	err := json.Unmarshal(req.Data, &p)
-	if err != nil {
-		resp.Err = err
-		return
-	}
-
-	repo, err := m.Metadata.GetRepository(p.Name)
-	if err != nil {
-		resp.Err = err
-		return
-	}
-
-	resp.Err = repo.PutUploadSession(p.Session)
-	return
-}
-
-type deleteUploadSessionParams struct {
+type pDeleteUploadSession struct {
+	cluster.ProposalBase
 	Name      string
 	SessionID uuid.UUID
 }
 
-func (r *repositoryStore) DeleteUploadSession(id uuid.UUID) error {
-	p := &deleteUploadSessionParams{
-		Name:      r.name,
+func (s *repositoryStore) DeleteUploadSession(id uuid.UUID) error {
+	p := &pDeleteUploadSession{
+		Name:      s.name,
 		SessionID: id,
 	}
-	data, err := json.Marshal(&p)
+	return s.proposer.Propose(p)
+}
+
+func (m *metadataStore) deleteUploadSession(p cluster.Proposal) cluster.Response {
+	v := p.(*pDeleteUploadSession)
+	repo, err := m.Metadata.GetRepository(v.Name)
 	if err != nil {
 		return err
 	}
-
-	resp := r.proposer.Propose(cluster.Request{
-		Op:   opDeleteUploadSession,
-		Data: data,
-	})
-
-	return resp.Err
-}
-
-func (m *metadataStore) deleteUploadSession(req cluster.Request) (resp cluster.Response) {
-	var p deleteUploadSessionParams
-	err := json.Unmarshal(req.Data, &p)
-	if err != nil {
-		resp.Err = err
-		return
-	}
-
-	repo, err := m.Metadata.GetRepository(p.Name)
-	if err != nil {
-		resp.Err = err
-		return
-	}
-
-	resp.Err = repo.DeleteUploadSession(p.SessionID)
-	return
+	return repo.DeleteUploadSession(v.SessionID)
 }

@@ -17,6 +17,10 @@ require (
 	golang.org/x/sync v0.20.0
 )
 
+tool (
+	github.com/vektra/mockery/v3
+)
+
 require (
 	github.com/brunoga/deep v1.3.1 // indirect
 	github.com/clipperhouse/uax29/v2 v2.2.0 // indirect
@@ -59,5 +63,3 @@ require (
 	google.golang.org/protobuf v1.36.5 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
-
-tool github.com/vektra/mockery/v3

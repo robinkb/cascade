@@ -77,7 +77,7 @@ func (l *log) Counters() Counters {
 	return l.counters
 }
 
-// I want to get rid of this. It's awkward. Just return it from Append.
+// TODO: Get rid of this. It's awkward. Just return it from Append.
 func (l *log) Pointer() (int64, int64) {
 	return l.pointer + RecordHeaderLength, l.lastValueSize
 }

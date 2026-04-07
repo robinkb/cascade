@@ -9,8 +9,6 @@ import (
 	"slices"
 	"strconv"
 	"syscall"
-
-	"golang.org/x/exp/mmap"
 )
 
 var logNameRe = regexp.MustCompile(`(\d{20}).log`)
@@ -27,16 +25,16 @@ func createLogFile(dir string, id LogID, size int64) (*logFile, error) {
 		return nil, err
 	}
 
-	r, err := mmap.Open(filename)
+	r, err := os.OpenFile(filename, os.O_RDONLY, 0644)
 	if err != nil {
 		return nil, err
 	}
 
 	return &logFile{
-		ID:   id,
-		File: w,
-		Mmap: r,
-		log:  newLog(r, w),
+		ID:     id,
+		Writer: w,
+		Reader: r,
+		log:    newLog(r, w),
 	}, nil
 }
 
@@ -52,16 +50,16 @@ func openLogFile(filename string) (*logFile, error) {
 		return nil, err
 	}
 
-	r, err := mmap.Open(filename)
+	r, err := os.OpenFile(filename, os.O_RDONLY, 0644)
 	if err != nil {
 		return nil, err
 	}
 
 	return &logFile{
-		ID:   LogID(id),
-		File: w,
-		Mmap: r,
-		log:  newLog(r, w),
+		ID:     LogID(id),
+		Writer: w,
+		Reader: r,
+		log:    newLog(r, w),
 	}, nil
 }
 
@@ -93,13 +91,13 @@ func discoverLogFiles(dir string) ([]string, error) {
 // and the handles of the underlying file.
 type logFile struct {
 	*log
-	ID   LogID
-	File *os.File
-	Mmap *mmap.ReaderAt
+	ID     LogID
+	Writer *os.File
+	Reader *os.File
 }
 
 func (l *logFile) Sync() error {
-	return syscall.Fdatasync(int(l.File.Fd()))
+	return syscall.Fdatasync(int(l.Writer.Fd()))
 }
 
 func (l *logFile) Lock() error {
@@ -107,18 +105,18 @@ func (l *logFile) Lock() error {
 		return err
 	}
 
-	if err := os.Truncate(l.File.Name(), l.cursor); err != nil {
+	if err := os.Truncate(l.Writer.Name(), l.cursor); err != nil {
 		return err
 	}
 
-	return l.File.Close()
+	return l.Writer.Close()
 }
 
 func (l *logFile) Close() error {
-	if err := l.File.Close(); err != nil {
+	if err := l.Writer.Close(); err != nil {
 		if !errors.Is(err, os.ErrClosed) {
 			return err
 		}
 	}
-	return l.Mmap.Close()
+	return l.Reader.Close()
 }

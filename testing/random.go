@@ -40,8 +40,7 @@ func RandomNames(n int) []string {
 
 func RandomBytes(length int64) []byte {
 	data := make([]byte, length)
-	// nolint: errcheck
-	crand.Read(data)
+	crand.Read(data) // nolint: staticcheck
 	return data
 }
 
