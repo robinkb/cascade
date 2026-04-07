@@ -3,6 +3,8 @@ name: Container
 on:
   push:
     branches: ["main"]
+  pull_request:
+    branches: ["main"]
 
 env:
   REGISTRY: ghcr.io
