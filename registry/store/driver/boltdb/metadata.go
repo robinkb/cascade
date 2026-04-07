@@ -435,6 +435,11 @@ func (r *repositoryStore) deleteManifest(tx *bolt.Tx, id digest.Digest) ([]diges
 		deleted = append(deleted, digests...)
 	}
 
+	tags := repo.tags()
+	for tag := range manifest.tags() {
+		tags.removeTag(tag)
+	}
+
 	manifests.removeManifest(id)
 
 	blobs.blob(id).removeOwner(id)

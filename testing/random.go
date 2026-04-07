@@ -30,7 +30,7 @@ func RandomName() string {
 	return b.String()
 }
 
-func RandomNames(n int) []string {
+func RandomNameN(n int) []string {
 	names := make([]string, n)
 	for i := range n {
 		names[i] = RandomName()
@@ -136,10 +136,10 @@ func RandomVersion() string {
 	return fmt.Sprintf("v%d.%d.%d", major, minor, patch)
 }
 
-// RandomTags generates a slice filled with random, unique versions.
+// RandomVersionN generates a slice filled with random, unique versions.
 // The returned slice is unsorted, because some tests require random input
 // to ensure that the registry is properly sorting tags internally.
-func RandomTags(count int) (tags []string) {
+func RandomVersionN(count int) (tags []string) {
 	var version string
 	for range count {
 		for {

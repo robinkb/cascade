@@ -160,9 +160,16 @@ func (o manifest) references() (refs store.References) {
 func (o manifest) referrers() iter.Seq[digest.Digest] {
 	return func(yield func(digest.Digest) bool) {
 		must(o.b.Bucket(_REFERRERS).ForEach(func(id, _ []byte) error {
-			if !yield(digest.Digest(id)) {
-				return nil
-			}
+			yield(digest.Digest(id))
+			return nil
+		}))
+	}
+}
+
+func (o manifest) tags() iter.Seq[string] {
+	return func(yield func(string) bool) {
+		must(o.b.Bucket(_TAGS).ForEach(func(tag, _ []byte) error {
+			yield(string(tag))
 			return nil
 		}))
 	}
@@ -193,8 +200,7 @@ func (o manifest) removeTagOwner(tag string) {
 }
 
 func (o manifest) hasOwners() bool {
-	return o.b.Bucket(_MANIFESTS).Inspect().KeyN != 0 ||
-		o.b.Bucket(_TAGS).Inspect().KeyN != 0
+	return o.b.Bucket(_MANIFESTS).Inspect().KeyN != 0
 }
 
 type tags struct {

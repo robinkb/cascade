@@ -11,7 +11,7 @@ import (
 )
 
 func TestListRepositories(t *testing.T) {
-	names := RandomNames(20)
+	names := RandomNameN(20)
 
 	t.Run("Listing tags returns 200", func(t *testing.T) {
 		svc := mock.NewService(t)

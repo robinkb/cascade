@@ -3,6 +3,7 @@ package repository
 import (
 	"errors"
 	"log"
+	"slices"
 	"sync"
 
 	"github.com/opencontainers/go-digest"
@@ -48,6 +49,9 @@ func (s *repositoryService) DeleteTag(tag string) error {
 	if err != nil {
 		return err
 	}
+
+	slices.Sort(deleted)
+	deleted = slices.Compact(deleted)
 
 	var wg sync.WaitGroup
 	for _, id := range deleted {

@@ -12,7 +12,7 @@ import (
 
 func TestListTags(t *testing.T) {
 	name := RandomName()
-	tags := RandomTags(20)
+	tags := RandomVersionN(20)
 
 	t.Run("Listing tags returns 200", func(t *testing.T) {
 		repo := mock.NewService(t)
