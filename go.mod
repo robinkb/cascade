@@ -13,13 +13,12 @@ require (
 	github.com/stretchr/testify v1.11.1
 	go.etcd.io/bbolt v1.4.3
 	go.etcd.io/raft/v3 v3.6.0
+	golang.org/x/crypto/x509roots/fallback v0.0.0-20260323153451-8400f4a93807
 	golang.org/x/exp v0.0.0-20260212183809-81e46e3db34a
 	golang.org/x/sync v0.20.0
 )
 
-tool (
-	github.com/vektra/mockery/v3
-)
+tool github.com/vektra/mockery/v3
 
 require (
 	github.com/brunoga/deep v1.3.1 // indirect
