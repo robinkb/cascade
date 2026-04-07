@@ -979,17 +979,24 @@ func (s *MetadataSuite) TestTags() {
 		AssertErrorIs(t, err, store.ErrManifestNotFound)
 	})
 
-	s.T().Run("deleting tagged manifest returns ErrManifestInUse", func(t *testing.T) {
+	s.T().Run("deleting tagged manifest deletes its tags", func(t *testing.T) {
 		repo := s.RepositoryConstructor(t)
-		digest, tag := RandomDigest(), RandomVersion()
+		digest, tags := RandomDigest(), RandomVersionN(3)
 
 		err := repo.PutManifest(digest, store.Manifest{}, store.References{})
 		AssertNoError(t, err)
-		err = repo.PutTag(tag, digest)
-		AssertNoError(t, err)
+		for _, tag := range tags {
+			err = repo.PutTag(tag, digest)
+			AssertNoError(t, err)
+		}
 
 		_, err = repo.DeleteManifest(digest)
-		AssertErrorIs(t, err, store.ErrManifestInUse)
+		AssertNoError(t, err)
+
+		for _, tag := range tags {
+			_, err = repo.GetTag(tag)
+			AssertErrorIs(t, err, store.ErrTagNotFound)
+		}
 	})
 
 	s.T().Run("deleting unknown tag returns ErrTagNotFound", func(t *testing.T) {

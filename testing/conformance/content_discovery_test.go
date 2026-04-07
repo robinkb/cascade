@@ -23,7 +23,7 @@ func TestContentDiscovery(t *testing.T) {
 	t.Run("Listing Tags", func(t *testing.T) {
 		repository := RandomName()
 		_, _, content := RandomManifest()
-		tags := RandomTags(50)
+		tags := RandomVersionN(50)
 
 		client := testclient.NewForHandler(t, srv)
 		for _, tag := range tags {

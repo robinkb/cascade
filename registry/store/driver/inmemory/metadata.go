@@ -260,7 +260,7 @@ func (r *repositoryStore) DeleteManifest(id digest.Digest) ([]digest.Digest, err
 		return nil, store.ErrManifestNotFound
 	}
 
-	if len(manifest.Manifests) != 0 || len(manifest.Tags) != 0 {
+	if len(manifest.Manifests) != 0 {
 		return nil, fmt.Errorf("%w: %s", store.ErrManifestInUse, id)
 	}
 
@@ -315,6 +315,10 @@ func (r *repositoryStore) DeleteManifest(id digest.Digest) ([]digest.Digest, err
 			return deleted, err
 		}
 		deleted = append(deleted, digests...)
+	}
+
+	for tag := range manifest.Tags {
+		delete(r.repo.Tags, tag)
 	}
 
 	delete(r.repo.Manifests, id)

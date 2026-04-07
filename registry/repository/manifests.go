@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"log"
+	"slices"
 	"sync"
 
 	"github.com/opencontainers/go-digest"
@@ -157,15 +158,13 @@ func (s *repositoryService) DeleteManifest(id string) error {
 		return ErrManifestUnknown
 	}
 
-	_, err = s.repo.GetManifest(digest)
-	if err != nil {
-		return ErrManifestUnknown
-	}
-
 	deleted, err := s.repo.DeleteManifest(digest)
 	if err != nil {
 		return err
 	}
+
+	slices.Sort(deleted)
+	deleted = slices.Compact(deleted)
 
 	var wg sync.WaitGroup
 	for _, id := range deleted {

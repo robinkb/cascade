@@ -107,9 +107,6 @@ func TestDeleteManifest(t *testing.T) {
 
 		repo := mockstore.NewRepository(t)
 		repo.EXPECT().
-			GetManifest(manifest.Digest).
-			Return(store.Manifest{}, nil)
-		repo.EXPECT().
 			DeleteManifest(manifest.Digest).
 			Return(manifest.LayersAsDigests(), nil)
 
@@ -123,6 +120,38 @@ func TestDeleteManifest(t *testing.T) {
 		svc := New(blobs, repo)
 		err := svc.DeleteManifest(manifest.Digest.String())
 		AssertNoError(t, err)
+	})
+
+	t.Run("deduplicates deleted blobs before deletion", func(t *testing.T) {
+		layerDigest := RandomDigest()
+		digests := []digest.Digest{layerDigest, layerDigest, layerDigest}
+		manifestDigest := RandomDigest()
+
+		repo := mockstore.NewRepository(t)
+		repo.EXPECT().
+			DeleteManifest(manifestDigest).
+			Return(digests, nil)
+
+		blobs := mockstore.NewBlobs(t)
+		blobs.EXPECT().
+			DeleteBlob(layerDigest).
+			Return(nil).Once()
+
+		svc := New(blobs, repo)
+		err := svc.DeleteManifest(manifestDigest.String())
+		AssertNoError(t, err)
+	})
+
+	t.Run("deleting unknown manifest returns ErrManifestUnknown", func(t *testing.T) {
+		id := RandomDigest()
+		repo := mockstore.NewRepository(t)
+		repo.EXPECT().
+			DeleteManifest(id).
+			Return(nil, ErrManifestUnknown)
+
+		svc := New(nil, repo)
+		err := svc.DeleteManifest(id.String())
+		AssertErrorIs(t, err, ErrManifestUnknown)
 	})
 }
 
