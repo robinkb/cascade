@@ -5,8 +5,8 @@ import (
 	"testing"
 
 	"github.com/robinkb/cascade/registry/store"
-	. "github.com/robinkb/cascade/testing" // nolint: staticcheck
-	mockstore "github.com/robinkb/cascade/testing/mock/store"
+	. "github.com/robinkb/cascade/testing"
+	"github.com/robinkb/cascade/testing/store/mock"
 )
 
 func TestStatBlob(t *testing.T) {
@@ -16,11 +16,11 @@ func TestStatBlob(t *testing.T) {
 			Name: RandomName(),
 			Size: rand.Int64(),
 		}
-		blobs := mockstore.NewBlobs(t)
+		blobs := mock.NewBlobs(t)
 		blobs.EXPECT().
 			StatBlob(id).
 			Return(info, nil)
-		repo := mockstore.NewRepository(t)
+		repo := mock.NewRepository(t)
 		repo.EXPECT().
 			GetBlob(id).
 			Return(nil)

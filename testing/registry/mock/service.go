@@ -2,7 +2,7 @@
 // github.com/vektra/mockery
 // template: testify
 
-package registry
+package mock
 
 import (
 	"github.com/robinkb/cascade/registry/repository"

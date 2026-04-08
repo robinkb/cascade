@@ -2,7 +2,7 @@
 // github.com/vektra/mockery
 // template: testify
 
-package store
+package mock
 
 import (
 	"github.com/gofrs/uuid/v5"

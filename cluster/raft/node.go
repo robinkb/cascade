@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"net/http"
 	"net/netip"
 	"time"
 
@@ -27,6 +28,7 @@ type (
 		AddNode(ctx context.Context, peer cluster.Peer) error
 		RemoveNode(ctx context.Context, peer cluster.Peer) error
 		Status() raft.Status
+		Handler() http.Handler
 
 		// Messaging
 		Receive(m *raftpb.Message) error
@@ -179,6 +181,19 @@ func (n *node) RemoveNode(ctx context.Context, peer cluster.Peer) error {
 
 func (n *node) Status() raft.Status {
 	return n.raft.Status()
+}
+
+func (n *node) Handler() http.Handler {
+	h := new(Handler)
+
+	h.node = n
+
+	mux := http.NewServeMux()
+	mux.Handle("/message", http.HandlerFunc(h.messageHandler))
+
+	h.Handler = mux
+
+	return h
 }
 
 func (n *node) proposeConfChange(ctx context.Context, cc raftpb.ConfChange) error {

@@ -12,7 +12,6 @@ import (
 
 	"github.com/robinkb/cascade/cluster"
 	"github.com/robinkb/cascade/cluster/raft"
-	raftapi "github.com/robinkb/cascade/cluster/raft/api"
 	"github.com/robinkb/cascade/cluster/raft/qwal"
 	"github.com/robinkb/cascade/process"
 	"github.com/robinkb/cascade/registry"
@@ -97,7 +96,7 @@ func main() {
 		node := raft.NewNode(uint64(raftId), addr, storage, restorer)
 		node.Bootstrap(peers...)
 
-		srv.Handle("/cluster/raft/", raftapi.New(node))
+		srv.Handle("/cluster/raft/", node.Handler())
 		srv.Handle("/store/", storeapi.New(blobs))
 		mgr.Register(srv)
 		mgr.Register(node)

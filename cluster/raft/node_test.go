@@ -1,4 +1,4 @@
-package raft_test
+package raft
 
 import (
 	"context"
@@ -9,13 +9,10 @@ import (
 	"time"
 
 	"github.com/robinkb/cascade/cluster"
-	"github.com/robinkb/cascade/cluster/raft"
-	"github.com/robinkb/cascade/cluster/raft/api"
 	"github.com/robinkb/cascade/process"
-	"github.com/robinkb/cascade/registry/store"
 	"github.com/robinkb/cascade/server"
 	. "github.com/robinkb/cascade/testing"
-	etcdraft "go.etcd.io/raft/v3"
+	"go.etcd.io/raft/v3"
 )
 
 func TestClusterFormation(t *testing.T) {
@@ -68,7 +65,7 @@ func TestClusterFormation(t *testing.T) {
 	t.Run("Remove a node from a cluster", func(t *testing.T) {
 		// At this point we've verified the details of cluster formation,
 		// so we can automate it with newTestCluster and snapElections.
-		nodes, _, _ := newTestCluster(t, 3)
+		nodes := newTestCluster(t, 3)
 		snapElections(nodes...)
 		AssertRaftStatus(t, nodes[0].Status()).Voters(3)
 
@@ -86,7 +83,7 @@ func TestClusterFormation(t *testing.T) {
 		t.Skip("test is flaky")
 
 		// The Raft library says that an ID should not be re-used, but it _does_ work.
-		nodes, _, _ := newTestCluster(t, 3)
+		nodes := newTestCluster(t, 3)
 		snapElections(nodes...)
 		AssertRaftStatus(t, nodes[0].Status()).Voters(3)
 
@@ -103,14 +100,14 @@ func TestClusterFormation(t *testing.T) {
 	})
 }
 
-func newTestNode(t *testing.T) raft.Node {
+func newTestNode(t *testing.T) Node {
 	addr := RandomAddrPort()
 	srv := server.New(server.Options{
 		Name: "test-server",
 		Addr: addr,
 	})
-	node := raft.NewNode(rand.Uint64(), addr, newTestStore(t), &raft.SpySnapshotter{})
-	srv.Handle("/cluster/raft/", api.New(node))
+	node := NewNode(rand.Uint64(), addr, newTestStore(t), &SpySnapshotter{})
+	srv.Handle("/cluster/raft/", node.Handler())
 
 	go func() {
 		err := srv.Run()
@@ -127,11 +124,9 @@ func newTestNode(t *testing.T) raft.Node {
 	return node
 }
 
-func newTestCluster(t *testing.T, n int) ([]raft.Node, []store.Blobs, []store.Metadata) {
+func newTestCluster(t *testing.T, n int) []Node {
 	peers := make([]cluster.Peer, n)
-	nodes := make([]raft.Node, n)
-	blobs := make([]store.Blobs, n)
-	metadata := make([]store.Metadata, n)
+	nodes := make([]Node, n)
 
 	for i := range n {
 		peers[i] = cluster.Peer{
@@ -145,25 +140,25 @@ func newTestCluster(t *testing.T, n int) ([]raft.Node, []store.Blobs, []store.Me
 			Name: fmt.Sprintf("test-server %d", peers[i].ID),
 			Addr: peers[i].AddrPort,
 		})
-		nodes[i] = raft.NewNode(
+		nodes[i] = NewNode(
 			peers[i].ID,
 			peers[i].AddrPort,
 			newTestStore(t),
-			new(raft.SpySnapshotter),
+			new(SpySnapshotter),
 		)
 
-		srv.Handle("/cluster/raft/", api.New(nodes[i]))
+		srv.Handle("/cluster/raft/", nodes[i].Handler())
 		Run(t, srv)
 
 		nodes[i].Bootstrap(peers...)
 		Run(t, nodes[i])
 	}
 
-	return nodes, blobs, metadata
+	return nodes
 }
 
 // snapElections rapidly ticks the given nodes until a leader is elected.
-func snapElections(nodes ...raft.Node) {
+func snapElections(nodes ...Node) {
 	var wg sync.WaitGroup
 	for _, n := range nodes {
 		wg.Go(func() {
@@ -184,14 +179,14 @@ func wait() {
 	time.Sleep(6 * time.Millisecond)
 }
 
-func AssertRaftStatus(t *testing.T, status etcdraft.Status) *RaftStatusAsserter {
+func AssertRaftStatus(t *testing.T, status raft.Status) *RaftStatusAsserter {
 	t.Helper()
 	return &RaftStatusAsserter{t, status}
 }
 
 type RaftStatusAsserter struct {
 	t      *testing.T
-	status etcdraft.Status
+	status raft.Status
 }
 
 // Leader asserts that the node is the cluster's leader.

@@ -1,4 +1,4 @@
-package raft_test
+package raft
 
 import (
 	"math"
@@ -6,10 +6,9 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
-	etcdraft "go.etcd.io/raft/v3"
+	"go.etcd.io/raft/v3"
 	"go.etcd.io/raft/v3/raftpb"
 
-	"github.com/robinkb/cascade/cluster/raft"
 	"github.com/robinkb/cascade/cluster/raft/qwal"
 	. "github.com/robinkb/cascade/testing"
 )
@@ -41,7 +40,7 @@ func TestStorageEntries(t *testing.T) {
 			entries[len(entries)-2 : len(entries)-1], nil},
 		{"lo before first entry returns ErrCompacted",
 			2, 4,
-			nil, etcdraft.ErrCompacted},
+			nil, raft.ErrCompacted},
 		// {"hi after"}
 	}
 
@@ -60,14 +59,14 @@ func TestStorageTerm(t *testing.T) {
 
 		fi, _ := store.FirstIndex()
 		_, err := store.Term(fi)
-		AssertErrorIs(t, err, etcdraft.ErrUnavailable)
+		AssertErrorIs(t, err, raft.ErrUnavailable)
 
 		li, _ := store.LastIndex()
 		_, err = store.Term(li)
 		AssertNoError(t, err)
 
 		_, err = store.Term(li + 1)
-		AssertErrorIs(t, err, etcdraft.ErrUnavailable)
+		AssertErrorIs(t, err, raft.ErrUnavailable)
 	})
 
 	t.Run("for storage with entries", func(t *testing.T) {
@@ -84,7 +83,7 @@ func TestStorageTerm(t *testing.T) {
 			wterm uint64
 		}{
 			{"index lower than FirstIndex()-1 returns ErrCompacted",
-				1, etcdraft.ErrCompacted, 0},
+				1, raft.ErrCompacted, 0},
 			{"index at FirstIndex() -1 returns term 0",
 				2, nil, 0},
 			{"first entry returns term 4",
@@ -96,7 +95,7 @@ func TestStorageTerm(t *testing.T) {
 			{"fourth entry returns term 5",
 				6, nil, 5},
 			{"index higher than LastIndex() returns ErrUnavailable",
-				7, etcdraft.ErrUnavailable, 0},
+				7, raft.ErrUnavailable, 0},
 		}
 
 		for _, tt := range tests {
@@ -120,8 +119,8 @@ func TestStorageEntries2(t *testing.T) {
 		werr     error
 		wentries []raftpb.Entry
 	}{
-		{2, 6, math.MaxUint64, etcdraft.ErrCompacted, nil},
-		{3, 4, math.MaxUint64, etcdraft.ErrCompacted, nil},
+		{2, 6, math.MaxUint64, raft.ErrCompacted, nil},
+		{3, 4, math.MaxUint64, raft.ErrCompacted, nil},
 		{4, 5, math.MaxUint64, nil, index(4).terms(4)},
 		{4, 6, math.MaxUint64, nil, index(4).terms(4, 5)},
 		{4, 7, math.MaxUint64, nil, index(4).terms(4, 5, 6)},
@@ -233,7 +232,7 @@ func TestPersistence(t *testing.T) {
 
 	oldDb, err := qwal.Open(dir, nil)
 	AssertNoError(t, err).Require()
-	oldStore, err := raft.NewDiskStorage(oldDb, new(raft.SpySnapshotter))
+	oldStore, err := NewDiskStorage(oldDb, new(SpySnapshotter))
 	AssertNoError(t, err).Require()
 
 	want := struct {
@@ -253,7 +252,7 @@ func TestPersistence(t *testing.T) {
 
 	newDb, err := qwal.Open(dir, nil)
 	AssertNoError(t, err).Require()
-	newStore, err := raft.NewDiskStorage(newDb, new(raft.SpySnapshotter))
+	newStore, err := NewDiskStorage(newDb, new(SpySnapshotter))
 	AssertNoError(t, err).Require()
 
 	gotHardState, gotConfState, err := newStore.InitialState()
@@ -276,13 +275,13 @@ func TestPersistence(t *testing.T) {
 
 func TestSnapshot(t *testing.T) {
 	db := testDB(t, nil)
-	snap := new(raft.SpySnapshotter)
-	store, err := raft.NewDiskStorage(db, snap)
+	snap := new(SpySnapshotter)
+	store, err := NewDiskStorage(db, snap)
 	AssertNoError(t, err).Require()
 
 	snapshot, err := store.Snapshot()
 	AssertNoError(t, err).Require()
-	AssertEqual(t, etcdraft.IsEmptySnap(snapshot), true)
+	AssertEqual(t, raft.IsEmptySnap(snapshot), true)
 
 	entries := index(1).terms(1, 1, 1)
 	lastApplied := entries[len(entries)-1]
@@ -306,7 +305,7 @@ func TestSnapshot(t *testing.T) {
 
 func TestCompaction(t *testing.T) {
 	db := testDB(t, nil)
-	store, err := raft.NewDiskStorage(db, new(raft.SpySnapshotter))
+	store, err := NewDiskStorage(db, new(SpySnapshotter))
 	AssertNoError(t, err).Require()
 
 	oldEntries := index(1).terms(1, 1)
@@ -350,7 +349,7 @@ func TestCompaction(t *testing.T) {
 
 	// The Entry that was pushed earlier should be unavailable.
 	_, err = store.Entries(1, 2, math.MaxUint64)
-	AssertErrorIs(t, err, etcdraft.ErrCompacted)
+	AssertErrorIs(t, err, raft.ErrCompacted)
 
 	// The new Entry should also be available.
 	got2, err := store.Entries(3, 4, math.MaxUint64)
@@ -387,8 +386,8 @@ func testDB(t *testing.T, opts *qwal.Options) qwal.DB {
 	return db
 }
 
-func newTestStore(t *testing.T) *raft.DiskStorage {
-	store, err := raft.NewDiskStorage(testDB(t, nil), new(raft.SpySnapshotter))
+func newTestStore(t *testing.T) *DiskStorage {
+	store, err := NewDiskStorage(testDB(t, nil), new(SpySnapshotter))
 	AssertNoError(t, err).Require()
 	return store
 }

@@ -7,7 +7,7 @@ import (
 	v1 "github.com/opencontainers/distribution-spec/specs-go/v1"
 	. "github.com/robinkb/cascade/testing"
 	testclient "github.com/robinkb/cascade/testing/client"
-	mock "github.com/robinkb/cascade/testing/mock/registry"
+	"github.com/robinkb/cascade/testing/registry/mock"
 )
 
 func TestListRepositories(t *testing.T) {

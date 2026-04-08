@@ -13,7 +13,7 @@ import (
 	"github.com/robinkb/cascade/registry/store/driver/inmemory"
 	. "github.com/robinkb/cascade/testing"
 	testclient "github.com/robinkb/cascade/testing/client"
-	mock "github.com/robinkb/cascade/testing/mock/registry"
+	"github.com/robinkb/cascade/testing/registry/mock"
 )
 
 func TestRoot(t *testing.T) {

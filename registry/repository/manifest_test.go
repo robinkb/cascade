@@ -9,8 +9,9 @@ import (
 	"github.com/opencontainers/go-digest"
 	v1 "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/robinkb/cascade/registry/store"
-	. "github.com/robinkb/cascade/testing" // nolint: staticcheck
-	mockstore "github.com/robinkb/cascade/testing/mock/store"
+	. "github.com/robinkb/cascade/testing"
+	. "github.com/robinkb/cascade/testing/repository"
+	"github.com/robinkb/cascade/testing/store/mock"
 )
 
 func TestPutManifest(t *testing.T) {
@@ -33,12 +34,12 @@ func TestPutManifest(t *testing.T) {
 			},
 		}
 
-		blobs := mockstore.NewBlobs(t)
+		blobs := mock.NewBlobs(t)
 		blobs.EXPECT().
 			PutBlob(id, data).
 			Return(nil)
 
-		repo := mockstore.NewRepository(t)
+		repo := mock.NewRepository(t)
 		repo.EXPECT().
 			PutManifest(id, wantMetadata, wantReferences).
 			Return(nil)
@@ -53,12 +54,12 @@ func TestPutManifest(t *testing.T) {
 		subject := NewImageManifestBuilder(t).Build()
 		referrer := NewImageManifestBuilder(t).WithSubject(subject.Manifest).Build()
 
-		blobs := mockstore.NewBlobs(t)
+		blobs := mock.NewBlobs(t)
 		blobs.EXPECT().
 			PutBlob(referrer.Digest, referrer.Bytes).
 			Return(nil)
 
-		repo := mockstore.NewRepository(t)
+		repo := mock.NewRepository(t)
 		repo.EXPECT().
 			PutManifest(referrer.Digest, referrer.Metadata(), referrer.References()).
 			Return(nil)
@@ -84,12 +85,12 @@ func TestPutManifest(t *testing.T) {
 			},
 		}
 
-		blobs := mockstore.NewBlobs(t)
+		blobs := mock.NewBlobs(t)
 		blobs.EXPECT().
 			PutBlob(id, data).
 			Return(nil)
 
-		repo := mockstore.NewRepository(t)
+		repo := mock.NewRepository(t)
 		repo.EXPECT().
 			PutManifest(id, wantMedata, wantReferences).
 			Return(nil)
@@ -105,12 +106,12 @@ func TestDeleteManifest(t *testing.T) {
 	t.Run("deletes garbage collected blobs", func(t *testing.T) {
 		manifest := NewImageManifestBuilder(t).WithLayers(5).Build()
 
-		repo := mockstore.NewRepository(t)
+		repo := mock.NewRepository(t)
 		repo.EXPECT().
 			DeleteManifest(manifest.Digest).
 			Return(manifest.LayersAsDigests(), nil)
 
-		blobs := mockstore.NewBlobs(t)
+		blobs := mock.NewBlobs(t)
 		for _, layer := range manifest.Manifest.Layers {
 			blobs.EXPECT().
 				DeleteBlob(layer.Digest).
@@ -127,12 +128,12 @@ func TestDeleteManifest(t *testing.T) {
 		digests := []digest.Digest{layerDigest, layerDigest, layerDigest}
 		manifestDigest := RandomDigest()
 
-		repo := mockstore.NewRepository(t)
+		repo := mock.NewRepository(t)
 		repo.EXPECT().
 			DeleteManifest(manifestDigest).
 			Return(digests, nil)
 
-		blobs := mockstore.NewBlobs(t)
+		blobs := mock.NewBlobs(t)
 		blobs.EXPECT().
 			DeleteBlob(layerDigest).
 			Return(nil).Once()
@@ -144,7 +145,7 @@ func TestDeleteManifest(t *testing.T) {
 
 	t.Run("deleting unknown manifest returns ErrManifestUnknown", func(t *testing.T) {
 		id := RandomDigest()
-		repo := mockstore.NewRepository(t)
+		repo := mock.NewRepository(t)
 		repo.EXPECT().
 			DeleteManifest(id).
 			Return(nil, ErrManifestUnknown)
