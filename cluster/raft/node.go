@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"log"
 	"net/http"
-	"net/netip"
 	"time"
 
 	"github.com/robinkb/cascade/cluster"
@@ -22,7 +21,7 @@ type (
 		Tick()
 
 		NodeID() uint64
-		AddrPort() netip.AddrPort
+		Host() string
 		AsPeer() cluster.Peer
 		Bootstrap(peers ...cluster.Peer)
 		AddNode(ctx context.Context, peer cluster.Peer) error
@@ -38,7 +37,7 @@ type (
 )
 
 // TODO: NewNode should return an error instead of panicking? Probably?
-func NewNode(id uint64, addr netip.AddrPort, storage *DiskStorage, restorer cluster.Restorer) Node {
+func NewNode(id uint64, host string, storage *DiskStorage, restorer cluster.Restorer) Node {
 	conf := raft.Config{
 		// TODO: This may need to be set when restarting a node.
 		// But I'm not sure of how to persist it. It can only be saved _after_
@@ -60,7 +59,7 @@ func NewNode(id uint64, addr netip.AddrPort, storage *DiskStorage, restorer clus
 
 	node := &node{
 		id:          id,
-		addr:        addr,
+		host:        host,
 		raft:        raft.RestartNode(&conf),
 		storage:     storage,
 		ticker:      time.Tick(100 * time.Millisecond),
@@ -77,7 +76,7 @@ func NewNode(id uint64, addr netip.AddrPort, storage *DiskStorage, restorer clus
 
 type node struct {
 	id         uint64
-	addr       netip.AddrPort
+	host       string
 	raft       raft.Node
 	ticker     <-chan time.Time
 	manualTick chan time.Time
@@ -112,14 +111,14 @@ func (n *node) NodeID() uint64 {
 	return n.id
 }
 
-func (n *node) AddrPort() netip.AddrPort {
-	return n.addr
+func (n *node) Host() string {
+	return n.host
 }
 
 func (n *node) AsPeer() cluster.Peer {
 	return cluster.Peer{
-		ID:       n.NodeID(),
-		AddrPort: n.AddrPort(),
+		ID:   n.NodeID(),
+		Host: n.Host(),
 	}
 }
 
@@ -128,21 +127,21 @@ func (n *node) AsPeer() cluster.Peer {
 // to pass all known peers.
 func (n *node) Bootstrap(peers ...cluster.Peer) {
 	peers = append(peers, cluster.Peer{
-		ID:       n.raft.Status().ID,
-		AddrPort: n.addr,
+		ID:   n.raft.Status().ID,
+		Host: n.host,
 	})
 
 	for _, peer := range peers {
 		confState := n.raft.ApplyConfChange(raftpb.ConfChange{
 			Type:    raftpb.ConfChangeAddNode,
 			NodeID:  peer.ID,
-			Context: []byte(peer.AddrPort.String()),
+			Context: []byte(peer.Host),
 		}.AsV2())
 
 		n.storage.SaveConfState(*confState)
 
 		if n.id != peer.ID {
-			client := NewClient("http://" + peer.AddrPort.String() + "/cluster/raft")
+			client := NewClient("http://" + peer.Host + "/cluster/raft")
 			if err := n.clients.Add(peer, client); err != nil {
 				log.Printf("failed to add client for peer with ID %d: %s", peer.ID, err)
 			}
@@ -162,7 +161,7 @@ func (n *node) AddNode(ctx context.Context, peer cluster.Peer) error {
 	return n.proposeConfChange(ctx, raftpb.ConfChange{
 		Type:    raftpb.ConfChangeAddNode,
 		NodeID:  peer.ID,
-		Context: []byte(peer.AddrPort.String()),
+		Context: []byte(peer.Host),
 	})
 }
 
@@ -175,7 +174,7 @@ func (n *node) RemoveNode(ctx context.Context, peer cluster.Peer) error {
 	return n.proposeConfChange(ctx, raftpb.ConfChange{
 		Type:    raftpb.ConfChangeRemoveNode,
 		NodeID:  peer.ID,
-		Context: []byte(peer.AddrPort.String()),
+		Context: []byte(peer.Host),
 	})
 }
 
@@ -252,6 +251,7 @@ func (n *node) send(messages []raftpb.Message) {
 		client, _ := n.clients.Get(message.To)
 		err := client.SendMessage(&message)
 		if err != nil {
+			// n.raft.ReportUnreachable(message.To)
 			log.Println("failed to send message:", err)
 		}
 	}
@@ -299,14 +299,14 @@ func (n *node) processEntries(entries []raftpb.Entry) {
 				case raftpb.ConfChangeAddNode:
 					// TODO: Adding a client can error out, technically, in which case
 					// we should not call raft.ApplyConfChange because it did not get accepted.
-					addr := netip.MustParseAddrPort(string(cc.Context))
-					client := NewClient("http://" + addr.String() + "/cluster/raft")
-					peer := cluster.Peer{ID: change.NodeID, AddrPort: addr}
+					host := string(cc.Context)
+					client := NewClient("http://" + host + "/cluster/raft")
+					peer := cluster.Peer{ID: change.NodeID, Host: host}
 					if err := n.clients.Add(peer, client); err != nil {
 						log.Printf("failed to add client for peer with ID %d: %s", change.NodeID, err)
 					}
 
-					log.Printf("%d added node with id %d and url %s", n.NodeID(), change.NodeID, addr.String())
+					log.Printf("%d added node with id %d and url %s", n.NodeID(), change.NodeID, host)
 
 				case raftpb.ConfChangeRemoveNode:
 					if change.NodeID == n.NodeID() {

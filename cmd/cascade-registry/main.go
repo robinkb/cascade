@@ -4,7 +4,6 @@ import (
 	"flag"
 	"fmt"
 	"log"
-	"net/netip"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -58,10 +57,9 @@ func main() {
 	blobs := fs.NewBlobStore(path)
 
 	if raftId != 0 {
-		addr := netip.MustParseAddrPort(raftHostPort)
 		srv := server.New(server.Options{
 			Name: "cluster-server",
-			Addr: addr,
+			Addr: raftHostPort,
 		})
 
 		hosts := strings.Split(raftPeers, ",")
@@ -74,8 +72,8 @@ func main() {
 			}
 			host := strings.Join(parts[1:3], ":")
 			peers[i] = cluster.Peer{
-				ID:       id,
-				AddrPort: netip.MustParseAddrPort(host),
+				ID:   id,
+				Host: host,
 			}
 		}
 
@@ -93,7 +91,7 @@ func main() {
 			}
 		}()
 		restorer := store.NewRestorer(metadata, blobs)
-		node := raft.NewNode(uint64(raftId), addr, storage, restorer)
+		node := raft.NewNode(uint64(raftId), raftHostPort, storage, restorer)
 		node.Bootstrap(peers...)
 
 		srv.Handle("/cluster/raft/", node.Handler())
@@ -107,7 +105,7 @@ func main() {
 
 	srv := server.New(server.Options{
 		Name:          "oci-api",
-		Addr:          netip.MustParseAddrPort(fmt.Sprintf("127.0.0.1:%d", port)),
+		Addr:          fmt.Sprintf("0.0.0.0:%d", port),
 		LoggerEnabled: true,
 	})
 

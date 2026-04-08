@@ -5,14 +5,13 @@ import (
 	"errors"
 	"log"
 	"net/http"
-	"net/netip"
 	"strings"
 	"time"
 )
 
 type Options struct {
 	Name            string
-	Addr            netip.AddrPort
+	Addr            string
 	ShutdowmTimeout time.Duration
 	LoggerEnabled   bool
 }
@@ -27,7 +26,7 @@ func New(opts Options) *Server {
 	}
 
 	srv.name = opts.Name
-	srv.srv.Addr = opts.Addr.String()
+	srv.srv.Addr = opts.Addr
 
 	if opts.ShutdowmTimeout != 0 {
 		srv.shutdownTimeout = opts.ShutdowmTimeout

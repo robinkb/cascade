@@ -1,11 +1,9 @@
-# Collect all of the mocks under the `testing/mock` package.
-# Easy to find and import them all.
 dir: testing/{{ .SrcPackageName }}/mock
 filename: "{{ snakecase .InterfaceName}}.go"
 structname: "{{ .InterfaceName }}"
 pkgname: mock
 template: testify
-# Explicitly select with interfaces to generate mocks for.
+# Explicitly select which interfaces to generate mocks for.
 packages:
   github.com/robinkb/cascade/cluster/raft:
     interfaces:
