@@ -29,7 +29,7 @@ func (r *restorer) Restore(rd io.Reader, peer cluster.Peer) error {
 		return err
 	}
 
-	client := NewBlobsClient(fmt.Sprintf("http://%s/store", peer.AddrPort.String()))
+	client := NewBlobsClient(fmt.Sprintf("http://%s/store", peer.Host))
 	return Reconcile(r.meta, r.blobs, client)
 }
 

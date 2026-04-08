@@ -2,7 +2,6 @@ package cluster
 
 import (
 	"io"
-	"net/netip"
 )
 
 type (
@@ -19,7 +18,7 @@ type (
 	}
 
 	Peer struct {
-		ID       uint64
-		AddrPort netip.AddrPort
+		ID   uint64
+		Host string
 	}
 )

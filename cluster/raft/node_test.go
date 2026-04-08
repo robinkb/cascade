@@ -101,7 +101,7 @@ func TestClusterFormation(t *testing.T) {
 }
 
 func newTestNode(t *testing.T) Node {
-	addr := RandomAddrPort()
+	addr := RandomHost()
 	srv := server.New(server.Options{
 		Name: "test-server",
 		Addr: addr,
@@ -130,19 +130,19 @@ func newTestCluster(t *testing.T, n int) []Node {
 
 	for i := range n {
 		peers[i] = cluster.Peer{
-			ID:       rand.Uint64(),
-			AddrPort: RandomAddrPort(),
+			ID:   rand.Uint64(),
+			Host: RandomHost(),
 		}
 	}
 
 	for i := range n {
 		srv := server.New(server.Options{
 			Name: fmt.Sprintf("test-server %d", peers[i].ID),
-			Addr: peers[i].AddrPort,
+			Addr: peers[i].Host,
 		})
 		nodes[i] = NewNode(
 			peers[i].ID,
-			peers[i].AddrPort,
+			peers[i].Host,
 			newTestStore(t),
 			new(SpySnapshotter),
 		)

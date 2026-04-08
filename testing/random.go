@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"math/rand/v2"
-	"net/netip"
 	"slices"
 	"strings"
 	"testing"
@@ -141,11 +140,9 @@ func RandomVersionN(count int) (tags []string) {
 	return tags
 }
 
-// RandomAddPort returns a netip.AddrPort for localhost and a random port.
-func RandomAddrPort() netip.AddrPort {
-	return netip.MustParseAddrPort(
-		fmt.Sprintf("127.0.0.1:%d", RandomPort()),
-	)
+// RandomHost returns a string representing a socket for localhost and a random port.
+func RandomHost() string {
+	return fmt.Sprintf("127.0.0.1:%d", RandomPort())
 }
 
 type Referrer struct {

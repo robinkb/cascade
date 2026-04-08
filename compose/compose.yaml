@@ -1,0 +1,50 @@
+name: cascade
+
+services:
+  node1:
+    build: ../
+    command:
+      - -raft-id=1
+      - -raft-host=node1:3000
+      - -raft-peers=1:node1:3000,2:node2:3001,3:node3:3002
+
+  node2:
+    build: ../
+    command:
+      - -raft-id=2
+      - -raft-host=node2:3001
+      - -raft-peers=1:node1:3000,2:node2:3001,3:node3:3002
+
+  node3:
+    build: ../
+    command:
+      - -raft-id=3
+      - -raft-host=node3:3002
+      - -raft-peers=1:node1:3000,2:node2:3001,3:node3:3002
+
+  lb:
+    image: docker.io/haproxytech/haproxy-alpine:3.3.6
+    ports:
+      - 5000:5000
+    volumes:
+      - type: bind
+        source: ./haproxy.cfg
+        target: /usr/local/etc/haproxy/haproxy.cfg
+        read_only: true
+        bind:
+          selinux: Z
+    depends_on:
+      - node1
+      - node1
+      - node3
+
+  ui:
+    image: docker.io/quiq/registry-ui:0.12.0
+    environment:
+      REGISTRY_HOSTNAME: lb:5000
+      REGISTRY_INSECURE: true
+      ACCESS_CONTROL_ANYONE_CAN_DELETE_TAGS: true
+    ports:
+      - 8000:8000
+    depends_on:
+      - lb
