@@ -1,30 +1,16 @@
-package api
+package raft
 
 import (
 	"io"
 	"net/http"
 
 	"github.com/golang/protobuf/proto"
-	"github.com/robinkb/cascade/cluster/raft"
 	"go.etcd.io/raft/v3/raftpb"
 )
 
-func New(node raft.Node) *Handler {
-	h := new(Handler)
-
-	h.node = node
-
-	mux := http.NewServeMux()
-	mux.Handle("/message", http.HandlerFunc(h.messageHandler))
-
-	h.Handler = mux
-
-	return h
-}
-
 type Handler struct {
 	http.Handler
-	node raft.Node
+	node Node
 }
 
 func (h *Handler) messageHandler(w http.ResponseWriter, r *http.Request) {

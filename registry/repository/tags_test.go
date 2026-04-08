@@ -4,8 +4,9 @@ import (
 	"testing"
 
 	"github.com/opencontainers/go-digest"
-	. "github.com/robinkb/cascade/testing" // nolint: staticcheck
-	mockstore "github.com/robinkb/cascade/testing/mock/store"
+	. "github.com/robinkb/cascade/testing"            // nolint: staticcheck
+	. "github.com/robinkb/cascade/testing/repository" // nolint: staticcheck
+	"github.com/robinkb/cascade/testing/store/mock"
 )
 
 func TestDeleteTags(t *testing.T) {
@@ -14,12 +15,12 @@ func TestDeleteTags(t *testing.T) {
 		wantDeleted := append(manifest.LayersAsDigests(), manifest.Digest)
 		tag := RandomVersion()
 
-		repo := mockstore.NewRepository(t)
+		repo := mock.NewRepository(t)
 		repo.EXPECT().
 			DeleteTag(tag).
 			Return(wantDeleted, nil)
 
-		blobs := mockstore.NewBlobs(t)
+		blobs := mock.NewBlobs(t)
 		for _, id := range wantDeleted {
 			blobs.EXPECT().
 				DeleteBlob(id).
@@ -36,12 +37,12 @@ func TestDeleteTags(t *testing.T) {
 		digests := []digest.Digest{id, id, id}
 		tag := RandomVersion()
 
-		repo := mockstore.NewRepository(t)
+		repo := mock.NewRepository(t)
 		repo.EXPECT().
 			DeleteTag(tag).
 			Return(digests, nil)
 
-		blobs := mockstore.NewBlobs(t)
+		blobs := mock.NewBlobs(t)
 		blobs.EXPECT().
 			DeleteBlob(id).
 			Return(nil).Once()

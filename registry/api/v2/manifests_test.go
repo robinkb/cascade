@@ -11,7 +11,7 @@ import (
 	"github.com/robinkb/cascade/registry/store"
 	. "github.com/robinkb/cascade/testing"
 	testclient "github.com/robinkb/cascade/testing/client"
-	mock "github.com/robinkb/cascade/testing/mock/repository"
+	"github.com/robinkb/cascade/testing/repository/mock"
 )
 
 func TestStatManifests(t *testing.T) {

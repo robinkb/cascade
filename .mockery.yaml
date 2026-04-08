@@ -1,9 +1,9 @@
 # Collect all of the mocks under the `testing/mock` package.
 # Easy to find and import them all.
-dir: testing/mock/{{ .SrcPackageName }}
+dir: testing/{{ .SrcPackageName }}/mock
 filename: "{{ snakecase .InterfaceName}}.go"
 structname: "{{ .InterfaceName }}"
-pkgname: "{{ .SrcPackageName }}"
+pkgname: mock
 template: testify
 # Explicitly select with interfaces to generate mocks for.
 packages:

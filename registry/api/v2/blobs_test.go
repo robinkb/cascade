@@ -10,8 +10,8 @@ import (
 	"github.com/robinkb/cascade/registry/store"
 	. "github.com/robinkb/cascade/testing"
 	testclient "github.com/robinkb/cascade/testing/client"
-	regmock "github.com/robinkb/cascade/testing/mock/registry"
-	repomock "github.com/robinkb/cascade/testing/mock/repository"
+	regmock "github.com/robinkb/cascade/testing/registry/mock"
+	repomock "github.com/robinkb/cascade/testing/repository/mock"
 )
 
 func TestStatBlob(t *testing.T) {

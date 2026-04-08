@@ -2,11 +2,13 @@ package suite
 
 import (
 	"bytes"
+	"math/rand/v2"
 	"slices"
 	"testing"
 	"time"
 
 	"github.com/opencontainers/go-digest"
+	v1 "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/robinkb/cascade/registry/store"
 	. "github.com/robinkb/cascade/testing" // nolint: staticcheck
 	"github.com/stretchr/testify/suite"
@@ -1284,4 +1286,16 @@ func (s *MetadataSuite) TestSnapshotRestore() {
 		err = repo.GetBlob(digest)
 		AssertNoError(t, err).Require()
 	})
+}
+
+func RandomManifestMetadata() store.Manifest {
+	return store.Manifest{
+		MediaType: v1.MediaTypeImageManifest,
+		Annotations: map[string]string{
+			// Small amount of random content to make sure that
+			// every generated manifest has a unique digest.
+			"random": RandomString(8),
+		},
+		Size: rand.Int64(),
+	}
 }

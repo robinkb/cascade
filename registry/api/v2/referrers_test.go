@@ -10,7 +10,7 @@ import (
 	"github.com/robinkb/cascade/registry/repository"
 	. "github.com/robinkb/cascade/testing"
 	testclient "github.com/robinkb/cascade/testing/client"
-	mock "github.com/robinkb/cascade/testing/mock/repository"
+	"github.com/robinkb/cascade/testing/repository/mock"
 	tmock "github.com/stretchr/testify/mock"
 )
 
