@@ -4,8 +4,8 @@ import (
 	"testing"
 
 	"github.com/opencontainers/go-digest"
-	. "github.com/robinkb/cascade/testing"            // nolint: staticcheck
-	. "github.com/robinkb/cascade/testing/repository" // nolint: staticcheck
+	. "github.com/robinkb/cascade/testing"
+	. "github.com/robinkb/cascade/testing/repository"
 	"github.com/robinkb/cascade/testing/store/mock"
 )
 

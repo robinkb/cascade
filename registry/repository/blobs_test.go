@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	"github.com/robinkb/cascade/registry/store"
-	. "github.com/robinkb/cascade/testing" // nolint: staticcheck
+	. "github.com/robinkb/cascade/testing"
 	"github.com/robinkb/cascade/testing/store/mock"
 )
 
