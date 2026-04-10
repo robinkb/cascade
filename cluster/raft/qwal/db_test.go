@@ -433,61 +433,41 @@ func TestDBReplayHook(t *testing.T) {
 			name   string
 			method func(db DB) error
 		}{
-			{
-				name: "Append", method: func(db DB) error {
-					return db.Append(1, nil)
-				},
-			},
-			{
-				name: "Get", method: func(db DB) error {
-					_, err := db.Get(0, 0)
-					return err
-				},
-			},
-			{
-				name: "Count", method: func(db DB) error {
-					db.Count(0)
-					return nil
-				},
-			},
-			{
-				name: "First", method: func(db DB) error {
-					_, err := db.First(0)
-					return err
-				},
-			},
-			{
-				name: "Last", method: func(db DB) error {
-					_, err := db.Last(0)
-					return err
-				},
-			},
-			{
-				name: "Range", method: func(db DB) error {
-					db.Range(0, 0, 0)
-					return err
-				},
-			},
-			{
-				name: "Cut", method: func(db DB) error {
-					return db.Cut()
-				},
-			},
-			{
-				name: "Compact", method: func(db DB) error {
-					return db.Compact()
-				},
-			},
-			{
-				name: "Sync", method: func(db DB) error {
-					return db.Sync()
-				},
-			},
-			{
-				name: "Close", method: func(db DB) error {
-					return db.Close()
-				},
-			},
+			{name: "Append", method: func(db DB) error {
+				return db.Append(1, nil)
+			}},
+			{name: "Get", method: func(db DB) error {
+				_, err := db.Get(0, 0)
+				return err
+			}},
+			{name: "Count", method: func(db DB) error {
+				db.Count(0)
+				return nil
+			}},
+			{name: "First", method: func(db DB) error {
+				_, err := db.First(0)
+				return err
+			}},
+			{name: "Last", method: func(db DB) error {
+				_, err := db.Last(0)
+				return err
+			}},
+			{name: "Range", method: func(db DB) error {
+				db.Range(0, 0, 0)
+				return err
+			}},
+			{name: "Cut", method: func(db DB) error {
+				return db.Cut()
+			}},
+			{name: "Compact", method: func(db DB) error {
+				return db.Compact()
+			}},
+			{name: "Sync", method: func(db DB) error {
+				return db.Sync()
+			}},
+			{name: "Close", method: func(db DB) error {
+				return db.Close()
+			}},
 		}
 
 		for _, tt := range tc {
