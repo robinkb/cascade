@@ -2,6 +2,7 @@ package qwal
 
 import (
 	"errors"
+	"fmt"
 	"math/rand/v2"
 	"testing"
 
@@ -10,7 +11,7 @@ import (
 
 func TestDBAppend(t *testing.T) {
 	t.Run("Appended values are retrievable", func(t *testing.T) {
-		db := testDB(t, t.TempDir(), nil)
+		db := testReplayedDB(t, t.TempDir(), nil)
 
 		wantType := randomType()
 		wantValues := RandomBytesN(5, 16, 32)
@@ -38,7 +39,7 @@ func TestDBAppend(t *testing.T) {
 	})
 
 	t.Run("Append triggers Cut when MaxLogSize exceeded", func(t *testing.T) {
-		db := testDB(t, t.TempDir(), &Options{
+		db := testReplayedDB(t, t.TempDir(), &Options{
 			MaxLogSize: 64,
 		})
 
@@ -57,7 +58,7 @@ func TestDBAppend(t *testing.T) {
 	})
 
 	t.Run("Append triggers Cut when MaxLogRecordCount exceeded", func(t *testing.T) {
-		db := testDB(t, t.TempDir(), &Options{
+		db := testReplayedDB(t, t.TempDir(), &Options{
 			MaxLogValueCount: 1,
 		})
 
@@ -76,7 +77,7 @@ func TestDBAppend(t *testing.T) {
 	})
 
 	t.Run("Append triggers Compact when MaxLogCount exceeded", func(t *testing.T) {
-		db := testDB(t, t.TempDir(), &Options{
+		db := testReplayedDB(t, t.TempDir(), &Options{
 			MaxLogValueCount: 1,
 			MaxLogCount:      1,
 		})
@@ -97,7 +98,7 @@ func TestDBAppend(t *testing.T) {
 }
 
 func TestDBGet(t *testing.T) {
-	db := testDB(t, t.TempDir(), nil)
+	db := testReplayedDB(t, t.TempDir(), nil)
 
 	wantType, wantValue := randomType(), RandomBytes(32)
 
@@ -123,7 +124,7 @@ func TestDBGet(t *testing.T) {
 
 func TestDBCut(t *testing.T) {
 	t.Run("Cut provisions a new Log every time it is called", func(t *testing.T) {
-		db := testDB(t, t.TempDir(), nil).(*db)
+		db := testReplayedDB(t, t.TempDir(), nil).(*db)
 
 		target := 5
 
@@ -138,7 +139,7 @@ func TestDBCut(t *testing.T) {
 	})
 
 	t.Run("Cut calls CutHook", func(t *testing.T) {
-		db := testDB(t, t.TempDir(), nil)
+		db := testReplayedDB(t, t.TempDir(), nil)
 
 		want := true
 		got := false
@@ -153,7 +154,7 @@ func TestDBCut(t *testing.T) {
 	})
 
 	t.Run("LogID is passed to CutHook and incremented correctly", func(t *testing.T) {
-		db := testDB(t, t.TempDir(), nil)
+		db := testReplayedDB(t, t.TempDir(), nil)
 
 		var got LogID
 		db.CutHook(func(id LogID) error {
@@ -169,7 +170,7 @@ func TestDBCut(t *testing.T) {
 	})
 
 	t.Run("Error from CutHook is bubbled up to Cut", func(t *testing.T) {
-		db := testDB(t, t.TempDir(), nil)
+		db := testReplayedDB(t, t.TempDir(), nil)
 
 		want := errors.New("error when calling CutHook")
 		db.CutHook(func(id LogID) error {
@@ -184,7 +185,7 @@ func TestDBCut(t *testing.T) {
 
 func TestDBCompact(t *testing.T) {
 	t.Run("Compact removes a Log", func(t *testing.T) {
-		db := testDB(t, t.TempDir(), nil).(*db)
+		db := testReplayedDB(t, t.TempDir(), nil).(*db)
 
 		// Verify that we start with one Log.
 		got := len(db.logs)
@@ -206,14 +207,14 @@ func TestDBCompact(t *testing.T) {
 	})
 
 	t.Run("Compact when DB contains just one Log returns ErrInvalidCompaction", func(t *testing.T) {
-		db := testDB(t, t.TempDir(), nil)
+		db := testReplayedDB(t, t.TempDir(), nil)
 
 		err := db.Compact()
 		AssertErrorIs(t, err, ErrInvalidCompaction)
 	})
 
 	t.Run("Compact calls CompactHook", func(t *testing.T) {
-		db := testDB(t, t.TempDir(), nil)
+		db := testReplayedDB(t, t.TempDir(), nil)
 
 		called := false
 		db.CompactHook(func(c Counters) error {
@@ -231,7 +232,7 @@ func TestDBCompact(t *testing.T) {
 	})
 
 	t.Run("Error in CompactHook is bubbled up to Compact", func(t *testing.T) {
-		db := testDB(t, t.TempDir(), nil)
+		db := testReplayedDB(t, t.TempDir(), nil)
 
 		want := errors.New("error when calling CompactHook")
 		db.CompactHook(func(c Counters) error {
@@ -250,7 +251,7 @@ func TestDBCompact(t *testing.T) {
 func TestDBOpenExisting(t *testing.T) {
 	t.Run("re-open db and write data", func(t *testing.T) {
 		dir := t.TempDir()
-		db := testDB(t, dir, nil)
+		db := testReplayedDB(t, dir, nil)
 
 		// Generate some random values to write.
 		// Half will be written now, and half after recovery.
@@ -267,7 +268,7 @@ func TestDBOpenExisting(t *testing.T) {
 		AssertNoError(t, err).Require()
 
 		// Re-open DB and rebuild state from directory.
-		db = testDB(t, dir, nil)
+		db = testReplayedDB(t, dir, nil)
 
 		// Write the remaining values
 		for i := len(wantValues) / 2; i < len(wantValues); i++ {
@@ -285,7 +286,7 @@ func TestDBOpenExisting(t *testing.T) {
 
 	t.Run("recover after cuts and compactions", func(t *testing.T) {
 		dir := t.TempDir()
-		db := testDB(t, dir, &Options{
+		db := testReplayedDB(t, dir, &Options{
 			MaxLogCount: 8,
 		})
 
@@ -309,7 +310,7 @@ func TestDBOpenExisting(t *testing.T) {
 		AssertNoError(t, err).Require()
 
 		// Open a new DB in the same directory.
-		db = testDB(t, dir, nil)
+		db = testReplayedDB(t, dir, nil)
 
 		// Check all remaining values
 		for i := range remainingValueCount {
@@ -320,10 +321,150 @@ func TestDBOpenExisting(t *testing.T) {
 	})
 }
 
+func TestDBReplay(t *testing.T) {
+	dir := t.TempDir()
+	db := testDB(t, dir, nil)
+	err := db.Replay()
+	AssertNoError(t, err).Require()
+
+	records := randomRecordsN(10, 32, 64)
+	for _, record := range records {
+		err := db.Append(record.Type, record.Value)
+		AssertNoError(t, err).Require()
+	}
+
+	err = db.Close()
+	AssertNoError(t, err).Require()
+
+	t.Run("iterates over records in the DB", func(t *testing.T) {
+		db := testDB(t, dir, nil)
+
+		i := 0
+		db.ReplayHook(func(rt Type, value []byte) error {
+			AssertEqual(t, rt, records[i].Type)
+			AssertSlicesEqual(t, value, records[i].Value)
+			i++
+			return nil
+		})
+
+		err = db.Replay()
+		AssertNoError(t, err)
+		AssertEqual(t, i, len(records))
+	})
+
+	t.Run("returns error in ReplayHook", func(t *testing.T) {
+		db := testDB(t, dir, nil)
+		want := errors.New("oops")
+
+		db.ReplayHook(func(t Type, value []byte) error {
+			return want
+		})
+
+		err := db.Replay()
+		AssertErrorIs(t, err, ErrReplayHookFailed, want)
+	})
+
+	t.Run("can replay without a hook registered", func(t *testing.T) {
+		db := testDB(t, dir, nil)
+		err := db.Replay()
+		AssertNoError(t, err).Require()
+	})
+
+	t.Run("reading or writing panics before replaying", func(t *testing.T) {
+		db := testDB(t, dir, nil)
+
+		tc := []struct {
+			name   string
+			method func(db DB) error
+		}{
+			{
+				name: "Append",
+				method: func(db DB) error {
+					return db.Append(1, nil)
+				},
+			},
+			{
+				name: "Get",
+				method: func(db DB) error {
+					_, err := db.Get(0, 0)
+					return err
+				},
+			},
+			{
+				name: "Count",
+				method: func(db DB) error {
+					db.Count(0)
+					return nil
+				},
+			},
+			{
+				name: "First",
+				method: func(db DB) error {
+					_, err := db.First(0)
+					return err
+				},
+			},
+			{
+				name: "Last",
+				method: func(db DB) error {
+					_, err := db.Last(0)
+					return err
+				},
+			},
+			{
+				name: "Range",
+				method: func(db DB) error {
+					db.Range(0, 0, 0)
+					return err
+				},
+			},
+			{
+				name: "Cut",
+				method: func(db DB) error {
+					return db.Cut()
+				},
+			},
+			{
+				name: "Compact",
+				method: func(db DB) error {
+					return db.Compact()
+				},
+			},
+			{
+				name: "Sync",
+				method: func(db DB) error {
+					return db.Sync()
+				},
+			},
+			{
+				name: "Close",
+				method: func(db DB) error {
+					return db.Close()
+				},
+			},
+		}
+
+		for _, tt := range tc {
+			name := fmt.Sprintf("method: %s", tt.name)
+			t.Run(name, func(t *testing.T) {
+				defer AssertPanics(t, ErrMustReplay)
+				err := tt.method(db)
+				AssertNoError(t, err)
+			})
+		}
+	})
+}
+
 func testDB(t *testing.T, dir string, opts *Options) DB {
 	db, err := Open(dir, opts)
 	AssertNoError(t, err).Require()
+	return db
+}
 
+func testReplayedDB(t *testing.T, dir string, opts *Options) DB {
+	db := testDB(t, dir, opts)
+	err := db.Replay()
+	AssertNoError(t, err).Require()
 	return db
 }
 

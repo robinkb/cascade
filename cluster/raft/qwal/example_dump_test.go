@@ -13,7 +13,7 @@ const (
 func ExampleDumpLog() {
 	// Open a Log created by QWAL.
 	f, _ := os.Open("00000000000000000012.log")
-	defer f.Close() // nolint: errcheck
+	defer f.Close()
 
 	for t, val := range DumpLog(f) {
 		switch t {

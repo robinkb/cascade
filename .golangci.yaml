@@ -1,6 +1,9 @@
 version: "2"
 linters:
   exclusions:
+    paths:
+      - cluster/raft/qwal/example_test.go
+      - cluster/raft/qwal/example_dump_test.go
     rules:
       - linters:
           - staticcheck

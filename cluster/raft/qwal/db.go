@@ -54,49 +54,6 @@ func Open(dir string, opts *Options) (DB, error) {
 		}
 	}
 
-	logFiles, err := discoverLogFiles(dir)
-	if err != nil {
-		return nil, err
-	}
-
-	for i, name := range logFiles {
-		name := filepath.Join(db.dir, name)
-		log, err := openLogFile(name)
-		if err != nil {
-			return nil, err
-		}
-
-		// Read the entire log to rebuild our in-memory inventory of records.
-		for record := range log.All() {
-			offset, size := log.Pointer()
-
-			db.inventory.Add(record.Type, pointer{
-				Log:    log.ID,
-				Offset: offset,
-				Size:   size,
-			})
-		}
-
-		// Lock all but the last log file.
-		if i != len(logFiles)-1 {
-			if err := log.Lock(); err != nil {
-				return nil, err
-			}
-		}
-
-		db.logs = append(db.logs, log)
-		db.sequence++
-	}
-
-	if len(db.logs) == 0 {
-		_, err := db.newLog()
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	db.offset = uint64(db.logs[0].ID)
-
 	return &db, nil
 }
 
@@ -124,6 +81,11 @@ type db struct {
 	// organized by type. It grows when appending Records to the DB,
 	// and shrinks when Logs in the DB are compacted.
 	inventory *inventory
+	// replayed tracks if the DB has been replayed.
+	replayed bool
+	// replayHook is provided by the DB consumer. If provided,
+	// it is called after reading every record during DB replay.
+	replayHookFunc ReplayHookFunc
 	// cutHook is provided by the DB consumer. If provided,
 	// it is called by DB after every Log is cut.
 	cutHook CutHookFunc
@@ -134,6 +96,8 @@ type db struct {
 }
 
 func (d *db) Append(t Type, value []byte) error {
+	d.panicIfNotReplayed()
+
 	var err error
 	r := &record{
 		Type:  t,
@@ -170,10 +134,13 @@ func (d *db) appendWouldExceedLimits(log *logFile, r *record) bool {
 }
 
 func (d *db) Sync() error {
+	d.panicIfNotReplayed()
 	return d.activeLog().Sync()
 }
 
 func (d *db) Get(t Type, i int) ([]byte, error) {
+	d.panicIfNotReplayed()
+
 	ptr, err := d.inventory.Get(t, i)
 	if err != nil {
 		return nil, fmt.Errorf("could not get pointer to record: %w", err)
@@ -183,10 +150,12 @@ func (d *db) Get(t Type, i int) ([]byte, error) {
 }
 
 func (d *db) Count(t Type) int {
+	d.panicIfNotReplayed()
 	return d.inventory.Count(t)
 }
 
 func (d *db) First(t Type) ([]byte, error) {
+	d.panicIfNotReplayed()
 	ptr, err := d.inventory.Get(t, 0)
 	if err != nil {
 		return nil, err
@@ -196,6 +165,7 @@ func (d *db) First(t Type) ([]byte, error) {
 }
 
 func (d *db) Last(t Type) ([]byte, error) {
+	d.panicIfNotReplayed()
 	ptr, err := d.inventory.Get(t, d.inventory.Count(t)-1)
 	if err != nil {
 		return nil, err
@@ -205,6 +175,7 @@ func (d *db) Last(t Type) ([]byte, error) {
 }
 
 func (d *db) Range(t Type, lo, hi int) iter.Seq2[[]byte, error] {
+	d.panicIfNotReplayed()
 	return func(yield func([]byte, error) bool) {
 		pointers, err := d.inventory.Range(t, lo, hi)
 		if err != nil {
@@ -227,24 +198,91 @@ func (d *db) valueAt(p pointer) ([]byte, error) {
 	return value, err
 }
 
+func (d *db) Replay() error {
+	logFiles, err := discoverLogFiles(d.dir)
+	if err != nil {
+		return err
+	}
+
+	for i, name := range logFiles {
+		name := filepath.Join(d.dir, name)
+		log, err := openLogFile(name)
+		if err != nil {
+			return err
+		}
+
+		// Read the entire log to rebuild our in-memory inventory of records.
+		for record := range log.All() {
+			offset, size := log.Pointer()
+
+			d.inventory.Add(record.Type, pointer{
+				Log:    log.ID,
+				Offset: offset,
+				Size:   size,
+			})
+
+			if d.replayHookFunc != nil {
+				if err := d.replayHookFunc(record.Type, record.Value); err != nil {
+					return fmt.Errorf("%w: %w", ErrReplayHookFailed, err)
+				}
+			}
+		}
+
+		// Lock all but the last log file.
+		if i != len(logFiles)-1 {
+			if err := log.Lock(); err != nil {
+				return err
+			}
+		}
+
+		d.logs = append(d.logs, log)
+		d.sequence++
+	}
+
+	if len(d.logs) == 0 {
+		_, err := d.newLog()
+		if err != nil {
+			return err
+		}
+	}
+
+	d.offset = uint64(d.logs[0].ID)
+	d.replayed = true
+
+	return nil
+}
+
+func (d *db) ReplayHook(f ReplayHookFunc) {
+	d.replayHookFunc = f
+}
+
+func (d *db) panicIfNotReplayed() {
+	if !d.replayed {
+		panic(ErrMustReplay)
+	}
+}
+
 func (d *db) Cut() error {
+	d.panicIfNotReplayed()
 	_, err := d.cut()
 	return err
 }
 
-func (d *db) CutHook(h CutHookFunc) {
-	d.cutHook = h
+func (d *db) CutHook(f CutHookFunc) {
+	d.cutHook = f
 }
 
 func (d *db) Compact() error {
+	d.panicIfNotReplayed()
 	return d.compact()
 }
 
-func (d *db) CompactHook(h CompactHookFunc) {
-	d.compactHook = h
+func (d *db) CompactHook(f CompactHookFunc) {
+	d.compactHook = f
 }
 
 func (d *db) Close() error {
+	d.panicIfNotReplayed()
 	for _, log := range d.logs[:len(d.logs)-1] {
 		if err := log.Close(); err != nil {
 			return err

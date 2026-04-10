@@ -23,6 +23,10 @@ func NewDiskStorage(db qwal.DB, snap cluster.Snapshotter) (*DiskStorage, error) 
 		snap: snap,
 	}
 
+	if err := db.Replay(); err != nil {
+		return nil, err
+	}
+
 	if s.db.Count(TypeEntry) > 0 {
 		value, err := s.db.First(TypeEntry)
 		if err != nil {

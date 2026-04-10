@@ -42,12 +42,21 @@ func AssertErrorIs(t testing.TB, got error, want ...error) *Result {
 }
 
 func AssertPanics(t testing.TB, want error) {
+	t.Helper()
+
 	got := recover()
 	if got == nil {
 		t.Error("expected a panic")
+		return
 	}
 
-	AssertErrorIs(t, got.(error), want)
+	err, ok := got.(error)
+	if !ok {
+		t.Error("expected panic to have an error")
+		return
+	}
+
+	AssertErrorIs(t, err, want)
 }
 
 func AssertNoError(t testing.TB, got error) *Result {
