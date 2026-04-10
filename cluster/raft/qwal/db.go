@@ -353,7 +353,8 @@ func (d *db) compact() error {
 	// what is being removed. An errors encountered by compaction are surfaced
 	// to the application.
 	if d.compactHook != nil {
-		err := d.compactHook(log.Counters())
+		counters := log.Counters()
+		err := d.compactHook(counters.All())
 		if err != nil {
 			return fmt.Errorf("%w: %w", ErrCompactHookFailed, err)
 		}

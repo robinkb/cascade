@@ -73,13 +73,15 @@ type (
 	// CutHookFunc, the appended value is guaranteed to be the first in the new Log.
 	CutHookFunc func(id LogID) error
 
+	// Counters iterates over all the types of values in a log,
+	// returning how many values of each type are in the log.
+	Counters iter.Seq2[Type, uint64]
+
 	// CompactHookFunc is executed whenever a Log is compacted. Compaction is
 	// triggered when a newly provisioned Log causes MaxLogCount to be exceeded.
 	// CompactionHookFunc is executed right before the oldest Log is actually
 	// removed from DB, meaning that its data can still be queried for the
 	// duration of CompactHookFunc.
-	// TODO: Instead of Counters, maybe have it be an iter.Seq2[Type, uint64],
-	// the signature of Counters.All(). That way we can make Counters private.
 	CompactHookFunc func(c Counters) error
 
 	// Options defines the configurable options of the DB.

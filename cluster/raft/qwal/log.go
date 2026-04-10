@@ -21,7 +21,7 @@ type log struct {
 	// dec is the decoder used to read records or values from the Log.
 	dec *decoder
 	// counters tracks how many records of each type are in the Log.
-	counters Counters
+	counters counters
 	// cursor tracks the position of writes to the Log.
 	// The Log is only ever appended to, and cursor only ever increases.
 	cursor int64
@@ -73,7 +73,7 @@ func (l *log) All() iter.Seq[*record] {
 	}
 }
 
-func (l *log) Counters() Counters {
+func (l *log) Counters() counters {
 	return l.counters
 }
 
@@ -90,33 +90,33 @@ func (l *log) advance(n int64, t Type) {
 }
 
 // newCounters returns an empty Counters.
-func newCounters() Counters {
-	return Counters{
+func newCounters() counters {
+	return counters{
 		counters: make(map[Type]uint64),
 	}
 }
 
-// Counters tracks how many records of each type are in a single log.
+// counters tracks how many records of each type are in a single log.
 // It is used to update the inventory in the DB when a log is compacted.
-type Counters struct {
+type counters struct {
 	counters map[Type]uint64
 	records  uint64
 }
 
 // add increments the counter for the given Type by 1.
-func (c *Counters) add(t Type) {
+func (c *counters) add(t Type) {
 	c.counters[t]++
 	c.records++
 }
 
 // total returns the total amount of records counted.
-func (c *Counters) total() uint64 {
+func (c *counters) total() uint64 {
 	return c.records
 }
 
 // All iterates over all of the counters, returning the Type
 // and how many Records of this type are in the log.
-func (c *Counters) All() iter.Seq2[Type, uint64] {
+func (c *counters) All() Counters {
 	return func(yield func(Type, uint64) bool) {
 		for t, count := range c.counters {
 			if !yield(t, count) {

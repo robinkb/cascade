@@ -86,7 +86,7 @@ func (inv *inventory) Add(t Type, p pointer) {
 //
 // Any error encountered in this process indicates some kind of issue
 // in synchronizing the Inventory with the Log contents and should panic.
-func (inv *inventory) Remove(c Counters) {
+func (inv *inventory) Remove(c counters) {
 	inv.mu.Lock()
 	defer inv.mu.Unlock()
 

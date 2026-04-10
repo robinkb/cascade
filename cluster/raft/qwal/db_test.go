@@ -86,7 +86,7 @@ func TestDBAppend(t *testing.T) {
 		})
 
 		compacts := 0
-		db.CompactHook(func(c Counters) error {
+		db.CompactHook(func(counts Counters) error {
 			compacts++
 			return nil
 		})
@@ -220,7 +220,7 @@ func TestDBCompact(t *testing.T) {
 		db := testReplayedDB(t, t.TempDir(), nil)
 
 		called := false
-		db.CompactHook(func(c Counters) error {
+		db.CompactHook(func(counts Counters) error {
 			called = true
 			return nil
 		})
@@ -238,7 +238,7 @@ func TestDBCompact(t *testing.T) {
 		db := testReplayedDB(t, t.TempDir(), nil)
 
 		want := errors.New("error when calling CompactHook")
-		db.CompactHook(func(c Counters) error {
+		db.CompactHook(func(counts Counters) error {
 			return want
 		})
 
