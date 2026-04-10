@@ -14,6 +14,8 @@ var (
 
 	// QWAL errors
 	ErrInvalidCompaction = errors.New("invalid compaction")
+	ErrMustReplay        = errors.New("db must be replayed before use")
+	ErrReplayHookFailed  = errors.New("replay hook failed")
 	ErrCutHookFailed     = errors.New("cut hook failed")
 	ErrCompactHookFailed = errors.New("compact hook failed")
 )

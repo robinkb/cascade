@@ -23,21 +23,25 @@ type (
 		// Range returns an iterator that ranges over all values of Type t
 		// in the range [lo, hi[.
 		Range(t Type, lo, hi int) iter.Seq2[[]byte, error]
+		// TODO: Comment
+		Replay() error
+		// TODO: Comment
+		ReplayHook(f ReplayHookFunc)
 		// Cut manually cuts a new Log in the DB. Cutting a Log is normally
 		// triggered automatically when MaxLogSize or MaxLogRecordCount is
 		// exceeded. Instead, Cut may be used to trigger them manually when more
 		// control is required, like for tests. As such, Cut does not consider
 		// MaxLogSize and MaxLogRecordCount.
 		Cut() error
+		// CutHook registers CutHookFunc f, which is run whenever a Log is cut.
+		// To clear the CutHook, call CutHook with a nil argument.
+		CutHook(f CutHookFunc)
 		// Compact manually triggers a compaction. Compactions are normally
 		// triggered automatically when MaxLogCount is exceeded. Instead,
 		// Compact may be used to trigger them manually when more control
 		// is required, like for tests. As such, Compact does not consider MaxLogCount.
 		// Attempting to Compact when the DB only contains one Log returns ErrInvalidCompaction.
 		Compact() error
-		// CutHook registers CutHookFunc f, which is run whenever a Log is cut.
-		// To clear the CutHook, call CutHook with a nil argument.
-		CutHook(f CutHookFunc)
 		// CompactHook registers CompactHook f, which is run whenever DB compacts a Log.
 		// To clear the CompactHook, call CompactHook with a nil argument.
 		CompactHook(f CompactHookFunc)
@@ -55,6 +59,10 @@ type (
 
 	// LogID represents the sequential ID of a Log in the DB.
 	LogID uint64
+
+	// TODO: Comment
+	// Returning an error from the ReplayHookFunc stops the replay.
+	ReplayHookFunc func(t Type, value []byte) error
 
 	// CutHookFunc is executed whenever a Log is cut. A Log is cut when it reaches
 	// its maximum size and is moved into read-only mode. A new Log is then

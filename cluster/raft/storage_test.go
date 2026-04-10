@@ -382,7 +382,6 @@ func testDB(t *testing.T, opts *qwal.Options) qwal.DB {
 	dir := t.TempDir()
 	db, err := qwal.Open(dir, opts)
 	AssertNoError(t, err).Require()
-
 	return db
 }
 
