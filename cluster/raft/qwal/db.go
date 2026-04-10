@@ -48,9 +48,8 @@ func Open(dir string, opts *Options) (DB, error) {
 			return nil, err
 		}
 	} else {
-		// TODO: Write test for this case.
 		if !info.IsDir() {
-			return nil, errors.New("not a directory")
+			return nil, fmt.Errorf("%w: %s", ErrNotDirectory, info.Name())
 		}
 	}
 

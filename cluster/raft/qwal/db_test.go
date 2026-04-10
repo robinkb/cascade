@@ -251,6 +251,18 @@ func TestDBCompact(t *testing.T) {
 	})
 }
 
+func TestDBOpen(t *testing.T) {
+	t.Run("returns an error when the path is not a directory", func(t *testing.T) {
+		dir := t.TempDir()
+		notadir := filepath.Join(dir, "oops")
+		err := os.WriteFile(notadir, RandomBytes(2), os.ModeAppend)
+		AssertNoError(t, err)
+
+		_, err = Open(notadir, nil)
+		AssertErrorIs(t, err, ErrNotDirectory)
+	})
+}
+
 func TestDBReplay(t *testing.T) {
 	t.Run("re-open db and write data", func(t *testing.T) {
 		dir := t.TempDir()

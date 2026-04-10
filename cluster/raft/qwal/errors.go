@@ -13,6 +13,7 @@ var (
 	ErrRangeInvalid     = errors.New("range invalid")
 
 	// QWAL errors
+	ErrNotDirectory      = errors.New("path is not a directory")
 	ErrInvalidCompaction = errors.New("invalid compaction")
 	ErrMustReplay        = errors.New("db must be replayed before use")
 	ErrReplayHookFailed  = errors.New("replay hook failed")
