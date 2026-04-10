@@ -23,9 +23,11 @@ type (
 		// Range returns an iterator that ranges over all values of Type t
 		// in the range [lo, hi[.
 		Range(t Type, lo, hi int) iter.Seq2[[]byte, error]
-		// TODO: Comment
+		// Replay restores the DB state by reading all values from the log files.
+		// Calling Replay after the first time is a no-op.
 		Replay() error
-		// TODO: Comment
+		// ReplayHook registers ReplayHookFunc f, which is run after reading each value
+		// during replay.
 		ReplayHook(f ReplayHookFunc)
 		// Cut manually cuts a new Log in the DB. Cutting a Log is normally
 		// triggered automatically when MaxLogSize or MaxLogRecordCount is
@@ -60,9 +62,9 @@ type (
 	// LogID represents the sequential ID of a Log in the DB.
 	LogID uint64
 
-	// TODO: Comment
+	// ReplayHookFunc is executed after reading each value from disk during replay.
 	// Returning an error from the ReplayHookFunc stops the replay.
-	ReplayHookFunc func(t Type, value []byte) error
+	ReplayHookFunc func(t Type, v []byte) error
 
 	// CutHookFunc is executed whenever a Log is cut. A Log is cut when it reaches
 	// its maximum size and is moved into read-only mode. A new Log is then

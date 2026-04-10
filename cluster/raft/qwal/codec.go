@@ -113,7 +113,7 @@ func (d *decoder) RecordAt(r *record, off int64) (int64, error) {
 	}
 
 	// Reading the payload.
-	d.buf.Grow(RecordHeaderLength + int(header.size))
+	d.buf.Grow(int(header.size))
 	pbuf := d.buf.Bytes()[RecordHeaderLength : RecordHeaderLength+header.size]
 	n, err = d.src.ReadAt(pbuf, off+RecordHeaderLength)
 	read += int64(n)

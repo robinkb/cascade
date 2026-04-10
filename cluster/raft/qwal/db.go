@@ -199,6 +199,10 @@ func (d *db) valueAt(p pointer) ([]byte, error) {
 }
 
 func (d *db) Replay() error {
+	if d.replayed {
+		return nil
+	}
+
 	logFiles, err := discoverLogFiles(d.dir)
 	if err != nil {
 		return err
@@ -209,6 +213,10 @@ func (d *db) Replay() error {
 		log, err := openLogFile(name)
 		if err != nil {
 			return err
+		}
+
+		if d.sequence != 0 && d.sequence+1 != uint64(log.ID) {
+			return fmt.Errorf("%w: %d", ErrMissingLogFile, d.sequence+1)
 		}
 
 		// Read the entire log to rebuild our in-memory inventory of records.
@@ -236,7 +244,7 @@ func (d *db) Replay() error {
 		}
 
 		d.logs = append(d.logs, log)
-		d.sequence++
+		d.sequence = uint64(log.ID)
 	}
 
 	if len(d.logs) == 0 {

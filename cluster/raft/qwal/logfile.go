@@ -11,10 +11,11 @@ import (
 	"syscall"
 )
 
+var logNameFmt = "%020d.log"
 var logNameRe = regexp.MustCompile(`(\d{20}).log`)
 
 func createLogFile(dir string, id LogID, size int64) (*logFile, error) {
-	filename := filepath.Join(dir, fmt.Sprintf("%020d.log", id))
+	filename := filepath.Join(dir, fmt.Sprintf(logNameFmt, id))
 
 	w, err := os.OpenFile(filename, os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {

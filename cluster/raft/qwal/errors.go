@@ -18,4 +18,5 @@ var (
 	ErrReplayHookFailed  = errors.New("replay hook failed")
 	ErrCutHookFailed     = errors.New("cut hook failed")
 	ErrCompactHookFailed = errors.New("compact hook failed")
+	ErrMissingLogFile    = errors.New("detected missing log file during replay")
 )
