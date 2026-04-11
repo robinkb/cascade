@@ -1,9 +1,15 @@
 package raft
 
 import (
+	"bytes"
+	"context"
+	"encoding/binary"
+	"math/rand/v2"
+	"sync"
 	"time"
 
 	"go.etcd.io/raft/v3"
+	"go.etcd.io/raft/v3/raftpb"
 )
 
 type (
@@ -12,8 +18,9 @@ type (
 		Run() error
 		Shutdown() error
 		Tick()
-
 		Status() raft.Status
+
+		Proposer
 	}
 )
 
@@ -34,6 +41,9 @@ func NewNode2(dir string) Node2 {
 		manualTick: make(chan time.Time),
 
 		stop: make(chan struct{}),
+
+		proposalHandlers: make(map[Type]ProposalFunc),
+		proposalReporter: newProposalReporter(),
 	}
 }
 
@@ -48,6 +58,9 @@ type node2 struct {
 	stop chan struct{}
 	// done waits for the node to finish shutting down the raft state loop.
 	done chan struct{}
+
+	proposalHandlers map[Type]ProposalFunc
+	proposalReporter proposalReporter
 }
 
 func (n *node2) Name() string {
@@ -63,6 +76,17 @@ func (n *node2) Run() error {
 			case rd := <-n.raft.Ready():
 				n.storage.SetHardState(rd.HardState)
 				n.storage.Append(rd.Entries)
+
+				for _, entry := range rd.Entries {
+					// Heartbeats send empty entries, which we don't need to process.
+					if len(entry.Data) == 0 {
+						continue
+					}
+
+					if entry.Type == raftpb.EntryNormal {
+						n.commit(entry.Data)
+					}
+				}
 
 				n.raft.Advance()
 			case <-n.ticker:
@@ -99,4 +123,93 @@ func (n *node2) Status() raft.Status {
 
 func (n *node2) Tick() {
 	n.manualTick <- time.Now()
+}
+
+func (n *node2) Handle(t Type, f ProposalFunc) {
+	n.proposalHandlers[t] = f
+}
+
+func encodeProposal(id uint64, t uint32, data []byte) []byte {
+	header := make([]byte, 12)
+	binary.LittleEndian.PutUint64(header, id)
+	binary.LittleEndian.PutUint32(header[8:], uint32(t))
+
+	buf := new(bytes.Buffer)
+	buf.Write(header)
+	buf.Write(data)
+	return buf.Bytes()
+}
+
+func (n *node2) Propose(t Type, data []byte) (resp []byte, err error) {
+	id := rand.Uint64()
+
+	ch := n.proposalReporter.create(id)
+	defer n.proposalReporter.delete(id)
+
+	enc := encodeProposal(id, uint32(t), data)
+
+	if err := n.raft.Propose(context.TODO(), enc); err != nil {
+		return nil, err
+	}
+
+	result := <-ch
+
+	return result.resp, result.err
+}
+
+func decodeProposal(enc []byte) (id uint64, t uint32, data []byte) {
+	id = binary.LittleEndian.Uint64(enc[0:8])
+	t = binary.LittleEndian.Uint32(enc[8:12])
+	data = enc[12:]
+	return
+}
+
+func (n *node2) commit(data []byte) {
+	id, pt, dec := decodeProposal(data)
+
+	f := n.proposalHandlers[Type(pt)]
+
+	resp, err := f(dec)
+
+	ch, ok := n.proposalReporter.get(id)
+	if ok {
+		ch <- result{resp, err}
+	}
+}
+
+type result struct {
+	resp []byte
+	err  error
+}
+
+func newProposalReporter() proposalReporter {
+	return proposalReporter{
+		proposals: make(map[uint64]chan result),
+	}
+}
+
+type proposalReporter struct {
+	mu        sync.Mutex
+	proposals map[uint64]chan result
+}
+
+func (r *proposalReporter) create(id uint64) chan result {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.proposals[id] = make(chan result)
+	return r.proposals[id]
+}
+
+func (r *proposalReporter) get(id uint64) (chan result, bool) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	resultC, err := r.proposals[id]
+	return resultC, err
+}
+
+func (r *proposalReporter) delete(id uint64) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	close(r.proposals[id])
+	delete(r.proposals, id)
 }
