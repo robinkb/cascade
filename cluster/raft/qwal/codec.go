@@ -120,8 +120,6 @@ func (d *decoder) RecordAt(r *record, off int64) (int64, error) {
 	if err != nil {
 		// An EOF is not expected here. It would indicate a short read,
 		// and thus definitely a checksum mismatch.
-		// TODO: This could actually indicate unrecoverable corruption of the log.
-		// Another error might be warranted here. Or panic.
 		if err == io.EOF {
 			return read, ErrShortRead
 		}

@@ -29,26 +29,26 @@ type (
 		// ReplayHook registers ReplayHookFunc f, which is run after reading each value
 		// during replay.
 		ReplayHook(f ReplayHookFunc)
-		// Cut manually cuts a new Log in the DB. Cutting a Log is normally
+		// Cut manually cuts a new log in the DB. Cutting a log is normally
 		// triggered automatically when MaxLogSize or MaxLogRecordCount is
 		// exceeded. Instead, Cut may be used to trigger them manually when more
 		// control is required, like for tests. As such, Cut does not consider
 		// MaxLogSize and MaxLogRecordCount.
 		Cut() error
-		// CutHook registers CutHookFunc f, which is run whenever a Log is cut.
+		// CutHook registers CutHookFunc f, which is run whenever a log is cut.
 		// To clear the CutHook, call CutHook with a nil argument.
 		CutHook(f CutHookFunc)
 		// Compact manually triggers a compaction. Compactions are normally
 		// triggered automatically when MaxLogCount is exceeded. Instead,
 		// Compact may be used to trigger them manually when more control
 		// is required, like for tests. As such, Compact does not consider MaxLogCount.
-		// Attempting to Compact when the DB only contains one Log returns ErrInvalidCompaction.
+		// Attempting to Compact when the DB only contains one log returns ErrInvalidCompaction.
 		Compact() error
-		// CompactHook registers CompactHook f, which is run whenever DB compacts a Log.
+		// CompactHook registers CompactHook f, which is run whenever DB compacts a log.
 		// To clear the CompactHook, call CompactHook with a nil argument.
 		CompactHook(f CompactHookFunc)
-		// Sync calls syscall.Fdatasync on the active Log, ensuring that buffered
-		// writes to it are flushed to disk. DB only syncs automatically when a Log
+		// Sync calls syscall.Fdatasync on the active log, ensuring that buffered
+		// writes to it are flushed to disk. DB only syncs automatically when a log
 		// is cut and becomes read-only. Any more syncs are the application's responsibility.
 		Sync() error
 		// Close closes the DB, flushing any pending writes to disk.

@@ -8,8 +8,8 @@ import (
 	"path/filepath"
 )
 
-// Open intializes a DB in directory dir. If the directory already contains
-// Logs belonging to a DB, the DB reads the Logs to restore its in-memory state.
+// Open intializes a [DB] in directory dir. If the directory already contains
+// Logs belonging to a [DB], the [DB] reads the logs to restore its in-memory state.
 func Open(dir string, opts *Options) (DB, error) {
 	db := db{
 		logs: make([]*logFile, 0),
@@ -56,29 +56,29 @@ func Open(dir string, opts *Options) (DB, error) {
 	return &db, nil
 }
 
-// db implements the DB interface.
+// db implements the [DB] interface.
 type db struct {
 	logs []*logFile
-	// dir is the directory where the Logs are stored on-disk.
+	// dir is the directory where the log files are stored on-disk.
 	dir string
 	// sequence holds the ID of the last log created.
 	sequence uint64
-	// offset translates on-disk Log indices to their in-memory equivalent.
+	// offset translates on-disk log indices to their in-memory equivalent.
 	offset uint64
-	// maxLogSize determines the maximum size that a Log can have.
-	// If a Record will cause a Log to exceed its maximum allowed size,
-	// a new Log will be provisioned and the Record will be appended there.
+	// maxLogSize determines the maximum size that a log can have.
+	// If a Record will cause a log to exceed its maximum allowed size,
+	// a new log will be provisioned and the record will be appended there.
 	maxLogSize int64
-	// maxLogRecordCount determines the maximum amount of records that a Log can have.
-	// If a Record will cause a Log to exceed its maximum allowed size,
-	// a new Log will be provisioned and the Record will be appended there.
+	// maxLogRecordCount determines the maximum amount of records that a log can have.
+	// If a record will cause a log to exceed its maximum allowed size,
+	// a new log will be provisioned and the Record will be appended there.
 	maxLogRecordCount int64
 	// maxLogCount determines the maximum amount of logs stored in the DB.
 	// When the number of logs exceeds this number, the oldest log will be compacted.
 	maxLogCount int
-	// Inventory holds pointers to all known Records in the DB,
-	// organized by type. It grows when appending Records to the DB,
-	// and shrinks when Logs in the DB are compacted.
+	// Inventory holds pointers to all known records in the DB,
+	// organized by type. It grows when appending records to the DB,
+	// and shrinks when logs in the DB are compacted out.
 	inventory *inventory
 	// replayed tracks if the DB has been replayed.
 	replayed bool
@@ -94,6 +94,7 @@ type db struct {
 	compactHook CompactHookFunc
 }
 
+// Append implements [DB.Append].
 func (d *db) Append(t Type, value []byte) error {
 	d.panicIfNotReplayed()
 
@@ -136,6 +137,7 @@ func (d *db) appendWouldExceedLimits(log *logFile, r *record) bool {
 		uint64(d.maxLogRecordCount) <= log.counters.total()
 }
 
+// Sync implements [DB.Sync].
 func (d *db) Sync() error {
 	d.panicIfNotReplayed()
 	return d.activeLog().Sync()
@@ -152,11 +154,13 @@ func (d *db) Get(t Type, i int) ([]byte, error) {
 	return d.valueAt(ptr)
 }
 
+// Count implements [DB.Count].
 func (d *db) Count(t Type) int {
 	d.panicIfNotReplayed()
 	return d.inventory.Count(t)
 }
 
+// First implements [DB.First].
 func (d *db) First(t Type) ([]byte, error) {
 	d.panicIfNotReplayed()
 	ptr, err := d.inventory.Get(t, 0)
@@ -167,6 +171,7 @@ func (d *db) First(t Type) ([]byte, error) {
 	return d.valueAt(ptr)
 }
 
+// Last implements [DB.Last].
 func (d *db) Last(t Type) ([]byte, error) {
 	d.panicIfNotReplayed()
 	ptr, err := d.inventory.Get(t, d.inventory.Count(t)-1)
@@ -177,6 +182,7 @@ func (d *db) Last(t Type) ([]byte, error) {
 	return d.valueAt(ptr)
 }
 
+// Range implements [DB.Range].
 func (d *db) Range(t Type, lo, hi int) iter.Seq2[[]byte, error] {
 	d.panicIfNotReplayed()
 	return func(yield func([]byte, error) bool) {
@@ -201,6 +207,7 @@ func (d *db) valueAt(p pointer) ([]byte, error) {
 	return value, err
 }
 
+// Replay implements [DB.Replay].
 func (d *db) Replay() error {
 	if d.replayed {
 		return nil
@@ -261,6 +268,7 @@ func (d *db) Replay() error {
 	return nil
 }
 
+// ReplayHook implements [DB.ReplayHook].
 func (d *db) ReplayHook(f ReplayHookFunc) {
 	d.replayHookFunc = f
 }
@@ -271,25 +279,30 @@ func (d *db) panicIfNotReplayed() {
 	}
 }
 
+// Cut implements [DB.Cut].
 func (d *db) Cut() error {
 	d.panicIfNotReplayed()
 	_, err := d.cut()
 	return err
 }
 
+// CutHook implements [DB.CutHook].
 func (d *db) CutHook(f CutHookFunc) {
 	d.cutHook = f
 }
 
+// Compact implements [DB.Compact].
 func (d *db) Compact() error {
 	d.panicIfNotReplayed()
 	return d.compact()
 }
 
+// CompactHook implements [DB.CompactHook].
 func (d *db) CompactHook(f CompactHookFunc) {
 	d.compactHook = f
 }
 
+// Close implements [DB.Close].
 func (d *db) Close() error {
 	d.panicIfNotReplayed()
 	for _, log := range d.logs[:len(d.logs)-1] {

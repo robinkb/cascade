@@ -12,7 +12,6 @@ import (
 )
 
 func TestDBAppend(t *testing.T) {
-	// TODO: Tests too much; should split up.
 	t.Run("Appended values are retrievable", func(t *testing.T) {
 		db := testReplayedDB(t, t.TempDir(), nil)
 

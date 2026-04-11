@@ -83,7 +83,7 @@ func (l *log) advance(n int64, t Type) {
 	l.counters.add(t)
 }
 
-// newCounters returns an empty Counters.
+// newCounters returns an empty counters.
 func newCounters() counters {
 	return counters{
 		counters: make(map[Type]uint64),
