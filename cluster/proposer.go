@@ -1,10 +1,16 @@
 package cluster
 
 import (
+	"errors"
 	"fmt"
 	"log"
 	"math/rand"
 	"reflect"
+)
+
+var (
+	ErrDuplicateProposalType = errors.New("handler for proposal type already registered")
+	ErrUnknownProposalType   = errors.New("no registered handler for proposal type")
 )
 
 type (

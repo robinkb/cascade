@@ -4,10 +4,12 @@ import (
 	"bytes"
 	"context"
 	"encoding/binary"
+	"fmt"
 	"math/rand/v2"
 	"sync"
 	"time"
 
+	"github.com/robinkb/cascade/cluster"
 	"go.etcd.io/raft/v3"
 	"go.etcd.io/raft/v3/raftpb"
 )
@@ -126,6 +128,9 @@ func (n *node2) Tick() {
 }
 
 func (n *node2) Handle(t Type, f ProposalFunc) {
+	if f := n.proposalHandlers[t]; f != nil {
+		panic(fmt.Errorf("%w: %d", cluster.ErrDuplicateProposalType, t))
+	}
 	n.proposalHandlers[t] = f
 }
 
@@ -167,7 +172,10 @@ func decodeProposal(enc []byte) (id uint64, t uint32, data []byte) {
 func (n *node2) commit(data []byte) {
 	id, pt, dec := decodeProposal(data)
 
-	f := n.proposalHandlers[Type(pt)]
+	f, ok := n.proposalHandlers[Type(pt)]
+	if !ok {
+		panic(fmt.Errorf("%w: %d", cluster.ErrUnknownProposalType, pt))
+	}
 
 	resp, err := f(dec)
 

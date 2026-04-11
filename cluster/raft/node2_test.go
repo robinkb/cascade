@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/opencontainers/go-digest"
+	"github.com/robinkb/cascade/cluster"
 	. "github.com/robinkb/cascade/testing"
 )
 
@@ -54,20 +55,44 @@ func TestSingleNode(t *testing.T) {
 	})
 }
 
-func TestProposalCodec(t *testing.T) {
-	wantID := rand.Uint64()
-	wantType := rand.Uint32()
-	wantData := RandomBytes(64)
-	var gotID uint64
-	var gotType uint32
-	var gotData []byte
+// TestProposer has more in-depth tests and unhappy paths
+// for the implementation of the [cluster.Proposer] interface.
+func TestProposer(t *testing.T) {
+	t.Run("encodes and decodes a proposal", func(t *testing.T) {
+		wantID := rand.Uint64()
+		wantType := rand.Uint32()
+		wantData := RandomBytes(64)
+		var gotID uint64
+		var gotType uint32
+		var gotData []byte
 
-	encoded := encodeProposal(wantID, wantType, wantData)
-	gotID, gotType, gotData = decodeProposal(encoded)
+		encoded := encodeProposal(wantID, wantType, wantData)
+		gotID, gotType, gotData = decodeProposal(encoded)
 
-	AssertEqual(t, gotID, wantID)
-	AssertEqual(t, gotType, wantType)
-	AssertSlicesEqual(t, gotData, wantData)
+		AssertEqual(t, gotID, wantID)
+		AssertEqual(t, gotType, wantType)
+		AssertSlicesEqual(t, gotData, wantData)
+	})
+
+	t.Run("registering function for the same type twice panics", func(t *testing.T) {
+		defer AssertPanics(t, cluster.ErrDuplicateProposalType)
+
+		node := NewNode2(t.TempDir())
+		pt := Type(10)
+		node.Handle(pt, testProposalFunc)
+		node.Handle(pt, testProposalFunc)
+	})
+
+	t.Run("proposing with an unregistered type panics", func(t *testing.T) {
+		t.Skip("cannot assert that a separate go routine panics, but this works")
+
+		node := NewNode2(t.TempDir())
+		Run(t, node)
+		snapElections2(node)
+
+		pt := Type(10)
+		_, _ = node.Propose(pt, RandomBytes(32))
+	})
 }
 
 // snapElections rapidly ticks the given nodes until a leader is elected.
