@@ -40,14 +40,14 @@ func TestLogReadAll(t *testing.T) {
 	l := newLog(r, w)
 
 	for i := range want {
-		err := l.Append(want[i])
+		_, err := l.Append(want[i])
 		AssertNoError(t, err).Require()
 	}
 
 	l = newLog(r, w)
 
 	i := 0
-	for got := range l.All() {
+	for _, got := range l.All() {
 		AssertDeepEqual(t, got, want[i])
 		i++
 	}
@@ -71,12 +71,12 @@ func TestLogReadAllPreallocated(t *testing.T) {
 
 	want := randomRecordsN(10, 16, 32)
 	for i := range want {
-		err := log.Append(want[i])
+		_, err := log.Append(want[i])
 		AssertNoError(t, err).Require()
 	}
 
 	i := 0
-	for got := range log.All() {
+	for _, got := range log.All() {
 		AssertEqual(t, got, want[i])
 		i++
 	}

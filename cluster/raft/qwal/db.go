@@ -111,12 +111,16 @@ func (d *db) Append(t Type, value []byte) error {
 		}
 	}
 
-	err = log.Append(r)
+	offset, err := log.Append(r)
 	if err != nil {
 		return err
 	}
 
-	d.inventory.Add(r.Type, d.pointer())
+	d.inventory.Add(r.Type, pointer{
+		Log:    log.ID,
+		Offset: offset,
+		Size:   int64(len(value)),
+	})
 
 	// Run compaction _after_ adding the new entry so that
 	// the compaction handler has an up-to-date view of the DB.
@@ -219,13 +223,11 @@ func (d *db) Replay() error {
 		}
 
 		// Read the entire log to rebuild our in-memory inventory of records.
-		for record := range log.All() {
-			offset, size := log.Pointer()
-
+		for offset, record := range log.All() {
 			d.inventory.Add(record.Type, pointer{
 				Log:    log.ID,
 				Offset: offset,
-				Size:   size,
+				Size:   int64(len(record.Value)),
 			})
 
 			if d.replayHookFunc != nil {
@@ -373,16 +375,4 @@ func (d *db) compact() error {
 	d.offset++
 
 	return nil
-}
-
-// pointer returns the location of the Record last written to the DB.
-func (d *db) pointer() pointer {
-	log := d.activeLog()
-	offset, size := log.Pointer()
-
-	return pointer{
-		Log:    log.ID,
-		Offset: offset,
-		Size:   size,
-	}
 }
