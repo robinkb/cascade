@@ -66,37 +66,37 @@ type (
 	// Returning an error from the ReplayHookFunc stops the replay.
 	ReplayHookFunc func(t Type, v []byte) error
 
-	// CutHookFunc is executed whenever a Log is cut. A Log is cut when it reaches
-	// its maximum size and is moved into read-only mode. A new Log is then
+	// CutHookFunc is executed whenever a log is cut. A log is cut when it reaches
+	// its maximum size and is moved into read-only mode. A new log is then
 	// provisioned to receive new writes. CutHookFunc is executed right after
-	// the new Log is provisioned. If Append is called on the DB in
-	// CutHookFunc, the appended value is guaranteed to be the first in the new Log.
+	// the new log is provisioned. If Append is called on the DB in
+	// CutHookFunc, the appended value is guaranteed to be the first in the new log.
 	CutHookFunc func(id LogID) error
 
 	// Counters iterates over all the types of values in a log,
 	// returning how many values of each type are in the log.
 	Counters iter.Seq2[Type, uint64]
 
-	// CompactHookFunc is executed whenever a Log is compacted. Compaction is
-	// triggered when a newly provisioned Log causes MaxLogCount to be exceeded.
-	// CompactionHookFunc is executed right before the oldest Log is actually
+	// CompactHookFunc is executed whenever a log is compacted. Compaction is
+	// triggered when a newly provisioned log causes MaxLogCount to be exceeded.
+	// CompactionHookFunc is executed right before the oldest log is actually
 	// removed from DB, meaning that its data can still be queried for the
 	// duration of CompactHookFunc.
 	CompactHookFunc func(c Counters) error
 
 	// Options defines the configurable options of the DB.
 	Options struct {
-		// MaxLogSize determines the maximum size that a single Log in the DB can have.
-		// When appending a value to a Log would make it grow larger than MaxLogSize,
-		// a new Log is provisioned, and the value is appended to the new Log.
+		// MaxLogSize determines the maximum size that a single log in the DB can have.
+		// When appending a value to a log would make it grow larger than MaxLogSize,
+		// a new log is provisioned, and the value is appended to the new log.
 		// The total maximum DB size on disk is MaxLogSize * (MaxLogCount + 1).
 		MaxLogSize int64
-		// MaxLogValueCount determines the maximum amount of values that a single Log in the DB can have.
-		// When appending a value to a Log would make it exceed MaxLogValueCount,
-		// a new Log is provisioned, and the value is appended to the new Log.
+		// MaxLogValueCount determines the maximum amount of values that a single log in the DB can have.
+		// When appending a value to a log would make it exceed MaxLogValueCount,
+		// a new log is provisioned, and the value is appended to the new log.
 		MaxLogValueCount int64
-		// MaxLogCount determines how many Logs can be contained in the DB.
-		// Once exceeded, the oldest Log in the DB is compacted.
+		// MaxLogCount determines how many log can be contained in the DB.
+		// Once exceeded, the oldest log in the DB is compacted.
 		// The total maximum DB size on disk is MaxLogSize * (MaxLogCount + 1).
 		MaxLogCount int
 	}
