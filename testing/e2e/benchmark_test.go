@@ -23,27 +23,29 @@ import (
 	"github.com/robinkb/cascade/testing/client"
 )
 
-type instanceList []instance
-
-func (l *instanceList) nodes() []raft.Node {
-	instances := *l
-	nodes := make([]raft.Node, len(instances))
-	for i, instance := range instances {
-		nodes[i] = instance.node
-	}
-	return nodes
-}
-
-type instance struct {
-	node     raft.Node
-	registry http.Handler
-}
-
+// BenchmarkRaftCluster provisions a cluster of 3 Raft nodes, each paired with a Registry service.
+// A client uploads blobs of random data to the leader. This benchmark is decent for measuring the overhead
+// of the clustering protocol. Smaller messages will suffer more.
+//
+// Before Raft node refactor, with gob encoder:
+// goos: linux
+// goarch: amd64
+// pkg: github.com/robinkb/cascade/testing/e2e
+// cpu: 13th Gen Intel(R) Core(TM) i3-1315U
+// BenchmarkRaftCluster/Blob_Size:_1024-8         	     164	   7543619 ns/op	   0.14 MB/s	  826087 B/op	    9773 allocs/op
+// BenchmarkRaftCluster/Blob_Size:_32768-8        	     126	   9866922 ns/op	   3.32 MB/s	 2505483 B/op	    9931 allocs/op
+// BenchmarkRaftCluster/Blob_Size:_65536-8        	     118	  10303460 ns/op	   6.36 MB/s	 3609287 B/op	    9925 allocs/op
+// BenchmarkRaftCluster/Blob_Size:_131072-8       	     102	  11166146 ns/op	  11.74 MB/s	 6169218 B/op	    9915 allocs/op
+// BenchmarkRaftCluster/Blob_Size:_262144-8       	      91	  13383974 ns/op	  19.59 MB/s	10696418 B/op	    9933 allocs/op
 func BenchmarkRaftCluster(b *testing.B) {
 	tc := []struct {
 		blobSize int64
 	}{
-		{256}, {1 << 10}, {32 << 10}, {64 << 10}, {128 << 10},
+		{1 << 10},
+		{32 << 10},
+		{64 << 10},
+		{128 << 10},
+		{256 << 10},
 	}
 
 	nodeCount := 3
@@ -70,7 +72,7 @@ func BenchmarkRaftCluster(b *testing.B) {
 		db, err := qwal.Open(b.TempDir(), &qwal.Options{
 			// Disables cutting and snapshotting for this test.
 			// Large log size == No cuts, no snapshots.
-			MaxLogSize: 1 << 30,
+			MaxLogSize: 2 << 30,
 		})
 		AssertNoError(b, err).Require()
 		storage, err := raft.NewDiskStorage(db, nil)
@@ -114,14 +116,15 @@ func BenchmarkRaftCluster(b *testing.B) {
 	for _, tt := range tc {
 		b.Run(fmt.Sprintf("Blob Size: %d", tt.blobSize), func(b *testing.B) {
 			name := RandomName()
-			for b.Loop() {
-				id, content := RandomBlob(tt.blobSize)
-				b.SetBytes(tt.blobSize)
+			id, content := RandomBlob(tt.blobSize)
+			b.SetBytes(tt.blobSize)
 
+			for b.Loop() {
 				resp := client.InitUpload(name)
 				AssertResponseCode(b, resp, http.StatusAccepted).Require()
 				location, err := resp.Location()
 				AssertNoError(b, err).Require()
+
 				resp = client.UploadBlobStream(location, bytes.NewBuffer(content))
 				AssertResponseCode(b, resp, http.StatusAccepted)
 
@@ -167,4 +170,20 @@ func snapElections(nodes ...raft.Node) {
 // Because if Raft ticks too quickly, the cluster will keep failing to elect a leader.
 func wait() {
 	time.Sleep(6 * time.Millisecond)
+}
+
+type instanceList []instance
+
+func (l *instanceList) nodes() []raft.Node {
+	instances := *l
+	nodes := make([]raft.Node, len(instances))
+	for i, instance := range instances {
+		nodes[i] = instance.node
+	}
+	return nodes
+}
+
+type instance struct {
+	node     raft.Node
+	registry http.Handler
 }
