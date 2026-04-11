@@ -21,21 +21,19 @@ type log struct {
 	// dec is the decoder used to read records or values from the Log.
 	dec *decoder
 	// counters tracks how many records of each type are in the Log.
-	counters Counters
+	counters counters
 	// cursor tracks the position of writes to the Log.
 	// The Log is only ever appended to, and cursor only ever increases.
 	cursor int64
-	// pointer contains the starting position of the last record
-	// written to the Log.
-	pointer int64
-	// lastValueSize is the size of the last Record's Value written to the Log.
-	lastValueSize int64
 }
 
-func (l *log) Append(r *record) error {
+// Append writes the record using the log's encoder.
+// It returns the position of the record's value in the log.
+func (l *log) Append(r *record) (offset int64, err error) {
+	offset = l.cursor + RecordHeaderLength
 	n, err := l.enc.Encode(r)
 	l.advance(n, r.Type)
-	return err
+	return
 }
 
 func (l *log) ValueAt(p []byte, offset int64) error {
@@ -43,8 +41,8 @@ func (l *log) ValueAt(p []byte, offset int64) error {
 	return err
 }
 
-func (l *log) All() iter.Seq[*record] {
-	return func(yield func(*record) bool) {
+func (l *log) All() iter.Seq2[int64, *record] {
+	return func(yield func(offset int64, r *record) bool) {
 		defer func() {
 			// Move the encoder's internal cursor to the end of the log
 			// after reading all records within it. Ensures that new appends
@@ -64,59 +62,55 @@ func (l *log) All() iter.Seq[*record] {
 				}
 				panic(fmt.Sprintf("error while reading log: %s", err))
 			}
+			// Fetch the offset from the current cursor position.
+			offset := l.cursor + RecordHeaderLength
+			// Cursor is advanced to the next position.
 			l.advance(n, r.Type)
 
-			if !yield(r) {
+			if !yield(offset, r) {
 				break
 			}
 		}
 	}
 }
 
-func (l *log) Counters() Counters {
+func (l *log) Counters() counters {
 	return l.counters
 }
 
-// TODO: Get rid of this. It's awkward. Just return it from Append.
-func (l *log) Pointer() (int64, int64) {
-	return l.pointer + RecordHeaderLength, l.lastValueSize
-}
-
 func (l *log) advance(n int64, t Type) {
-	l.pointer = l.cursor
 	l.cursor += n
-	l.lastValueSize = n - RecordHeaderLength
 	l.counters.add(t)
 }
 
-// newCounters returns an empty Counters.
-func newCounters() Counters {
-	return Counters{
+// newCounters returns an empty counters.
+func newCounters() counters {
+	return counters{
 		counters: make(map[Type]uint64),
 	}
 }
 
-// Counters tracks how many records of each type are in a single log.
+// counters tracks how many records of each type are in a single log.
 // It is used to update the inventory in the DB when a log is compacted.
-type Counters struct {
+type counters struct {
 	counters map[Type]uint64
 	records  uint64
 }
 
 // add increments the counter for the given Type by 1.
-func (c *Counters) add(t Type) {
+func (c *counters) add(t Type) {
 	c.counters[t]++
 	c.records++
 }
 
 // total returns the total amount of records counted.
-func (c *Counters) total() uint64 {
+func (c *counters) total() uint64 {
 	return c.records
 }
 
 // All iterates over all of the counters, returning the Type
 // and how many Records of this type are in the log.
-func (c *Counters) All() iter.Seq2[Type, uint64] {
+func (c *counters) All() Counters {
 	return func(yield func(Type, uint64) bool) {
 		for t, count := range c.counters {
 			if !yield(t, count) {

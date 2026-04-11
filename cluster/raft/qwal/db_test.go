@@ -4,6 +4,8 @@ import (
 	"errors"
 	"fmt"
 	"math/rand/v2"
+	"os"
+	"path/filepath"
 	"testing"
 
 	. "github.com/robinkb/cascade/testing"
@@ -83,7 +85,7 @@ func TestDBAppend(t *testing.T) {
 		})
 
 		compacts := 0
-		db.CompactHook(func(c Counters) error {
+		db.CompactHook(func(counts Counters) error {
 			compacts++
 			return nil
 		})
@@ -217,7 +219,7 @@ func TestDBCompact(t *testing.T) {
 		db := testReplayedDB(t, t.TempDir(), nil)
 
 		called := false
-		db.CompactHook(func(c Counters) error {
+		db.CompactHook(func(counts Counters) error {
 			called = true
 			return nil
 		})
@@ -235,7 +237,7 @@ func TestDBCompact(t *testing.T) {
 		db := testReplayedDB(t, t.TempDir(), nil)
 
 		want := errors.New("error when calling CompactHook")
-		db.CompactHook(func(c Counters) error {
+		db.CompactHook(func(counts Counters) error {
 			return want
 		})
 
@@ -248,7 +250,19 @@ func TestDBCompact(t *testing.T) {
 	})
 }
 
-func TestDBOpenExisting(t *testing.T) {
+func TestDBOpen(t *testing.T) {
+	t.Run("returns an error when the path is not a directory", func(t *testing.T) {
+		dir := t.TempDir()
+		notadir := filepath.Join(dir, "oops")
+		err := os.WriteFile(notadir, RandomBytes(2), os.ModeAppend)
+		AssertNoError(t, err)
+
+		_, err = Open(notadir, nil)
+		AssertErrorIs(t, err, ErrNotDirectory)
+	})
+}
+
+func TestDBReplay(t *testing.T) {
 	t.Run("re-open db and write data", func(t *testing.T) {
 		dir := t.TempDir()
 		db := testReplayedDB(t, dir, nil)
@@ -286,7 +300,7 @@ func TestDBOpenExisting(t *testing.T) {
 
 	t.Run("recover after cuts and compactions", func(t *testing.T) {
 		dir := t.TempDir()
-		db := testReplayedDB(t, dir, &Options{
+		tdb := testReplayedDB(t, dir, &Options{
 			MaxLogCount: 8,
 		})
 
@@ -297,20 +311,20 @@ func TestDBOpenExisting(t *testing.T) {
 		wantType := randomType()
 		wantValues := RandomBytesN(16, 1<<10, 10<<10)
 		for _, value := range wantValues {
-			err := db.Append(wantType, value)
+			err := tdb.Append(wantType, value)
 			AssertNoError(t, err).Require()
-			err = db.Cut()
+			err = tdb.Cut()
 			AssertNoError(t, err).Require()
 		}
 
 		// The amount of values left in DB after compaction.
-		remainingValueCount := db.Count(wantType)
+		remainingValueCount := tdb.Count(wantType)
 
-		err := db.Close()
+		err := tdb.Close()
 		AssertNoError(t, err).Require()
 
 		// Open a new DB in the same directory.
-		db = testReplayedDB(t, dir, nil)
+		db := testReplayedDB(t, dir, nil).(*db)
 
 		// Check all remaining values
 		for i := range remainingValueCount {
@@ -318,10 +332,44 @@ func TestDBOpenExisting(t *testing.T) {
 			AssertNoError(t, err)
 			AssertSlicesEqual(t, got, wantValues[remainingValueCount+i])
 		}
+
+		// Sequence should be restored to last log's ID
+		lastLog := db.activeLog()
+		AssertEqual(t, db.sequence, uint64(lastLog.ID))
+	})
+
+	t.Run("detects a missing log", func(t *testing.T) {
+		dir := t.TempDir()
+		db := testReplayedDB(t, dir, &Options{
+			MaxLogCount: 3,
+		})
+
+		wantLogsCreated := 5
+		for range wantLogsCreated {
+			err := db.Append(Type(0), RandomBytes(32))
+			AssertNoError(t, err).Require()
+			err = db.Cut()
+			AssertNoError(t, err).Require()
+		}
+
+		err := db.Close()
+		AssertNoError(t, err).Require()
+
+		// At this point we have logs with sequences 2, 3, 4, and 5.
+		// Delete log file with sequence 3.
+		logFileName := filepath.Join(dir, fmt.Sprintf(logNameFmt, 3))
+		err = os.Remove(logFileName)
+		AssertNoError(t, err).Require()
+
+		db = testDB(t, dir, nil)
+		err = db.Replay()
+		AssertErrorIs(t, err, ErrMissingLogFile)
 	})
 }
 
-func TestDBReplay(t *testing.T) {
+func TestDBReplayHook(t *testing.T) {
+	// These subtests only do reading on this DB.
+	// Modifying it could break other tests.
 	dir := t.TempDir()
 	db := testDB(t, dir, nil)
 	err := db.Replay()
@@ -367,7 +415,26 @@ func TestDBReplay(t *testing.T) {
 	t.Run("can replay without a hook registered", func(t *testing.T) {
 		db := testDB(t, dir, nil)
 		err := db.Replay()
-		AssertNoError(t, err).Require()
+		AssertNoError(t, err)
+	})
+
+	t.Run("replaying a second time does nothing", func(t *testing.T) {
+		// Open and replay.
+		db := testDB(t, dir, nil)
+		err := db.Replay()
+		AssertNoError(t, err)
+
+		// Put a value in it.
+		err = db.Append(Type(0), RandomBytes(42))
+		AssertNoError(t, err)
+
+		// Replay a second time.
+		err = db.Replay()
+		AssertNoError(t, err)
+
+		// Should still have just one value.
+		count := db.Count(Type(0))
+		AssertEqual(t, count, 1)
 	})
 
 	t.Run("reading or writing panics before replaying", func(t *testing.T) {
@@ -377,71 +444,41 @@ func TestDBReplay(t *testing.T) {
 			name   string
 			method func(db DB) error
 		}{
-			{
-				name: "Append",
-				method: func(db DB) error {
-					return db.Append(1, nil)
-				},
-			},
-			{
-				name: "Get",
-				method: func(db DB) error {
-					_, err := db.Get(0, 0)
-					return err
-				},
-			},
-			{
-				name: "Count",
-				method: func(db DB) error {
-					db.Count(0)
-					return nil
-				},
-			},
-			{
-				name: "First",
-				method: func(db DB) error {
-					_, err := db.First(0)
-					return err
-				},
-			},
-			{
-				name: "Last",
-				method: func(db DB) error {
-					_, err := db.Last(0)
-					return err
-				},
-			},
-			{
-				name: "Range",
-				method: func(db DB) error {
-					db.Range(0, 0, 0)
-					return err
-				},
-			},
-			{
-				name: "Cut",
-				method: func(db DB) error {
-					return db.Cut()
-				},
-			},
-			{
-				name: "Compact",
-				method: func(db DB) error {
-					return db.Compact()
-				},
-			},
-			{
-				name: "Sync",
-				method: func(db DB) error {
-					return db.Sync()
-				},
-			},
-			{
-				name: "Close",
-				method: func(db DB) error {
-					return db.Close()
-				},
-			},
+			{name: "Append", method: func(db DB) error {
+				return db.Append(1, nil)
+			}},
+			{name: "Get", method: func(db DB) error {
+				_, err := db.Get(0, 0)
+				return err
+			}},
+			{name: "Count", method: func(db DB) error {
+				db.Count(0)
+				return nil
+			}},
+			{name: "First", method: func(db DB) error {
+				_, err := db.First(0)
+				return err
+			}},
+			{name: "Last", method: func(db DB) error {
+				_, err := db.Last(0)
+				return err
+			}},
+			{name: "Range", method: func(db DB) error {
+				db.Range(0, 0, 0)
+				return err
+			}},
+			{name: "Cut", method: func(db DB) error {
+				return db.Cut()
+			}},
+			{name: "Compact", method: func(db DB) error {
+				return db.Compact()
+			}},
+			{name: "Sync", method: func(db DB) error {
+				return db.Sync()
+			}},
+			{name: "Close", method: func(db DB) error {
+				return db.Close()
+			}},
 		}
 
 		for _, tt := range tc {

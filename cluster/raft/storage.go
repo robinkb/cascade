@@ -373,7 +373,7 @@ func (s *DiskStorage) compactionHook() qwal.CompactHookFunc {
 	var entry raftpb.Entry
 
 	return func(c qwal.Counters) error {
-		for t, count := range c.All() {
+		for t, count := range c {
 			// We only do something with Entries atm.
 			if t != TypeEntry {
 				continue
