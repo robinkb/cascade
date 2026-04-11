@@ -17,7 +17,7 @@ import (
 )
 
 // NewForHandler returns a test client for the given handler, likely a registry server.
-func NewForHandler(t *testing.T, handler http.Handler) *Client {
+func NewForHandler(t testing.TB, handler http.Handler) *Client {
 	return &Client{
 		t:       t,
 		handler: handler,
@@ -29,7 +29,7 @@ func NewForHandler(t *testing.T, handler http.Handler) *Client {
 // Users should initialize it with NewClient().
 type Client struct {
 	handler http.Handler
-	t       *testing.T
+	t       testing.TB
 }
 
 func (c *Client) ListRepositories(opts *ListOptions) *http.Response {
@@ -162,7 +162,7 @@ func (c *Client) UploadBlobSinglePOST(name string, digest digest.Digest, content
 	path := fmt.Sprintf("/v2/%s/blobs/uploads/", name)
 
 	url, err := url.Parse(path)
-	RequireNoError(c.t, err)
+	AssertNoError(c.t, err).Require()
 
 	query := url.Query()
 	query.Add("digest", digest.String())
