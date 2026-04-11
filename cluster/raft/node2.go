@@ -6,7 +6,6 @@ import (
 	"encoding/binary"
 	"fmt"
 	"math/rand/v2"
-	"sync"
 	"time"
 
 	"github.com/robinkb/cascade/cluster"
@@ -45,7 +44,7 @@ func NewNode2(dir string) Node2 {
 		stop: make(chan struct{}),
 
 		proposalHandlers: make(map[Type]ProposalFunc),
-		proposalReporter: newProposalReporter(),
+		proposalReporter: NewReporter[result](),
 	}
 }
 
@@ -56,13 +55,17 @@ type node2 struct {
 	ticker     <-chan time.Time
 	manualTick chan time.Time
 
-	// stop is signalled when the node needs to shut down the raft state loop.
+	// stop is signaled when the node needs to shut down the raft state loop.
 	stop chan struct{}
 	// done waits for the node to finish shutting down the raft state loop.
 	done chan struct{}
 
+	// proposalHandlers is a registry of functions that handle
+	// proposals of a given type.
 	proposalHandlers map[Type]ProposalFunc
-	proposalReporter proposalReporter
+	// proposalReporter returns the result of proposal functions
+	// back to the caller.
+	proposalReporter Reporter[result]
 }
 
 func (n *node2) Name() string {
@@ -79,7 +82,7 @@ func (n *node2) Run() error {
 				n.storage.SetHardState(rd.HardState)
 				n.storage.Append(rd.Entries)
 
-				for _, entry := range rd.Entries {
+				for _, entry := range rd.CommittedEntries {
 					// Heartbeats send empty entries, which we don't need to process.
 					if len(entry.Data) == 0 {
 						continue
@@ -148,8 +151,8 @@ func encodeProposal(id uint64, t uint32, data []byte) []byte {
 func (n *node2) Propose(t Type, data []byte) (resp []byte, err error) {
 	id := rand.Uint64()
 
-	ch := n.proposalReporter.create(id)
-	defer n.proposalReporter.delete(id)
+	ch := n.proposalReporter.Create(id)
+	defer n.proposalReporter.Delete(id)
 
 	enc := encodeProposal(id, uint32(t), data)
 
@@ -179,7 +182,7 @@ func (n *node2) commit(data []byte) {
 
 	resp, err := f(dec)
 
-	ch, ok := n.proposalReporter.get(id)
+	ch, ok := n.proposalReporter.Get(id)
 	if ok {
 		ch <- result{resp, err}
 	}
@@ -188,36 +191,4 @@ func (n *node2) commit(data []byte) {
 type result struct {
 	resp []byte
 	err  error
-}
-
-func newProposalReporter() proposalReporter {
-	return proposalReporter{
-		proposals: make(map[uint64]chan result),
-	}
-}
-
-type proposalReporter struct {
-	mu        sync.Mutex
-	proposals map[uint64]chan result
-}
-
-func (r *proposalReporter) create(id uint64) chan result {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	r.proposals[id] = make(chan result)
-	return r.proposals[id]
-}
-
-func (r *proposalReporter) get(id uint64) (chan result, bool) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	resultC, err := r.proposals[id]
-	return resultC, err
-}
-
-func (r *proposalReporter) delete(id uint64) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	close(r.proposals[id])
-	delete(r.proposals, id)
 }
