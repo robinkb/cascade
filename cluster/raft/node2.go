@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/binary"
 	"fmt"
+	"log"
 	"slices"
 	"time"
 
@@ -90,7 +91,7 @@ func (n *node2) Run() error {
 		for {
 			select {
 			case rd := <-n.raft.Ready():
-				n.storage.Save(rd.Entries, rd.HardState, rd.MustSync)
+				n.saveToStorage(rd.Entries, rd.HardState, raftpb.Snapshot{}, rd.MustSync)
 				n.processCommittedEntries(rd.CommittedEntries)
 				n.raft.Advance()
 			case <-n.ticker:
@@ -104,6 +105,12 @@ func (n *node2) Run() error {
 		}
 	}()
 	return nil
+}
+
+func (n *node2) saveToStorage(entries []raftpb.Entry, hardState raftpb.HardState, _ raftpb.Snapshot, mustSync bool) {
+	if err := n.storage.Save(entries, hardState, mustSync); err != nil {
+		log.Fatal("failed to persist entries and hardstate:", err)
+	}
 }
 
 func (n *node2) processCommittedEntries(entries []raftpb.Entry) {
@@ -120,7 +127,9 @@ func (n *node2) processCommittedEntries(entries []raftpb.Entry) {
 		}
 	}
 
-	n.storage.SaveAppliedIndex(entries[len(entries)-1].Index)
+	if err := n.storage.SaveAppliedIndex(entries[len(entries)-1].Index); err != nil {
+		log.Fatal("failed to persist applied index:", err)
+	}
 }
 
 // filterEmptyEntries removes entries for which no actions need to be taken.
@@ -216,6 +225,8 @@ func (n *node2) applyProposal(data []byte) {
 	send, ok := n.proposalReporter.Send(id)
 	if ok {
 		send <- result{resp, err}
+	} else if err != nil {
+		log.Println("application error applying proposal:", err)
 	}
 }
 

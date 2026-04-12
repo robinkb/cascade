@@ -321,6 +321,9 @@ func (s *DiskStorage) SaveAppliedIndex(i uint64) error {
 // and makes it available through the Snapshot() method.
 func (s *DiskStorage) SaveSnapshot(snapshot raftpb.Snapshot) error {
 	s.callStats.applySnapshot++
+	if raft.IsEmptySnap(snapshot) {
+		return nil
+	}
 
 	value := make([]byte, snapshot.Size())
 	_, err := snapshot.MarshalTo(value)

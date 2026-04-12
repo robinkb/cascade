@@ -293,7 +293,8 @@ func TestSnapshot(t *testing.T) {
 	AssertNoError(t, err).Require()
 	// Set the index of the last applied entry. Normally this happens after
 	// the entry is applied to the state machine.
-	store.SaveAppliedIndex(lastApplied.Index)
+	err = store.SaveAppliedIndex(lastApplied.Index)
+	AssertNoError(t, err).Require()
 
 	// Cut triggers a snapshot.
 	err = db.Cut()
@@ -314,8 +315,9 @@ func TestCompaction(t *testing.T) {
 
 	oldEntries := index(1).terms(1, 1)
 	err = store.Save(oldEntries, emptyHardState, false)
-	AssertNoError(t, err)
-	store.SaveAppliedIndex(oldEntries[1].Index)
+	AssertNoError(t, err).Require()
+	err = store.SaveAppliedIndex(oldEntries[1].Index)
+	AssertNoError(t, err).Require()
 
 	// Ensure that FirstIndex returns the Index of the Entry that we just put in.
 	fi, err := store.FirstIndex()
@@ -335,7 +337,8 @@ func TestCompaction(t *testing.T) {
 	newEntries := index(3).terms(2, 2, 2)
 	err = store.Save(newEntries, emptyHardState, false)
 	AssertNoError(t, err).Require()
-	store.SaveAppliedIndex(newEntries[2].Index)
+	err = store.SaveAppliedIndex(newEntries[2].Index)
+	AssertNoError(t, err).Require()
 
 	// Compact, which should remove the first Log containing the first Entry.
 	err = db.Compact()
