@@ -102,9 +102,9 @@ func TestSingleNode(t *testing.T) {
 
 		newNode := NewNode2(dir)
 		Run2(t, newNode)
-
+		s.Verify()
 		newStatus := newNode.Status()
-		AssertDeepEqual(t, newStatus, oldStatus)
+		AssertRaftStatus(t, oldStatus).Equal(newStatus)
 	})
 }
 

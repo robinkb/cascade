@@ -39,7 +39,8 @@ func NewNode2(dir string) Node2 {
 			MaxSizePerMsg:   4096,
 			MaxInflightMsgs: 256,
 		},
-		storage:    storage,
+		storage: storage,
+
 		ticker:     time.Tick(100 * time.Millisecond),
 		manualTick: make(chan time.Time),
 
@@ -76,7 +77,7 @@ func (n *node2) Name() string {
 }
 
 func (n *node2) Run() error {
-	n.conf.Applied = n.storage.appliedIndex
+	n.conf.Applied = n.storage.AppliedIndex()
 	n.raft = raft.RestartNode(n.conf)
 	n.raft.ApplyConfChange(raftpb.ConfChange{
 		Type:   raftpb.ConfChangeAddNode,

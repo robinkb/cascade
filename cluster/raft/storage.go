@@ -2,6 +2,7 @@ package raft
 
 import (
 	"bytes"
+	"encoding/binary"
 	"fmt"
 
 	"github.com/robinkb/cascade/cluster"
@@ -15,7 +16,7 @@ const (
 	TypeEntry qwal.Type = iota
 	TypeHardState
 	TypeSnapshot
-	// TypeAppliedIndex // TODO: Not happy about saving this separately.
+	TypeAppliedIndex // TODO: Not happy about saving this separately.
 )
 
 func NewDiskStorage(db qwal.DB, snap cluster.Snapshotter) (*DiskStorage, error) {
@@ -24,7 +25,9 @@ func NewDiskStorage(db qwal.DB, snap cluster.Snapshotter) (*DiskStorage, error) 
 		snap: snap,
 	}
 
-	s.db.ReplayHook(s.replayHook)
+	s.db.ReplayHook(s.replayHook())
+	s.db.CutHook(s.cutHook())
+	s.db.CompactHook(s.compactionHook())
 
 	if err := db.Replay(); err != nil {
 		return nil, err
@@ -63,14 +66,14 @@ func NewDiskStorage(db qwal.DB, snap cluster.Snapshotter) (*DiskStorage, error) 
 		s.hardState = hardState
 	}
 
-	// if s.db.Count(TypeAppliedIndex) > 0 {
-	// 	value, err := s.db.Last(TypeAppliedIndex)
-	// 	if err != nil {
-	// 		return nil, err
-	// 	}
+	if s.db.Count(TypeAppliedIndex) > 0 {
+		value, err := s.db.Last(TypeAppliedIndex)
+		if err != nil {
+			return nil, err
+		}
 
-	// 	s.appliedIndex = binary.LittleEndian.Uint64(value)
-	// }
+		s.appliedIndex = binary.LittleEndian.Uint64(value)
+	}
 
 	if s.db.Count(TypeSnapshot) > 0 {
 		value, err := s.db.Last(TypeSnapshot)
@@ -97,9 +100,6 @@ func NewDiskStorage(db qwal.DB, snap cluster.Snapshotter) (*DiskStorage, error) 
 	// 		)
 	// 	}
 	// }()
-
-	s.db.CutHook(s.cutHook())
-	s.db.CompactHook(s.compactionHook())
 
 	return s, nil
 }
@@ -222,6 +222,10 @@ func (s *DiskStorage) Term(i uint64) (uint64, error) {
 	return s.terms[i], nil
 }
 
+func (s *DiskStorage) AppliedIndex() uint64 {
+	return s.appliedIndex
+}
+
 // LastIndex returns the index of the last entry in the log.
 func (s *DiskStorage) LastIndex() (uint64, error) {
 	s.callStats.lastIndex++
@@ -304,11 +308,11 @@ func (s *DiskStorage) Save(entries []raftpb.Entry, hardState raftpb.HardState, s
 }
 
 func (s *DiskStorage) SaveAppliedIndex(i uint64) error {
-	// buf := make([]byte, 8)
-	// binary.LittleEndian.PutUint64(buf, i)
-	// if err := s.db.Append(TypeAppliedIndex, buf); err != nil {
-	// 	return err
-	// }
+	buf := make([]byte, 8)
+	binary.LittleEndian.PutUint64(buf, i)
+	if err := s.db.Append(TypeAppliedIndex, buf); err != nil {
+		return err
+	}
 	s.appliedIndex = i
 	return nil
 }
@@ -342,16 +346,19 @@ func (s *DiskStorage) Close() error {
 	return s.db.Close()
 }
 
-func (s *DiskStorage) replayHook(t qwal.Type, v []byte) error {
-	if t != TypeEntry {
+func (s *DiskStorage) replayHook() qwal.ReplayHookFunc {
+	var entry raftpb.Entry
+
+	return func(t qwal.Type, v []byte) error {
+		if t != TypeEntry {
+			return nil
+		}
+		if err := entry.Unmarshal(v); err != nil {
+			return err
+		}
+		s.terms = append(s.terms, entry.Term)
 		return nil
 	}
-	var entry raftpb.Entry
-	if err := entry.Unmarshal(v); err != nil {
-		return err
-	}
-	s.terms = append(s.terms, entry.Term)
-	return nil
 }
 
 func (s *DiskStorage) cutHook() qwal.CutHookFunc {
