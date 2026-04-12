@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/robinkb/cascade/cluster"
+	"github.com/robinkb/cascade/cluster/raft/qwal"
 	"go.etcd.io/raft/v3"
 	"go.etcd.io/raft/v3/raftpb"
 )
@@ -25,7 +26,9 @@ type (
 )
 
 func NewNode2(dir string) Node2 {
-	storage := raft.NewMemoryStorage()
+	db, _ := qwal.Open(dir, nil)
+	storage, _ := NewDiskStorage(db, nil)
+
 	return &node2{
 		conf: &raft.Config{
 			ID:            1,
@@ -50,7 +53,7 @@ func NewNode2(dir string) Node2 {
 type node2 struct {
 	raft    raft.Node
 	conf    *raft.Config
-	storage *raft.MemoryStorage
+	storage *DiskStorage
 
 	ticker     <-chan time.Time
 	manualTick chan time.Time
@@ -66,8 +69,6 @@ type node2 struct {
 	// proposalReporter returns the result of proposal functions
 	// back to the caller.
 	proposalReporter Reporter[result]
-
-	appliedIndex uint64
 }
 
 func (n *node2) Name() string {
@@ -75,7 +76,7 @@ func (n *node2) Name() string {
 }
 
 func (n *node2) Run() error {
-	n.conf.Applied = n.appliedIndex
+	n.conf.Applied = n.storage.appliedIndex
 	n.raft = raft.RestartNode(n.conf)
 	n.raft.ApplyConfChange(raftpb.ConfChange{
 		Type:   raftpb.ConfChangeAddNode,
@@ -87,8 +88,7 @@ func (n *node2) Run() error {
 		for {
 			select {
 			case rd := <-n.raft.Ready():
-				n.storage.SetHardState(rd.HardState)
-				n.storage.Append(rd.Entries)
+				n.storage.Save(rd.Entries, rd.HardState, rd.MustSync)
 
 				for _, entry := range rd.CommittedEntries {
 					// Heartbeats send empty entries, which we don't need to process.
@@ -100,7 +100,7 @@ func (n *node2) Run() error {
 						n.applyProposal(entry.Data)
 					}
 
-					n.appliedIndex = entry.Index
+					n.storage.SaveAppliedIndex(entry.Index)
 				}
 
 				n.raft.Advance()

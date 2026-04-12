@@ -83,6 +83,29 @@ func TestSingleNode(t *testing.T) {
 		Run2(t, node)
 		s.Verify()
 	})
+
+	t.Run("restores state from disk", func(t *testing.T) {
+		dir := t.TempDir()
+		oldNode := NewNode2(dir)
+		Run2(t, oldNode)
+
+		calls := 100
+		s := NewSpyStore(t, oldNode, calls)
+		for range calls {
+			s.Add()
+		}
+
+		oldStatus := oldNode.Status()
+
+		err := oldNode.Shutdown()
+		AssertNoError(t, err)
+
+		newNode := NewNode2(dir)
+		Run2(t, newNode)
+
+		newStatus := newNode.Status()
+		AssertDeepEqual(t, newStatus, oldStatus)
+	})
 }
 
 // TestProposer has more in-depth tests and unhappy paths
@@ -212,10 +235,11 @@ func Run2(t *testing.T, n Node2) {
 		AssertNoError(t, err)
 	})
 
-	go func() {
+	go func(t testing.TB) {
+		t.Helper()
 		err := n.Run()
 		AssertNoError(t, err)
-	}()
+	}(t)
 
 	for {
 		// Effectively waits for the raft node to start.

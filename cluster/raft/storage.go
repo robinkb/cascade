@@ -15,6 +15,7 @@ const (
 	TypeEntry qwal.Type = iota
 	TypeHardState
 	TypeSnapshot
+	// TypeAppliedIndex // TODO: Not happy about saving this separately.
 )
 
 func NewDiskStorage(db qwal.DB, snap cluster.Snapshotter) (*DiskStorage, error) {
@@ -22,6 +23,8 @@ func NewDiskStorage(db qwal.DB, snap cluster.Snapshotter) (*DiskStorage, error) 
 		db:   db,
 		snap: snap,
 	}
+
+	s.db.ReplayHook(s.replayHook)
 
 	if err := db.Replay(); err != nil {
 		return nil, err
@@ -59,6 +62,15 @@ func NewDiskStorage(db qwal.DB, snap cluster.Snapshotter) (*DiskStorage, error) 
 
 		s.hardState = hardState
 	}
+
+	// if s.db.Count(TypeAppliedIndex) > 0 {
+	// 	value, err := s.db.Last(TypeAppliedIndex)
+	// 	if err != nil {
+	// 		return nil, err
+	// 	}
+
+	// 	s.appliedIndex = binary.LittleEndian.Uint64(value)
+	// }
 
 	if s.db.Count(TypeSnapshot) > 0 {
 		value, err := s.db.Last(TypeSnapshot)
@@ -231,10 +243,6 @@ func (s *DiskStorage) FirstIndex() (uint64, error) {
 	return s.firstIndex(), nil
 }
 
-func (s *DiskStorage) AppliedIndex(i uint64) {
-	s.appliedIndex = i
-}
-
 func (s *DiskStorage) firstIndex() uint64 {
 	// Makes no sense, but here we are. This is how Raft's MemoryStorage works.
 	// The Raft Node will refuse to start up without it.
@@ -295,6 +303,16 @@ func (s *DiskStorage) Save(entries []raftpb.Entry, hardState raftpb.HardState, s
 	return nil
 }
 
+func (s *DiskStorage) SaveAppliedIndex(i uint64) error {
+	// buf := make([]byte, 8)
+	// binary.LittleEndian.PutUint64(buf, i)
+	// if err := s.db.Append(TypeAppliedIndex, buf); err != nil {
+	// 	return err
+	// }
+	s.appliedIndex = i
+	return nil
+}
+
 // SaveSnapshot writes the snapshot to persistent storage,
 // and makes it available through the Snapshot() method.
 func (s *DiskStorage) SaveSnapshot(snapshot raftpb.Snapshot) error {
@@ -322,6 +340,18 @@ func (s *DiskStorage) SaveConfState(cs raftpb.ConfState) {
 
 func (s *DiskStorage) Close() error {
 	return s.db.Close()
+}
+
+func (s *DiskStorage) replayHook(t qwal.Type, v []byte) error {
+	if t != TypeEntry {
+		return nil
+	}
+	var entry raftpb.Entry
+	if err := entry.Unmarshal(v); err != nil {
+		return err
+	}
+	s.terms = append(s.terms, entry.Term)
+	return nil
 }
 
 func (s *DiskStorage) cutHook() qwal.CutHookFunc {
