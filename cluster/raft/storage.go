@@ -342,6 +342,10 @@ func (s *DiskStorage) SaveConfState(cs raftpb.ConfState) {
 	s.confState = cs
 }
 
+func (s *DiskStorage) Sync() error {
+	return s.db.Sync()
+}
+
 func (s *DiskStorage) Close() error {
 	return s.db.Close()
 }

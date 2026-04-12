@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/binary"
 	"fmt"
+	"slices"
 	"time"
 
 	"github.com/robinkb/cascade/cluster"
@@ -73,7 +74,7 @@ type node2 struct {
 }
 
 func (n *node2) Name() string {
-	return ""
+	return fmt.Sprintf("raft node %d", n.conf.ID)
 }
 
 func (n *node2) Run() error {
@@ -83,27 +84,14 @@ func (n *node2) Run() error {
 		Type:   raftpb.ConfChangeAddNode,
 		NodeID: n.conf.ID,
 	}.AsV2())
-	n.done = make(chan struct{})
 
+	n.done = make(chan struct{})
 	go func() {
 		for {
 			select {
 			case rd := <-n.raft.Ready():
 				n.storage.Save(rd.Entries, rd.HardState, rd.MustSync)
-
-				for _, entry := range rd.CommittedEntries {
-					// Heartbeats send empty entries, which we don't need to process.
-					if len(entry.Data) == 0 {
-						continue
-					}
-
-					if entry.Type == raftpb.EntryNormal {
-						n.applyProposal(entry.Data)
-					}
-
-					n.storage.SaveAppliedIndex(entry.Index)
-				}
-
+				n.processCommittedEntries(rd.CommittedEntries)
 				n.raft.Advance()
 			case <-n.ticker:
 				n.raft.Tick()
@@ -116,6 +104,31 @@ func (n *node2) Run() error {
 		}
 	}()
 	return nil
+}
+
+func (n *node2) processCommittedEntries(entries []raftpb.Entry) {
+	entries = n.filterEmptyEntries(entries)
+	// It could be that all entries get filtered out, in which case
+	// we can skip having to write AppliedIndex to disk.
+	if len(entries) == 0 {
+		return
+	}
+
+	for _, entry := range entries {
+		if entry.Type == raftpb.EntryNormal {
+			n.applyProposal(entry.Data)
+		}
+	}
+
+	n.storage.SaveAppliedIndex(entries[len(entries)-1].Index)
+}
+
+// filterEmptyEntries removes entries for which no actions need to be taken.
+func (n *node2) filterEmptyEntries(entries []raftpb.Entry) []raftpb.Entry {
+	return slices.DeleteFunc(entries, func(e raftpb.Entry) bool {
+		// Heartbeats send empty entries, which we don't need to process.
+		return len(e.Data) == 0
+	})
 }
 
 func (n *node2) Shutdown() error {
@@ -134,7 +147,8 @@ func (n *node2) Shutdown() error {
 	}
 	// Block until the stop has been acknowledged by run()
 	<-n.done
-	return nil
+
+	return n.storage.Sync()
 }
 
 func (n *node2) Status() raft.Status {
