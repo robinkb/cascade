@@ -18,10 +18,10 @@ type Reporter[T any] struct {
 	channels map[uint64]chan T
 }
 
-// Create returns a new ID and receiving channel of type T.
+// Await returns a new ID and receiving channel of type T.
 // It is used to await a result from another go routine
-// by calling [Reporter.Get] with the received ID.
-func (r *Reporter[T]) Create() (uint64, <-chan T) {
+// by calling [Reporter.Send] with the received ID.
+func (r *Reporter[T]) Await() (uint64, <-chan T) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	id := r.createId()
@@ -41,20 +41,20 @@ func (r *Reporter[T]) createId() uint64 {
 	}
 }
 
-// Get returns a sending channel identified by the id,
+// Send returns a sending channel identified by the id,
 // if it was previously created. If a channel for the id
 // cannot be found, the boolean return value is false.
 // It is used to send a result to the go routine that
-// created the channel using [Reporter.Create].
-func (r *Reporter[T]) Get(id uint64) (chan<- T, bool) {
+// created the channel using [Reporter.Await].
+func (r *Reporter[T]) Send(id uint64) (chan<- T, bool) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	resultC, ok := r.channels[id]
 	return resultC, ok
 }
 
-// Delete closes and deletes the channel.
-func (r *Reporter[T]) Delete(id uint64) {
+// Close closes and deletes the channel.
+func (r *Reporter[T]) Close(id uint64) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	close(r.channels[id])

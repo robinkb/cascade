@@ -66,6 +66,8 @@ type node2 struct {
 	// proposalReporter returns the result of proposal functions
 	// back to the caller.
 	proposalReporter Reporter[result]
+
+	appliedIndex uint64
 }
 
 func (n *node2) Name() string {
@@ -73,7 +75,12 @@ func (n *node2) Name() string {
 }
 
 func (n *node2) Run() error {
-	n.raft = raft.StartNode(n.conf, []raft.Peer{{ID: n.conf.ID}})
+	n.conf.Applied = n.appliedIndex
+	n.raft = raft.RestartNode(n.conf)
+	n.raft.ApplyConfChange(raftpb.ConfChange{
+		Type:   raftpb.ConfChangeAddNode,
+		NodeID: n.conf.ID,
+	}.AsV2())
 	n.done = make(chan struct{})
 
 	go func() {
@@ -92,6 +99,8 @@ func (n *node2) Run() error {
 					if entry.Type == raftpb.EntryNormal {
 						n.commit(entry.Data)
 					}
+
+					n.appliedIndex = entry.Index
 				}
 
 				n.raft.Advance()
@@ -158,8 +167,8 @@ func encodeProposal(id uint64, t uint32, data []byte) []byte {
 }
 
 func (n *node2) Propose(t Type, data []byte) (resp any, err error) {
-	id, ch := n.proposalReporter.Create()
-	defer n.proposalReporter.Delete(id)
+	id, await := n.proposalReporter.Await()
+	defer n.proposalReporter.Close(id)
 
 	enc := encodeProposal(id, uint32(t), data)
 
@@ -167,7 +176,7 @@ func (n *node2) Propose(t Type, data []byte) (resp any, err error) {
 		return nil, err
 	}
 
-	result := <-ch
+	result := <-await
 
 	return result.resp, result.err
 }
@@ -189,9 +198,9 @@ func (n *node2) commit(data []byte) {
 
 	resp, err := f(dec)
 
-	ch, ok := n.proposalReporter.Get(id)
+	send, ok := n.proposalReporter.Send(id)
 	if ok {
-		ch <- result{resp, err}
+		send <- result{resp, err}
 	}
 }
 

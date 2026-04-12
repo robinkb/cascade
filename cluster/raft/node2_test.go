@@ -49,14 +49,14 @@ func TestSingleNode(t *testing.T) {
 		node := NewNode2(t.TempDir())
 		Run2(t, node)
 
-		snapElections2(node)
+		SnapElections(node)
 		AssertRaftStatus(t, node.Status()).IsLeader().Voters(1)
 	})
 
 	t.Run("can handle proposals", func(t *testing.T) {
 		node := NewNode2(t.TempDir())
 		Run2(t, node)
-		snapElections2(node)
+		SnapElections(node)
 
 		calls := 100
 		s := NewSpyStore(t, node, calls)
@@ -64,6 +64,23 @@ func TestSingleNode(t *testing.T) {
 			s.Add()
 			AssertEqual(t, s.Get(), i)
 		}
+		s.Verify()
+	})
+
+	t.Run("retains state after restart", func(t *testing.T) {
+		node := NewNode2(t.TempDir())
+		Run2(t, node)
+
+		calls := 100
+		s := NewSpyStore(t, node, calls)
+		for range calls {
+			s.Add()
+		}
+
+		err := node.Shutdown()
+		AssertNoError(t, err)
+
+		Run2(t, node)
 		s.Verify()
 	})
 }
@@ -101,7 +118,7 @@ func TestProposer(t *testing.T) {
 
 		node := NewNode2(t.TempDir())
 		Run2(t, node)
-		snapElections2(node)
+		SnapElections(node)
 
 		pt := Type(10)
 		_, _ = node.Propose(pt, RandomBytes(32))
@@ -152,18 +169,26 @@ func (s *SpyStore) add(data []byte) (any, error) {
 	return n, nil
 }
 
+// Verify asserts that the SpyStore got exactly the expected commits
+// from the Raft state machine.
 func (s *SpyStore) Verify() {
+	// Assert that Add() was called as often as we expected.
 	AssertEqual(s.t, s.Counter, s.ExpectedCalls).Require()
+	// Assert that we have as many items in the state as was called,
+	// indicating that Raft succesfully forwarded all proposals.
+	// If we have more items than expected, Raft sent duplicates.
 	AssertEqual(s.t, len(s.State), s.ExpectedCalls).Require()
 	if len(s.State) > 0 {
 		for i := 0; i < len(s.State); i++ {
+			// Assert the order of items in the state (0 to ExpectedCalls)
+			// to ensure that no messages were delivered out of order.
 			AssertEqual(s.t, s.State[i], i).Require()
 		}
 	}
 }
 
-// snapElections rapidly ticks the given nodes until a leader is elected.
-func snapElections2(nodes ...Node2) {
+// SnapElections rapidly ticks the given nodes until a leader is elected.
+func SnapElections(nodes ...Node2) {
 	var wg sync.WaitGroup
 	for _, n := range nodes {
 		wg.Go(func() {
@@ -177,6 +202,8 @@ func snapElections2(nodes ...Node2) {
 	wg.Wait()
 }
 
+// Run2 starts a Node on a Go routine, and blocks until it is started.
+// The Node is shut down at the end of the test.
 func Run2(t *testing.T, n Node2) {
 	t.Helper()
 
@@ -195,6 +222,7 @@ func Run2(t *testing.T, n Node2) {
 		if n.Status().Commit != 0 {
 			return
 		}
-		time.Sleep(1 * time.Millisecond)
+		time.Sleep(5 * time.Millisecond)
+		n.Tick()
 	}
 }
