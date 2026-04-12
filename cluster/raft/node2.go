@@ -5,7 +5,6 @@ import (
 	"context"
 	"encoding/binary"
 	"fmt"
-	"math/rand/v2"
 	"time"
 
 	"github.com/robinkb/cascade/cluster"
@@ -149,9 +148,7 @@ func encodeProposal(id uint64, t uint32, data []byte) []byte {
 }
 
 func (n *node2) Propose(t Type, data []byte) (resp []byte, err error) {
-	id := rand.Uint64()
-
-	ch := n.proposalReporter.Create(id)
+	id, ch := n.proposalReporter.Create()
 	defer n.proposalReporter.Delete(id)
 
 	enc := encodeProposal(id, uint32(t), data)
