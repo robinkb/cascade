@@ -97,7 +97,7 @@ func (n *node2) Run() error {
 					}
 
 					if entry.Type == raftpb.EntryNormal {
-						n.commit(entry.Data)
+						n.applyProposal(entry.Data)
 					}
 
 					n.appliedIndex = entry.Index
@@ -188,7 +188,7 @@ func decodeProposal(enc []byte) (id uint64, t uint32, data []byte) {
 	return
 }
 
-func (n *node2) commit(data []byte) {
+func (n *node2) applyProposal(data []byte) {
 	id, pt, dec := decodeProposal(data)
 
 	f, ok := n.proposalHandlers[Type(pt)]

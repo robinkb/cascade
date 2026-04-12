@@ -170,7 +170,7 @@ func (s *SpyStore) add(data []byte) (any, error) {
 }
 
 // Verify asserts that the SpyStore got exactly the expected commits
-// from the Raft state machine.
+// from the Raft state machine. See comments inside for details.
 func (s *SpyStore) Verify() {
 	// Assert that Add() was called as often as we expected.
 	AssertEqual(s.t, s.Counter, s.ExpectedCalls).Require()
