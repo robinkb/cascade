@@ -27,15 +27,15 @@ type (
 func NewNode2(dir string) Node2 {
 	storage := raft.NewMemoryStorage()
 	return &node2{
-		raft: raft.StartNode(&raft.Config{
-			ID:              1,
-			HeartbeatTick:   1,
-			ElectionTick:    10, // HeartbeatTick * 10 is suggested by library
+		conf: &raft.Config{
+			ID:            1,
+			HeartbeatTick: 1,
+			// HeartbeatTick * 10 is suggested by library
+			ElectionTick:    10,
 			Storage:         storage,
 			MaxSizePerMsg:   4096,
 			MaxInflightMsgs: 256,
-		}, []raft.Peer{{ID: 1}}),
-
+		},
 		storage:    storage,
 		ticker:     time.Tick(100 * time.Millisecond),
 		manualTick: make(chan time.Time),
@@ -49,6 +49,7 @@ func NewNode2(dir string) Node2 {
 
 type node2 struct {
 	raft    raft.Node
+	conf    *raft.Config
 	storage *raft.MemoryStorage
 
 	ticker     <-chan time.Time
@@ -72,6 +73,7 @@ func (n *node2) Name() string {
 }
 
 func (n *node2) Run() error {
+	n.raft = raft.StartNode(n.conf, []raft.Peer{{ID: n.conf.ID}})
 	n.done = make(chan struct{})
 
 	go func() {
@@ -107,6 +109,10 @@ func (n *node2) Run() error {
 }
 
 func (n *node2) Shutdown() error {
+	if n.done == nil {
+		return nil
+	}
+
 	n.raft.Stop()
 	// The following is a copy from [raft.Node.Stop].
 	select {
@@ -122,6 +128,10 @@ func (n *node2) Shutdown() error {
 }
 
 func (n *node2) Status() raft.Status {
+	// We've not started yet.
+	if n.done == nil {
+		return raft.Status{}
+	}
 	return n.raft.Status()
 }
 

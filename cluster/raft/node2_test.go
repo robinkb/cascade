@@ -5,6 +5,7 @@ import (
 	"math/rand/v2"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/robinkb/cascade/cluster"
 	. "github.com/robinkb/cascade/testing"
@@ -13,27 +14,40 @@ import (
 func TestNodeLifecycle(t *testing.T) {
 	t.Run("can start and stop node", func(t *testing.T) {
 		node := NewNode2(t.TempDir())
-		Run(t, node)
+		AssertRaftStatus(t, node.Status()).IsStopped()
+
+		Run2(t, node)
+		AssertRaftStatus(t, node.Status()).IsRunning()
 
 		err := node.Shutdown()
 		AssertNoError(t, err)
+		AssertRaftStatus(t, node.Status()).IsStopped()
 	})
 
 	t.Run("shutting down twice does not error", func(t *testing.T) {
 		node := NewNode2(t.TempDir())
-		Run(t, node)
+		Run2(t, node)
 
 		err := node.Shutdown()
 		AssertNoError(t, err)
+		AssertRaftStatus(t, node.Status()).IsStopped()
 		err = node.Shutdown()
 		AssertNoError(t, err)
+		AssertRaftStatus(t, node.Status()).IsStopped()
+	})
+
+	t.Run("shutting down unstarted node does not error", func(t *testing.T) {
+		node := NewNode2(t.TempDir())
+		err := node.Shutdown()
+		AssertNoError(t, err)
+		AssertRaftStatus(t, node.Status()).IsStopped()
 	})
 }
 
 func TestSingleNode(t *testing.T) {
 	t.Run("can form single node cluster", func(t *testing.T) {
 		node := NewNode2(t.TempDir())
-		Run(t, node)
+		Run2(t, node)
 
 		snapElections2(node)
 		AssertRaftStatus(t, node.Status()).IsLeader().Voters(1)
@@ -41,7 +55,7 @@ func TestSingleNode(t *testing.T) {
 
 	t.Run("can handle proposals", func(t *testing.T) {
 		node := NewNode2(t.TempDir())
-		Run(t, node)
+		Run2(t, node)
 		snapElections2(node)
 
 		calls := 100
@@ -77,15 +91,16 @@ func TestProposer(t *testing.T) {
 		defer AssertPanics(t, cluster.ErrDuplicateProposalType)
 
 		node := NewNode2(t.TempDir())
-		NewSpyStore(t, node, 0)
-		NewSpyStore(t, node, 0)
+		s := new(SpyStore)
+		node.Handle(Type(10), s.add)
+		node.Handle(Type(10), s.add)
 	})
 
 	t.Run("proposing with an unregistered type panics", func(t *testing.T) {
 		t.Skip("cannot assert that a separate go routine panics, but this works")
 
 		node := NewNode2(t.TempDir())
-		Run(t, node)
+		Run2(t, node)
 		snapElections2(node)
 
 		pt := Type(10)
@@ -160,4 +175,26 @@ func snapElections2(nodes ...Node2) {
 	}
 
 	wg.Wait()
+}
+
+func Run2(t *testing.T, n Node2) {
+	t.Helper()
+
+	t.Cleanup(func() {
+		err := n.Shutdown()
+		AssertNoError(t, err)
+	})
+
+	go func() {
+		err := n.Run()
+		AssertNoError(t, err)
+	}()
+
+	for {
+		// Effectively waits for the raft node to start.
+		if n.Status().Commit != 0 {
+			return
+		}
+		time.Sleep(1 * time.Millisecond)
+	}
 }
