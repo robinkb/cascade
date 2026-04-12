@@ -147,7 +147,7 @@ func encodeProposal(id uint64, t uint32, data []byte) []byte {
 	return buf.Bytes()
 }
 
-func (n *node2) Propose(t Type, data []byte) (resp []byte, err error) {
+func (n *node2) Propose(t Type, data []byte) (resp any, err error) {
 	id, ch := n.proposalReporter.Create()
 	defer n.proposalReporter.Delete(id)
 
@@ -186,6 +186,6 @@ func (n *node2) commit(data []byte) {
 }
 
 type result struct {
-	resp []byte
+	resp any
 	err  error
 }

@@ -1,11 +1,11 @@
 package raft
 
 import (
+	"encoding/binary"
 	"math/rand/v2"
 	"sync"
 	"testing"
 
-	"github.com/opencontainers/go-digest"
 	"github.com/robinkb/cascade/cluster"
 	. "github.com/robinkb/cascade/testing"
 )
@@ -27,7 +27,6 @@ func TestNodeLifecycle(t *testing.T) {
 		AssertNoError(t, err)
 		err = node.Shutdown()
 		AssertNoError(t, err)
-
 	})
 }
 
@@ -45,13 +44,13 @@ func TestSingleNode(t *testing.T) {
 		Run(t, node)
 		snapElections2(node)
 
-		pt := Type(10)
-		node.Handle(pt, testProposalFunc)
-
-		id, content := RandomBlob(32)
-		resp, err := node.Propose(pt, content)
-		AssertNoError(t, err)
-		AssertEqual(t, string(resp), id.String())
+		calls := 100
+		s := NewSpyStore(t, node, calls)
+		for i := range calls {
+			s.Add()
+			AssertEqual(t, s.Get(), i)
+		}
+		s.Verify()
 	})
 }
 
@@ -78,9 +77,8 @@ func TestProposer(t *testing.T) {
 		defer AssertPanics(t, cluster.ErrDuplicateProposalType)
 
 		node := NewNode2(t.TempDir())
-		pt := Type(10)
-		node.Handle(pt, testProposalFunc)
-		node.Handle(pt, testProposalFunc)
+		NewSpyStore(t, node, 0)
+		NewSpyStore(t, node, 0)
 	})
 
 	t.Run("proposing with an unregistered type panics", func(t *testing.T) {
@@ -93,6 +91,60 @@ func TestProposer(t *testing.T) {
 		pt := Type(10)
 		_, _ = node.Propose(pt, RandomBytes(32))
 	})
+}
+
+func NewSpyStore(t testing.TB, p Proposer, expectedCalls int) *SpyStore {
+	s := &SpyStore{
+		t: t,
+		p: p,
+
+		ExpectedCalls: expectedCalls,
+		State:         make([]int, 0, expectedCalls),
+		Type:          Type(rand.Uint32()),
+	}
+
+	p.Handle(s.Type, s.add)
+	return s
+}
+
+type SpyStore struct {
+	t testing.TB
+	p Proposer
+
+	Type          Type
+	ExpectedCalls int
+	Counter       int
+	State         []int
+}
+
+func (s *SpyStore) Add() {
+	buf := make([]byte, 4)
+	binary.LittleEndian.PutUint32(buf, uint32(s.Counter))
+
+	ret, err := s.p.Propose(s.Type, buf)
+	AssertNoError(s.t, err).Require()
+	AssertEqual(s.t, ret.(int), s.Counter).Require()
+	s.Counter++
+}
+
+func (s *SpyStore) Get() int {
+	return s.State[len(s.State)-1]
+}
+
+func (s *SpyStore) add(data []byte) (any, error) {
+	n := int(binary.LittleEndian.Uint32(data))
+	s.State = append(s.State, n)
+	return n, nil
+}
+
+func (s *SpyStore) Verify() {
+	AssertEqual(s.t, s.Counter, s.ExpectedCalls).Require()
+	AssertEqual(s.t, len(s.State), s.ExpectedCalls).Require()
+	if len(s.State) > 0 {
+		for i := 0; i < len(s.State); i++ {
+			AssertEqual(s.t, s.State[i], i).Require()
+		}
+	}
 }
 
 // snapElections rapidly ticks the given nodes until a leader is elected.
@@ -108,9 +160,4 @@ func snapElections2(nodes ...Node2) {
 	}
 
 	wg.Wait()
-}
-
-func testProposalFunc(data []byte) (resp []byte, err error) {
-	id := digest.FromBytes(data)
-	return []byte(id.String()), nil
 }
