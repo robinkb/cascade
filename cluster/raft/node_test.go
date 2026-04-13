@@ -131,18 +131,18 @@ func newTestCluster(t *testing.T, n int) []Node {
 	for i := range n {
 		peers[i] = cluster.Peer{
 			ID:   rand.Uint64(),
-			Host: RandomHost(),
+			Addr: RandomHost(),
 		}
 	}
 
 	for i := range n {
 		srv := server.New(server.Options{
 			Name: fmt.Sprintf("test-server %d", peers[i].ID),
-			Addr: peers[i].Host,
+			Addr: peers[i].Addr,
 		})
 		nodes[i] = NewNode(
 			peers[i].ID,
-			peers[i].Host,
+			peers[i].Addr,
 			newTestStore(t),
 			new(SpySnapshotter),
 		)

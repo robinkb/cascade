@@ -118,7 +118,7 @@ func (n *node) Host() string {
 func (n *node) AsPeer() cluster.Peer {
 	return cluster.Peer{
 		ID:   n.NodeID(),
-		Host: n.Host(),
+		Addr: n.Host(),
 	}
 }
 
@@ -128,20 +128,20 @@ func (n *node) AsPeer() cluster.Peer {
 func (n *node) Bootstrap(peers ...cluster.Peer) {
 	peers = append(peers, cluster.Peer{
 		ID:   n.raft.Status().ID,
-		Host: n.host,
+		Addr: n.host,
 	})
 
 	for _, peer := range peers {
 		confState := n.raft.ApplyConfChange(raftpb.ConfChange{
 			Type:    raftpb.ConfChangeAddNode,
 			NodeID:  peer.ID,
-			Context: []byte(peer.Host),
+			Context: []byte(peer.Addr),
 		}.AsV2())
 
 		n.storage.SaveConfState(*confState)
 
 		if n.id != peer.ID {
-			client := NewClient("http://" + peer.Host + "/cluster/raft")
+			client := NewClient("http://" + peer.Addr + "/cluster/raft")
 			if err := n.clients.Add(peer, client); err != nil {
 				log.Printf("failed to add client for peer with ID %d: %s", peer.ID, err)
 			}
@@ -161,7 +161,7 @@ func (n *node) AddNode(ctx context.Context, peer cluster.Peer) error {
 	return n.proposeConfChange(ctx, raftpb.ConfChange{
 		Type:    raftpb.ConfChangeAddNode,
 		NodeID:  peer.ID,
-		Context: []byte(peer.Host),
+		Context: []byte(peer.Addr),
 	})
 }
 
@@ -174,7 +174,7 @@ func (n *node) RemoveNode(ctx context.Context, peer cluster.Peer) error {
 	return n.proposeConfChange(ctx, raftpb.ConfChange{
 		Type:    raftpb.ConfChangeRemoveNode,
 		NodeID:  peer.ID,
-		Context: []byte(peer.Host),
+		Context: []byte(peer.Addr),
 	})
 }
 
@@ -183,7 +183,7 @@ func (n *node) Status() raft.Status {
 }
 
 func (n *node) Handler() http.Handler {
-	h := new(Handler)
+	h := new(Handler1)
 
 	h.node = n
 
@@ -301,7 +301,7 @@ func (n *node) processEntries(entries []raftpb.Entry) {
 					// we should not call raft.ApplyConfChange because it did not get accepted.
 					host := string(cc.Context)
 					client := NewClient("http://" + host + "/cluster/raft")
-					peer := cluster.Peer{ID: change.NodeID, Host: host}
+					peer := cluster.Peer{ID: change.NodeID, Addr: host}
 					if err := n.clients.Add(peer, client); err != nil {
 						log.Printf("failed to add client for peer with ID %d: %s", change.NodeID, err)
 					}

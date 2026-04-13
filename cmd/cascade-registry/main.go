@@ -73,7 +73,7 @@ func main() {
 			host := strings.Join(parts[1:3], ":")
 			peers[i] = cluster.Peer{
 				ID:   id,
-				Host: host,
+				Addr: host,
 			}
 		}
 

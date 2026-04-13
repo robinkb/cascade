@@ -10,6 +10,7 @@ import (
 
 	"github.com/robinkb/cascade/cluster"
 	"github.com/robinkb/cascade/cluster/raft/qwal"
+	"github.com/robinkb/cascade/server"
 	. "github.com/robinkb/cascade/testing"
 )
 
@@ -89,7 +90,7 @@ func TestSingleNode(t *testing.T) {
 	t.Run("restores state from disk", func(t *testing.T) {
 		storage := newTestStore(t)
 
-		oldNode := NewNode2(storage)
+		oldNode := NewNode2(1, "", storage)
 		Run2(t, oldNode)
 
 		calls := 100
@@ -103,7 +104,7 @@ func TestSingleNode(t *testing.T) {
 		err := oldNode.Shutdown()
 		AssertNoError(t, err)
 
-		newNode := NewNode2(storage)
+		newNode := NewNode2(1, "", storage)
 		Run2(t, newNode)
 		s.Verify()
 		newStatus := newNode.Status()
@@ -153,33 +154,37 @@ func TestProposer(t *testing.T) {
 
 func TestClusterFormation(t *testing.T) {
 	t.Run("Form and expand a cluster", func(t *testing.T) {
-		node1, node2, node3 := newTestNode(t), newTestNode(t), newTestNode(t)
+		node1, node2, node3 := NewTestNode(t), NewTestNode(t), NewTestNode(t)
 
 		// Form a single-node cluster first.
-		node1.Bootstrap()
-		Run(t, node1)
-		snapElections(node1)
+		Run2(t, node1)
+		SnapElections(node1)
 
 		// Now let's add a second node.
 		// Adding the leader of the existing cluster is required.
+		Run2(t, node2)
 		node2.Bootstrap(node1.AsPeer())
-		Run(t, node2)
 
 		// Any node in the existing cluster can propose to add a node.
-		err := node1.AddNode(context.Background(), node2.AsPeer())
+		err := node1.AddPeer(node2.AsPeer())
 		AssertNoError(t, err).Require()
 		AssertRaftStatus(t, node1.Status()).Voters(2).IsLeader()
 		AssertRaftStatus(t, node2.Status()).Voters(2).IsFollower()
+
+		// Go through snap elections again to ensure that we have a leader.
+		SnapElections(node1, node2)
+		AssertRaftStatus(t, node1.Status()).Voters(2).IsLeader()
+		AssertRaftStatus(t, node2.Status()).Voters(2).IsFollower().Leader(node1.AsPeer().ID)
 
 		// Let's add the third, passing all known peers. Adding just the leader
 		// would be enough, but it's safer to add them all. It's even possible to
 		// bootstrap with only a follower node. But once the new node joins, the leader
 		// will not broadcast itself to the new node. The leader must be bootstrapped in.
+		Run2(t, node3)
 		node3.Bootstrap(node1.AsPeer(), node2.AsPeer())
-		Run(t, node3)
 
 		// And after this, we have three nodes in the cluster.
-		err = node2.AddNode(context.Background(), node3.AsPeer())
+		err = node2.AddPeer(node3.AsPeer())
 		AssertNoError(t, err).Require()
 		AssertRaftStatus(t, node1.Status()).Voters(3).IsLeader()
 		AssertRaftStatus(t, node2.Status()).Voters(3).IsFollower()
@@ -293,7 +298,7 @@ func SnapElections(nodes ...Node2) {
 		wg.Go(func() {
 			for n.Status().Lead == 0 {
 				n.Tick()
-				wait()
+				time.Sleep(100 * time.Millisecond)
 			}
 		})
 	}
@@ -309,7 +314,27 @@ func NewTestNode(t *testing.T) Node2 {
 	storage, err := NewDiskStorage(db, nil)
 	AssertNoError(t, err).Require()
 
-	return NewNode2(storage)
+	id := rand.Uint64N(1000)
+	addr := RandomHost()
+	node := NewNode2(id, addr, storage)
+
+	srv := server.New(server.Options{
+		Name: "raft-server",
+		Addr: addr,
+	})
+	srv.Handle("/cluster/raft/", node.Handler())
+
+	go func() {
+		err := srv.Run()
+		AssertNoError(t, err).Require()
+	}()
+
+	t.Cleanup(func() {
+		err := srv.Shutdown()
+		AssertNoError(t, err).Require()
+	})
+
+	return node
 }
 
 // Run2 starts a Node on a Go routine, and blocks until it is started.
@@ -329,8 +354,10 @@ func Run2(t *testing.T, n Node2) {
 	}(t)
 
 	for {
-		// Effectively waits for the raft node to start.
-		if n.Status().Commit != 0 {
+		// Effectively waits for the Raft node to start.
+		// Nodes are not allowed to have ID 0, which is the zero value
+		// in the status. If it's not 0, that means that the node has started.
+		if n.Status().ID != 0 {
 			return
 		}
 		time.Sleep(5 * time.Millisecond)

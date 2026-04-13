@@ -4,8 +4,10 @@ import (
 	"bytes"
 	"context"
 	"encoding/binary"
+	"encoding/json"
 	"fmt"
 	"log"
+	"net/http"
 	"slices"
 	"time"
 
@@ -22,14 +24,20 @@ type (
 		Tick()
 		Status() raft.Status
 
+		AsPeer() cluster.Peer
+		Bootstrap(peers ...cluster.Peer)
+		AddPeer(peer cluster.Peer) error
+		Handler() http.Handler
+		Receive(m raftpb.Message) error
+
 		Proposer
 	}
 )
 
-func NewNode2(storage *DiskStorage) Node2 {
+func NewNode2(id uint64, addr string, storage *DiskStorage) Node2 {
 	return &node2{
 		conf: &raft.Config{
-			ID:            1,
+			ID:            id,
 			HeartbeatTick: 1,
 			// HeartbeatTick * 10 is suggested by library
 			ElectionTick:    10,
@@ -37,6 +45,7 @@ func NewNode2(storage *DiskStorage) Node2 {
 			MaxSizePerMsg:   4096,
 			MaxInflightMsgs: 256,
 		},
+		addr:    addr,
 		storage: storage,
 
 		ticker:     time.Tick(100 * time.Millisecond),
@@ -46,10 +55,14 @@ func NewNode2(storage *DiskStorage) Node2 {
 
 		proposalHandlers: make(map[Type]ProposalFunc),
 		proposalReporter: NewReporter[result](),
+
+		clients:            cluster.NewClients[Client](),
+		confChangeReporter: NewReporter[error](),
 	}
 }
 
 type node2 struct {
+	addr    string
 	raft    raft.Node
 	conf    *raft.Config
 	storage *DiskStorage
@@ -68,11 +81,104 @@ type node2 struct {
 	// proposalReporter returns the result of proposal functions
 	// back to the caller.
 	proposalReporter Reporter[result]
+
+	clients            cluster.Clients[Client]
+	confChangeReporter Reporter[error]
 	// TODO: Will need reporters for conf changes and read index requests.
 }
 
 func (n *node2) Name() string {
 	return fmt.Sprintf("raft node %d", n.conf.ID)
+}
+
+func (n *node2) AsPeer() cluster.Peer {
+	return cluster.Peer{
+		ID:   n.conf.ID,
+		Addr: n.addr,
+	}
+}
+
+func (n *node2) Handler() http.Handler {
+	h := new(Handler)
+
+	h.node = n
+
+	mux := http.NewServeMux()
+	mux.Handle("/message", http.HandlerFunc(h.messageHandler))
+
+	h.Handler = mux
+
+	return h
+}
+
+func (n *node2) Receive(msg raftpb.Message) error {
+	return n.raft.Step(context.TODO(), msg)
+}
+
+// Bootstrap prepares a new Raft node. If this node will join a cluster,
+// at least the cluster's leader must be passed as a peer, but it is safer
+// to pass all known peers.
+func (n *node2) Bootstrap(peers ...cluster.Peer) {
+	for _, peer := range peers {
+		// TODO: Return value should be saved in storage.
+		n.raft.ApplyConfChange(raftpb.ConfChange{
+			Type:    raftpb.ConfChangeAddNode,
+			NodeID:  peer.ID,
+			Context: []byte(peer.Addr),
+		}.AsV2())
+
+		baseUrl := fmt.Sprintf("http://%s/cluster/raft", peer.Addr)
+		client := NewClient(baseUrl)
+		peer := cluster.Peer{ID: peer.ID, Addr: peer.Addr}
+		n.clients.Add(peer, client)
+	}
+}
+
+// ConfChangeContext is used as the context data for a Raft ConfChange.
+type ConfChangeContext struct {
+	// ID is a unique identifier for tracking the ConfChange across the network.
+	ID uint64
+	// Nodes contains node-specific context index by node ID.
+	Nodes map[uint64]string
+}
+
+func (c *ConfChangeContext) MustMarshal() []byte {
+	data, err := json.Marshal(c)
+	if err != nil {
+		panic(err)
+	}
+	return data
+}
+
+// AddPeer proposes adding the given Peer to the cluster.
+// It may be called on any node, not just the leader.
+// Proposals may be rejected by the cluster.
+func (n *node2) AddPeer(peer cluster.Peer) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
+	defer cancel()
+
+	id, await := n.confChangeReporter.Await()
+	defer n.confChangeReporter.Close(id)
+
+	ccc := &ConfChangeContext{
+		ID:    id,
+		Nodes: map[uint64]string{peer.ID: peer.Addr},
+	}
+	err := n.raft.ProposeConfChange(ctx, raftpb.ConfChange{
+		Type:    raftpb.ConfChangeAddNode,
+		NodeID:  peer.ID,
+		Context: ccc.MustMarshal(),
+	}.AsV2())
+	if err != nil {
+		return err
+	}
+
+	select {
+	case <-ctx.Done():
+		return context.Cause(ctx)
+	case err := <-await:
+		return err
+	}
 }
 
 func (n *node2) Run() error {
@@ -89,6 +195,7 @@ func (n *node2) Run() error {
 			select {
 			case rd := <-n.raft.Ready():
 				n.saveToStorage(rd.Entries, rd.HardState, raftpb.Snapshot{}, rd.MustSync)
+				n.send(rd.Messages)
 				n.processCommittedEntries(rd.CommittedEntries)
 				n.raft.Advance()
 			case <-n.ticker:
@@ -110,6 +217,19 @@ func (n *node2) saveToStorage(entries []raftpb.Entry, hardState raftpb.HardState
 	}
 }
 
+func (n *node2) send(messages []raftpb.Message) {
+	for _, message := range messages {
+		client, err := n.clients.Get(message.To)
+		if err != nil {
+			log.Fatalf("no client for node %d", message.To)
+		}
+		err = client.SendMessage(&message)
+		if err != nil {
+			log.Printf("failed to send message: %s", err)
+		}
+	}
+}
+
 func (n *node2) processCommittedEntries(entries []raftpb.Entry) {
 	entries = n.filterEmptyEntries(entries)
 	// It could be that all entries get filtered out, in which case
@@ -119,8 +239,21 @@ func (n *node2) processCommittedEntries(entries []raftpb.Entry) {
 	}
 
 	for _, entry := range entries {
-		if entry.Type == raftpb.EntryNormal {
+		switch entry.Type {
+		case raftpb.EntryNormal:
 			n.applyProposal(entry.Data)
+		case raftpb.EntryConfChange:
+			var cc raftpb.ConfChange
+			if err := cc.Unmarshal(entry.Data); err != nil {
+				panic(err)
+			}
+			n.applyConfChange(cc.AsV2())
+		case raftpb.EntryConfChangeV2:
+			var cc raftpb.ConfChangeV2
+			if err := cc.Unmarshal(entry.Data); err != nil {
+				panic(err)
+			}
+			n.applyConfChange(cc)
 		}
 	}
 
@@ -135,6 +268,36 @@ func (n *node2) filterEmptyEntries(entries []raftpb.Entry) []raftpb.Entry {
 		// Heartbeats send empty entries, which we don't need to process.
 		return len(e.Data) == 0
 	})
+}
+
+func (n *node2) applyConfChange(cc raftpb.ConfChangeV2) {
+	var ccc ConfChangeContext
+	err := json.Unmarshal(cc.Context, &ccc)
+	if err != nil {
+		panic(err)
+	}
+
+	for _, change := range cc.Changes {
+		switch change.Type {
+		case raftpb.ConfChangeAddNode:
+			addr, ok := ccc.Nodes[change.NodeID]
+			if !ok {
+				log.Panicf("node ID not found in conf change context: %d", change.NodeID)
+			}
+			baseUrl := fmt.Sprintf("http://%s/cluster/raft", addr)
+			log.Printf("base url: %s", baseUrl)
+			client := NewClient(baseUrl)
+			peer := cluster.Peer{ID: change.NodeID, Addr: addr}
+			n.clients.Add(peer, client)
+		}
+	}
+
+	// TODO: Return value should be saved in storage.
+	n.raft.ApplyConfChange(cc)
+
+	if ch, ok := n.confChangeReporter.Send(ccc.ID); ok {
+		ch <- nil
+	}
 }
 
 func (n *node2) Shutdown() error {

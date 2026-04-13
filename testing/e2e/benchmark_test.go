@@ -54,7 +54,7 @@ func BenchmarkRaftCluster(b *testing.B) {
 	for i := range peers {
 		peers[i] = cluster.Peer{
 			ID:   rand.Uint64(),
-			Host: RandomHost(),
+			Addr: RandomHost(),
 		}
 	}
 
@@ -66,7 +66,7 @@ func BenchmarkRaftCluster(b *testing.B) {
 
 		raftServer := server.New(server.Options{
 			Name: "cluster-server",
-			Addr: peer.Host,
+			Addr: peer.Addr,
 		})
 
 		db, err := qwal.Open(b.TempDir(), &qwal.Options{
@@ -78,7 +78,7 @@ func BenchmarkRaftCluster(b *testing.B) {
 		storage, err := raft.NewDiskStorage(db, nil)
 		AssertNoError(b, err).Require()
 
-		node := raft.NewNode(peer.ID, peer.Host, storage, nil)
+		node := raft.NewNode(peer.ID, peer.Addr, storage, nil)
 		node.Bootstrap(peers...)
 
 		raftServer.Handle("/cluster/raft/", node.Handler())
