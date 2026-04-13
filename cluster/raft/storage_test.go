@@ -241,7 +241,7 @@ func TestPersistence(t *testing.T) {
 		entries   []raftpb.Entry
 	}{
 		hardState: raftpb.HardState{Term: rand.Uint64(), Vote: rand.Uint64()},
-		snapshot:  raftpb.Snapshot{Metadata: raftpb.SnapshotMetadata{ConfState: raftpb.ConfState{AutoLeave: true}}},
+		snapshot:  raftpb.Snapshot{Metadata: raftpb.SnapshotMetadata{ConfState: raftpb.ConfState{AutoLeave: true}, Index: 1}},
 		entries:   index(3).terms(3, 4, 5, 6, 7),
 	}
 

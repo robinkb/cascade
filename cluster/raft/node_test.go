@@ -15,7 +15,7 @@ import (
 	"go.etcd.io/raft/v3"
 )
 
-func TestClusterFormation(t *testing.T) {
+func TestClusterFormation1(t *testing.T) {
 	t.Run("Form a single-node cluster", func(t *testing.T) {
 		node := newTestNode(t)
 		AssertRaftStatus(t, node.Status()).HasNoLeader().IsFollower().Voters(0)

@@ -1,6 +1,7 @@
 package raft
 
 import (
+	"context"
 	"encoding/binary"
 	"math/rand/v2"
 	"sync"
@@ -8,12 +9,13 @@ import (
 	"time"
 
 	"github.com/robinkb/cascade/cluster"
+	"github.com/robinkb/cascade/cluster/raft/qwal"
 	. "github.com/robinkb/cascade/testing"
 )
 
 func TestNodeLifecycle(t *testing.T) {
 	t.Run("can start and stop node", func(t *testing.T) {
-		node := NewNode2(t.TempDir())
+		node := NewTestNode(t)
 		AssertRaftStatus(t, node.Status()).IsStopped()
 
 		Run2(t, node)
@@ -25,7 +27,7 @@ func TestNodeLifecycle(t *testing.T) {
 	})
 
 	t.Run("shutting down twice does not error", func(t *testing.T) {
-		node := NewNode2(t.TempDir())
+		node := NewTestNode(t)
 		Run2(t, node)
 
 		err := node.Shutdown()
@@ -37,7 +39,7 @@ func TestNodeLifecycle(t *testing.T) {
 	})
 
 	t.Run("shutting down unstarted node does not error", func(t *testing.T) {
-		node := NewNode2(t.TempDir())
+		node := NewTestNode(t)
 		err := node.Shutdown()
 		AssertNoError(t, err)
 		AssertRaftStatus(t, node.Status()).IsStopped()
@@ -46,7 +48,7 @@ func TestNodeLifecycle(t *testing.T) {
 
 func TestSingleNode(t *testing.T) {
 	t.Run("can form single node cluster", func(t *testing.T) {
-		node := NewNode2(t.TempDir())
+		node := NewTestNode(t)
 		Run2(t, node)
 
 		SnapElections(node)
@@ -54,7 +56,7 @@ func TestSingleNode(t *testing.T) {
 	})
 
 	t.Run("can handle proposals", func(t *testing.T) {
-		node := NewNode2(t.TempDir())
+		node := NewTestNode(t)
 		Run2(t, node)
 		SnapElections(node)
 
@@ -68,7 +70,7 @@ func TestSingleNode(t *testing.T) {
 	})
 
 	t.Run("retains state after restart", func(t *testing.T) {
-		node := NewNode2(t.TempDir())
+		node := NewTestNode(t)
 		Run2(t, node)
 
 		calls := 100
@@ -85,8 +87,9 @@ func TestSingleNode(t *testing.T) {
 	})
 
 	t.Run("restores state from disk", func(t *testing.T) {
-		dir := t.TempDir()
-		oldNode := NewNode2(dir)
+		storage := newTestStore(t)
+
+		oldNode := NewNode2(storage)
 		Run2(t, oldNode)
 
 		calls := 100
@@ -100,7 +103,7 @@ func TestSingleNode(t *testing.T) {
 		err := oldNode.Shutdown()
 		AssertNoError(t, err)
 
-		newNode := NewNode2(dir)
+		newNode := NewNode2(storage)
 		Run2(t, newNode)
 		s.Verify()
 		newStatus := newNode.Status()
@@ -130,7 +133,7 @@ func TestProposer(t *testing.T) {
 	t.Run("registering function for the same type twice panics", func(t *testing.T) {
 		defer AssertPanics(t, cluster.ErrDuplicateProposalType)
 
-		node := NewNode2(t.TempDir())
+		node := NewTestNode(t)
 		s := new(SpyStore)
 		node.Handle(Type(10), s.add)
 		node.Handle(Type(10), s.add)
@@ -139,12 +142,85 @@ func TestProposer(t *testing.T) {
 	t.Run("proposing with an unregistered type panics", func(t *testing.T) {
 		t.Skip("cannot assert that a separate go routine panics, but this works")
 
-		node := NewNode2(t.TempDir())
+		node := NewTestNode(t)
 		Run2(t, node)
 		SnapElections(node)
 
 		pt := Type(10)
 		_, _ = node.Propose(pt, RandomBytes(32))
+	})
+}
+
+func TestClusterFormation(t *testing.T) {
+	t.Run("Form and expand a cluster", func(t *testing.T) {
+		node1, node2, node3 := newTestNode(t), newTestNode(t), newTestNode(t)
+
+		// Form a single-node cluster first.
+		node1.Bootstrap()
+		Run(t, node1)
+		snapElections(node1)
+
+		// Now let's add a second node.
+		// Adding the leader of the existing cluster is required.
+		node2.Bootstrap(node1.AsPeer())
+		Run(t, node2)
+
+		// Any node in the existing cluster can propose to add a node.
+		err := node1.AddNode(context.Background(), node2.AsPeer())
+		AssertNoError(t, err).Require()
+		AssertRaftStatus(t, node1.Status()).Voters(2).IsLeader()
+		AssertRaftStatus(t, node2.Status()).Voters(2).IsFollower()
+
+		// Let's add the third, passing all known peers. Adding just the leader
+		// would be enough, but it's safer to add them all. It's even possible to
+		// bootstrap with only a follower node. But once the new node joins, the leader
+		// will not broadcast itself to the new node. The leader must be bootstrapped in.
+		node3.Bootstrap(node1.AsPeer(), node2.AsPeer())
+		Run(t, node3)
+
+		// And after this, we have three nodes in the cluster.
+		err = node2.AddNode(context.Background(), node3.AsPeer())
+		AssertNoError(t, err).Require()
+		AssertRaftStatus(t, node1.Status()).Voters(3).IsLeader()
+		AssertRaftStatus(t, node2.Status()).Voters(3).IsFollower()
+		AssertRaftStatus(t, node3.Status()).Voters(3).IsFollower()
+	})
+
+	t.Run("Remove a node from a cluster", func(t *testing.T) {
+		// At this point we've verified the details of cluster formation,
+		// so we can automate it with newTestCluster and snapElections.
+		nodes := newTestCluster(t, 3)
+		snapElections(nodes...)
+		AssertRaftStatus(t, nodes[0].Status()).Voters(3)
+
+		err := nodes[0].RemoveNode(context.Background(), nodes[2].AsPeer())
+		AssertNoError(t, err)
+
+		wait()
+		AssertRaftStatus(t, nodes[0].Status()).Voters(2)
+		AssertRaftStatus(t, nodes[1].Status()).Voters(2)
+		// Status returning 0 voters (kinda) indicates that it's stopped.
+		AssertRaftStatus(t, nodes[2].Status()).Voters(0)
+	})
+
+	t.Run("Remove and rejoin a node with the same ID", func(t *testing.T) {
+		t.Skip("test is flaky")
+
+		// The Raft library says that an ID should not be re-used, but it _does_ work.
+		nodes := newTestCluster(t, 3)
+		snapElections(nodes...)
+		AssertRaftStatus(t, nodes[0].Status()).Voters(3)
+
+		err := nodes[0].RemoveNode(context.Background(), nodes[2].AsPeer())
+		AssertNoError(t, err)
+		AssertRaftStatus(t, nodes[0].Status()).Voters(2)
+
+		// A removed node is stopped, so start it again.
+		Run(t, nodes[2])
+		err = nodes[0].AddNode(context.Background(), nodes[2].AsPeer())
+		wait()
+		AssertNoError(t, err)
+		AssertRaftStatus(t, nodes[0].Status()).Voters(3)
 	})
 }
 
@@ -223,6 +299,17 @@ func SnapElections(nodes ...Node2) {
 	}
 
 	wg.Wait()
+}
+
+func NewTestNode(t *testing.T) Node2 {
+	dir := t.TempDir()
+	db, err := qwal.Open(dir, nil)
+	AssertNoError(t, err).Require()
+
+	storage, err := NewDiskStorage(db, nil)
+	AssertNoError(t, err).Require()
+
+	return NewNode2(storage)
 }
 
 // Run2 starts a Node on a Go routine, and blocks until it is started.

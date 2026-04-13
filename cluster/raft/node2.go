@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"github.com/robinkb/cascade/cluster"
-	"github.com/robinkb/cascade/cluster/raft/qwal"
 	"go.etcd.io/raft/v3"
 	"go.etcd.io/raft/v3/raftpb"
 )
@@ -27,10 +26,7 @@ type (
 	}
 )
 
-func NewNode2(dir string) Node2 {
-	db, _ := qwal.Open(dir, nil)
-	storage, _ := NewDiskStorage(db, nil)
-
+func NewNode2(storage *DiskStorage) Node2 {
 	return &node2{
 		conf: &raft.Config{
 			ID:            1,
@@ -72,6 +68,7 @@ type node2 struct {
 	// proposalReporter returns the result of proposal functions
 	// back to the caller.
 	proposalReporter Reporter[result]
+	// TODO: Will need reporters for conf changes and read index requests.
 }
 
 func (n *node2) Name() string {
@@ -195,13 +192,11 @@ func (n *node2) Propose(t Type, data []byte) (resp any, err error) {
 	defer n.proposalReporter.Close(id)
 
 	enc := encodeProposal(id, uint32(t), data)
-
 	if err := n.raft.Propose(context.TODO(), enc); err != nil {
 		return nil, err
 	}
 
 	result := <-await
-
 	return result.resp, result.err
 }
 
