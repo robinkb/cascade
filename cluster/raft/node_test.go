@@ -15,7 +15,7 @@ import (
 	"go.etcd.io/raft/v3"
 )
 
-func TestClusterFormation1(t *testing.T) {
+func TestBLablabla(t *testing.T) {
 	t.Run("Form a single-node cluster", func(t *testing.T) {
 		node := newTestNode(t)
 		AssertRaftStatus(t, node.Status()).HasNoLeader().IsFollower().Voters(0)
@@ -255,7 +255,7 @@ func (a *RaftStatusAsserter) Voters(n int) *RaftStatusAsserter {
 
 func (a *RaftStatusAsserter) IsRunning() *RaftStatusAsserter {
 	a.t.Helper()
-	if a.got.Commit == 0 {
+	if a.got.ID == 0 {
 		a.t.Error("expected node to be running")
 	}
 	return a
@@ -263,7 +263,7 @@ func (a *RaftStatusAsserter) IsRunning() *RaftStatusAsserter {
 
 func (a *RaftStatusAsserter) IsStopped() *RaftStatusAsserter {
 	a.t.Helper()
-	if a.got.Commit != 0 {
+	if a.got.ID != 0 {
 		a.t.Error("expected node to be stopped")
 	}
 	return a

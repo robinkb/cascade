@@ -193,15 +193,14 @@ func TestClusterFormation(t *testing.T) {
 
 	t.Run("Remove a node from a cluster", func(t *testing.T) {
 		// At this point we've verified the details of cluster formation,
-		// so we can automate it with newTestCluster and snapElections.
-		nodes := newTestCluster(t, 3)
-		snapElections(nodes...)
+		// so we can automate it with NewTestCluster and SnapElections.
+		nodes := NewTestCluster(t, 3)
+		SnapElections(nodes...)
 		AssertRaftStatus(t, nodes[0].Status()).Voters(3)
 
-		err := nodes[0].RemoveNode(context.Background(), nodes[2].AsPeer())
+		err := nodes[0].RemovePeer(nodes[2].AsPeer())
 		AssertNoError(t, err)
 
-		wait()
 		AssertRaftStatus(t, nodes[0].Status()).Voters(2)
 		AssertRaftStatus(t, nodes[1].Status()).Voters(2)
 		// Status returning 0 voters (kinda) indicates that it's stopped.
@@ -298,7 +297,7 @@ func SnapElections(nodes ...Node2) {
 		wg.Go(func() {
 			for n.Status().Lead == 0 {
 				n.Tick()
-				time.Sleep(100 * time.Millisecond)
+				time.Sleep(5 * time.Millisecond)
 			}
 		})
 	}
@@ -363,4 +362,25 @@ func Run2(t *testing.T, n Node2) {
 		time.Sleep(5 * time.Millisecond)
 		n.Tick()
 	}
+}
+
+func NewTestCluster(t *testing.T, n int) []Node2 {
+	nodes := make([]Node2, n)
+	peers := make([]cluster.Peer, n)
+
+	for i := range n {
+		nodes[i] = NewTestNode(t)
+		peers[i] = nodes[i].AsPeer()
+	}
+
+	for i := range n {
+		Run2(t, nodes[i])
+		for j := range n {
+			if nodes[i].AsPeer().ID != peers[j].ID {
+				nodes[i].Bootstrap(peers[j])
+			}
+		}
+	}
+
+	return nodes
 }

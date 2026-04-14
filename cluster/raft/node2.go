@@ -27,6 +27,7 @@ type (
 		AsPeer() cluster.Peer
 		Bootstrap(peers ...cluster.Peer)
 		AddPeer(peer cluster.Peer) error
+		RemovePeer(peer cluster.Peer) error
 		Handler() http.Handler
 		Receive(m raftpb.Message) error
 
@@ -117,7 +118,10 @@ func (n *node2) Receive(msg raftpb.Message) error {
 
 // Bootstrap prepares a new Raft node. If this node will join a cluster,
 // at least the cluster's leader must be passed as a peer, but it is safer
-// to pass all known peers.
+// to pass all known peers. Bootstrap effectively bypasses the proposal stage
+// and adds Peers directly into the Raft node's state.
+// It can be called multiple times.
+// TODO: Add a test to make sure that duplicate peers are overwritten.
 func (n *node2) Bootstrap(peers ...cluster.Peer) {
 	for _, peer := range peers {
 		// TODO: Return value should be saved in storage.
@@ -181,6 +185,34 @@ func (n *node2) AddPeer(peer cluster.Peer) error {
 	}
 }
 
+func (n *node2) RemovePeer(peer cluster.Peer) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
+	defer cancel()
+
+	id, await := n.confChangeReporter.Await()
+	defer n.confChangeReporter.Close(id)
+
+	ccc := &ConfChangeContext{
+		ID:    id,
+		Nodes: map[uint64]string{peer.ID: peer.Addr},
+	}
+	err := n.raft.ProposeConfChange(ctx, raftpb.ConfChange{
+		Type:    raftpb.ConfChangeRemoveNode,
+		NodeID:  peer.ID,
+		Context: ccc.MustMarshal(),
+	}.AsV2())
+	if err != nil {
+		return err
+	}
+
+	select {
+	case <-ctx.Done():
+		return context.Cause(ctx)
+	case err := <-await:
+		return err
+	}
+}
+
 func (n *node2) Run() error {
 	n.conf.Applied = n.storage.AppliedIndex()
 	n.raft = raft.RestartNode(n.conf)
@@ -196,7 +228,7 @@ func (n *node2) Run() error {
 			case rd := <-n.raft.Ready():
 				n.saveToStorage(rd.Entries, rd.HardState, raftpb.Snapshot{}, rd.MustSync)
 				n.send(rd.Messages)
-				n.processCommittedEntries(rd.CommittedEntries)
+				n.process(rd.CommittedEntries)
 				n.raft.Advance()
 			case <-n.ticker:
 				n.raft.Tick()
@@ -230,7 +262,7 @@ func (n *node2) send(messages []raftpb.Message) {
 	}
 }
 
-func (n *node2) processCommittedEntries(entries []raftpb.Entry) {
+func (n *node2) process(entries []raftpb.Entry) {
 	entries = n.filterEmptyEntries(entries)
 	// It could be that all entries get filtered out, in which case
 	// we can skip having to write AppliedIndex to disk.
@@ -289,6 +321,12 @@ func (n *node2) applyConfChange(cc raftpb.ConfChangeV2) {
 			client := NewClient(baseUrl)
 			peer := cluster.Peer{ID: change.NodeID, Addr: addr}
 			n.clients.Add(peer, client)
+		case raftpb.ConfChangeRemoveNode:
+			if change.NodeID == n.conf.ID {
+				n.raft.Stop()
+			} else {
+				n.clients.Remove(change.NodeID)
+			}
 		}
 	}
 
