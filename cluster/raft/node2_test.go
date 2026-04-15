@@ -18,7 +18,7 @@ func TestNodeLifecycle(t *testing.T) {
 		node := NewTestNode(t)
 		AssertRaftStatus(t, node.Status()).IsStopped()
 
-		Run2(t, node)
+		Run(t, node)
 		AssertRaftStatus(t, node.Status()).IsRunning()
 
 		err := node.Shutdown()
@@ -28,7 +28,7 @@ func TestNodeLifecycle(t *testing.T) {
 
 	t.Run("shutting down twice does not error", func(t *testing.T) {
 		node := NewTestNode(t)
-		Run2(t, node)
+		Run(t, node)
 
 		err := node.Shutdown()
 		AssertNoError(t, err)
@@ -49,7 +49,7 @@ func TestNodeLifecycle(t *testing.T) {
 func TestSingleNode(t *testing.T) {
 	t.Run("can form single node cluster", func(t *testing.T) {
 		node := NewTestNode(t)
-		Run2(t, node)
+		Run(t, node)
 
 		SnapElections(node)
 		AssertRaftStatus(t, node.Status()).IsLeader().Voters(1)
@@ -57,7 +57,7 @@ func TestSingleNode(t *testing.T) {
 
 	t.Run("can handle proposals", func(t *testing.T) {
 		node := NewTestNode(t)
-		Run2(t, node)
+		Run(t, node)
 		SnapElections(node)
 
 		calls := 100
@@ -71,7 +71,7 @@ func TestSingleNode(t *testing.T) {
 
 	t.Run("retains state after restart", func(t *testing.T) {
 		node := NewTestNode(t)
-		Run2(t, node)
+		Run(t, node)
 
 		calls := 100
 		s := NewSpyStore(t, node, calls)
@@ -82,7 +82,7 @@ func TestSingleNode(t *testing.T) {
 		err := node.Shutdown()
 		AssertNoError(t, err)
 
-		Run2(t, node)
+		Run(t, node)
 		s.Verify()
 	})
 
@@ -90,7 +90,7 @@ func TestSingleNode(t *testing.T) {
 		storage := newTestStore(t)
 
 		oldNode := NewNode2(1, "", storage)
-		Run2(t, oldNode)
+		Run(t, oldNode)
 
 		calls := 100
 		s := NewSpyStore(t, oldNode, calls)
@@ -104,7 +104,7 @@ func TestSingleNode(t *testing.T) {
 		AssertNoError(t, err)
 
 		newNode := NewNode2(1, "", storage)
-		Run2(t, newNode)
+		Run(t, newNode)
 		s.Verify()
 		newStatus := newNode.Status()
 		AssertRaftStatus(t, oldStatus).Equal(newStatus)
@@ -143,7 +143,7 @@ func TestProposer(t *testing.T) {
 		t.Skip("cannot assert that a separate go routine panics, but this works")
 
 		node := NewTestNode(t)
-		Run2(t, node)
+		Run(t, node)
 		SnapElections(node)
 
 		pt := Type(10)
@@ -156,12 +156,12 @@ func TestClusterFormation(t *testing.T) {
 		node1, node2, node3 := NewTestNode(t), NewTestNode(t), NewTestNode(t)
 
 		// Form a single-node cluster first.
-		Run2(t, node1)
+		Run(t, node1)
 		SnapElections(node1)
 
 		// Now let's add a second node.
 		// Adding the leader of the existing cluster is required.
-		Run2(t, node2)
+		Run(t, node2)
 		node2.Bootstrap(node1.AsPeer())
 
 		// Any node in the existing cluster can propose to add a node.
@@ -179,7 +179,7 @@ func TestClusterFormation(t *testing.T) {
 		// would be enough, but it's safer to add them all. It's even possible to
 		// bootstrap with only a follower node. But once the new node joins, the leader
 		// will not broadcast itself to the new node. The leader must be bootstrapped in.
-		Run2(t, node3)
+		Run(t, node3)
 		node3.Bootstrap(node1.AsPeer(), node2.AsPeer())
 
 		// And after this, we have three nodes in the cluster.
@@ -218,7 +218,7 @@ func TestClusterFormation(t *testing.T) {
 		AssertRaftStatus(t, nodes[0].Status()).Voters(2)
 
 		// A removed node is stopped, so start it again.
-		Run2(t, nodes[2])
+		Run(t, nodes[2])
 		err = nodes[0].AddPeer(nodes[2].AsPeer())
 		wait()
 		AssertNoError(t, err)
@@ -296,7 +296,7 @@ func NewTestNode(t *testing.T) Node2 {
 	storage, err := NewDiskStorage(db, nil)
 	AssertNoError(t, err).Require()
 
-	id := rand.Uint64N(1000)
+	id := rand.Uint64N(999) + 1 // ID == 0 is not allowed
 	addr := RandomHost()
 	node := NewNode2(id, addr, storage)
 
@@ -319,9 +319,9 @@ func NewTestNode(t *testing.T) Node2 {
 	return node
 }
 
-// Run2 starts a Node on a Go routine, and blocks until it is started.
+// Run starts a Node on a Go routine, and blocks until it is started.
 // The Node is shut down at the end of the test.
-func Run2(t *testing.T, n Node2) {
+func Run(t *testing.T, n Node2) {
 	t.Helper()
 
 	t.Cleanup(func() {
@@ -357,7 +357,7 @@ func NewTestCluster(t *testing.T, n int) []Node2 {
 	}
 
 	for i := range n {
-		Run2(t, nodes[i])
+		Run(t, nodes[i])
 		for j := range n {
 			if nodes[i].AsPeer().ID != peers[j].ID {
 				nodes[i].Bootstrap(peers[j])

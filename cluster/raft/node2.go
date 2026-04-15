@@ -242,7 +242,7 @@ func (n *node2) Run() error {
 			n.raft.Tick()
 		case <-n.stop:
 			n.raft.Stop()
-			defer close(n.done)
+			close(n.done)
 			return n.storage.Sync()
 		}
 	}
@@ -258,7 +258,7 @@ func (n *node2) send(messages []raftpb.Message) {
 	for _, message := range messages {
 		client, err := n.clients.Get(message.To)
 		if err != nil {
-			log.Fatalf("no client for node %d", message.To)
+			log.Fatalf("no client for node %x", message.To)
 		}
 		err = client.SendMessage(&message)
 		if err != nil {
@@ -319,7 +319,7 @@ func (n *node2) applyConfChange(cc raftpb.ConfChangeV2) {
 		case raftpb.ConfChangeAddNode:
 			addr, ok := ccc.Nodes[change.GetNodeId()]
 			if !ok {
-				log.Panicf("node ID not found in conf change context: %d", change.GetNodeId())
+				log.Panicf("node ID not found in conf change context: %x", change.GetNodeId())
 			}
 			baseUrl := fmt.Sprintf("http://%s/cluster/raft", addr)
 			log.Printf("base url: %s", baseUrl)
