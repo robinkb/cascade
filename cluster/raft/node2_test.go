@@ -288,21 +288,6 @@ func (s *SpyStore) Verify() {
 	}
 }
 
-// SnapElections rapidly ticks the given nodes until a leader is elected.
-func SnapElections(nodes ...Node2) {
-	var wg sync.WaitGroup
-	for _, n := range nodes {
-		wg.Go(func() {
-			for n.Status().Lead == 0 {
-				n.Tick()
-				time.Sleep(5 * time.Millisecond)
-			}
-		})
-	}
-
-	wg.Wait()
-}
-
 func NewTestNode(t *testing.T) Node2 {
 	dir := t.TempDir()
 	db, err := qwal.Open(dir, nil)
@@ -381,4 +366,26 @@ func NewTestCluster(t *testing.T, n int) []Node2 {
 	}
 
 	return nodes
+}
+
+// SnapElections rapidly ticks the given nodes until a leader is elected.
+func SnapElections(nodes ...Node2) {
+	var wg sync.WaitGroup
+	for _, n := range nodes {
+		wg.Go(func() {
+			for n.Status().Lead == 0 {
+				n.Tick()
+				time.Sleep(5 * time.Millisecond)
+			}
+		})
+	}
+
+	wg.Wait()
+}
+
+// wait is used for waiting between ticks for Raft test cluster formation and state checks.
+// If tests that use wait() are timing out, the sleep interval likely needs to be _increased_.
+// Because if Raft ticks too quickly, the cluster will keep failing to elect a leader.
+func wait() {
+	time.Sleep(6 * time.Millisecond)
 }
