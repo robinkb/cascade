@@ -201,9 +201,9 @@ func TestClusterFormation(t *testing.T) {
 		AssertNoError(t, err)
 
 		SnapElections(nodes[0:1]...)
+		wait()
 		AssertRaftStatus(t, nodes[0].Status()).Voters(2)
 		AssertRaftStatus(t, nodes[1].Status()).Voters(2)
-		wait()
 		AssertRaftStatus(t, nodes[2].Status()).IsStopped()
 	})
 

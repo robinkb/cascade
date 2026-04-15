@@ -241,8 +241,9 @@ func (n *node2) Run() error {
 		case <-n.manualTick:
 			n.raft.Tick()
 		case <-n.stop:
-			close(n.done)
-			return nil
+			n.raft.Stop()
+			defer close(n.done)
+			return n.storage.Sync()
 		}
 	}
 }
@@ -327,10 +328,7 @@ func (n *node2) applyConfChange(cc raftpb.ConfChangeV2) {
 			n.clients.Add(peer, client)
 		case raftpb.ConfChangeRemoveNode:
 			if change.NodeID == n.conf.ID {
-				// The function we're in is executed inside the main loop,
-				// so if we want to stop that loop, we need to do that
-				// on a new go routine.
-				go n.Shutdown()
+				go n.shutdown()
 			} else {
 				n.clients.Remove(change.NodeID)
 			}
@@ -347,8 +345,13 @@ func (n *node2) applyConfChange(cc raftpb.ConfChangeV2) {
 
 // Name implements [process.Runnable.Shutdown].
 func (n *node2) Shutdown() error {
+	n.shutdown()
+	return nil
+}
+
+func (n *node2) shutdown() {
 	if n.done == nil {
-		return nil
+		return
 	}
 
 	// The following is a copy from [raft.Node.Stop].
@@ -357,13 +360,10 @@ func (n *node2) Shutdown() error {
 		// Not already stopped, so trigger it
 	case <-n.done:
 		// Node has already been stopped - no need to do anything
-		return nil
+		return
 	}
 	// Block until the stop has been acknowledged by run()
 	<-n.done
-	n.raft.Stop()
-
-	return n.storage.Sync()
 }
 
 func (n *node2) Status() raft.Status {
