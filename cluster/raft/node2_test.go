@@ -50,8 +50,8 @@ func TestSingleNode(t *testing.T) {
 	t.Run("can form single node cluster", func(t *testing.T) {
 		node := NewTestNode(t)
 		Run(t, node)
-
 		SnapElections(node)
+
 		AssertRaftStatus(t, node.Status()).IsLeader().Voters(1)
 	})
 
@@ -72,6 +72,7 @@ func TestSingleNode(t *testing.T) {
 	t.Run("retains state after restart", func(t *testing.T) {
 		node := NewTestNode(t)
 		Run(t, node)
+		SnapElections(node)
 
 		calls := 100
 		s := NewSpyStore(t, node, calls)
@@ -91,6 +92,7 @@ func TestSingleNode(t *testing.T) {
 
 		oldNode := NewNode2(1, "", storage)
 		Run(t, oldNode)
+		SnapElections(oldNode)
 
 		calls := 100
 		s := NewSpyStore(t, oldNode, calls)

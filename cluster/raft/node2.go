@@ -54,7 +54,7 @@ func NewNode2(id uint64, addr string, storage *DiskStorage) Node2 {
 		addr:    addr,
 		storage: storage,
 
-		ticker:     time.Tick(100 * time.Millisecond),
+		ticker:     time.Tick(1 * time.Second),
 		manualTick: make(chan time.Time),
 
 		stop: make(chan struct{}),
