@@ -1,7 +1,6 @@
 package raft
 
 import (
-	"context"
 	"encoding/binary"
 	"math/rand/v2"
 	"sync"
@@ -201,27 +200,26 @@ func TestClusterFormation(t *testing.T) {
 		err := nodes[0].RemovePeer(nodes[2].AsPeer())
 		AssertNoError(t, err)
 
+		SnapElections(nodes[0:1]...)
 		AssertRaftStatus(t, nodes[0].Status()).Voters(2)
 		AssertRaftStatus(t, nodes[1].Status()).Voters(2)
-		// Status returning 0 voters (kinda) indicates that it's stopped.
-		AssertRaftStatus(t, nodes[2].Status()).Voters(0)
+		wait()
+		AssertRaftStatus(t, nodes[2].Status()).IsStopped()
 	})
 
 	t.Run("Remove and rejoin a node with the same ID", func(t *testing.T) {
-		t.Skip("test is flaky")
-
 		// The Raft library says that an ID should not be re-used, but it _does_ work.
-		nodes := newTestCluster(t, 3)
-		snapElections(nodes...)
+		nodes := NewTestCluster(t, 3)
+		SnapElections(nodes...)
 		AssertRaftStatus(t, nodes[0].Status()).Voters(3)
 
-		err := nodes[0].RemoveNode(context.Background(), nodes[2].AsPeer())
+		err := nodes[0].RemovePeer(nodes[2].AsPeer())
 		AssertNoError(t, err)
 		AssertRaftStatus(t, nodes[0].Status()).Voters(2)
 
 		// A removed node is stopped, so start it again.
-		Run(t, nodes[2])
-		err = nodes[0].AddNode(context.Background(), nodes[2].AsPeer())
+		Run2(t, nodes[2])
+		err = nodes[0].AddPeer(nodes[2].AsPeer())
 		wait()
 		AssertNoError(t, err)
 		AssertRaftStatus(t, nodes[0].Status()).Voters(3)

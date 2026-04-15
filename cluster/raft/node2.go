@@ -12,12 +12,14 @@ import (
 	"time"
 
 	"github.com/robinkb/cascade/cluster"
+	"github.com/robinkb/cascade/process"
 	"go.etcd.io/raft/v3"
 	"go.etcd.io/raft/v3/raftpb"
 )
 
 type (
 	Node2 interface {
+		process.Runnable
 		Name() string
 		Run() error
 		Shutdown() error
@@ -45,6 +47,9 @@ func NewNode2(id uint64, addr string, storage *DiskStorage) Node2 {
 			Storage:         storage,
 			MaxSizePerMsg:   4096,
 			MaxInflightMsgs: 256,
+
+			StepDownOnRemoval: true,
+			PreVote:           true,
 		},
 		addr:    addr,
 		storage: storage,
@@ -88,6 +93,7 @@ type node2 struct {
 	// TODO: Will need reporters for conf changes and read index requests.
 }
 
+// Name implements [process.Runnable.Name].
 func (n *node2) Name() string {
 	return fmt.Sprintf("raft node %d", n.conf.ID)
 }
@@ -213,6 +219,7 @@ func (n *node2) RemovePeer(peer cluster.Peer) error {
 	}
 }
 
+// Name implements [process.Runnable.Run].
 func (n *node2) Run() error {
 	n.conf.Applied = n.storage.AppliedIndex()
 	n.raft = raft.RestartNode(n.conf)
@@ -222,25 +229,22 @@ func (n *node2) Run() error {
 	}.AsV2())
 
 	n.done = make(chan struct{})
-	go func() {
-		for {
-			select {
-			case rd := <-n.raft.Ready():
-				n.saveToStorage(rd.Entries, rd.HardState, raftpb.Snapshot{}, rd.MustSync)
-				n.send(rd.Messages)
-				n.process(rd.CommittedEntries)
-				n.raft.Advance()
-			case <-n.ticker:
-				n.raft.Tick()
-			case <-n.manualTick:
-				n.raft.Tick()
-			case <-n.stop:
-				close(n.done)
-				return
-			}
+	for {
+		select {
+		case rd := <-n.raft.Ready():
+			n.saveToStorage(rd.Entries, rd.HardState, raftpb.Snapshot{}, rd.MustSync)
+			n.send(rd.Messages)
+			n.process(rd.CommittedEntries)
+			n.raft.Advance()
+		case <-n.ticker:
+			n.raft.Tick()
+		case <-n.manualTick:
+			n.raft.Tick()
+		case <-n.stop:
+			close(n.done)
+			return nil
 		}
-	}()
-	return nil
+	}
 }
 
 func (n *node2) saveToStorage(entries []raftpb.Entry, hardState raftpb.HardState, _ raftpb.Snapshot, mustSync bool) {
@@ -263,7 +267,7 @@ func (n *node2) send(messages []raftpb.Message) {
 }
 
 func (n *node2) process(entries []raftpb.Entry) {
-	entries = n.filterEmptyEntries(entries)
+	entries = n.filter(entries)
 	// It could be that all entries get filtered out, in which case
 	// we can skip having to write AppliedIndex to disk.
 	if len(entries) == 0 {
@@ -294,8 +298,8 @@ func (n *node2) process(entries []raftpb.Entry) {
 	}
 }
 
-// filterEmptyEntries removes entries for which no actions need to be taken.
-func (n *node2) filterEmptyEntries(entries []raftpb.Entry) []raftpb.Entry {
+// filter removes entries for which no actions need to be taken.
+func (n *node2) filter(entries []raftpb.Entry) []raftpb.Entry {
 	return slices.DeleteFunc(entries, func(e raftpb.Entry) bool {
 		// Heartbeats send empty entries, which we don't need to process.
 		return len(e.Data) == 0
@@ -323,7 +327,10 @@ func (n *node2) applyConfChange(cc raftpb.ConfChangeV2) {
 			n.clients.Add(peer, client)
 		case raftpb.ConfChangeRemoveNode:
 			if change.NodeID == n.conf.ID {
-				n.raft.Stop()
+				// The function we're in is executed inside the main loop,
+				// so if we want to stop that loop, we need to do that
+				// on a new go routine.
+				go n.Shutdown()
 			} else {
 				n.clients.Remove(change.NodeID)
 			}
@@ -338,12 +345,12 @@ func (n *node2) applyConfChange(cc raftpb.ConfChangeV2) {
 	}
 }
 
+// Name implements [process.Runnable.Shutdown].
 func (n *node2) Shutdown() error {
 	if n.done == nil {
 		return nil
 	}
 
-	n.raft.Stop()
 	// The following is a copy from [raft.Node.Stop].
 	select {
 	case n.stop <- struct{}{}:
@@ -354,6 +361,7 @@ func (n *node2) Shutdown() error {
 	}
 	// Block until the stop has been acknowledged by run()
 	<-n.done
+	n.raft.Stop()
 
 	return n.storage.Sync()
 }
