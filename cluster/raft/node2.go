@@ -133,7 +133,7 @@ func (n *node2) Bootstrap(peers ...cluster.Peer) {
 		// TODO: Return value should be saved in storage.
 		n.raft.ApplyConfChange(raftpb.ConfChange{
 			Type:    raftpb.ConfChangeAddNode,
-			NodeID:  peer.ID,
+			NodeId:  peer.ID,
 			Context: []byte(peer.Addr),
 		}.AsV2())
 
@@ -176,7 +176,7 @@ func (n *node2) AddPeer(peer cluster.Peer) error {
 	}
 	err := n.raft.ProposeConfChange(ctx, raftpb.ConfChange{
 		Type:    raftpb.ConfChangeAddNode,
-		NodeID:  peer.ID,
+		NodeId:  peer.ID,
 		Context: ccc.MustMarshal(),
 	}.AsV2())
 	if err != nil {
@@ -204,7 +204,7 @@ func (n *node2) RemovePeer(peer cluster.Peer) error {
 	}
 	err := n.raft.ProposeConfChange(ctx, raftpb.ConfChange{
 		Type:    raftpb.ConfChangeRemoveNode,
-		NodeID:  peer.ID,
+		NodeId:  peer.ID,
 		Context: ccc.MustMarshal(),
 	}.AsV2())
 	if err != nil {
@@ -225,7 +225,7 @@ func (n *node2) Run() error {
 	n.raft = raft.RestartNode(n.conf)
 	n.raft.ApplyConfChange(raftpb.ConfChange{
 		Type:   raftpb.ConfChangeAddNode,
-		NodeID: n.conf.ID,
+		NodeId: n.conf.ID,
 	}.AsV2())
 
 	n.done = make(chan struct{})
@@ -317,20 +317,20 @@ func (n *node2) applyConfChange(cc raftpb.ConfChangeV2) {
 	for _, change := range cc.Changes {
 		switch change.Type {
 		case raftpb.ConfChangeAddNode:
-			addr, ok := ccc.Nodes[change.NodeID]
+			addr, ok := ccc.Nodes[change.GetNodeId()]
 			if !ok {
-				log.Panicf("node ID not found in conf change context: %d", change.NodeID)
+				log.Panicf("node ID not found in conf change context: %d", change.GetNodeId())
 			}
 			baseUrl := fmt.Sprintf("http://%s/cluster/raft", addr)
 			log.Printf("base url: %s", baseUrl)
 			client := NewClient(baseUrl)
-			peer := cluster.Peer{ID: change.NodeID, Addr: addr}
+			peer := cluster.Peer{ID: change.GetNodeId(), Addr: addr}
 			n.clients.Add(peer, client)
 		case raftpb.ConfChangeRemoveNode:
-			if change.NodeID == n.conf.ID {
+			if change.GetNodeId() == n.conf.ID {
 				go n.shutdown()
 			} else {
-				n.clients.Remove(change.NodeID)
+				n.clients.Remove(change.GetNodeId())
 			}
 		}
 	}

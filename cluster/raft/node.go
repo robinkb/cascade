@@ -134,7 +134,7 @@ func (n *node) Bootstrap(peers ...cluster.Peer) {
 	for _, peer := range peers {
 		confState := n.raft.ApplyConfChange(raftpb.ConfChange{
 			Type:    raftpb.ConfChangeAddNode,
-			NodeID:  peer.ID,
+			NodeId:  peer.ID,
 			Context: []byte(peer.Addr),
 		}.AsV2())
 
@@ -160,7 +160,7 @@ func (n *node) Bootstrap(peers ...cluster.Peer) {
 func (n *node) AddNode(ctx context.Context, peer cluster.Peer) error {
 	return n.proposeConfChange(ctx, raftpb.ConfChange{
 		Type:    raftpb.ConfChangeAddNode,
-		NodeID:  peer.ID,
+		NodeId:  peer.ID,
 		Context: []byte(peer.Addr),
 	})
 }
@@ -173,7 +173,7 @@ func (n *node) AddNode(ctx context.Context, peer cluster.Peer) error {
 func (n *node) RemoveNode(ctx context.Context, peer cluster.Peer) error {
 	return n.proposeConfChange(ctx, raftpb.ConfChange{
 		Type:    raftpb.ConfChangeRemoveNode,
-		NodeID:  peer.ID,
+		NodeId:  peer.ID,
 		Context: []byte(peer.Addr),
 	})
 }
@@ -199,8 +199,8 @@ func (n *node) proposeConfChange(ctx context.Context, cc raftpb.ConfChange) erro
 	// TODO: Not really safe to use node ID as a key to track individual conf changes.
 	// Multiple conf changes about the same node may be underway at once.
 	// A unique ID should be generated per conf change instead.
-	errC := n.confChanges.create(cc.NodeID)
-	defer n.confChanges.delete(cc.NodeID)
+	errC := n.confChanges.create(cc.GetNodeId())
+	defer n.confChanges.delete(cc.GetNodeId())
 
 	err := n.raft.ProposeConfChange(ctx, cc.AsV2())
 	if err != nil {
@@ -301,26 +301,26 @@ func (n *node) processEntries(entries []raftpb.Entry) {
 					// we should not call raft.ApplyConfChange because it did not get accepted.
 					host := string(cc.Context)
 					client := NewClient("http://" + host + "/cluster/raft")
-					peer := cluster.Peer{ID: change.NodeID, Addr: host}
+					peer := cluster.Peer{ID: change.GetNodeId(), Addr: host}
 					if err := n.clients.Add(peer, client); err != nil {
-						log.Printf("failed to add client for peer with ID %d: %s", change.NodeID, err)
+						log.Printf("failed to add client for peer with ID %d: %s", change.GetNodeId(), err)
 					}
 
-					log.Printf("%d added node with id %d and url %s", n.NodeID(), change.NodeID, host)
+					log.Printf("%d added node with id %d and url %s", n.NodeID(), change.GetNodeId(), host)
 
 				case raftpb.ConfChangeRemoveNode:
-					if change.NodeID == n.NodeID() {
+					if change.GetNodeId() == n.NodeID() {
 						log.Println("removed from the cluster; stopping...")
 						if err := n.Shutdown(); err != nil {
 							log.Fatalf("failed to stop node: %s", err)
 						}
 					} else {
-						log.Printf("%d removed node with id %d", n.NodeID(), change.NodeID)
-						n.clients.Remove(change.NodeID)
+						log.Printf("%d removed node with id %d", n.NodeID(), change.GetNodeId())
+						n.clients.Remove(change.GetNodeId())
 					}
 				}
 
-				if errC, ok := n.confChanges.get(change.NodeID); ok {
+				if errC, ok := n.confChanges.get(change.GetNodeId()); ok {
 					errC <- nil
 				}
 			}

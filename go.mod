@@ -1,8 +1,6 @@
 module github.com/robinkb/cascade
 
-go 1.25.0
-
-toolchain go1.25.7
+go 1.26
 
 require (
 	github.com/gofrs/uuid/v5 v5.4.0
@@ -17,6 +15,8 @@ require (
 	golang.org/x/exp v0.0.0-20260212183809-81e46e3db34a
 	golang.org/x/sync v0.20.0
 )
+
+replace go.etcd.io/raft/v3 => github.com/robinkb/raft/v3 v3.0.0-20260415054957-6c4a97c89d80
 
 tool github.com/vektra/mockery/v3
 
