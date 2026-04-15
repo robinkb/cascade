@@ -17,8 +17,8 @@ type RaftStatusAsserter struct {
 	got raft.Status
 }
 
-// Equal attempts to compare two Raft statuses.
-func (a *RaftStatusAsserter) Equal(want raft.Status) *RaftStatusAsserter {
+// Equals attempts to compare two Raft statuses.
+func (a *RaftStatusAsserter) Equals(want raft.Status) *RaftStatusAsserter {
 	AssertEqual(a.t, a.got.ID, want.ID)
 	AssertEqual(a.t, a.got.Term, want.Term)
 	AssertEqual(a.t, a.got.Vote, want.Vote)

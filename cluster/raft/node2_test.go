@@ -15,7 +15,7 @@ import (
 
 func TestNodeLifecycle(t *testing.T) {
 	t.Run("can start and stop node", func(t *testing.T) {
-		node := NewTestNode(t)
+		node := NewTestNode(t, 1)
 		AssertRaftStatus(t, node.Status()).IsStopped()
 
 		Run(t, node)
@@ -27,7 +27,7 @@ func TestNodeLifecycle(t *testing.T) {
 	})
 
 	t.Run("shutting down twice does not error", func(t *testing.T) {
-		node := NewTestNode(t)
+		node := NewTestNode(t, 1)
 		Run(t, node)
 
 		err := node.Shutdown()
@@ -39,7 +39,7 @@ func TestNodeLifecycle(t *testing.T) {
 	})
 
 	t.Run("shutting down unstarted node does not error", func(t *testing.T) {
-		node := NewTestNode(t)
+		node := NewTestNode(t, 1)
 		err := node.Shutdown()
 		AssertNoError(t, err)
 		AssertRaftStatus(t, node.Status()).IsStopped()
@@ -48,7 +48,7 @@ func TestNodeLifecycle(t *testing.T) {
 
 func TestSingleNode(t *testing.T) {
 	t.Run("can form single node cluster", func(t *testing.T) {
-		node := NewTestNode(t)
+		node := NewTestNode(t, 1)
 		Run(t, node)
 		SnapElections(node)
 
@@ -56,7 +56,7 @@ func TestSingleNode(t *testing.T) {
 	})
 
 	t.Run("can handle proposals", func(t *testing.T) {
-		node := NewTestNode(t)
+		node := NewTestNode(t, 1)
 		Run(t, node)
 		SnapElections(node)
 
@@ -70,7 +70,7 @@ func TestSingleNode(t *testing.T) {
 	})
 
 	t.Run("retains state after restart", func(t *testing.T) {
-		node := NewTestNode(t)
+		node := NewTestNode(t, 1)
 		Run(t, node)
 		SnapElections(node)
 
@@ -109,7 +109,7 @@ func TestSingleNode(t *testing.T) {
 		Run(t, newNode)
 		s.Verify()
 		newStatus := newNode.Status()
-		AssertRaftStatus(t, oldStatus).Equal(newStatus)
+		AssertRaftStatus(t, oldStatus).Equals(newStatus)
 	})
 }
 
@@ -135,7 +135,7 @@ func TestProposer(t *testing.T) {
 	t.Run("registering function for the same type twice panics", func(t *testing.T) {
 		defer AssertPanics(t, cluster.ErrDuplicateProposalType)
 
-		node := NewTestNode(t)
+		node := NewTestNode(t, 1)
 		s := new(SpyStore)
 		node.Handle(Type(10), s.add)
 		node.Handle(Type(10), s.add)
@@ -144,7 +144,7 @@ func TestProposer(t *testing.T) {
 	t.Run("proposing with an unregistered type panics", func(t *testing.T) {
 		t.Skip("cannot assert that a separate go routine panics, but this works")
 
-		node := NewTestNode(t)
+		node := NewTestNode(t, 1)
 		Run(t, node)
 		SnapElections(node)
 
@@ -154,8 +154,8 @@ func TestProposer(t *testing.T) {
 }
 
 func TestClusterFormation(t *testing.T) {
-	t.Run("Form and expand a cluster", func(t *testing.T) {
-		node1, node2, node3 := NewTestNode(t), NewTestNode(t), NewTestNode(t)
+	t.Run("can form and expand a cluster", func(t *testing.T) {
+		node1, node2, node3 := NewTestNode(t, 1), NewTestNode(t, 2), NewTestNode(t, 3)
 
 		// Form a single-node cluster first.
 		Run(t, node1)
@@ -169,8 +169,6 @@ func TestClusterFormation(t *testing.T) {
 		// Any node in the existing cluster can propose to add a node.
 		err := node1.AddPeer(node2.AsPeer())
 		AssertNoError(t, err).Require()
-		AssertRaftStatus(t, node1.Status()).Voters(2).IsLeader()
-		AssertRaftStatus(t, node2.Status()).Voters(2).IsFollower()
 
 		// Go through snap elections again to ensure that we have a leader.
 		SnapElections(node1, node2)
@@ -187,6 +185,8 @@ func TestClusterFormation(t *testing.T) {
 		// And after this, we have three nodes in the cluster.
 		err = node2.AddPeer(node3.AsPeer())
 		AssertNoError(t, err).Require()
+
+		SnapElections(node1, node2, node3)
 		AssertRaftStatus(t, node1.Status()).Voters(3).IsLeader()
 		AssertRaftStatus(t, node2.Status()).Voters(3).IsFollower()
 		AssertRaftStatus(t, node3.Status()).Voters(3).IsFollower()
@@ -207,6 +207,28 @@ func TestClusterFormation(t *testing.T) {
 		AssertRaftStatus(t, nodes[0].Status()).Voters(2)
 		AssertRaftStatus(t, nodes[1].Status()).Voters(2)
 		AssertRaftStatus(t, nodes[2].Status()).IsStopped()
+	})
+
+	t.Run("Restart a cluster member", func(t *testing.T) {
+		nodes := NewTestCluster(t, 3)
+		SnapElections(nodes...)
+		AssertRaftStatus(t, nodes[0].Status()).Voters(3)
+		AssertRaftStatus(t, nodes[1].Status()).Voters(3)
+		AssertRaftStatus(t, nodes[2].Status()).Voters(3)
+
+		oldStatus := nodes[2].Status()
+
+		err := nodes[2].Shutdown()
+		AssertNoError(t, err)
+		AssertRaftStatus(t, nodes[2].Status()).IsStopped()
+
+		SnapElections(nodes[0:1]...)
+
+		Run(t, nodes[2])
+		SnapElections(nodes...)
+		// We want to make sure that a restarted node retains its configuration,
+		// especially the members of the cluster.
+		AssertRaftStatus(t, nodes[2].Status()).IsRunning().Voters(3).Equals(oldStatus)
 	})
 
 	t.Run("Remove and rejoin a node with the same ID", func(t *testing.T) {
@@ -290,7 +312,7 @@ func (s *SpyStore) Verify() {
 	}
 }
 
-func NewTestNode(t *testing.T) Node2 {
+func NewTestNode(t *testing.T, id uint64) Node2 {
 	dir := t.TempDir()
 	db, err := qwal.Open(dir, nil)
 	AssertNoError(t, err).Require()
@@ -298,7 +320,6 @@ func NewTestNode(t *testing.T) Node2 {
 	storage, err := NewDiskStorage(db, nil)
 	AssertNoError(t, err).Require()
 
-	id := rand.Uint64N(999) + 1 // ID == 0 is not allowed
 	addr := RandomHost()
 	node := NewNode2(id, addr, storage)
 
@@ -354,7 +375,7 @@ func NewTestCluster(t *testing.T, n int) []Node2 {
 	peers := make([]cluster.Peer, n)
 
 	for i := range n {
-		nodes[i] = NewTestNode(t)
+		nodes[i] = NewTestNode(t, uint64(i+1))
 		peers[i] = nodes[i].AsPeer()
 	}
 
@@ -373,11 +394,19 @@ func NewTestCluster(t *testing.T, n int) []Node2 {
 // SnapElections rapidly ticks the given nodes until a leader is elected.
 func SnapElections(nodes ...Node2) {
 	var wg sync.WaitGroup
+	candidates := len(nodes)
+	votes := 0
+
 	for _, n := range nodes {
 		wg.Go(func() {
-			for n.Status().Lead == 0 {
+			done := false
+			for candidates != votes {
+				if !done && n.Status().Lead != 0 {
+					votes++
+					done = true
+				}
 				n.Tick()
-				time.Sleep(5 * time.Millisecond)
+				time.Sleep(10 * time.Millisecond)
 			}
 		})
 	}
