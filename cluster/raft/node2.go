@@ -130,7 +130,6 @@ func (n *node2) Receive(msg raftpb.Message) error {
 // TODO: Add a test to make sure that duplicate peers are overwritten.
 func (n *node2) Bootstrap(peers ...cluster.Peer) {
 	for _, peer := range peers {
-		// TODO: Return value should be saved in storage.
 		n.raft.ApplyConfChange(raftpb.ConfChange{
 			Type:    raftpb.ConfChangeAddNode,
 			NodeId:  peer.ID,
@@ -258,11 +257,11 @@ func (n *node2) send(messages []raftpb.Message) {
 	for _, message := range messages {
 		client, err := n.clients.Get(message.To)
 		if err != nil {
-			log.Fatalf("no client for node %x", message.To)
+			log.Fatalf("%x no client for node %x", n.conf.ID, message.To)
 		}
 		err = client.SendMessage(&message)
 		if err != nil {
-			log.Printf("failed to send message: %s", err)
+			log.Printf("%x failed to send message to %x: %s", n.conf.ID, message.To, err)
 		}
 	}
 }
@@ -322,7 +321,6 @@ func (n *node2) applyConfChange(cc raftpb.ConfChangeV2) {
 				log.Panicf("node ID not found in conf change context: %x", change.GetNodeId())
 			}
 			baseUrl := fmt.Sprintf("http://%s/cluster/raft", addr)
-			log.Printf("base url: %s", baseUrl)
 			client := NewClient(baseUrl)
 			peer := cluster.Peer{ID: change.GetNodeId(), Addr: addr}
 			n.clients.Add(peer, client)
@@ -335,7 +333,6 @@ func (n *node2) applyConfChange(cc raftpb.ConfChangeV2) {
 		}
 	}
 
-	// TODO: Return value should be saved in storage.
 	n.raft.ApplyConfChange(cc)
 
 	if ch, ok := n.confChangeReporter.Send(ccc.ID); ok {
