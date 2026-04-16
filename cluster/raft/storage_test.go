@@ -217,6 +217,7 @@ func TestApplySnapshot(t *testing.T) {
 			Index: rand.Uint64(),
 			Term:  rand.Uint64(),
 		},
+		Data: RandomBytes(8),
 	}
 
 	err := store.SaveSnapshot(want)

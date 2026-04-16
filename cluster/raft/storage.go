@@ -51,21 +51,6 @@ func NewDiskStorage(db qwal.DB, snap cluster.Snapshotter) (*DiskStorage, error) 
 		}
 	}
 
-	if s.db.Count(TypeHardState) > 0 {
-		value, err := s.db.Last(TypeHardState)
-		if err != nil {
-			return nil, err
-		}
-
-		var hardState raftpb.HardState
-		err = hardState.Unmarshal(value)
-		if err != nil {
-			return nil, err
-		}
-
-		s.hardState = hardState
-	}
-
 	if s.db.Count(TypeAppliedIndex) > 0 {
 		value, err := s.db.Last(TypeAppliedIndex)
 		if err != nil {
@@ -75,92 +60,68 @@ func NewDiskStorage(db qwal.DB, snap cluster.Snapshotter) (*DiskStorage, error) 
 		s.appliedIndex = binary.LittleEndian.Uint64(value)
 	}
 
-	if s.db.Count(TypeSnapshot) > 0 {
-		value, err := s.db.Last(TypeSnapshot)
-		if err != nil {
-			return nil, err
-		}
-
-		var snapshot raftpb.Snapshot
-		err = snapshot.Unmarshal(value)
-		if err != nil {
-			return nil, err
-		}
-
-		s.snapshot = snapshot
-	}
-
-	// go func() {
-	// 	cs := &l.callStats
-	// 	for {
-	// 		time.Sleep(1 * time.Second)
-	// 		log.Printf(
-	// 			"[InitialState: %2d, Entries: %6d, Term: %6d, LastIndex: %7d, FirstIndex: %7d, Snapshot: %2d] [SetHardState: %6d, ApplySnapshot: %6d, Append: %6d, Compact: %6d]",
-	// 			cs.initialState, cs.entries, cs.term, cs.lastIndex, cs.firstIndex, cs.snapshot, cs.setHardState, cs.applySnapshot, cs.append, cs.compact,
-	// 		)
-	// 	}
-	// }()
-
 	return s, nil
 }
 
+// DiskStorage implements a disk-backed implementation of [raft.Storage].
 type DiskStorage struct {
-	db   qwal.DB
+	// db serves as the backing storage for this DiskStorage.
+	db qwal.DB
+	// snap is used for generating snapshots. Typically supplied
+	// by the application.
 	snap cluster.Snapshotter
+	// terms is a cache for the Terms of Entries. These are queried very often
+	// by the Raft state machine by the index of the Entry that they belong to.
+	terms []uint64
 
-	hardState raftpb.HardState
-	snapshot  raftpb.Snapshot
-	confState raftpb.ConfState
-	terms     []uint64
+	confState    raftpb.ConfState // TODO: Remove, should only be persisted on disk.
+	appliedIndex uint64           // TODO: Probably also remove.
 
-	appliedIndex   uint64
-	firstEntry     raftpb.Entry
+	// firstEntry is the oldest Entry available in the storage.
+	firstEntry raftpb.Entry
+	// compactedEntry is the Entry just before firstEntry, retained for matching purposes.
+	// It is the newest Entry to be removed during the last compaction of the DB.
 	compactedEntry raftpb.Entry
+}
 
-	callStats struct {
-		// part of the raft.Storage interface, called by Raft Node
-		initialState int
-		entries      int
-		term         int
-		lastIndex    int
-		firstIndex   int
-		snapshot     int
+// InitialState implements [raft.Storage.InitialState].
+func (s *DiskStorage) InitialState() (hs raftpb.HardState, cs raftpb.ConfState, err error) {
+	if s.db.Count(TypeHardState) > 0 {
+		data := make([]byte, hs.Size())
+		data, err = s.db.Last(TypeHardState)
+		if err != nil {
+			return
+		}
 
-		// methods called by the application
-		setHardState  int
-		applySnapshot int
-		append        int
-		compact       int
+		err = hs.Unmarshal(data)
+		if err != nil {
+			return
+		}
 	}
+
+	if s.db.Count(TypeSnapshot) > 0 {
+		data := make([]byte, 0)
+		data, err = s.db.Last(TypeSnapshot)
+		if err != nil {
+			return
+		}
+
+		var snapshot raftpb.Snapshot
+		err = snapshot.Unmarshal(data)
+		if err != nil {
+			return
+		}
+
+		cs = snapshot.Metadata.ConfState
+	}
+
+	return
 }
 
-func (s *DiskStorage) InitialState() (raftpb.HardState, raftpb.ConfState, error) {
-	s.callStats.initialState++
-	return s.hardState, s.snapshot.Metadata.ConfState, nil
-}
-
-// Entries returns a slice of consecutive log entries in the range [lo, hi),
-// starting from lo. The maxSize limits the total size of the log entries
-// returned, but Entries returns at least one entry if any.
-//
-// The caller of Entries owns the returned slice, and may append to it. The
-// individual entries in the slice must not be mutated, neither by the Storage
-// implementation nor the caller. Note that raft may forward these entries
-// back to the application via Ready struct, so the corresponding handler must
-// not mutate entries either (see comments in Ready struct).
-//
-// Since the caller may append to the returned slice, Storage implementation
-// must protect its state from corruption that such appends may cause. For
-// example, common ways to do so are:
-//   - allocate the slice before returning it (safest option),
-//   - return a slice protected by Go full slice expression, which causes
-//     copying on appends (see MemoryStorage).
-//
 // Returns ErrCompacted if entry lo has been compacted, or ErrUnavailable if
 // encountered an unavailable entry in [lo, hi).
+// Entries implements [raft.Storage.Entries].
 func (s *DiskStorage) Entries(lo, hi, maxSize uint64) ([]raftpb.Entry, error) {
-	s.callStats.entries++
-
 	fi := s.firstIndex()
 	if lo < fi {
 		return nil, raft.ErrCompacted
@@ -194,12 +155,8 @@ func (s *DiskStorage) Entries(lo, hi, maxSize uint64) ([]raftpb.Entry, error) {
 	return entries, nil
 }
 
-// Term returns the term of entry i, which must be in the range
-// [FirstIndex()-1, LastIndex()]. The term of the entry before
-// FirstIndex is retained for matching purposes even though the
-// rest of that entry may not be available.
+// Term implements [raft.Storage.Term].
 func (s *DiskStorage) Term(i uint64) (uint64, error) {
-	s.callStats.term++
 	if i == 0 && s.db.Count(TypeEntry) == 0 {
 		return 0, nil
 	}
@@ -222,13 +179,8 @@ func (s *DiskStorage) Term(i uint64) (uint64, error) {
 	return s.terms[i], nil
 }
 
-func (s *DiskStorage) AppliedIndex() uint64 {
-	return s.appliedIndex
-}
-
-// LastIndex returns the index of the last entry in the log.
+// LastIndex implements [raft.Storage.LastIndex].
 func (s *DiskStorage) LastIndex() (uint64, error) {
-	s.callStats.lastIndex++
 	return s.lastIndex(), nil
 }
 
@@ -239,11 +191,8 @@ func (s *DiskStorage) lastIndex() uint64 {
 	return s.firstIndex() + uint64(s.db.Count(TypeEntry)) - 1
 }
 
-// FirstIndex returns the index of the first log entry that is
-// possibly available via Entries (older entries have been incorporated
-// into the latest Snapshot).
+// FirstIndex implements [raft.Storage.FirstIndex].
 func (s *DiskStorage) FirstIndex() (uint64, error) {
-	s.callStats.firstIndex++
 	return s.firstIndex(), nil
 }
 
@@ -256,10 +205,24 @@ func (s *DiskStorage) firstIndex() uint64 {
 	return s.firstEntry.Index
 }
 
-// Snapshot returns the latest snapshot persisted to storage.
+// Snapshot implements [raft.Storage.Snapshot].
 func (s *DiskStorage) Snapshot() (raftpb.Snapshot, error) {
-	s.callStats.snapshot++
-	return s.snapshot, nil
+	if s.db.Count(TypeSnapshot) == 0 {
+		return raftpb.Snapshot{}, nil
+	}
+
+	var snap raftpb.Snapshot
+	data, err := s.db.Last(TypeSnapshot)
+	if err != nil {
+		return snap, err
+	}
+
+	err = snap.Unmarshal(data)
+	return snap, err
+}
+
+func (s *DiskStorage) AppliedIndex() uint64 {
+	return s.appliedIndex
 }
 
 func (s *DiskStorage) Save(entries []raftpb.Entry, hardState raftpb.HardState, sync bool) error {
@@ -296,8 +259,6 @@ func (s *DiskStorage) Save(entries []raftpb.Entry, hardState raftpb.HardState, s
 		if err != nil {
 			return err
 		}
-
-		s.hardState = hardState
 	}
 
 	if sync {
@@ -320,11 +281,6 @@ func (s *DiskStorage) SaveAppliedIndex(i uint64) error {
 // SaveSnapshot writes the snapshot to persistent storage,
 // and makes it available through the Snapshot() method.
 func (s *DiskStorage) SaveSnapshot(snapshot raftpb.Snapshot) error {
-	s.callStats.applySnapshot++
-	if raft.IsEmptySnap(snapshot) {
-		return nil
-	}
-
 	value := make([]byte, snapshot.Size())
 	_, err := snapshot.MarshalTo(value)
 	if err != nil {
@@ -335,8 +291,6 @@ func (s *DiskStorage) SaveSnapshot(snapshot raftpb.Snapshot) error {
 	if err != nil {
 		return err
 	}
-
-	s.snapshot = snapshot
 
 	return s.db.Sync()
 }
@@ -406,8 +360,6 @@ func (s *DiskStorage) cutHook() qwal.CutHookFunc {
 		if err != nil {
 			return err
 		}
-
-		s.snapshot = snap
 
 		return nil
 	}
