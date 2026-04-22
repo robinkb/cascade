@@ -118,8 +118,6 @@ func (s *DiskStorage) InitialState() (hs raftpb.HardState, cs raftpb.ConfState, 
 	return
 }
 
-// Returns ErrCompacted if entry lo has been compacted, or ErrUnavailable if
-// encountered an unavailable entry in [lo, hi).
 // Entries implements [raft.Storage.Entries].
 func (s *DiskStorage) Entries(lo, hi, maxSize uint64) ([]raftpb.Entry, error) {
 	fi := s.firstIndex()
@@ -278,9 +276,9 @@ func (s *DiskStorage) SaveAppliedIndex(i uint64) error {
 	return nil
 }
 
-// SaveSnapshot writes the snapshot to persistent storage,
+// ApplySnapshot writes the snapshot to persistent storage,
 // and makes it available through the Snapshot() method.
-func (s *DiskStorage) SaveSnapshot(snapshot raftpb.Snapshot) error {
+func (s *DiskStorage) ApplySnapshot(snapshot raftpb.Snapshot) error {
 	value := make([]byte, snapshot.Size())
 	_, err := snapshot.MarshalTo(value)
 	if err != nil {

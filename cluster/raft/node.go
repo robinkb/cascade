@@ -347,7 +347,7 @@ func (n *node) saveToStorage(hardState raftpb.HardState, entries []raftpb.Entry,
 	}
 
 	if !raft.IsEmptySnap(snapshot) {
-		if err := n.storage.SaveSnapshot(snapshot); err != nil {
+		if err := n.storage.ApplySnapshot(snapshot); err != nil {
 			log.Panicf("failed to apply snapshot: %s\n", err)
 		}
 	}

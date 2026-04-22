@@ -220,7 +220,7 @@ func TestApplySnapshot(t *testing.T) {
 		Data: RandomBytes(8),
 	}
 
-	err := store.SaveSnapshot(want)
+	err := store.ApplySnapshot(want)
 	AssertNoError(t, err)
 
 	got, err := store.Snapshot()
@@ -248,7 +248,7 @@ func TestPersistence(t *testing.T) {
 
 	err = oldStore.Save(want.entries, want.hardState, false)
 	AssertNoError(t, err).Require()
-	err = oldStore.SaveSnapshot(want.snapshot)
+	err = oldStore.ApplySnapshot(want.snapshot)
 	AssertNoError(t, err).Require()
 
 	newDb, err := qwal.Open(dir, nil)
