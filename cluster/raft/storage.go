@@ -329,49 +329,8 @@ func (s *DiskStorage) replayHook() qwal.ReplayHookFunc {
 }
 
 func (s *DiskStorage) cutHook() qwal.CutHookFunc {
-	var entry raftpb.Entry
-	buf := new(bytes.Buffer)
-
-	// TODO: Basically this is what CreateSnapshot would be. Except now it's really hard to test.
-	// It should be split off into a CreateSnapshot method so that it's easier to test.
-	// And then this cuthook would just call that method. Probably with a conditional so that
-	// a snapshot is not made for every single log cut.
 	return func(id qwal.LogID) error {
-		buf.Reset()
-
-		value, err := s.db.Get(TypeEntry, int(s.appliedIndex-s.firstIndex()))
-		if err != nil {
-			return err
-		}
-
-		if err := entry.Unmarshal(value); err != nil {
-			return err
-		}
-
-		if err := s.snap.Snapshot(buf); err != nil {
-			return err
-		}
-
-		snap := raftpb.Snapshot{
-			Metadata: raftpb.SnapshotMetadata{
-				Index:     entry.Index,
-				Term:      entry.Term,
-				ConfState: s.confState,
-			},
-			Data: buf.Bytes(),
-		}
-
-		data, err := snap.Marshal()
-		if err != nil {
-			return err
-		}
-
-		err = s.db.Append(TypeSnapshot, data)
-		if err != nil {
-			return err
-		}
-
-		return nil
+		return s.CreateSnapshot()
 	}
 }
 
