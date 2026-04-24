@@ -53,13 +53,14 @@ func TestDBAppend(t *testing.T) {
 
 		err := db.Append(randomType(), RandomBytes(32))
 		AssertNoError(t, err)
+		AssertEqual(t, cuts, 0)
+
 		err = db.Append(randomType(), RandomBytes(32))
 		AssertNoError(t, err)
-
 		AssertEqual(t, cuts, 1)
 	})
 
-	t.Run("Append triggers Cut when MaxLogRecordCount exceeded", func(t *testing.T) {
+	t.Run("Append triggers Cut when MaxLogValueCount exceeded", func(t *testing.T) {
 		db := testReplayedDB(t, t.TempDir(), &Options{
 			MaxLogValueCount: 1,
 		})
@@ -72,9 +73,10 @@ func TestDBAppend(t *testing.T) {
 
 		err := db.Append(randomType(), RandomBytes(32))
 		AssertNoError(t, err)
+		AssertEqual(t, cuts, 0)
+
 		err = db.Append(randomType(), RandomBytes(32))
 		AssertNoError(t, err)
-
 		AssertEqual(t, cuts, 1)
 	})
 
@@ -92,9 +94,10 @@ func TestDBAppend(t *testing.T) {
 
 		err := db.Append(randomType(), RandomBytes(32))
 		AssertNoError(t, err)
+		AssertEqual(t, compacts, 0)
+
 		err = db.Append(randomType(), RandomBytes(32))
 		AssertNoError(t, err)
-
 		AssertEqual(t, compacts, 1)
 	})
 }
@@ -119,14 +122,14 @@ func TestDBGet(t *testing.T) {
 	})
 
 	t.Run("Get out of bounds returns ErrIndexOutOfBounds", func(t *testing.T) {
-		_, err := db.Get(wantType, -1)
+		_, err := db.Get(wantType, 100)
 		AssertErrorIs(t, err, ErrIndexOutOfBounds)
 	})
 }
 
 func TestDBCut(t *testing.T) {
 	t.Run("Cut provisions a new Log every time it is called", func(t *testing.T) {
-		db := testReplayedDB(t, t.TempDir(), nil).(*db)
+		db := testReplayedDB(t, t.TempDir(), nil)
 
 		target := 5
 
@@ -134,9 +137,7 @@ func TestDBCut(t *testing.T) {
 		for want := 2; want < target; want++ {
 			err := db.Cut()
 			AssertNoError(t, err)
-
-			got := len(db.logs)
-			AssertEqual(t, got, want)
+			AssertEqual(t, db.Status().LogCount, want)
 		}
 	})
 
@@ -187,25 +188,22 @@ func TestDBCut(t *testing.T) {
 
 func TestDBCompact(t *testing.T) {
 	t.Run("Compact removes a Log", func(t *testing.T) {
-		db := testReplayedDB(t, t.TempDir(), nil).(*db)
+		db := testReplayedDB(t, t.TempDir(), nil)
 
 		// Verify that we start with one Log.
-		got := len(db.logs)
-		AssertEqual(t, got, 1)
+		AssertEqual(t, db.Status().LogCount, 1)
 
 		err := db.Cut()
 		AssertNoError(t, err)
 
 		// Verify that we now have two.
-		got = len(db.logs)
-		AssertEqual(t, got, 2)
+		AssertEqual(t, db.Status().LogCount, 2)
 
 		// Compaction should bring that back to one.
 		err = db.Compact()
 		AssertNoError(t, err)
 
-		got = len(db.logs)
-		AssertEqual(t, got, 1)
+		AssertEqual(t, db.Status().LogCount, 1)
 	})
 
 	t.Run("Compact when DB contains just one Log returns ErrInvalidCompaction", func(t *testing.T) {
@@ -247,6 +245,28 @@ func TestDBCompact(t *testing.T) {
 		got := db.Compact()
 		AssertErrorIs(t, got, want)
 		AssertErrorIs(t, got, ErrCompactHookFailed)
+	})
+}
+
+func TestDBDiscard(t *testing.T) {
+	t.Run("Discard removes all but the active log", func(t *testing.T) {
+		db := testReplayedDB(t, t.TempDir(), nil)
+
+		rType := randomType()
+		count := 5
+		for range count {
+			err := db.Cut()
+			AssertNoError(t, err).Require()
+			err = db.Append(rType, RandomBytes(32))
+			AssertNoError(t, err).Require()
+		}
+
+		AssertEqual(t, db.Status().LogCount, count+1)
+
+		err := db.Discard()
+		AssertNoError(t, err)
+		AssertEqual(t, db.Status().LogCount, 1)
+		AssertEqual(t, db.Count(rType), 1)
 	})
 }
 
@@ -300,7 +320,7 @@ func TestDBReplay(t *testing.T) {
 
 	t.Run("recover after cuts and compactions", func(t *testing.T) {
 		dir := t.TempDir()
-		tdb := testReplayedDB(t, dir, &Options{
+		oldDB := testReplayedDB(t, dir, &Options{
 			MaxLogCount: 8,
 		})
 
@@ -311,31 +331,31 @@ func TestDBReplay(t *testing.T) {
 		wantType := randomType()
 		wantValues := RandomBytesN(16, 1<<10, 10<<10)
 		for _, value := range wantValues {
-			err := tdb.Append(wantType, value)
+			err := oldDB.Append(wantType, value)
 			AssertNoError(t, err).Require()
-			err = tdb.Cut()
+			err = oldDB.Cut()
 			AssertNoError(t, err).Require()
 		}
 
 		// The amount of values left in DB after compaction.
-		remainingValueCount := tdb.Count(wantType)
+		remainingValueCount := oldDB.Count(wantType)
 
-		err := tdb.Close()
+		err := oldDB.Close()
 		AssertNoError(t, err).Require()
 
 		// Open a new DB in the same directory.
-		db := testReplayedDB(t, dir, nil).(*db)
+		newDB := testReplayedDB(t, dir, nil).(*db)
 
 		// Check all remaining values
 		for i := range remainingValueCount {
-			got, err := db.Get(wantType, i)
+			got, err := newDB.Get(wantType, i)
 			AssertNoError(t, err)
 			AssertSlicesEqual(t, got, wantValues[remainingValueCount+i])
 		}
 
 		// Sequence should be restored to last log's ID
-		lastLog := db.activeLog()
-		AssertEqual(t, db.sequence, uint64(lastLog.ID))
+		lastLog := newDB.activeLog()
+		AssertEqual(t, newDB.sequence, uint64(lastLog.ID))
 	})
 
 	t.Run("detects a missing log", func(t *testing.T) {
@@ -472,6 +492,9 @@ func TestDBReplayHook(t *testing.T) {
 			}},
 			{name: "Compact", method: func(db DB) error {
 				return db.Compact()
+			}},
+			{name: "Discard", method: func(db DB) error {
+				return db.Discard()
 			}},
 			{name: "Sync", method: func(db DB) error {
 				return db.Sync()

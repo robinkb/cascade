@@ -78,14 +78,14 @@ func (inv *inventory) Add(t Type, p pointer) {
 	inv.records[t] = append(inv.records[t], p)
 }
 
-// Remove purges Records from the Inventory based on the given Counters.
-// It is called when a Log is compacted from DB, with the Counters
-// kept by the Log being compacted. The oldest Logs in the DB are always
-// compacted first, so we can assume that the Records belonging to that Log
-// are at the very beginning of the Inventory.
+// Remove purges records from the inventory based on the given counters.
+// It is called when a log is compacted from DB, with the counters
+// kept by the log being compacted. The oldest logs in the DB are always
+// compacted first, so we can assume that the records belonging to that log
+// are at the very beginning of the inventory.
 //
 // Any error encountered in this process indicates some kind of issue
-// in synchronizing the Inventory with the Log contents and should panic.
+// in synchronizing the inventory with the log contents and should panic.
 func (inv *inventory) Remove(c counters) {
 	inv.mu.Lock()
 	defer inv.mu.Unlock()

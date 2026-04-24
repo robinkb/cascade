@@ -155,7 +155,7 @@ func TestInventory(t *testing.T) {
 			AssertDeepEqual(t, got, pointers[i+wantRemoved])
 		}
 
-		// THere is no sixth pointer.
+		// There is no sixth pointer.
 		_, err = inv.Get(rtype, 5)
 		AssertErrorIs(t, err, ErrIndexOutOfBounds)
 	})
@@ -188,7 +188,7 @@ func randomPointers(n int) []pointer {
 }
 
 func randomType() Type {
-	return Type(rand.Uint64())
+	return Type(rand.Uint32())
 }
 
 func randomPointer() pointer {
