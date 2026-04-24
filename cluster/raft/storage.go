@@ -329,8 +329,13 @@ func (s *DiskStorage) replayHook() qwal.ReplayHookFunc {
 }
 
 func (s *DiskStorage) cutHook() qwal.CutHookFunc {
+	desiredSnapshots := 3
 	return func(id qwal.LogID) error {
-		return s.CreateSnapshot()
+		maxLogs := s.db.Status().MaxLogCount
+		if int(id)%(maxLogs/desiredSnapshots) == 0 {
+			return s.CreateSnapshot()
+		}
+		return nil
 	}
 }
 

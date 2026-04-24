@@ -314,6 +314,11 @@ func (d *db) Discard() error {
 func (d *db) Status() Status {
 	return Status{
 		LogCount: len(d.logs),
+		Options: Options{
+			MaxLogSize:       d.maxLogSize,
+			MaxLogValueCount: d.maxLogSize,
+			MaxLogCount:      d.maxLogCount,
+		},
 	}
 }
 

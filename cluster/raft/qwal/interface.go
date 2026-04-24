@@ -95,6 +95,7 @@ type (
 
 	// Status represents the internal statistics returned by [DB.Status].
 	Status struct {
+		Options
 		// LogCount is the number of log files present in the DB.
 		LogCount int
 	}
