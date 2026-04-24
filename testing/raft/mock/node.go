@@ -6,7 +6,7 @@ package mock
 
 import (
 	"context"
-	"net/netip"
+	"net/http"
 
 	"github.com/robinkb/cascade/cluster"
 	mock "github.com/stretchr/testify/mock"
@@ -94,50 +94,6 @@ func (_c *Node_AddNode_Call) Return(err error) *Node_AddNode_Call {
 }
 
 func (_c *Node_AddNode_Call) RunAndReturn(run func(ctx context.Context, peer cluster.Peer) error) *Node_AddNode_Call {
-	_c.Call.Return(run)
-	return _c
-}
-
-// AddrPort provides a mock function for the type Node
-func (_mock *Node) AddrPort() netip.AddrPort {
-	ret := _mock.Called()
-
-	if len(ret) == 0 {
-		panic("no return value specified for AddrPort")
-	}
-
-	var r0 netip.AddrPort
-	if returnFunc, ok := ret.Get(0).(func() netip.AddrPort); ok {
-		r0 = returnFunc()
-	} else {
-		r0 = ret.Get(0).(netip.AddrPort)
-	}
-	return r0
-}
-
-// Node_AddrPort_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'AddrPort'
-type Node_AddrPort_Call struct {
-	*mock.Call
-}
-
-// AddrPort is a helper method to define mock.On call
-func (_e *Node_Expecter) AddrPort() *Node_AddrPort_Call {
-	return &Node_AddrPort_Call{Call: _e.mock.On("AddrPort")}
-}
-
-func (_c *Node_AddrPort_Call) Run(run func()) *Node_AddrPort_Call {
-	_c.Call.Run(func(args mock.Arguments) {
-		run()
-	})
-	return _c
-}
-
-func (_c *Node_AddrPort_Call) Return(addrPort netip.AddrPort) *Node_AddrPort_Call {
-	_c.Call.Return(addrPort)
-	return _c
-}
-
-func (_c *Node_AddrPort_Call) RunAndReturn(run func() netip.AddrPort) *Node_AddrPort_Call {
 	_c.Call.Return(run)
 	return _c
 }
@@ -277,6 +233,96 @@ func (_c *Node_Handle_Call) Return() *Node_Handle_Call {
 
 func (_c *Node_Handle_Call) RunAndReturn(run func(p cluster.Proposal, f cluster.HandlerFunc)) *Node_Handle_Call {
 	_c.Run(run)
+	return _c
+}
+
+// Handler provides a mock function for the type Node
+func (_mock *Node) Handler() http.Handler {
+	ret := _mock.Called()
+
+	if len(ret) == 0 {
+		panic("no return value specified for Handler")
+	}
+
+	var r0 http.Handler
+	if returnFunc, ok := ret.Get(0).(func() http.Handler); ok {
+		r0 = returnFunc()
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(http.Handler)
+		}
+	}
+	return r0
+}
+
+// Node_Handler_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'Handler'
+type Node_Handler_Call struct {
+	*mock.Call
+}
+
+// Handler is a helper method to define mock.On call
+func (_e *Node_Expecter) Handler() *Node_Handler_Call {
+	return &Node_Handler_Call{Call: _e.mock.On("Handler")}
+}
+
+func (_c *Node_Handler_Call) Run(run func()) *Node_Handler_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run()
+	})
+	return _c
+}
+
+func (_c *Node_Handler_Call) Return(handler http.Handler) *Node_Handler_Call {
+	_c.Call.Return(handler)
+	return _c
+}
+
+func (_c *Node_Handler_Call) RunAndReturn(run func() http.Handler) *Node_Handler_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// Host provides a mock function for the type Node
+func (_mock *Node) Host() string {
+	ret := _mock.Called()
+
+	if len(ret) == 0 {
+		panic("no return value specified for Host")
+	}
+
+	var r0 string
+	if returnFunc, ok := ret.Get(0).(func() string); ok {
+		r0 = returnFunc()
+	} else {
+		r0 = ret.Get(0).(string)
+	}
+	return r0
+}
+
+// Node_Host_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'Host'
+type Node_Host_Call struct {
+	*mock.Call
+}
+
+// Host is a helper method to define mock.On call
+func (_e *Node_Expecter) Host() *Node_Host_Call {
+	return &Node_Host_Call{Call: _e.mock.On("Host")}
+}
+
+func (_c *Node_Host_Call) Run(run func()) *Node_Host_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run()
+	})
+	return _c
+}
+
+func (_c *Node_Host_Call) Return(s string) *Node_Host_Call {
+	_c.Call.Return(s)
+	return _c
+}
+
+func (_c *Node_Host_Call) RunAndReturn(run func() string) *Node_Host_Call {
+	_c.Call.Return(run)
 	return _c
 }
 

@@ -1,16 +1,20 @@
 package raft
 
 import (
+	"bytes"
+	"io"
 	"math"
 	"math/rand/v2"
 	"testing"
 
+	tmock "github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 	"go.etcd.io/raft/v3"
 	"go.etcd.io/raft/v3/raftpb"
 
 	"github.com/robinkb/cascade/cluster/raft/qwal"
 	. "github.com/robinkb/cascade/testing"
+	"github.com/robinkb/cascade/testing/cluster/mock"
 )
 
 var (
@@ -209,6 +213,51 @@ func TestSetHardState(t *testing.T) {
 	AssertDeepEqual(t, got, want)
 }
 
+func TestSnapshot(t *testing.T) {
+	t.Run("creates a snapshot with correct contents", func(t *testing.T) {
+		db := testDB(t, nil)
+		snapshotter := mock.NewSnapshotter(t)
+		store, err := NewDiskStorage(db, snapshotter)
+		AssertNoError(t, err).Require()
+
+		entries := index(3).terms(2, 2, 2, 2, 2)
+		wantData := RandomBytes(64)
+		wantApliedIndex := entries[0].GetIndex()
+		wantTerm := entries[0].GetTerm()
+		wantConfState := raftpb.ConfState{AutoLeave: true, Voters: []uint64{rand.Uint64(), rand.Uint64(), rand.Uint64()}}
+
+		snapshotter.EXPECT().
+			Snapshot(tmock.Anything).
+			Run(func(w io.Writer) {
+				io.Copy(w, bytes.NewBuffer(wantData))
+			}).
+			Return(nil)
+
+		err = store.Save(entries, raftpb.HardState{}, false)
+		store.SaveAppliedIndex(wantApliedIndex)
+		store.SaveConfState(wantConfState)
+		AssertNoError(t, err).Require()
+
+		err = store.CreateSnapshot()
+		AssertNoError(t, err)
+
+		got, err := store.Snapshot()
+		AssertNoError(t, err)
+		AssertSlicesEqual(t, got.Data, wantData)
+		AssertEqual(t, got.GetMetadata().Index, wantApliedIndex)
+		AssertEqual(t, got.GetMetadata().Term, wantTerm)
+		AssertDeepEqual(t, got.GetMetadata().ConfState, wantConfState)
+	})
+
+	t.Run("empty store returns an empty snapshot", func(t *testing.T) {
+		store := newTestStore(t)
+		snap, err := store.Snapshot()
+		AssertNoError(t, err)
+		AssertEqual(t, raft.IsEmptySnap(snap), true)
+	})
+}
+
+// TODO: Replace this, because no, it does not.
 func TestApplySnapshot(t *testing.T) {
 	store := newTestStore(t)
 
@@ -276,37 +325,6 @@ func TestPersistence(t *testing.T) {
 	gotEntries, err := newStore.Entries(lo, hi+1, math.MaxUint64)
 	AssertNoError(t, err)
 	AssertDeepEqual(t, gotEntries, want.entries)
-}
-
-func TestSnapshot(t *testing.T) {
-	db := testDB(t, nil)
-	snap := new(SpySnapshotter)
-	store, err := NewDiskStorage(db, snap)
-	AssertNoError(t, err).Require()
-
-	snapshot, err := store.Snapshot()
-	AssertNoError(t, err).Require()
-	AssertEqual(t, raft.IsEmptySnap(snapshot), true)
-
-	entries := index(1).terms(1, 1, 1)
-	lastApplied := entries[len(entries)-1]
-	err = store.Save(entries, emptyHardState, false)
-	AssertNoError(t, err).Require()
-	// Set the index of the last applied entry. Normally this happens after
-	// the entry is applied to the state machine.
-	err = store.SaveAppliedIndex(lastApplied.Index)
-	AssertNoError(t, err).Require()
-
-	// Cut triggers a snapshot.
-	err = db.Cut()
-	AssertNoError(t, err).Require()
-
-	// Retrieve the snapshot and do some basic checks to ensure correctness.
-	snapshot, err = store.Snapshot()
-	AssertNoError(t, err).Require()
-	AssertEqual(t, snapshot.Metadata.Index, lastApplied.Index)
-	AssertEqual(t, snapshot.Metadata.Term, lastApplied.Term)
-	AssertEqual(t, snap.CallStats.Snapshot, 1)
 }
 
 func TestCompaction(t *testing.T) {

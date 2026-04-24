@@ -2,7 +2,6 @@ package raft
 
 import (
 	"bytes"
-	"encoding/binary"
 	"fmt"
 
 	"github.com/robinkb/cascade/cluster"
@@ -16,7 +15,6 @@ const (
 	TypeEntry qwal.Type = iota
 	TypeHardState
 	TypeSnapshot
-	TypeAppliedIndex // TODO: Not happy about saving this separately.
 )
 
 func NewDiskStorage(db qwal.DB, snap cluster.Snapshotter) (*DiskStorage, error) {
@@ -51,15 +49,6 @@ func NewDiskStorage(db qwal.DB, snap cluster.Snapshotter) (*DiskStorage, error) 
 		}
 	}
 
-	if s.db.Count(TypeAppliedIndex) > 0 {
-		value, err := s.db.Last(TypeAppliedIndex)
-		if err != nil {
-			return nil, err
-		}
-
-		s.appliedIndex = binary.LittleEndian.Uint64(value)
-	}
-
 	return s, nil
 }
 
@@ -79,8 +68,8 @@ type DiskStorage struct {
 
 	// firstEntry is the oldest Entry available in the storage.
 	firstEntry raftpb.Entry
-	// compactedEntry is the Entry just before firstEntry, retained for matching purposes.
-	// It is the newest Entry to be removed during the last compaction of the DB.
+	// compactedEntry is the last Entry that was removed by compaction. It is preserved for
+	// consistency checking, because the first Entry in the storage needs a previous log index and term.
 	compactedEntry raftpb.Entry
 }
 
@@ -219,6 +208,7 @@ func (s *DiskStorage) Snapshot() (raftpb.Snapshot, error) {
 	return snap, err
 }
 
+// TODO: Probably remove
 func (s *DiskStorage) AppliedIndex() uint64 {
 	return s.appliedIndex
 }
@@ -267,17 +257,35 @@ func (s *DiskStorage) Save(entries []raftpb.Entry, hardState raftpb.HardState, s
 }
 
 func (s *DiskStorage) SaveAppliedIndex(i uint64) error {
-	buf := make([]byte, 8)
-	binary.LittleEndian.PutUint64(buf, i)
-	if err := s.db.Append(TypeAppliedIndex, buf); err != nil {
-		return err
-	}
 	s.appliedIndex = i
 	return nil
 }
 
-// ApplySnapshot writes the snapshot to persistent storage,
-// and makes it available through the Snapshot() method.
+func (s *DiskStorage) CreateSnapshot() error {
+	buf := new(bytes.Buffer)
+	err := s.snap.Snapshot(buf)
+	if err != nil {
+		return err
+	}
+
+	snapshot := raftpb.Snapshot{
+		Data: buf.Bytes(),
+		Metadata: raftpb.SnapshotMetadata{
+			Index:     s.appliedIndex,
+			Term:      s.terms[s.appliedIndex-s.firstIndex()],
+			ConfState: s.confState,
+		},
+	}
+
+	data, err := snapshot.Marshal()
+	if err != nil {
+		return err
+	}
+
+	return s.db.Append(TypeSnapshot, data)
+}
+
+// TODO: ApplySnapshot does not actually apply the snapshot. See Iotas notes on Snapshotting.
 func (s *DiskStorage) ApplySnapshot(snapshot raftpb.Snapshot) error {
 	value := make([]byte, snapshot.Size())
 	_, err := snapshot.MarshalTo(value)
@@ -324,6 +332,10 @@ func (s *DiskStorage) cutHook() qwal.CutHookFunc {
 	var entry raftpb.Entry
 	buf := new(bytes.Buffer)
 
+	// TODO: Basically this is what CreateSnapshot would be. Except now it's really hard to test.
+	// It should be split off into a CreateSnapshot method so that it's easier to test.
+	// And then this cuthook would just call that method. Probably with a conditional so that
+	// a snapshot is not made for every single log cut.
 	return func(id qwal.LogID) error {
 		buf.Reset()
 
