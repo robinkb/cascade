@@ -144,6 +144,10 @@ func (s *DiskStorage) Entries(lo, hi, maxSize uint64) ([]raftpb.Entry, error) {
 
 // Term implements [raft.Storage.Term].
 func (s *DiskStorage) Term(i uint64) (uint64, error) {
+	if i == s.compactedEntry.Index {
+		return s.compactedEntry.Term, nil
+	}
+
 	if i == 0 && s.db.Count(TypeEntry) == 0 {
 		return 0, nil
 	}
@@ -154,9 +158,6 @@ func (s *DiskStorage) Term(i uint64) (uint64, error) {
 	}
 
 	fi := s.firstIndex()
-	if i == fi-1 {
-		return s.compactedEntry.Term, nil
-	}
 	if i < fi || s.db.Count(TypeEntry) == 0 {
 		return 0, raft.ErrCompacted
 	}
@@ -184,12 +185,7 @@ func (s *DiskStorage) FirstIndex() (uint64, error) {
 }
 
 func (s *DiskStorage) firstIndex() uint64 {
-	// Makes no sense, but here we are. This is how Raft's MemoryStorage works.
-	// The Raft Node will refuse to start up without it.
-	if s.db.Count(TypeEntry) == 0 {
-		return 1
-	}
-	return s.firstEntry.Index
+	return s.compactedEntry.Index + 1
 }
 
 // Snapshot implements [raft.Storage.Snapshot].
@@ -285,18 +281,35 @@ func (s *DiskStorage) CreateSnapshot() error {
 	return s.db.Append(TypeSnapshot, data)
 }
 
-// TODO: ApplySnapshot does not actually apply the snapshot. See Iotas notes on Snapshotting.
 func (s *DiskStorage) ApplySnapshot(snapshot raftpb.Snapshot) error {
-	value := make([]byte, snapshot.Size())
-	_, err := snapshot.MarshalTo(value)
-	if err != nil {
+	// Clear the cut hook so that no automatic snapshots are created.
+	s.db.CutHook(nil)
+	defer s.db.CutHook(s.cutHook())
+
+	// Cut a fresh log to write our snapshot into.
+	if err := s.db.Cut(); err != nil {
 		return err
 	}
 
-	err = s.db.Append(TypeSnapshot, value)
-	if err != nil {
+	value := make([]byte, snapshot.Size())
+	if _, err := snapshot.MarshalTo(value); err != nil {
 		return err
 	}
+
+	if err := s.db.Append(TypeSnapshot, value); err != nil {
+		return err
+	}
+
+	// Discard all older logs.
+	if err := s.db.Discard(); err != nil {
+		return err
+	}
+
+	s.compactedEntry = raftpb.Entry{
+		Index: snapshot.Metadata.Index,
+		Term:  snapshot.Metadata.Term,
+	}
+	s.terms = []uint64{snapshot.Metadata.Term}
 
 	return s.db.Sync()
 }
