@@ -12,6 +12,7 @@ import (
 	"github.com/gofrs/uuid/v5"
 	"github.com/opencontainers/go-digest"
 	v1 "github.com/opencontainers/image-spec/specs-go/v1"
+	"golang.org/x/exp/constraints"
 )
 
 const (
@@ -56,6 +57,14 @@ func RandomString(length int) string {
 		data[i] = charset[rand.IntN(len(charset))]
 	}
 	return string(data)
+}
+
+func RandomIntN[T constraints.Integer](n int) []T {
+	numbers := make([]T, n)
+	for i := range n {
+		numbers[i] = T(rand.Uint64())
+	}
+	return numbers
 }
 
 func RandomUUID() uuid.UUID {

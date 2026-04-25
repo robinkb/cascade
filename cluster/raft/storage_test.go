@@ -61,13 +61,16 @@ func TestStorageTerm(t *testing.T) {
 	t.Run("for empty storage", func(t *testing.T) {
 		store := newTestStore(t)
 
-		fi, _ := store.FirstIndex()
-		_, err := store.Term(fi)
+		fi, err := store.FirstIndex()
+		AssertNoError(t, err)
+		_, err = store.Term(fi)
 		AssertErrorIs(t, err, raft.ErrUnavailable)
 
-		li, _ := store.LastIndex()
-		_, err = store.Term(li)
+		li, err := store.LastIndex()
 		AssertNoError(t, err)
+		i, err := store.Term(li)
+		AssertNoError(t, err)
+		AssertEqual(t, i, 0)
 
 		_, err = store.Term(li + 1)
 		AssertErrorIs(t, err, raft.ErrUnavailable)
@@ -249,32 +252,59 @@ func TestSnapshot(t *testing.T) {
 		AssertDeepEqual(t, got.GetMetadata().ConfState, wantConfState)
 	})
 
+	t.Run("overrides state from snapshot", func(t *testing.T) {
+		// Create a store and put some state in it.
+		entries := index(3).terms(2, 2, 2, 2, 2)
+		store := newTestStore(t)
+		err := store.Save(entries, emptyHardState, false)
+		AssertNoError(t, err).Require()
+		store.SaveAppliedIndex(2)
+		store.SaveConfState(raftpb.ConfState{Voters: []uint64{rand.Uint64()}})
+
+		// Craft a Snapshot to apply to it.
+		want := raftpb.Snapshot{
+			Data: RandomBytes(64),
+			Metadata: raftpb.SnapshotMetadata{
+				Index:     10,
+				Term:      5,
+				ConfState: raftpb.ConfState{Voters: RandomIntN[uint64](3)},
+			},
+		}
+
+		err = store.ApplySnapshot(want)
+		AssertNoError(t, err)
+
+		// Snapshot should be retrievable.
+		got, err := store.Snapshot()
+		AssertNoError(t, err)
+		AssertDeepEqual(t, got, want)
+
+		// First index should now match the snapshot + 1.
+		fi, err := store.FirstIndex()
+		AssertNoError(t, err)
+		AssertEqual(t, fi, want.GetMetadata().Index+1)
+
+		// Term of that index should also match the snapshot.
+		term, err := store.Term(10)
+		AssertNoError(t, err)
+		AssertEqual(t, term, want.GetMetadata().Term)
+
+		// ConfState returned from InitialState should match the snapshot.
+		_, cs, err := store.InitialState()
+		AssertNoError(t, err)
+		AssertDeepEqual(t, cs, want.GetMetadata().ConfState)
+
+		// Entries from before the snapshot should be compacted.
+		_, err = store.Entries(3, 7, math.MaxUint)
+		AssertErrorIs(t, err, raft.ErrCompacted)
+	})
+
 	t.Run("empty store returns an empty snapshot", func(t *testing.T) {
 		store := newTestStore(t)
 		snap, err := store.Snapshot()
 		AssertNoError(t, err)
 		AssertEqual(t, raft.IsEmptySnap(snap), true)
 	})
-}
-
-// TODO: Replace this, because no, it does not.
-func TestApplySnapshot(t *testing.T) {
-	store := newTestStore(t)
-
-	want := raftpb.Snapshot{
-		Metadata: raftpb.SnapshotMetadata{
-			Index: rand.Uint64(),
-			Term:  rand.Uint64(),
-		},
-		Data: RandomBytes(8),
-	}
-
-	err := store.ApplySnapshot(want)
-	AssertNoError(t, err)
-
-	got, err := store.Snapshot()
-	AssertNoError(t, err)
-	AssertDeepEqual(t, got, want)
 }
 
 func TestPersistence(t *testing.T) {
