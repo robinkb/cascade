@@ -51,8 +51,7 @@ type (
 		// CompactHook registers CompactHook f, which is run whenever DB compacts a log.
 		// To clear the CompactHook, call CompactHook with a nil argument.
 		CompactHook(f CompactHookFunc)
-		// Discard compacts all but the active log from the DB. It triggers CompactHook
-		// for every log that it compacts.
+		// Discard discards all but the active log from the DB. It does not trigger CompactHook.
 		Discard() error
 		// Status returns information about the state of the DB.
 		Status() Status

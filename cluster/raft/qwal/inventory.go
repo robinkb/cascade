@@ -19,7 +19,7 @@ type inventory struct {
 	records map[Type][]pointer
 }
 
-// Get returns the Pointer to a Record of Type t at index i.
+// Get returns the pointer to a record of Type t at index i.
 func (inv *inventory) Get(t Type, i int) (pointer, error) {
 	inv.mu.RLock()
 	defer inv.mu.RUnlock()

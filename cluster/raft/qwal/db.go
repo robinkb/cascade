@@ -299,15 +299,14 @@ func (d *db) CompactHook(f CompactHookFunc) {
 func (d *db) Discard() error {
 	d.panicIfNotReplayed()
 
-	for {
-		err := d.compact()
+	for range len(d.logs) - 1 {
+		err := d.remove(d.logs[0])
 		if err != nil {
-			if errors.Is(err, ErrInvalidCompaction) {
-				return nil
-			}
 			return err
 		}
 	}
+
+	return nil
 }
 
 // Status implements [DB.Status].
@@ -400,6 +399,10 @@ func (d *db) compact() error {
 		}
 	}
 
+	return d.remove(log)
+}
+
+func (d *db) remove(log *logFile) error {
 	if err := log.Close(); err != nil {
 		return err
 	}
