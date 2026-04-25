@@ -284,10 +284,14 @@ func TestSnapshot(t *testing.T) {
 		AssertNoError(t, err)
 		AssertEqual(t, fi, want.GetMetadata().Index+1)
 
-		// Term of that index should also match the snapshot.
+		// Term of that snapshot index should also match the snapshot.
 		term, err := store.Term(10)
 		AssertNoError(t, err)
 		AssertEqual(t, term, want.GetMetadata().Term)
+
+		// But Term of the first index should be unavailable.
+		_, err = store.Term(11)
+		AssertErrorIs(t, err, raft.ErrUnavailable)
 
 		// ConfState returned from InitialState should match the snapshot.
 		_, cs, err := store.InitialState()
