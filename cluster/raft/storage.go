@@ -185,7 +185,10 @@ func (s *DiskStorage) FirstIndex() (uint64, error) {
 }
 
 func (s *DiskStorage) firstIndex() uint64 {
-	return s.compactedEntry.Index + 1
+	if s.db.Count(TypeEntry) == 0 {
+		return s.compactedEntry.Index + 1
+	}
+	return s.firstEntry.Index
 }
 
 // Snapshot implements [raft.Storage.Snapshot].
