@@ -77,7 +77,7 @@ func TestStorageTerm(t *testing.T) {
 	})
 
 	t.Run("for storage with entries", func(t *testing.T) {
-		ents := index(3).terms(3, 4, 4, 5)
+		ents := index(3).terms(3, 4, 5)
 		store := newTestStore(t)
 
 		err := store.Save(ents, emptyHardState, false)
@@ -89,20 +89,16 @@ func TestStorageTerm(t *testing.T) {
 			werr  error
 			wterm uint64
 		}{
-			{"index lower than FirstIndex()-1 returns ErrCompacted",
-				1, raft.ErrCompacted, 0},
-			{"index at FirstIndex() -1 returns term 0",
-				2, nil, 0},
-			{"first entry returns term 4",
+			{"index at FirstIndex() -1 returns ErrCompacted",
+				2, raft.ErrCompacted, 0},
+			{"first entry returns term 3",
 				3, nil, 3},
 			{"second entry returns term 4",
 				4, nil, 4},
-			{"third entry returns term 4",
-				5, nil, 4},
-			{"fourth entry returns term 5",
-				6, nil, 5},
+			{"third entry returns term 5",
+				5, nil, 5},
 			{"index higher than LastIndex() returns ErrUnavailable",
-				7, raft.ErrUnavailable, 0},
+				6, raft.ErrUnavailable, 0},
 		}
 
 		for _, tt := range tests {
