@@ -250,7 +250,7 @@ func TestSnapshot(t *testing.T) {
 
 	t.Run("overrides state from snapshot", func(t *testing.T) {
 		// Create a store and put some state in it.
-		entries := index(3).terms(2, 2, 2, 2, 2)
+		entries := index(3).terms(1, 2, 3, 4, 5)
 		store := newTestStore(t, t.TempDir())
 		err := store.Save(entries, emptyHardState, false)
 		AssertNoError(t, err).Require()
@@ -304,7 +304,7 @@ func TestSnapshot(t *testing.T) {
 		dir := t.TempDir()
 		oldStore := newTestStore(t, dir)
 
-		entries := index(3).terms(2, 2, 2, 2, 2)
+		entries := index(3).terms(1, 2, 3, 4, 5)
 		wantAppliedIndex := entries[len(entries)-1].Index
 		wantConfState := raftpb.ConfState{Voters: []uint64{rand.Uint64()}}
 		err := oldStore.Save(entries, emptyHardState, false)

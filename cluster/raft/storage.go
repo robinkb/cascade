@@ -45,9 +45,6 @@ func NewDiskStorage(db qwal.DB, snap cluster.Snapshotter) (*DiskStorage, error) 
 
 		s.appliedIndex = snap.Metadata.Index
 		s.confState = snap.GetMetadata().ConfState
-		// The other terms are restored into the cache during the replay hook.
-		// What we're doing here is cache the term of the compacted entry.
-		s.terms = append([]uint64{snap.Metadata.Term}, s.terms...)
 	}
 
 	if s.db.Count(TypeEntry) > 0 {
@@ -324,6 +321,7 @@ func (s *DiskStorage) ApplySnapshot(snapshot raftpb.Snapshot) error {
 		return err
 	}
 
+	s.confState = snapshot.GetMetadata().ConfState
 	s.compactedEntry = raftpb.Entry{
 		Index: snapshot.Metadata.Index,
 		Term:  snapshot.Metadata.Term,
