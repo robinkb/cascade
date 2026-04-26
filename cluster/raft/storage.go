@@ -31,6 +31,25 @@ func NewDiskStorage(db qwal.DB, snap cluster.Snapshotter) (*DiskStorage, error) 
 		return nil, err
 	}
 
+	if s.db.Count(TypeSnapshot) > 0 {
+		value, err := s.db.Last(TypeSnapshot)
+		if err != nil {
+			return nil, fmt.Errorf("failed to read snapshot: %w", err)
+		}
+
+		var snap raftpb.Snapshot
+		err = snap.Unmarshal(value)
+		if err != nil {
+			return nil, err
+		}
+
+		s.appliedIndex = snap.Metadata.Index
+		s.confState = snap.GetMetadata().ConfState
+		// The other terms are restored into the cache during the replay hook.
+		// What we're doing here is cache the term of the compacted entry.
+		s.terms = append([]uint64{snap.Metadata.Term}, s.terms...)
+	}
+
 	if s.db.Count(TypeEntry) > 0 {
 		value, err := s.db.First(TypeEntry)
 		if err != nil {
@@ -63,8 +82,10 @@ type DiskStorage struct {
 	// by the Raft state machine by the index of the Entry that they belong to.
 	terms []uint64
 
-	confState    raftpb.ConfState // TODO: Remove, should only be persisted on disk.
-	appliedIndex uint64           // TODO: Probably also remove.
+	// confState is set by the node, and persisted in snapshots.
+	confState raftpb.ConfState
+	// appliedIndex is set by the node, and persisted in snapshots.
+	appliedIndex uint64
 
 	// firstEntry is the oldest Entry available in the storage.
 	firstEntry raftpb.Entry
@@ -88,22 +109,7 @@ func (s *DiskStorage) InitialState() (hs raftpb.HardState, cs raftpb.ConfState, 
 		}
 	}
 
-	if s.db.Count(TypeSnapshot) > 0 {
-		data := make([]byte, 0)
-		data, err = s.db.Last(TypeSnapshot)
-		if err != nil {
-			return
-		}
-
-		var snapshot raftpb.Snapshot
-		err = snapshot.Unmarshal(data)
-		if err != nil {
-			return
-		}
-
-		cs = snapshot.Metadata.ConfState
-	}
-
+	cs = s.confState
 	return
 }
 
@@ -255,6 +261,14 @@ func (s *DiskStorage) Save(entries []raftpb.Entry, hardState raftpb.HardState, s
 	return nil
 }
 
+// SaveConfState stores the given ConfState in-memory.
+// It will be persisted to stable storage with the next snapshot.
+func (s *DiskStorage) SaveConfState(cs raftpb.ConfState) {
+	s.confState = cs
+}
+
+// SaveAppliedIndex stores the given index in-memory.
+// It will be persisted to stable storage with the next snapshot.
 func (s *DiskStorage) SaveAppliedIndex(i uint64) error {
 	s.appliedIndex = i
 	return nil
@@ -270,7 +284,9 @@ func (s *DiskStorage) CreateSnapshot() error {
 	snapshot := raftpb.Snapshot{
 		Data: buf.Bytes(),
 		Metadata: raftpb.SnapshotMetadata{
-			Index:     s.appliedIndex,
+			Index: s.appliedIndex,
+			// TODO: This can fail, and there should probably be validation to catch that.
+			// Having a wrong applied index can result in an index-out-of-range.
 			Term:      s.terms[s.appliedIndex-s.firstIndex()],
 			ConfState: s.confState,
 		},
@@ -315,10 +331,6 @@ func (s *DiskStorage) ApplySnapshot(snapshot raftpb.Snapshot) error {
 	s.terms = []uint64{snapshot.Metadata.Term}
 
 	return s.db.Sync()
-}
-
-func (s *DiskStorage) SaveConfState(cs raftpb.ConfState) {
-	s.confState = cs
 }
 
 func (s *DiskStorage) Sync() error {

@@ -88,7 +88,7 @@ func TestSingleNode(t *testing.T) {
 	})
 
 	t.Run("restores state from disk", func(t *testing.T) {
-		storage := newTestStore(t)
+		storage := newTestStore(t, t.TempDir())
 
 		oldNode := NewNode2(1, "", storage)
 		Run(t, oldNode)

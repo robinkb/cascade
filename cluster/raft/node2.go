@@ -242,6 +242,7 @@ func (n *node2) Run() error {
 		case <-n.stop:
 			n.raft.Stop()
 			close(n.done)
+			// Should we close the storage instead?
 			return n.storage.Sync()
 		}
 	}

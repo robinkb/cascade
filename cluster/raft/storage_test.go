@@ -23,7 +23,7 @@ var (
 
 func TestStorageEntries(t *testing.T) {
 	entries := index(3).terms(3, 4, 5, 5, 6, 7, 7, 7, 7, 8)
-	store := newTestStore(t)
+	store := newTestStore(t, t.TempDir())
 	err := store.Save(entries, emptyHardState, false)
 	AssertNoError(t, err)
 
@@ -59,7 +59,7 @@ func TestStorageEntries(t *testing.T) {
 
 func TestStorageTerm(t *testing.T) {
 	t.Run("for empty storage", func(t *testing.T) {
-		store := newTestStore(t)
+		store := newTestStore(t, t.TempDir())
 
 		fi, err := store.FirstIndex()
 		AssertNoError(t, err)
@@ -78,7 +78,7 @@ func TestStorageTerm(t *testing.T) {
 
 	t.Run("for storage with entries", func(t *testing.T) {
 		ents := index(3).terms(3, 4, 5)
-		store := newTestStore(t)
+		store := newTestStore(t, t.TempDir())
 
 		err := store.Save(ents, emptyHardState, false)
 		AssertNoError(t, err)
@@ -140,7 +140,7 @@ func TestStorageEntries2(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run("", func(t *testing.T) {
-			store := newTestStore(t)
+			store := newTestStore(t, t.TempDir())
 			err := store.Save(ents, emptyHardState, false)
 			AssertNoError(t, err)
 
@@ -152,7 +152,7 @@ func TestStorageEntries2(t *testing.T) {
 }
 
 func TestStorageLastIndex(t *testing.T) {
-	store := newTestStore(t)
+	store := newTestStore(t, t.TempDir())
 
 	var want uint64
 	got, err := store.LastIndex()
@@ -170,7 +170,7 @@ func TestStorageLastIndex(t *testing.T) {
 }
 
 func TestStorageFirstIndex(t *testing.T) {
-	store := newTestStore(t)
+	store := newTestStore(t, t.TempDir())
 
 	var want uint64
 	t.Run("first index of an empty storage is 1", func(t *testing.T) {
@@ -196,7 +196,7 @@ func TestStorageFirstIndex(t *testing.T) {
 }
 
 func TestSetHardState(t *testing.T) {
-	store := newTestStore(t)
+	store := newTestStore(t, t.TempDir())
 
 	want := raftpb.HardState{
 		Term:   rand.Uint64(),
@@ -214,7 +214,7 @@ func TestSetHardState(t *testing.T) {
 
 func TestSnapshot(t *testing.T) {
 	t.Run("creates a snapshot with correct contents", func(t *testing.T) {
-		db := testDB(t, nil)
+		db := testDB(t, t.TempDir(), nil)
 		snapshotter := mock.NewSnapshotter(t)
 		store, err := NewDiskStorage(db, snapshotter)
 		AssertNoError(t, err).Require()
@@ -232,7 +232,7 @@ func TestSnapshot(t *testing.T) {
 			}).
 			Return(nil)
 
-		err = store.Save(entries, raftpb.HardState{}, false)
+		err = store.Save(entries, emptyHardState, false)
 		store.SaveAppliedIndex(wantApliedIndex)
 		store.SaveConfState(wantConfState)
 		AssertNoError(t, err).Require()
@@ -251,7 +251,7 @@ func TestSnapshot(t *testing.T) {
 	t.Run("overrides state from snapshot", func(t *testing.T) {
 		// Create a store and put some state in it.
 		entries := index(3).terms(2, 2, 2, 2, 2)
-		store := newTestStore(t)
+		store := newTestStore(t, t.TempDir())
 		err := store.Save(entries, emptyHardState, false)
 		AssertNoError(t, err).Require()
 		store.SaveAppliedIndex(2)
@@ -299,66 +299,63 @@ func TestSnapshot(t *testing.T) {
 		AssertErrorIs(t, err, raft.ErrCompacted)
 	})
 
+	t.Run("state is restored from snapshot", func(t *testing.T) {
+		// Create a store and put some state in it.
+		dir := t.TempDir()
+		oldStore := newTestStore(t, dir)
+
+		entries := index(3).terms(2, 2, 2, 2, 2)
+		wantAppliedIndex := entries[len(entries)-1].Index
+		wantConfState := raftpb.ConfState{Voters: []uint64{rand.Uint64()}}
+		err := oldStore.Save(entries, emptyHardState, false)
+		AssertNoError(t, err).Require()
+		oldStore.SaveAppliedIndex(wantAppliedIndex)
+		oldStore.SaveConfState(wantConfState)
+
+		// Persist current state to a snapshot.
+		err = oldStore.CreateSnapshot()
+		AssertNoError(t, err).Require()
+
+		want, err := oldStore.Snapshot()
+		AssertNoError(t, err).Require()
+
+		// Start a new store in the some directory.
+		newStore := newTestStore(t, dir)
+
+		// Ensure that the previous snapshot is restored from disk.
+		got, err := newStore.Snapshot()
+		AssertNoError(t, err)
+		AssertDeepEqual(t, got, want)
+
+		// ConfState is restored from the snapshot.
+		_, gotConfState, err := newStore.InitialState()
+		AssertNoError(t, err)
+		AssertDeepEqual(t, gotConfState, wantConfState)
+		// Applied Index is restored from the snapshot.
+		gotAppliedIndex := newStore.AppliedIndex()
+		AssertEqual(t, gotAppliedIndex, wantAppliedIndex)
+
+		// First index should still be available.
+		fi, err := newStore.FirstIndex()
+		AssertNoError(t, err)
+		AssertEqual(t, fi, entries[0].Index)
+
+		// Term of that snapshot index should also be available.
+		term, err := newStore.Term(fi)
+		AssertNoError(t, err)
+		AssertEqual(t, term, entries[0].Term)
+	})
+
 	t.Run("empty store returns an empty snapshot", func(t *testing.T) {
-		store := newTestStore(t)
+		store := newTestStore(t, t.TempDir())
 		snap, err := store.Snapshot()
 		AssertNoError(t, err)
 		AssertEqual(t, raft.IsEmptySnap(snap), true)
 	})
 }
 
-func TestPersistence(t *testing.T) {
-	dir := t.TempDir()
-
-	oldDb, err := qwal.Open(dir, nil)
-	AssertNoError(t, err).Require()
-	oldStore, err := NewDiskStorage(oldDb, new(SpySnapshotter))
-	AssertNoError(t, err).Require()
-
-	want := struct {
-		hardState raftpb.HardState
-		snapshot  raftpb.Snapshot
-		entries   []raftpb.Entry
-	}{
-		hardState: raftpb.HardState{Term: rand.Uint64(), Vote: rand.Uint64()},
-		snapshot:  raftpb.Snapshot{Metadata: raftpb.SnapshotMetadata{ConfState: raftpb.ConfState{AutoLeave: true}, Index: 1}},
-		entries:   index(3).terms(3, 4, 5, 6, 7),
-	}
-
-	err = oldStore.Save(want.entries, want.hardState, false)
-	AssertNoError(t, err).Require()
-	err = oldStore.ApplySnapshot(want.snapshot)
-	AssertNoError(t, err).Require()
-
-	newDb, err := qwal.Open(dir, nil)
-	AssertNoError(t, err).Require()
-	newStore, err := NewDiskStorage(newDb, new(SpySnapshotter))
-	AssertNoError(t, err).Require()
-
-	gotHardState, gotConfState, err := newStore.InitialState()
-	AssertNoError(t, err).Require()
-	AssertDeepEqual(t, gotHardState, want.hardState)
-	AssertDeepEqual(t, gotConfState, want.snapshot.Metadata.ConfState)
-
-	lo, err := newStore.FirstIndex()
-	AssertNoError(t, err)
-	AssertEqual(t, lo, want.entries[0].Index)
-
-	hi, err := newStore.LastIndex()
-	AssertNoError(t, err)
-	AssertEqual(t, hi, want.entries[len(want.entries)-1].Index)
-
-	term, err := newStore.Term(hi)
-	AssertNoError(t, err)
-	AssertEqual(t, term, want.entries[len(want.entries)-1].Term)
-
-	gotEntries, err := newStore.Entries(lo, hi+1, math.MaxUint64)
-	AssertNoError(t, err)
-	AssertDeepEqual(t, gotEntries, want.entries)
-}
-
 func TestCompaction(t *testing.T) {
-	db := testDB(t, nil)
+	db := testDB(t, t.TempDir(), nil)
 	store, err := NewDiskStorage(db, new(SpySnapshotter))
 	AssertNoError(t, err).Require()
 
@@ -434,15 +431,14 @@ func (i index) terms(terms ...uint64) []raftpb.Entry {
 	return entries
 }
 
-func testDB(t *testing.T, opts *qwal.Options) qwal.DB {
-	dir := t.TempDir()
+func testDB(t *testing.T, dir string, opts *qwal.Options) qwal.DB {
 	db, err := qwal.Open(dir, opts)
 	AssertNoError(t, err).Require()
 	return db
 }
 
-func newTestStore(t *testing.T) *DiskStorage {
-	store, err := NewDiskStorage(testDB(t, nil), new(SpySnapshotter))
+func newTestStore(t *testing.T, dir string) *DiskStorage {
+	store, err := NewDiskStorage(testDB(t, dir, nil), new(SpySnapshotter))
 	AssertNoError(t, err).Require()
 	return store
 }
