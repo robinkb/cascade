@@ -210,7 +210,6 @@ func (s *DiskStorage) Snapshot() (raftpb.Snapshot, error) {
 	return snap, err
 }
 
-// TODO: Probably remove
 func (s *DiskStorage) AppliedIndex() uint64 {
 	return s.appliedIndex
 }
@@ -278,13 +277,16 @@ func (s *DiskStorage) CreateSnapshot() error {
 		return err
 	}
 
+	var term uint64 = 1
+	if len(s.terms) > 0 && s.appliedIndex > 0 {
+		term = s.terms[s.appliedIndex-s.firstIndex()]
+	}
+
 	snapshot := raftpb.Snapshot{
 		Data: buf.Bytes(),
 		Metadata: raftpb.SnapshotMetadata{
-			Index: s.appliedIndex,
-			// TODO: This can fail, and there should probably be validation to catch that.
-			// Having a wrong applied index can result in an index-out-of-range.
-			Term:      s.terms[s.appliedIndex-s.firstIndex()],
+			Index:     s.appliedIndex,
+			Term:      term,
 			ConfState: s.confState,
 		},
 	}

@@ -130,11 +130,12 @@ func (n *node2) Receive(msg raftpb.Message) error {
 // TODO: Add a test to make sure that duplicate peers are overwritten.
 func (n *node2) Bootstrap(peers ...cluster.Peer) {
 	for _, peer := range peers {
-		n.raft.ApplyConfChange(raftpb.ConfChange{
+		cs := n.raft.ApplyConfChange(raftpb.ConfChange{
 			Type:    raftpb.ConfChangeAddNode,
 			NodeId:  peer.ID,
 			Context: []byte(peer.Addr),
 		}.AsV2())
+		n.storage.SetConfState(*cs)
 
 		baseUrl := fmt.Sprintf("http://%s/cluster/raft", peer.Addr)
 		client := NewClient(baseUrl)
@@ -222,10 +223,11 @@ func (n *node2) RemovePeer(peer cluster.Peer) error {
 func (n *node2) Run() error {
 	n.conf.Applied = n.storage.AppliedIndex()
 	n.raft = raft.RestartNode(n.conf)
-	n.raft.ApplyConfChange(raftpb.ConfChange{
+	cs := n.raft.ApplyConfChange(raftpb.ConfChange{
 		Type:   raftpb.ConfChangeAddNode,
 		NodeId: n.conf.ID,
 	}.AsV2())
+	n.storage.SetConfState(*cs)
 
 	n.done = make(chan struct{})
 	for {
@@ -335,7 +337,8 @@ func (n *node2) applyConfChange(cc raftpb.ConfChangeV2) {
 		}
 	}
 
-	n.raft.ApplyConfChange(cc)
+	cs := n.raft.ApplyConfChange(cc)
+	n.storage.SetConfState(*cs)
 
 	if ch, ok := n.confChangeReporter.Send(ccc.ID); ok {
 		ch <- nil
