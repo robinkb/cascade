@@ -31,7 +31,7 @@ func TestDBAppend(t *testing.T) {
 		}
 
 		count = db.Count(wantType)
-		AssertEqual(t, count, len(wantValues))
+		AssertEqual(t, count, uint64(len(wantValues)))
 		got, err := db.First(wantType)
 		AssertNoError(t, err)
 		AssertSlicesEqual(t, got, wantValues[0])
@@ -312,7 +312,7 @@ func TestDBReplay(t *testing.T) {
 
 		// Make sure that all are available.
 		for i, wantValue := range wantValues {
-			got, err := db.Get(wantType, i)
+			got, err := db.Get(wantType, uint64(i))
 			AssertNoError(t, err)
 			AssertSlicesEqual(t, got, wantValue)
 		}

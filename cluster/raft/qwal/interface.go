@@ -12,11 +12,9 @@ type (
 		// Append writes a value to the DB.
 		Append(t Type, value []byte) error
 		// Get retrieves a value with Type t at index i.
-		// TODO: i should be a uint64 or at least uint32
-		Get(t Type, i int) ([]byte, error)
+		Get(t Type, i uint64) ([]byte, error)
 		// Count returns how many values with Type t are in DB.
-		// TODO: return value should be a uint64 or at least uint32
-		Count(t Type) int
+		Count(t Type) uint64
 		// First returns the first value of Type t that was written to the DB.
 		// The value returned by this method changes after a compaction.
 		First(t Type) ([]byte, error)
@@ -25,8 +23,7 @@ type (
 		Last(t Type) ([]byte, error)
 		// Range returns an iterator that ranges over all values of Type t
 		// in the range [lo, hi[.
-		// TODO: lo and hi should be uint64 or uint32
-		Range(t Type, lo, hi int) iter.Seq2[[]byte, error]
+		Range(t Type, lo, hi uint64) iter.Seq2[[]byte, error]
 		// Replay restores the DB state by reading all values from the log files.
 		// Calling Replay after the first time is a no-op.
 		Replay() error

@@ -20,7 +20,7 @@ type inventory struct {
 }
 
 // Get returns the pointer to a record of Type t at index i.
-func (inv *inventory) Get(t Type, i int) (pointer, error) {
+func (inv *inventory) Get(t Type, i uint64) (pointer, error) {
 	inv.mu.RLock()
 	defer inv.mu.RUnlock()
 
@@ -29,14 +29,14 @@ func (inv *inventory) Get(t Type, i int) (pointer, error) {
 		return pointer{}, fmt.Errorf("%w: %d", ErrTypeUnknown, t)
 	}
 
-	if len(pointers) <= i || i < 0 {
+	if uint64(len(pointers)) <= i {
 		return pointer{}, fmt.Errorf("%w: length %d, index %d", ErrIndexOutOfBounds, len(pointers), i)
 	}
 
 	return pointers[i], nil
 }
 
-func (inv *inventory) Range(t Type, lo, hi int) ([]pointer, error) {
+func (inv *inventory) Range(t Type, lo, hi uint64) ([]pointer, error) {
 	inv.mu.RLock()
 	defer inv.mu.RUnlock()
 
@@ -49,13 +49,13 @@ func (inv *inventory) Range(t Type, lo, hi int) ([]pointer, error) {
 		return nil, fmt.Errorf("%w: %d", ErrTypeUnknown, t)
 	}
 
-	if len(pointers) < hi || lo < 0 {
+	if uint64(len(pointers)) < hi {
 		return nil, fmt.Errorf("%w: length %d, lo %d, hi %d", ErrIndexOutOfBounds, len(pointers), lo, hi)
 	}
 
 	result := make([]pointer, hi-lo)
 	for i := range len(result) {
-		result[i] = pointers[lo+i]
+		result[i] = pointers[lo+uint64(i)]
 	}
 	return result, nil
 }
@@ -63,11 +63,11 @@ func (inv *inventory) Range(t Type, lo, hi int) ([]pointer, error) {
 // Count returns the number of Pointers of the given RecordType.
 // If the Inventory contains no Pointers of a RecordType,
 // it returns 0 instead of panicking.
-func (inv *inventory) Count(t Type) int {
+func (inv *inventory) Count(t Type) uint64 {
 	inv.mu.RLock()
 	defer inv.mu.RUnlock()
 
-	return len(inv.records[t])
+	return uint64(len(inv.records[t]))
 }
 
 // Add appends a Pointer of a given RecordType to the Inventory.

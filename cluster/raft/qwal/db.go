@@ -137,7 +137,7 @@ func (d *db) appendWouldExceedLimits(log *logFile, r *record) bool {
 		uint64(d.maxLogRecordCount) <= log.counters.total()
 }
 
-func (d *db) Get(t Type, i int) ([]byte, error) {
+func (d *db) Get(t Type, i uint64) ([]byte, error) {
 	d.panicIfNotReplayed()
 
 	ptr, err := d.inventory.Get(t, i)
@@ -149,7 +149,7 @@ func (d *db) Get(t Type, i int) ([]byte, error) {
 }
 
 // Count implements [DB.Count].
-func (d *db) Count(t Type) int {
+func (d *db) Count(t Type) uint64 {
 	d.panicIfNotReplayed()
 	return d.inventory.Count(t)
 }
@@ -177,7 +177,7 @@ func (d *db) Last(t Type) ([]byte, error) {
 }
 
 // Range implements [DB.Range].
-func (d *db) Range(t Type, lo, hi int) iter.Seq2[[]byte, error] {
+func (d *db) Range(t Type, lo, hi uint64) iter.Seq2[[]byte, error] {
 	d.panicIfNotReplayed()
 	return func(yield func([]byte, error) bool) {
 		pointers, err := d.inventory.Range(t, lo, hi)

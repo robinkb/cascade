@@ -123,7 +123,7 @@ func (s *DiskStorage) Entries(lo, hi, maxSize uint64) ([]raftpb.Entry, error) {
 	var size uint64
 	entries := make([]raftpb.Entry, 0)
 
-	for value, err := range s.db.Range(TypeEntry, int(lo), int(hi)) {
+	for value, err := range s.db.Range(TypeEntry, lo, hi) {
 		if err != nil {
 			return nil, fmt.Errorf("failed to get entries [lo: %d] [hi: %d]: %w", lo, hi, err)
 		}
@@ -375,7 +375,7 @@ func (s *DiskStorage) compactionHook() qwal.CompactHookFunc {
 				continue
 			}
 
-			value, err := s.db.Get(TypeEntry, int(count-1))
+			value, err := s.db.Get(TypeEntry, count-1)
 			if err != nil {
 				return err
 			}
@@ -390,7 +390,7 @@ func (s *DiskStorage) compactionHook() qwal.CompactHookFunc {
 				Term:  entry.Term,
 			}
 
-			value, err = s.db.Get(TypeEntry, int(count))
+			value, err = s.db.Get(TypeEntry, count)
 			if err != nil {
 				return err
 			}
