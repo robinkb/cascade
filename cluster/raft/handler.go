@@ -36,7 +36,7 @@ func (h *Handler1) postMessageHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := h.node.Receive(&message); err != nil {
+	if err := h.node.Receive(message); err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
@@ -46,7 +46,7 @@ func (h *Handler1) postMessageHandler(w http.ResponseWriter, r *http.Request) {
 
 type Handler struct {
 	http.Handler
-	node Node2
+	node Node
 }
 
 func (h *Handler) messageHandler(w http.ResponseWriter, r *http.Request) {

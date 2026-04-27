@@ -93,7 +93,7 @@ func TestSingleNode(t *testing.T) {
 	t.Run("restores state from disk", func(t *testing.T) {
 		storage := newTestStore(t, t.TempDir())
 
-		oldNode := NewNode2(1, "", storage)
+		oldNode := NewNode(1, "", storage)
 		Run(t, oldNode)
 		SnapElections(oldNode)
 
@@ -108,7 +108,7 @@ func TestSingleNode(t *testing.T) {
 		err := oldNode.Shutdown()
 		AssertNoError(t, err)
 
-		newNode := NewNode2(1, "", storage)
+		newNode := NewNode(1, "", storage)
 		Run(t, newNode)
 		s.Verify()
 		newStatus := newNode.Status()
@@ -140,8 +140,8 @@ func TestProposer(t *testing.T) {
 
 		node := NewTestNode(t, 1)
 		s := new(SpyStore)
-		node.Handle(Type(10), s.add)
-		node.Handle(Type(10), s.add)
+		node.Handle(cluster.ProposalType(10), s.add)
+		node.Handle(cluster.ProposalType(10), s.add)
 	})
 
 	t.Run("proposing with an unregistered type panics", func(t *testing.T) {
@@ -151,7 +151,7 @@ func TestProposer(t *testing.T) {
 		Run(t, node)
 		SnapElections(node)
 
-		pt := Type(10)
+		pt := cluster.ProposalType(10)
 		_, _ = node.Propose(pt, RandomBytes(32))
 	})
 }
@@ -256,25 +256,25 @@ func TestClusterFormation(t *testing.T) {
 	})
 }
 
-func NewSpyStore(t testing.TB, p Proposer, expectedCalls int) *SpyStore {
+func NewSpyStore(t testing.TB, p cluster.Proposer, expectedCalls int) *SpyStore {
 	s := &SpyStore{
 		t: t,
 		p: p,
 
 		ExpectedCalls: expectedCalls,
 		State:         make([]int, 0, expectedCalls),
-		Type:          Type(rand.Uint32()),
+		ProposalType:  cluster.ProposalType(rand.Uint32()),
 	}
 
-	p.Handle(s.Type, s.add)
+	p.Handle(s.ProposalType, s.add)
 	return s
 }
 
 type SpyStore struct {
 	t testing.TB
-	p Proposer
+	p cluster.Proposer
 
-	Type          Type
+	ProposalType  cluster.ProposalType
 	ExpectedCalls int
 	Counter       int
 	State         []int
@@ -284,7 +284,7 @@ func (s *SpyStore) Add() {
 	buf := make([]byte, 4)
 	binary.LittleEndian.PutUint32(buf, uint32(s.Counter))
 
-	ret, err := s.p.Propose(s.Type, buf)
+	ret, err := s.p.Propose(s.ProposalType, buf)
 	AssertNoError(s.t, err).Require()
 	AssertEqual(s.t, ret.(int), s.Counter).Require()
 	s.Counter++
@@ -318,7 +318,7 @@ func (s *SpyStore) Verify() {
 	}
 }
 
-func NewTestNode(t *testing.T, id uint64) Node2 {
+func NewTestNode(t *testing.T, id uint64) Node {
 	dir := t.TempDir()
 	db, err := qwal.Open(dir, nil)
 	AssertNoError(t, err).Require()
@@ -327,7 +327,7 @@ func NewTestNode(t *testing.T, id uint64) Node2 {
 	AssertNoError(t, err).Require()
 
 	addr := RandomHost()
-	node := NewNode2(id, addr, storage)
+	node := NewNode(id, addr, storage)
 
 	srv := server.New(server.Options{
 		Name: "raft-server",
@@ -350,7 +350,7 @@ func NewTestNode(t *testing.T, id uint64) Node2 {
 
 // Run starts a Node on a Go routine, and blocks until it is started.
 // The Node is shut down at the end of the test.
-func Run(t *testing.T, n Node2) {
+func Run(t *testing.T, n Node) {
 	t.Helper()
 
 	t.Cleanup(func() {
@@ -376,8 +376,8 @@ func Run(t *testing.T, n Node2) {
 	}
 }
 
-func NewTestCluster(t *testing.T, n int) []Node2 {
-	nodes := make([]Node2, n)
+func NewTestCluster(t *testing.T, n int) []Node {
+	nodes := make([]Node, n)
 	peers := make([]cluster.Peer, n)
 
 	for i := range n {
@@ -398,7 +398,7 @@ func NewTestCluster(t *testing.T, n int) []Node2 {
 }
 
 // SnapElections rapidly ticks the given nodes until a leader is elected.
-func SnapElections(nodes ...Node2) {
+func SnapElections(nodes ...Node) {
 	var wg sync.WaitGroup
 	candidates := len(nodes)
 	votes := 0
