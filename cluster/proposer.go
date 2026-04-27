@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"log"
-	"math/rand"
 )
 
 var (
@@ -29,27 +28,6 @@ type (
 		Propose(t ProposalType, data []byte) (resp any, err error)
 	}
 )
-
-// ProposalBase can be embedded into a struct to implement the Proposal interface.
-type ProposalBase struct {
-	ProposalId uint64
-}
-
-func (p *ProposalBase) ProposalID() uint64 {
-	if p.ProposalId == 0 {
-		p.ProposalId = rand.Uint64()
-	}
-	return p.ProposalId
-}
-
-// ResponseBase can be embedded into a struct to implement the Response interface.
-type ResponseBase struct {
-	Err error
-}
-
-func (r *ResponseBase) Error() string {
-	return r.Err.Error()
-}
 
 // NewFakeProposer returns a new FakeProposer.
 func NewFakeProposer() *FakeProposer {
