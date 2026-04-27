@@ -352,6 +352,12 @@ func TestStorageSnapshot(t *testing.T) {
 		AssertNoError(t, err)
 		AssertEqual(t, raft.IsEmptySnap(snap), true)
 	})
+
+	t.Run("empty store can create a snapshot", func(t *testing.T) {
+		store := newTestStore(t, t.TempDir())
+		err := store.CreateSnapshot()
+		AssertNoError(t, err)
+	})
 }
 
 func TestStorageCompaction(t *testing.T) {
@@ -362,8 +368,7 @@ func TestStorageCompaction(t *testing.T) {
 	oldEntries := index(1).terms(1, 1)
 	err = store.Save(oldEntries, emptyHardState, false)
 	AssertNoError(t, err).Require()
-	err = store.SetAppliedIndex(oldEntries[1].Index)
-	AssertNoError(t, err).Require()
+	store.SetAppliedIndex(oldEntries[1].Index)
 
 	// Ensure that FirstIndex returns the Index of the Entry that we just put in.
 	fi, err := store.FirstIndex()
@@ -383,8 +388,7 @@ func TestStorageCompaction(t *testing.T) {
 	newEntries := index(3).terms(2, 2, 2)
 	err = store.Save(newEntries, emptyHardState, false)
 	AssertNoError(t, err).Require()
-	err = store.SetAppliedIndex(newEntries[2].Index)
-	AssertNoError(t, err).Require()
+	store.SetAppliedIndex(newEntries[2].Index)
 
 	// Compact, which should remove the first Log containing the first Entry.
 	err = db.Compact()

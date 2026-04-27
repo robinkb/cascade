@@ -332,9 +332,7 @@ func (n *node) processEntries(entries []raftpb.Entry) {
 	// TODO: Commit should return an error or something to signal
 	// if the commit was successfully applied. We can't just set
 	// AppliedIndex to the last Entry's Index.
-	if err := n.storage.SetAppliedIndex(entries[len(entries)-1].Index); err != nil {
-		log.Fatal("failed to persist applied index:", err)
-	}
+	n.storage.SetAppliedIndex(entries[len(entries)-1].Index)
 }
 
 func (n *node) Receive(msg *raftpb.Message) error {

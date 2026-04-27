@@ -242,8 +242,7 @@ func (n *node2) Run() error {
 		case <-n.stop:
 			n.raft.Stop()
 			close(n.done)
-			// Should we close the storage instead?
-			return n.storage.Sync()
+			return n.storage.CreateSnapshot()
 		}
 	}
 }
@@ -275,8 +274,6 @@ func (n *node2) send(messages []raftpb.Message) {
 
 func (n *node2) process(entries []raftpb.Entry) {
 	entries = n.filter(entries)
-	// It could be that all entries get filtered out, in which case
-	// we can skip having to write AppliedIndex to disk.
 	if len(entries) == 0 {
 		return
 	}
@@ -300,9 +297,7 @@ func (n *node2) process(entries []raftpb.Entry) {
 		}
 	}
 
-	if err := n.storage.SetAppliedIndex(entries[len(entries)-1].Index); err != nil {
-		log.Fatal("failed to persist applied index:", err)
-	}
+	n.storage.SetAppliedIndex(entries[len(entries)-1].Index)
 }
 
 // filter removes entries for which no actions need to be taken.

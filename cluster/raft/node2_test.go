@@ -323,7 +323,7 @@ func NewTestNode(t *testing.T, id uint64) Node2 {
 	db, err := qwal.Open(dir, nil)
 	AssertNoError(t, err).Require()
 
-	storage, err := NewDiskStorage(db, nil)
+	storage, err := NewDiskStorage(db, new(SpySnapshotter))
 	AssertNoError(t, err).Require()
 
 	addr := RandomHost()

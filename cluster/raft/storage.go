@@ -267,9 +267,8 @@ func (s *DiskStorage) SetConfState(cs raftpb.ConfState) {
 // SetAppliedIndex stores the given index in-memory. The applied index indicates to which Raft entry
 // has been applied to the application's state machine. It will be persisted to stable storage
 // with the next snapshot.
-func (s *DiskStorage) SetAppliedIndex(i uint64) error {
+func (s *DiskStorage) SetAppliedIndex(i uint64) {
 	s.appliedIndex = i
-	return nil
 }
 
 func (s *DiskStorage) CreateSnapshot() error {
