@@ -69,6 +69,8 @@ func TestSingleNode(t *testing.T) {
 		s.Verify()
 	})
 
+	// TODO: This test does not close the DiskStorage, so it's not fully accurate.
+	// DiskStorage will replay entries from the last snapshot.
 	t.Run("retains state after restart", func(t *testing.T) {
 		node := NewTestNode(t, 1)
 		Run(t, node)

@@ -138,7 +138,7 @@ func (n *node) Bootstrap(peers ...cluster.Peer) {
 			Context: []byte(peer.Addr),
 		}.AsV2())
 
-		n.storage.SaveConfState(*confState)
+		n.storage.SetConfState(*confState)
 
 		if n.id != peer.ID {
 			client := NewClient("http://" + peer.Addr + "/cluster/raft")
@@ -325,14 +325,14 @@ func (n *node) processEntries(entries []raftpb.Entry) {
 				}
 			}
 			cs := n.raft.ApplyConfChange(cc)
-			n.storage.SaveConfState(*cs)
+			n.storage.SetConfState(*cs)
 		}
 	}
 
 	// TODO: Commit should return an error or something to signal
 	// if the commit was successfully applied. We can't just set
 	// AppliedIndex to the last Entry's Index.
-	if err := n.storage.SaveAppliedIndex(entries[len(entries)-1].Index); err != nil {
+	if err := n.storage.SetAppliedIndex(entries[len(entries)-1].Index); err != nil {
 		log.Fatal("failed to persist applied index:", err)
 	}
 }

@@ -233,8 +233,8 @@ func TestStorageSnapshot(t *testing.T) {
 			Return(nil)
 
 		err = store.Save(entries, emptyHardState, false)
-		store.SaveAppliedIndex(wantApliedIndex)
-		store.SaveConfState(wantConfState)
+		store.SetAppliedIndex(wantApliedIndex)
+		store.SetConfState(wantConfState)
 		AssertNoError(t, err).Require()
 
 		err = store.CreateSnapshot()
@@ -254,8 +254,8 @@ func TestStorageSnapshot(t *testing.T) {
 		store := newTestStore(t, t.TempDir())
 		err := store.Save(entries, emptyHardState, false)
 		AssertNoError(t, err).Require()
-		store.SaveAppliedIndex(2)
-		store.SaveConfState(raftpb.ConfState{Voters: []uint64{rand.Uint64()}})
+		store.SetAppliedIndex(2)
+		store.SetConfState(raftpb.ConfState{Voters: []uint64{rand.Uint64()}})
 
 		// Craft a Snapshot to apply to it.
 		want := raftpb.Snapshot{
@@ -309,8 +309,8 @@ func TestStorageSnapshot(t *testing.T) {
 		wantConfState := raftpb.ConfState{Voters: []uint64{rand.Uint64()}}
 		err := oldStore.Save(entries, emptyHardState, false)
 		AssertNoError(t, err).Require()
-		oldStore.SaveAppliedIndex(wantAppliedIndex)
-		oldStore.SaveConfState(wantConfState)
+		oldStore.SetAppliedIndex(wantAppliedIndex)
+		oldStore.SetConfState(wantConfState)
 
 		// Persist current state to a snapshot.
 		err = oldStore.CreateSnapshot()
@@ -362,7 +362,7 @@ func TestStorageCompaction(t *testing.T) {
 	oldEntries := index(1).terms(1, 1)
 	err = store.Save(oldEntries, emptyHardState, false)
 	AssertNoError(t, err).Require()
-	err = store.SaveAppliedIndex(oldEntries[1].Index)
+	err = store.SetAppliedIndex(oldEntries[1].Index)
 	AssertNoError(t, err).Require()
 
 	// Ensure that FirstIndex returns the Index of the Entry that we just put in.
@@ -383,7 +383,7 @@ func TestStorageCompaction(t *testing.T) {
 	newEntries := index(3).terms(2, 2, 2)
 	err = store.Save(newEntries, emptyHardState, false)
 	AssertNoError(t, err).Require()
-	err = store.SaveAppliedIndex(newEntries[2].Index)
+	err = store.SetAppliedIndex(newEntries[2].Index)
 	AssertNoError(t, err).Require()
 
 	// Compact, which should remove the first Log containing the first Entry.

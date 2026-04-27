@@ -300,7 +300,7 @@ func (n *node2) process(entries []raftpb.Entry) {
 		}
 	}
 
-	if err := n.storage.SaveAppliedIndex(entries[len(entries)-1].Index); err != nil {
+	if err := n.storage.SetAppliedIndex(entries[len(entries)-1].Index); err != nil {
 		log.Fatal("failed to persist applied index:", err)
 	}
 }

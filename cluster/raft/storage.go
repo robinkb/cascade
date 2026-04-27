@@ -258,15 +258,16 @@ func (s *DiskStorage) Save(entries []raftpb.Entry, hardState raftpb.HardState, s
 	return nil
 }
 
-// SaveConfState stores the given ConfState in-memory.
+// SetConfState stores the given ConfState in-memory.
 // It will be persisted to stable storage with the next snapshot.
-func (s *DiskStorage) SaveConfState(cs raftpb.ConfState) {
+func (s *DiskStorage) SetConfState(cs raftpb.ConfState) {
 	s.confState = cs
 }
 
-// SaveAppliedIndex stores the given index in-memory.
-// It will be persisted to stable storage with the next snapshot.
-func (s *DiskStorage) SaveAppliedIndex(i uint64) error {
+// SetAppliedIndex stores the given index in-memory. The applied index indicates to which Raft entry
+// has been applied to the application's state machine. It will be persisted to stable storage
+// with the next snapshot.
+func (s *DiskStorage) SetAppliedIndex(i uint64) error {
 	s.appliedIndex = i
 	return nil
 }
