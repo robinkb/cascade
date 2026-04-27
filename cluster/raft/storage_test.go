@@ -195,7 +195,7 @@ func TestStorageFirstIndex(t *testing.T) {
 	})
 }
 
-func TestSetHardState(t *testing.T) {
+func TestStorageSaveHardState(t *testing.T) {
 	store := newTestStore(t, t.TempDir())
 
 	want := raftpb.HardState{
@@ -212,7 +212,7 @@ func TestSetHardState(t *testing.T) {
 	AssertDeepEqual(t, got, want)
 }
 
-func TestSnapshot(t *testing.T) {
+func TestStorageSnapshot(t *testing.T) {
 	t.Run("creates a snapshot with correct contents", func(t *testing.T) {
 		db := testDB(t, t.TempDir(), nil)
 		snapshotter := mock.NewSnapshotter(t)
@@ -354,7 +354,7 @@ func TestSnapshot(t *testing.T) {
 	})
 }
 
-func TestCompaction(t *testing.T) {
+func TestStorageCompaction(t *testing.T) {
 	db := testDB(t, t.TempDir(), nil)
 	store, err := NewDiskStorage(db, new(SpySnapshotter))
 	AssertNoError(t, err).Require()
