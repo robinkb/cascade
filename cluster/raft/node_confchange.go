@@ -11,6 +11,14 @@ import (
 	"go.etcd.io/raft/v3/raftpb"
 )
 
+// AsPeer returns a [cluster.Peer] representing this node.
+func (n *node) AsPeer() cluster.Peer {
+	return cluster.Peer{
+		ID:   n.conf.ID,
+		Addr: n.addr,
+	}
+}
+
 // Bootstrap prepares a new Raft node. If this node will join a cluster,
 // at least the cluster's leader must be passed as a peer, but it is safer
 // to pass all known peers. Bootstrap effectively bypasses the proposal stage
