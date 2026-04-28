@@ -123,8 +123,6 @@ func (n *node) Receive(msg raftpb.Message) error {
 // at least the cluster's leader must be passed as a peer, but it is safer
 // to pass all known peers. Bootstrap effectively bypasses the proposal stage
 // and adds Peers directly into the Raft node's state.
-// It can be called multiple times.
-// TODO: Add a test to make sure that duplicate peers are overwritten.
 func (n *node) Bootstrap(peers ...cluster.Peer) {
 	for _, peer := range peers {
 		cs := n.raft.ApplyConfChange(raftpb.ConfChange{
@@ -143,6 +141,20 @@ func (n *node) Bootstrap(peers ...cluster.Peer) {
 	}
 }
 
+// AddPeer proposes adding the given Peer to the cluster.
+// It may be called on any node, not just the leader.
+// Proposals may be rejected by the cluster.
+func (n *node) AddPeer(p cluster.Peer) error {
+	return n.proposeConfChange(raftpb.ConfChangeAddNode, p)
+}
+
+// RemovePeer proposes removing the given Peer from the cluster.
+// It may be called on any node, not just the leader.
+// Proposals may be rejected by the cluster.
+func (n *node) RemovePeer(p cluster.Peer) error {
+	return n.proposeConfChange(raftpb.ConfChangeRemoveNode, p)
+}
+
 // ConfChangeContext is used as the context data for a Raft ConfChange.
 type ConfChangeContext struct {
 	// ID is a unique identifier for tracking the ConfChange across the network.
@@ -159,10 +171,7 @@ func (c *ConfChangeContext) MustMarshal() []byte {
 	return data
 }
 
-// AddPeer proposes adding the given Peer to the cluster.
-// It may be called on any node, not just the leader.
-// Proposals may be rejected by the cluster.
-func (n *node) AddPeer(peer cluster.Peer) error {
+func (n *node) proposeConfChange(cct raftpb.ConfChangeType, p cluster.Peer) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
 	defer cancel()
 
@@ -171,39 +180,11 @@ func (n *node) AddPeer(peer cluster.Peer) error {
 
 	ccc := &ConfChangeContext{
 		ID:    id,
-		Nodes: map[uint64]string{peer.ID: peer.Addr},
+		Nodes: map[uint64]string{p.ID: p.Addr},
 	}
 	err := n.raft.ProposeConfChange(ctx, raftpb.ConfChange{
-		Type:    raftpb.ConfChangeAddNode,
-		NodeId:  peer.ID,
-		Context: ccc.MustMarshal(),
-	}.AsV2())
-	if err != nil {
-		return err
-	}
-
-	select {
-	case <-ctx.Done():
-		return context.Cause(ctx)
-	case err := <-await:
-		return err
-	}
-}
-
-func (n *node) RemovePeer(peer cluster.Peer) error {
-	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
-	defer cancel()
-
-	id, await := n.confChangeReporter.Await()
-	defer n.confChangeReporter.Close(id)
-
-	ccc := &ConfChangeContext{
-		ID:    id,
-		Nodes: map[uint64]string{peer.ID: peer.Addr},
-	}
-	err := n.raft.ProposeConfChange(ctx, raftpb.ConfChange{
-		Type:    raftpb.ConfChangeRemoveNode,
-		NodeId:  peer.ID,
+		Type:    cct,
+		NodeId:  p.ID,
 		Context: ccc.MustMarshal(),
 	}.AsV2())
 	if err != nil {
