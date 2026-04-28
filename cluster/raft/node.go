@@ -230,7 +230,8 @@ func (n *node) Run() error {
 	for {
 		select {
 		case rd := <-n.raft.Ready():
-			n.saveToStorage(rd.Entries, rd.HardState, rd.Snapshot, rd.MustSync)
+			n.restore(rd.Snapshot)
+			n.save(rd.Entries, rd.HardState, rd.MustSync)
 			n.send(rd.Messages)
 			n.process(rd.CommittedEntries)
 			n.raft.Advance()
@@ -246,15 +247,19 @@ func (n *node) Run() error {
 	}
 }
 
-func (n *node) saveToStorage(entries []raftpb.Entry, hardState raftpb.HardState, snapshot raftpb.Snapshot, mustSync bool) {
-	if err := n.storage.Save(entries, hardState, mustSync); err != nil {
-		log.Fatal("failed to persist entries and hardstate:", err)
+func (n *node) restore(sp raftpb.Snapshot) {
+	if raft.IsEmptySnap(sp) {
+		return
 	}
 
-	if !raft.IsEmptySnap(snapshot) {
-		if err := n.storage.ApplySnapshot(snapshot); err != nil {
-			log.Fatal("failed to persist snapshot:", err)
-		}
+	if err := n.storage.ApplySnapshot(sp); err != nil {
+		log.Fatal("failed to persist snapshot:", err)
+	}
+}
+
+func (n *node) save(entries []raftpb.Entry, hardState raftpb.HardState, mustSync bool) {
+	if err := n.storage.Save(entries, hardState, mustSync); err != nil {
+		log.Fatal("failed to persist entries and hardstate:", err)
 	}
 }
 
