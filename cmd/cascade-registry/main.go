@@ -98,7 +98,6 @@ func main() {
 		// And the node won't be running until the manager starts.
 		// And starting the manager is a blocking call.
 		go func() {
-			log.Printf("raft peers: %s", peers)
 			time.Sleep(10 * time.Millisecond)
 			node.Bootstrap(peers...)
 		}()

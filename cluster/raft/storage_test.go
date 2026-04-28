@@ -228,7 +228,8 @@ func TestStorageSnapshot(t *testing.T) {
 		snapshotter.EXPECT().
 			Snapshot(tmock.Anything).
 			Run(func(w io.Writer) {
-				io.Copy(w, bytes.NewBuffer(wantData))
+				_, err := io.Copy(w, bytes.NewBuffer(wantData))
+				AssertNoError(t, err).Require()
 			}).
 			Return(nil)
 

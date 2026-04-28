@@ -94,7 +94,7 @@ type DiskStorage struct {
 // InitialState implements [raft.Storage.InitialState].
 func (s *DiskStorage) InitialState() (hs raftpb.HardState, cs raftpb.ConfState, err error) {
 	if s.db.Count(TypeHardState) > 0 {
-		data := make([]byte, hs.Size())
+		var data []byte
 		data, err = s.db.Last(TypeHardState)
 		if err != nil {
 			return

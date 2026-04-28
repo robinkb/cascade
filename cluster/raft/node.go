@@ -137,7 +137,9 @@ func (n *node) Bootstrap(peers ...cluster.Peer) {
 		baseUrl := fmt.Sprintf("http://%s/cluster/raft", peer.Addr)
 		client := NewClient(baseUrl)
 		peer := cluster.Peer{ID: peer.ID, Addr: peer.Addr}
-		n.clients.Add(peer, client)
+		if err := n.clients.Add(peer, client); err != nil {
+			log.Fatal(err)
+		}
 	}
 }
 
@@ -329,7 +331,9 @@ func (n *node) applyConfChange(cc raftpb.ConfChangeV2) {
 			baseUrl := fmt.Sprintf("http://%s/cluster/raft", addr)
 			client := NewClient(baseUrl)
 			peer := cluster.Peer{ID: change.GetNodeId(), Addr: addr}
-			n.clients.Add(peer, client)
+			if err := n.clients.Add(peer, client); err != nil {
+				log.Fatal(err)
+			}
 		case raftpb.ConfChangeRemoveNode:
 			if change.GetNodeId() == n.conf.ID {
 				go n.shutdown()

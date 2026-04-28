@@ -2,7 +2,6 @@ package cluster
 
 import (
 	"bytes"
-	"encoding/json"
 	"io"
 
 	"github.com/gofrs/uuid/v5"
@@ -58,7 +57,7 @@ func (s *blobStore) PutBlob(id digest.Digest, content []byte) error {
 
 func (s *blobStore) putBlob(data []byte) (resp any, err error) {
 	v := new(pPutBlob)
-	json.Unmarshal(data, v)
+	mustUnmarshal(data, v)
 	err = s.Blobs.PutBlob(v.ID, v.Content)
 	return
 }
@@ -77,7 +76,7 @@ func (s *blobStore) DeleteBlob(id digest.Digest) error {
 
 func (s *blobStore) deleteBlob(data []byte) (resp any, err error) {
 	v := new(pDeleteBlob)
-	json.Unmarshal(data, v)
+	mustUnmarshal(data, v)
 	err = s.Blobs.DeleteBlob(v.ID)
 	return
 }
@@ -96,7 +95,7 @@ func (s *blobStore) InitUpload(id uuid.UUID) error {
 
 func (s *blobStore) initUpload(data []byte) (resp any, err error) {
 	v := new(pInitUpload)
-	json.Unmarshal(data, v)
+	mustUnmarshal(data, v)
 	err = s.Blobs.InitUpload(v.SessionID)
 	return
 }
@@ -142,10 +141,6 @@ type pAppendUpload struct {
 	Chunk     []byte
 }
 
-type rAppendUpload struct {
-	N int
-}
-
 func (w *writer) flush() (n int, err error) {
 	defer w.buf.Reset()
 	p := &pAppendUpload{
@@ -164,7 +159,7 @@ func (w *writer) Close() error {
 
 func (s *blobStore) appendUpload(data []byte) (resp any, err error) {
 	v := new(pAppendUpload)
-	json.Unmarshal(data, v)
+	mustUnmarshal(data, v)
 	w, err := s.Blobs.UploadWriter(v.SessionID)
 	if err != nil {
 		return
@@ -192,7 +187,7 @@ func (s *blobStore) CloseUpload(id uuid.UUID, digest digest.Digest) error {
 
 func (s *blobStore) closeUpload(data []byte) (resp any, err error) {
 	v := new(pCloseUpload)
-	json.Unmarshal(data, v)
+	mustUnmarshal(data, v)
 	err = s.Blobs.CloseUpload(v.SessionID, v.Digest)
 	return
 }
@@ -211,7 +206,7 @@ func (s *blobStore) DeleteUpload(id uuid.UUID) error {
 
 func (s *blobStore) deleteUpload(data []byte) (resp any, err error) {
 	v := new(pDeleteUpload)
-	json.Unmarshal(data, v)
+	mustUnmarshal(data, v)
 	err = s.Blobs.DeleteUpload(v.SessionID)
 	return
 }

@@ -1,8 +1,6 @@
 package cluster
 
 import (
-	"encoding/json"
-
 	"github.com/gofrs/uuid/v5"
 	"github.com/opencontainers/go-digest"
 	"github.com/robinkb/cascade/cluster"
@@ -65,7 +63,7 @@ func (m *metadataStore) CreateRepository(name string) (store.Repository, error) 
 
 func (m *metadataStore) createRepository(data []byte) (resp any, err error) {
 	v := new(pCreateRepository)
-	json.Unmarshal(data, v)
+	mustUnmarshal(data, v)
 	_, err = m.Metadata.CreateRepository(v.Name)
 	return
 }
@@ -92,7 +90,7 @@ func (m *metadataStore) DeleteRepository(name string) error {
 
 func (m *metadataStore) deleteRepository(data []byte) (resp any, err error) {
 	v := new(pDeleteRepository)
-	json.Unmarshal(data, v)
+	mustUnmarshal(data, v)
 	err = m.Metadata.DeleteRepository(v.Name)
 	return
 }
@@ -127,7 +125,7 @@ func (s *repositoryStore) PutBlob(id digest.Digest) error {
 
 func (m *metadataStore) putBlob(data []byte) (resp any, err error) {
 	v := new(pPutBlobMeta)
-	json.Unmarshal(data, v)
+	mustUnmarshal(data, v)
 	repo, err := m.Metadata.GetRepository(v.Name)
 	if err != nil {
 		return nil, err
@@ -152,7 +150,7 @@ func (s *repositoryStore) DeleteBlob(id digest.Digest) error {
 
 func (m *metadataStore) deleteBlob(data []byte) (resp any, err error) {
 	v := new(pDeleteBlobMeta)
-	json.Unmarshal(data, v)
+	mustUnmarshal(data, v)
 	repo, err := m.Metadata.GetRepository(v.Name)
 	if err != nil {
 		return nil, err
@@ -181,7 +179,7 @@ func (s *repositoryStore) PutManifest(id digest.Digest, meta store.Manifest, ref
 
 func (m *metadataStore) putManifest(data []byte) (resp any, err error) {
 	v := new(pPutManifest)
-	json.Unmarshal(data, v)
+	mustUnmarshal(data, v)
 	repo, err := m.Metadata.GetRepository(v.Name)
 	if err != nil {
 		return nil, err
@@ -207,7 +205,7 @@ func (s *repositoryStore) DeleteManifest(id digest.Digest) ([]digest.Digest, err
 
 func (m *metadataStore) deleteManifest(data []byte) (resp any, err error) {
 	v := new(pDeleteManifest)
-	json.Unmarshal(data, v)
+	mustUnmarshal(data, v)
 	repo, err := m.Metadata.GetRepository(v.Name)
 	if err != nil {
 		return nil, err
@@ -235,7 +233,7 @@ func (s *repositoryStore) PutTag(tag string, digest digest.Digest) error {
 
 func (m *metadataStore) putTag(data []byte) (resp any, err error) {
 	v := new(pPutTag)
-	json.Unmarshal(data, v)
+	mustUnmarshal(data, v)
 	repo, err := m.Metadata.GetRepository(v.Name)
 	if err != nil {
 		return nil, err
@@ -264,7 +262,7 @@ func (s *repositoryStore) DeleteTag(tag string) ([]digest.Digest, error) {
 
 func (m *metadataStore) deleteTag(data []byte) (resp any, err error) {
 	v := new(pDeleteTag)
-	json.Unmarshal(data, v)
+	mustUnmarshal(data, v)
 	repo, err := m.Metadata.GetRepository(v.Name)
 	if err != nil {
 		return nil, err
@@ -290,7 +288,7 @@ func (s *repositoryStore) PutUploadSession(session *store.UploadSession) error {
 
 func (m *metadataStore) putUploadSession(data []byte) (resp any, err error) {
 	v := new(pPutUploadSession)
-	json.Unmarshal(data, v)
+	mustUnmarshal(data, v)
 	repo, err := m.Metadata.GetRepository(v.Name)
 	if err != nil {
 		return nil, err
@@ -316,7 +314,7 @@ func (s *repositoryStore) DeleteUploadSession(id uuid.UUID) error {
 
 func (m *metadataStore) deleteUploadSession(data []byte) (resp any, err error) {
 	v := new(pDeleteUploadSession)
-	json.Unmarshal(data, v)
+	mustUnmarshal(data, v)
 	repo, err := m.Metadata.GetRepository(v.Name)
 	if err != nil {
 		return nil, err

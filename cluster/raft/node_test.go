@@ -183,7 +183,7 @@ func TestClusterFormation(t *testing.T) {
 		// bootstrap with only a follower node. But once the new node joins, the leader
 		// will not broadcast itself to the new node. The leader must be bootstrapped in.
 		Run(t, node3)
-		node3.Bootstrap(node1.AsPeer(), node2.AsPeer())
+		node3.Bootstrap(node1.AsPeer())
 
 		// And after this, we have three nodes in the cluster.
 		err = node2.AddPeer(node3.AsPeer())
