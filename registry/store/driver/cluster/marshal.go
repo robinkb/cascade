@@ -9,3 +9,10 @@ func mustMarshal(v any) []byte {
 	}
 	return data
 }
+
+func mustUnmarshal(data []byte, v any) {
+	err := json.Unmarshal(data, v)
+	if err != nil {
+		panic(err)
+	}
+}

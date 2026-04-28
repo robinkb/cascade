@@ -2,8 +2,6 @@ package cluster
 
 import (
 	"errors"
-	"fmt"
-	"log"
 )
 
 var (
@@ -28,36 +26,3 @@ type (
 		Propose(t ProposalType, data []byte) (resp any, err error)
 	}
 )
-
-// NewFakeProposer returns a new FakeProposer.
-func NewFakeProposer() *FakeProposer {
-	return &FakeProposer{
-		handlerFuncs: make(map[ProposalType]ProposalFunc),
-	}
-}
-
-// FakeProposer handles proposals without actually submitting them to a cluster.
-type FakeProposer struct {
-	handlerFuncs map[ProposalType]ProposalFunc
-
-	// Proposals is incremented for every submitted proposal.
-	Proposals int64
-}
-
-func (p *FakeProposer) Handle(t ProposalType, f ProposalFunc) {
-	if _, ok := p.handlerFuncs[t]; ok {
-		log.Fatalf("proposal type already registered: %s", t)
-	}
-	p.handlerFuncs[t] = f
-}
-
-func (p *FakeProposer) Propose(t ProposalType, data []byte) (resp any, err error) {
-	f, ok := p.handlerFuncs[t]
-	if !ok {
-		panic(fmt.Sprintf("unknown proposal type received: %s", t))
-	}
-
-	p.Proposals++
-
-	return f(data)
-}
