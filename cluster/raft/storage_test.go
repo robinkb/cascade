@@ -17,14 +17,10 @@ import (
 	"github.com/robinkb/cascade/testing/cluster/mock"
 )
 
-var (
-	emptyHardState = raftpb.HardState{}
-)
-
 func TestStorageEntries(t *testing.T) {
 	entries := index(3).terms(3, 4, 5, 5, 6, 7, 7, 7, 7, 8)
 	store := newTestStore(t, t.TempDir())
-	err := store.Save(entries, emptyHardState, false)
+	err := store.SaveEntries(entries)
 	AssertNoError(t, err)
 
 	tc := []struct {
@@ -80,7 +76,7 @@ func TestStorageTerm(t *testing.T) {
 		ents := index(3).terms(3, 4, 5)
 		store := newTestStore(t, t.TempDir())
 
-		err := store.Save(ents, emptyHardState, false)
+		err := store.SaveEntries(ents)
 		AssertNoError(t, err)
 
 		tests := []struct {
@@ -141,7 +137,7 @@ func TestStorageEntries2(t *testing.T) {
 	for _, tt := range tests {
 		t.Run("", func(t *testing.T) {
 			store := newTestStore(t, t.TempDir())
-			err := store.Save(ents, emptyHardState, false)
+			err := store.SaveEntries(ents)
 			AssertNoError(t, err)
 
 			entries, err := store.Entries(tt.lo, tt.hi, tt.maxsize)
@@ -161,7 +157,7 @@ func TestStorageLastIndex(t *testing.T) {
 
 	entries := index(3).terms(3, 4, want)
 	want = entries[len(entries)-1].Index
-	err = store.Save(entries, emptyHardState, false)
+	err = store.SaveEntries(entries)
 	AssertNoError(t, err)
 
 	got, err = store.LastIndex()
@@ -186,7 +182,7 @@ func TestStorageFirstIndex(t *testing.T) {
 	t.Run("first index of a storage with entries is the index of the first entry", func(t *testing.T) {
 		entries := index(want).terms(5, 5, 6, 6, 7, 8)
 		want = entries[0].Index
-		err := store.Save(entries, emptyHardState, false)
+		err := store.SaveEntries(entries)
 		AssertNoError(t, err)
 
 		got, err := store.FirstIndex()
@@ -204,7 +200,7 @@ func TestStorageSaveHardState(t *testing.T) {
 		Commit: rand.Uint64(),
 	}
 
-	err := store.Save(nil, want, false)
+	err := store.SaveHardState(want)
 	AssertNoError(t, err)
 
 	got, _, err := store.InitialState()
@@ -233,7 +229,7 @@ func TestStorageSnapshot(t *testing.T) {
 			}).
 			Return(nil)
 
-		err = store.Save(entries, emptyHardState, false)
+		err = store.SaveEntries(entries)
 		store.SetAppliedIndex(wantApliedIndex)
 		store.SetConfState(wantConfState)
 		AssertNoError(t, err).Require()
@@ -253,7 +249,7 @@ func TestStorageSnapshot(t *testing.T) {
 		// Create a store and put some state in it.
 		entries := index(3).terms(1, 2, 3, 4, 5)
 		store := newTestStore(t, t.TempDir())
-		err := store.Save(entries, emptyHardState, false)
+		err := store.SaveEntries(entries)
 		AssertNoError(t, err).Require()
 		store.SetAppliedIndex(2)
 		store.SetConfState(raftpb.ConfState{Voters: []uint64{rand.Uint64()}})
@@ -308,7 +304,7 @@ func TestStorageSnapshot(t *testing.T) {
 		entries := index(3).terms(1, 2, 3, 4, 5)
 		wantAppliedIndex := entries[len(entries)-1].Index
 		wantConfState := raftpb.ConfState{Voters: []uint64{rand.Uint64()}}
-		err := oldStore.Save(entries, emptyHardState, false)
+		err := oldStore.SaveEntries(entries)
 		AssertNoError(t, err).Require()
 		oldStore.SetAppliedIndex(wantAppliedIndex)
 		oldStore.SetConfState(wantConfState)
@@ -367,7 +363,7 @@ func TestStorageCompaction(t *testing.T) {
 	AssertNoError(t, err).Require()
 
 	oldEntries := index(1).terms(1, 1)
-	err = store.Save(oldEntries, emptyHardState, false)
+	err = store.SaveEntries(oldEntries)
 	AssertNoError(t, err).Require()
 	store.SetAppliedIndex(oldEntries[1].Index)
 
@@ -387,7 +383,7 @@ func TestStorageCompaction(t *testing.T) {
 
 	// Save a new Entry.
 	newEntries := index(3).terms(2, 2, 2)
-	err = store.Save(newEntries, emptyHardState, false)
+	err = store.SaveEntries(newEntries)
 	AssertNoError(t, err).Require()
 	store.SetAppliedIndex(newEntries[2].Index)
 

@@ -133,8 +133,22 @@ func (n *node) restore(sp raftpb.Snapshot) {
 }
 
 func (n *node) save(entries []raftpb.Entry, hardState raftpb.HardState, mustSync bool) {
-	if err := n.storage.Save(entries, hardState, mustSync); err != nil {
-		log.Fatal("failed to persist entries and hardstate:", err)
+	if !raft.IsEmptyHardState(hardState) {
+		if err := n.storage.SaveHardState(hardState); err != nil {
+			log.Fatal("failed to persist hard state:", err)
+		}
+	}
+
+	if len(entries) > 0 {
+		if err := n.storage.SaveEntries(entries); err != nil {
+			log.Fatal("failed to persist entries:", err)
+		}
+	}
+
+	if mustSync {
+		if err := n.storage.Sync(); err != nil {
+			log.Print("failed to sync disk storage:", err)
+		}
 	}
 }
 

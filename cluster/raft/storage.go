@@ -214,47 +214,38 @@ func (s *DiskStorage) AppliedIndex() uint64 {
 	return s.appliedIndex
 }
 
-func (s *DiskStorage) Save(entries []raftpb.Entry, hardState raftpb.HardState, sync bool) error {
-	if len(entries) != 0 {
-		if s.db.Count(TypeEntry) == 0 {
-			s.firstEntry = raftpb.Entry{
-				Term:  entries[0].Term,
-				Index: entries[0].Index,
-			}
-		}
-
-		for _, entry := range entries {
-			value, err := entry.Marshal()
-			if err != nil {
-				return err
-			}
-
-			err = s.db.Append(TypeEntry, value)
-			if err != nil {
-				return err
-			}
-
-			s.terms = append(s.terms, entry.Term)
+func (s *DiskStorage) SaveEntries(entries []raftpb.Entry) error {
+	if s.db.Count(TypeEntry) == 0 {
+		s.firstEntry = raftpb.Entry{
+			Term:  entries[0].Term,
+			Index: entries[0].Index,
 		}
 	}
 
-	if !raft.IsEmptyHardState(hardState) {
-		value, err := hardState.Marshal()
+	for _, entry := range entries {
+		value, err := entry.Marshal()
 		if err != nil {
 			return err
 		}
 
-		err = s.db.Append(TypeHardState, value)
+		err = s.db.Append(TypeEntry, value)
 		if err != nil {
 			return err
 		}
-	}
 
-	if sync {
-		return s.db.Sync()
+		s.terms = append(s.terms, entry.Term)
 	}
 
 	return nil
+}
+
+func (s *DiskStorage) SaveHardState(hs raftpb.HardState) error {
+	value, err := hs.Marshal()
+	if err != nil {
+		return err
+	}
+
+	return s.db.Append(TypeHardState, value)
 }
 
 // SetConfState stores the given ConfState in-memory.
