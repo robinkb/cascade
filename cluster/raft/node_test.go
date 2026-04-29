@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/robinkb/cascade/cluster"
+	"github.com/robinkb/cascade/cluster/fake"
 	"github.com/robinkb/cascade/cluster/raft/qwal"
 	"github.com/robinkb/cascade/server"
 	. "github.com/robinkb/cascade/testing"
@@ -323,7 +324,7 @@ func NewTestNode(t *testing.T, id uint64) Node {
 	db, err := qwal.Open(dir, nil)
 	AssertNoError(t, err).Require()
 
-	storage, err := NewDiskStorage(db, new(SpySnapshotter))
+	storage, err := NewDiskStorage(db, new(fake.Snapshotter))
 	AssertNoError(t, err).Require()
 
 	addr := RandomHost()

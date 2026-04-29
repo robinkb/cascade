@@ -12,6 +12,7 @@ import (
 	"go.etcd.io/raft/v3"
 	"go.etcd.io/raft/v3/raftpb"
 
+	"github.com/robinkb/cascade/cluster/fake"
 	"github.com/robinkb/cascade/cluster/raft/qwal"
 	. "github.com/robinkb/cascade/testing"
 	"github.com/robinkb/cascade/testing/cluster/mock"
@@ -359,7 +360,7 @@ func TestStorageSnapshot(t *testing.T) {
 
 func TestStorageCompaction(t *testing.T) {
 	db := testDB(t, t.TempDir(), nil)
-	store, err := NewDiskStorage(db, new(SpySnapshotter))
+	store, err := NewDiskStorage(db, new(fake.Snapshotter))
 	AssertNoError(t, err).Require()
 
 	oldEntries := index(1).terms(1, 1)
@@ -439,7 +440,7 @@ func testDB(t *testing.T, dir string, opts *qwal.Options) qwal.DB {
 }
 
 func newTestStore(t *testing.T, dir string) *DiskStorage {
-	store, err := NewDiskStorage(testDB(t, dir, nil), new(SpySnapshotter))
+	store, err := NewDiskStorage(testDB(t, dir, nil), new(fake.Snapshotter))
 	AssertNoError(t, err).Require()
 	return store
 }

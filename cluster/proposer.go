@@ -22,7 +22,7 @@ type (
 		Handle(t ProposalType, f ProposalFunc)
 		// Propose makes a proposal to the cluster.
 		// Propose panics if a HandlerFunc has not been registered
-		//  for the given proposal type using Handle.
+		// for the given proposal type using Handle.
 		Propose(t ProposalType, data []byte) (resp any, err error)
 	}
 )
