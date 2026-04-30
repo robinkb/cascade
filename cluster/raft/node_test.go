@@ -94,7 +94,7 @@ func TestSingleNode(t *testing.T) {
 	t.Run("restores state from disk", func(t *testing.T) {
 		storage := newTestStore(t, t.TempDir())
 
-		oldNode := NewNode(1, "", storage)
+		oldNode := NewNode(1, "", storage, new(fake.Restorer))
 		Run(t, oldNode)
 		SnapElections(oldNode)
 
@@ -109,7 +109,7 @@ func TestSingleNode(t *testing.T) {
 		err := oldNode.Shutdown()
 		AssertNoError(t, err)
 
-		newNode := NewNode(1, "", storage)
+		newNode := NewNode(1, "", storage, new(fake.Restorer))
 		Run(t, newNode)
 		s.Verify()
 		newStatus := newNode.Status()
@@ -328,7 +328,7 @@ func NewTestNode(t *testing.T, id uint64) Node {
 	AssertNoError(t, err).Require()
 
 	addr := RandomHost()
-	node := NewNode(id, addr, storage)
+	node := NewNode(id, addr, storage, new(fake.Restorer))
 
 	srv := server.New(server.Options{
 		Name: "raft-server",

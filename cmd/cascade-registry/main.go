@@ -16,6 +16,7 @@ import (
 	"github.com/robinkb/cascade/process"
 	"github.com/robinkb/cascade/registry"
 	registryapi "github.com/robinkb/cascade/registry/api/v2"
+	"github.com/robinkb/cascade/registry/store"
 	storeapi "github.com/robinkb/cascade/registry/store/api"
 	"github.com/robinkb/cascade/registry/store/driver/boltdb"
 	clusterstore "github.com/robinkb/cascade/registry/store/driver/cluster"
@@ -90,10 +91,8 @@ func main() {
 				log.Println("error while closing raft storage:", err)
 			}
 		}()
-		// TODO: Restore the restorer :)
-		// restorer := store.NewRestorer(metadata, blobs)
-		// node := raft.NewNode(raftId, raftHostPort, storage, restorer)
-		node := raft.NewNode(raftId, raftHostPort, storage)
+		restorer := store.NewRestorer(metadata, blobs)
+		node := raft.NewNode(raftId, raftHostPort, storage, restorer)
 		// Shit, this is needed because the node has to be running.
 		// And the node won't be running until the manager starts.
 		// And starting the manager is a blocking call.

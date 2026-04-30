@@ -1,6 +1,7 @@
 package raft
 
 import (
+	"bytes"
 	"fmt"
 	"log"
 	"net/http"
@@ -16,9 +17,7 @@ import (
 type (
 	Node interface {
 		process.Runnable
-		Name() string
-		Run() error
-		Shutdown() error
+		cluster.Proposer
 		Tick()
 		Status() raft.Status
 
@@ -28,12 +27,10 @@ type (
 		RemovePeer(peer cluster.Peer) error
 		Handler() http.Handler
 		Receive(m raftpb.Message) error
-
-		cluster.Proposer
 	}
 )
 
-func NewNode(id uint64, addr string, storage *DiskStorage) Node {
+func NewNode(id uint64, addr string, storage *DiskStorage, restorer cluster.Restorer) Node {
 	return &node{
 		conf: &raft.Config{
 			ID:            id,
@@ -47,8 +44,9 @@ func NewNode(id uint64, addr string, storage *DiskStorage) Node {
 			StepDownOnRemoval: true,
 			PreVote:           true,
 		},
-		addr:    addr,
-		storage: storage,
+		addr:     addr,
+		storage:  storage,
+		restorer: restorer,
 
 		ticker:     time.Tick(1 * time.Second),
 		manualTick: make(chan time.Time),
@@ -64,10 +62,11 @@ func NewNode(id uint64, addr string, storage *DiskStorage) Node {
 }
 
 type node struct {
-	addr    string
-	raft    raft.Node
-	conf    *raft.Config
-	storage *DiskStorage
+	addr     string
+	raft     raft.Node
+	conf     *raft.Config
+	storage  *DiskStorage
+	restorer cluster.Restorer
 
 	ticker     <-chan time.Time
 	manualTick chan time.Time
@@ -130,6 +129,18 @@ func (n *node) restore(sp raftpb.Snapshot) {
 	if err := n.storage.ApplySnapshot(sp); err != nil {
 		log.Fatal("failed to persist snapshot:", err)
 	}
+
+	leader := n.raft.Status().Lead
+	peer, err := n.clients.Peer(leader)
+	if err != nil {
+		log.Fatalf("%x no client for node %x", n.conf.ID, leader)
+	}
+
+	buf := bytes.NewBuffer(sp.Data)
+	err = n.restorer.Restore(buf, peer)
+	if err != nil {
+		log.Fatalf("failed to restore snapshot: %s", err)
+	}
 }
 
 func (n *node) save(entries []raftpb.Entry, hardState raftpb.HardState, mustSync bool) {
@@ -160,7 +171,15 @@ func (n *node) send(messages []raftpb.Message) {
 		}
 		err = client.SendMessage(&message)
 		if err != nil {
+			n.raft.ReportUnreachable(message.To)
 			log.Printf("%x failed to send message to %x: %s", n.conf.ID, message.To, err)
+		}
+		if message.Type == raftpb.MessageType_MsgSnap {
+			if err == nil {
+				n.raft.ReportSnapshot(message.To, raft.SnapshotFinish)
+			} else {
+				n.raft.ReportSnapshot(message.To, raft.SnapshotFailure)
+			}
 		}
 	}
 }
