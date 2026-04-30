@@ -1,0 +1,66 @@
+package e2e
+
+import (
+	"sync"
+	"testing"
+	"time"
+
+	"github.com/robinkb/cascade/cluster"
+)
+
+func NewTestCluster(t testing.TB, n int, opts *TestNodeOptions) []TestNode {
+	nodes := make([]TestNode, n)
+	peers := make([]cluster.Peer, n)
+
+	for i := range n {
+		nodes[i] = NewTestNode(t, uint64(i+1), opts)
+		peers[i] = nodes[i].Node.AsPeer()
+	}
+
+	var wg sync.WaitGroup
+	for i := range len(nodes) {
+		wg.Go(func() {
+			Run(t, nodes[i])
+			for j := range len(peers) {
+				if nodes[i].Node.AsPeer().ID != peers[j].ID {
+					nodes[i].Node.Bootstrap(peers[j])
+				}
+			}
+		})
+	}
+
+	wg.Wait()
+
+	return nodes
+}
+
+func SnapElections(nodes ...TestNode) (leader TestNode, followers []TestNode) {
+	var wg sync.WaitGroup
+	candidates := len(nodes)
+	votes := 0
+
+	for _, n := range nodes {
+		wg.Go(func() {
+			done := false
+			for candidates != votes {
+				if !done && n.Node.Status().Lead != 0 {
+					votes++
+					done = true
+				}
+				n.Node.Tick()
+				time.Sleep(10 * time.Millisecond)
+			}
+		})
+	}
+	wg.Wait()
+
+	for _, n := range nodes {
+		if n.Node.Status().RaftState.String() == "StateLeader" {
+			leader = n
+		} else {
+			followers = append(followers, n)
+		}
+	}
+
+	return
+}
