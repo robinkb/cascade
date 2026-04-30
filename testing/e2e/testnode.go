@@ -17,7 +17,7 @@ import (
 	"github.com/robinkb/cascade/registry/store/driver/inmemory"
 
 	"github.com/robinkb/cascade/server"
-	. "github.com/robinkb/cascade/testing"
+	. "github.com/robinkb/cascade/testing" // nolint: staticcheck
 )
 
 type TestNodeOptions struct {
