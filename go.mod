@@ -10,13 +10,11 @@ require (
 	github.com/opencontainers/image-spec v1.1.1
 	github.com/stretchr/testify v1.11.1
 	go.etcd.io/bbolt v1.4.3
-	go.etcd.io/raft/v3 v3.6.0
+	go.etcd.io/raft/v3 v3.6.0-beta.0.0.20260415131831-40f8be730b18
 	golang.org/x/crypto/x509roots/fallback v0.0.0-20260323153451-8400f4a93807
 	golang.org/x/exp v0.0.0-20260212183809-81e46e3db34a
 	golang.org/x/sync v0.20.0
 )
-
-replace go.etcd.io/raft/v3 => github.com/robinkb/raft/v3 v3.0.0-20260415054957-6c4a97c89d80
 
 tool github.com/vektra/mockery/v3
 
