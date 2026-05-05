@@ -221,14 +221,14 @@ type pPutTag struct {
 	Digest digest.Digest
 }
 
-func (s *repositoryStore) PutTag(tag string, digest digest.Digest) error {
+func (s *repositoryStore) PutTag(tag string, id digest.Digest) ([]digest.Digest, error) {
 	p := &pPutTag{
 		Name:   s.name,
 		Tag:    tag,
-		Digest: digest,
+		Digest: id,
 	}
-	_, err := s.proposer.Propose(tPutTag, mustMarshal(p))
-	return err
+	resp, err := s.proposer.Propose(tPutTag, mustMarshal(p))
+	return resp.([]digest.Digest), err
 }
 
 func (m *metadataStore) putTag(data []byte) (resp any, err error) {
@@ -239,7 +239,7 @@ func (m *metadataStore) putTag(data []byte) (resp any, err error) {
 		return nil, err
 	}
 
-	err = repo.PutTag(v.Tag, v.Digest)
+	resp, err = repo.PutTag(v.Tag, v.Digest)
 	return
 }
 

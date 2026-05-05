@@ -3,9 +3,6 @@ package repository
 import (
 	"encoding/json"
 	"errors"
-	"log"
-	"slices"
-	"sync"
 
 	"github.com/opencontainers/go-digest"
 	v1 "github.com/opencontainers/image-spec/specs-go/v1"
@@ -163,18 +160,7 @@ func (s *repositoryService) DeleteManifest(id string) error {
 		return err
 	}
 
-	slices.Sort(deleted)
-	deleted = slices.Compact(deleted)
-
-	var wg sync.WaitGroup
-	for _, id := range deleted {
-		wg.Go(func() {
-			if err := s.blobs.DeleteBlob(id); err != nil {
-				log.Printf("failed to garbage collect blob with digest %s: %s", id, err)
-			}
-		})
-	}
-	wg.Wait()
+	s.collect(deleted)
 
 	return nil
 }

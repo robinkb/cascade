@@ -2,9 +2,6 @@ package repository
 
 import (
 	"errors"
-	"log"
-	"slices"
-	"sync"
 
 	"github.com/opencontainers/go-digest"
 	"github.com/robinkb/cascade/registry/store"
@@ -37,10 +34,13 @@ func (s *repositoryService) PutTag(tag, id string) error {
 		return err
 	}
 
-	err = s.repo.PutTag(tag, digest)
+	deleted, err := s.repo.PutTag(tag, digest)
 	if errors.Is(err, store.ErrRepositoryNotFound) {
 		err = ErrNameUnknown
 	}
+
+	s.collect(deleted)
+
 	return err
 }
 
@@ -50,18 +50,7 @@ func (s *repositoryService) DeleteTag(tag string) error {
 		return err
 	}
 
-	slices.Sort(deleted)
-	deleted = slices.Compact(deleted)
-
-	var wg sync.WaitGroup
-	for _, id := range deleted {
-		wg.Go(func() {
-			if err := s.blobs.DeleteBlob(id); err != nil {
-				log.Printf("failed to garbage collect blob with digest %s: %s", id, err)
-			}
-		})
-	}
-	wg.Wait()
+	s.collect(deleted)
 
 	return nil
 }

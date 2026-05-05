@@ -9,6 +9,27 @@ import (
 	"github.com/robinkb/cascade/testing/store/mock"
 )
 
+func TestPutTag(t *testing.T) {
+	t.Run("deletes garbage collected blobs", func(t *testing.T) {
+		manifest := NewImageManifestBuilder(t).Build()
+		tag := RandomVersion()
+
+		repo := mock.NewRepository(t)
+		repo.EXPECT().
+			PutTag(tag, manifest.Digest).
+			Return([]digest.Digest{manifest.Digest}, nil)
+
+		blobs := mock.NewBlobs(t)
+		blobs.EXPECT().
+			DeleteBlob(manifest.Digest).
+			Return(nil)
+
+		svc := New(blobs, repo)
+		err := svc.PutTag(tag, manifest.Digest.String())
+		AssertNoError(t, err)
+	})
+}
+
 func TestDeleteTags(t *testing.T) {
 	t.Run("deletes garbage collected blobs", func(t *testing.T) {
 		manifest := NewImageManifestBuilder(t).WithLayers(5).Build()

@@ -62,7 +62,7 @@ type (
 
 		ListTags(count int, last string) ([]string, error)
 		GetTag(tag string) (digest.Digest, error)
-		PutTag(tag string, digest digest.Digest) error
+		PutTag(tag string, digest digest.Digest) ([]digest.Digest, error)
 		DeleteTag(tag string) ([]digest.Digest, error)
 
 		GetUploadSession(id uuid.UUID) (*UploadSession, error)
