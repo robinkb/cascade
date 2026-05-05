@@ -1253,35 +1253,20 @@ func (s *MetadataSuite) TestRecursiveGC() {
 		repo, err := meta.CreateRepository(name)
 		AssertNoError(t, err)
 
-		configDigest := RandomDigest()
-		err = repo.PutBlob(configDigest)
-		AssertNoError(t, err)
-
-		layerDigests := make([]digest.Digest, 5)
-		for i := range layerDigests {
-			layerDigests[i] = RandomDigest()
-			err = repo.PutBlob(layerDigests[i])
-			AssertNoError(t, err)
-		}
-
-		manifestDigest := RandomDigest()
-		err = repo.PutManifest(manifestDigest, store.Manifest{}, store.References{
-			Config: configDigest,
-			Layers: layerDigests,
-		})
-		AssertNoError(t, err)
+		manifest := NewImageManifestBuilder(t).WithLayers(5).Build()
+		PutManifestInto(t, repo, manifest)
 
 		referrerDigest := RandomDigest()
 		err = repo.PutManifest(referrerDigest, store.Manifest{}, store.References{
-			Subject: manifestDigest,
+			Subject: manifest.Digest,
 		})
 		AssertNoError(t, err)
 
 		tag := RandomVersion()
-		_, err = repo.PutTag(tag, manifestDigest)
+		_, err = repo.PutTag(tag, manifest.Digest)
 		AssertNoError(t, err)
 
-		allDigests := slices.Concat(layerDigests, []digest.Digest{configDigest, manifestDigest, referrerDigest})
+		allDigests := slices.Concat(manifest.LayersAsDigests(), []digest.Digest{manifest.References().Config, manifest.Digest, referrerDigest})
 		slices.Sort(allDigests)
 
 		blobs := slices.Collect(meta.Blobs())
