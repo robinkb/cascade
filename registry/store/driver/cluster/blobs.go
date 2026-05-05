@@ -11,18 +11,27 @@ import (
 	"github.com/robinkb/cascade/registry/store"
 )
 
+const (
+	tPutBlob      cluster.ProposalType = iota
+	tDeleteBlob   cluster.ProposalType = iota
+	tInitUpload   cluster.ProposalType = iota
+	tAppendUpload cluster.ProposalType = iota
+	tCloseUpload  cluster.ProposalType = iota
+	tDeleteUpload cluster.ProposalType = iota
+)
+
 func NewBlobStore(proposer cluster.Proposer, blobs store.Blobs) store.Blobs {
 	s := &blobStore{
 		Blobs:    blobs,
 		proposer: proposer,
 	}
 
-	proposer.Handle(&pPutBlob{}, s.putBlob)
-	proposer.Handle(&pDeleteBlob{}, s.deleteBlob)
-	proposer.Handle(&pInitUpload{}, s.initUpload)
-	proposer.Handle(&pAppendUpload{}, s.appendUpload)
-	proposer.Handle(&pCloseUpload{}, s.closeUpload)
-	proposer.Handle(&pDeleteUpload{}, s.deleteUpload)
+	proposer.Handle(tPutBlob, s.putBlob)
+	proposer.Handle(tDeleteBlob, s.deleteBlob)
+	proposer.Handle(tInitUpload, s.initUpload)
+	proposer.Handle(tAppendUpload, s.appendUpload)
+	proposer.Handle(tCloseUpload, s.closeUpload)
+	proposer.Handle(tDeleteUpload, s.deleteUpload)
 
 	return s
 }
@@ -33,7 +42,6 @@ type blobStore struct {
 }
 
 type pPutBlob struct {
-	cluster.ProposalBase
 	ID      digest.Digest
 	Content []byte
 }
@@ -43,16 +51,18 @@ func (s *blobStore) PutBlob(id digest.Digest, content []byte) error {
 		ID:      id,
 		Content: content,
 	}
-	return s.proposer.Propose(p)
+	_, err := s.proposer.Propose(tPutBlob, mustMarshal(p))
+	return err
 }
 
-func (s *blobStore) putBlob(p cluster.Proposal) cluster.Response {
-	v := p.(*pPutBlob)
-	return s.Blobs.PutBlob(v.ID, v.Content)
+func (s *blobStore) putBlob(data []byte) (resp any, err error) {
+	v := new(pPutBlob)
+	mustUnmarshal(data, v)
+	err = s.Blobs.PutBlob(v.ID, v.Content)
+	return
 }
 
 type pDeleteBlob struct {
-	cluster.ProposalBase
 	ID digest.Digest
 }
 
@@ -60,16 +70,18 @@ func (s *blobStore) DeleteBlob(id digest.Digest) error {
 	p := &pDeleteBlob{
 		ID: id,
 	}
-	return s.proposer.Propose(p)
+	_, err := s.proposer.Propose(tDeleteBlob, mustMarshal(p))
+	return err
 }
 
-func (s *blobStore) deleteBlob(p cluster.Proposal) cluster.Response {
-	v := p.(*pDeleteBlob)
-	return s.Blobs.DeleteBlob(v.ID)
+func (s *blobStore) deleteBlob(data []byte) (resp any, err error) {
+	v := new(pDeleteBlob)
+	mustUnmarshal(data, v)
+	err = s.Blobs.DeleteBlob(v.ID)
+	return
 }
 
 type pInitUpload struct {
-	cluster.ProposalBase
 	SessionID uuid.UUID
 }
 
@@ -77,12 +89,15 @@ func (s *blobStore) InitUpload(id uuid.UUID) error {
 	p := &pInitUpload{
 		SessionID: id,
 	}
-	return s.proposer.Propose(p)
+	_, err := s.proposer.Propose(tInitUpload, mustMarshal(p))
+	return err
 }
 
-func (s *blobStore) initUpload(p cluster.Proposal) cluster.Response {
-	v := p.(*pInitUpload)
-	return s.Blobs.InitUpload(v.SessionID)
+func (s *blobStore) initUpload(data []byte) (resp any, err error) {
+	v := new(pInitUpload)
+	mustUnmarshal(data, v)
+	err = s.Blobs.InitUpload(v.SessionID)
+	return
 }
 
 func (s *blobStore) UploadWriter(id uuid.UUID) (io.WriteCloser, error) {
@@ -122,14 +137,8 @@ func (w *writer) Write(p []byte) (n int, err error) {
 }
 
 type pAppendUpload struct {
-	cluster.ProposalBase
 	SessionID uuid.UUID
 	Chunk     []byte
-}
-
-type rAppendUpload struct {
-	cluster.ResponseBase
-	N int
 }
 
 func (w *writer) flush() (n int, err error) {
@@ -138,8 +147,9 @@ func (w *writer) flush() (n int, err error) {
 		SessionID: w.sessionId,
 		Chunk:     w.buf.Bytes(),
 	}
-	r := w.proposer.Propose(p).(*rAppendUpload)
-	return r.N, r.Err
+	resp, err := w.proposer.Propose(tAppendUpload, mustMarshal(p))
+	n = int(resp.(int64))
+	return
 }
 
 func (w *writer) Close() error {
@@ -147,23 +157,21 @@ func (w *writer) Close() error {
 	return err
 }
 
-func (s *blobStore) appendUpload(p cluster.Proposal) cluster.Response {
-	v := p.(*pAppendUpload)
+func (s *blobStore) appendUpload(data []byte) (resp any, err error) {
+	v := new(pAppendUpload)
+	mustUnmarshal(data, v)
 	w, err := s.Blobs.UploadWriter(v.SessionID)
 	if err != nil {
-		return err
+		return
 	}
 
 	buf := bytes.NewBuffer(v.Chunk)
 	n, err := io.Copy(w, buf)
-	r := new(rAppendUpload)
-	r.N = int(n)
-	r.Err = err
-	return r
+	resp = n
+	return
 }
 
 type pCloseUpload struct {
-	cluster.ProposalBase
 	SessionID uuid.UUID
 	Digest    digest.Digest
 }
@@ -173,16 +181,18 @@ func (s *blobStore) CloseUpload(id uuid.UUID, digest digest.Digest) error {
 		SessionID: id,
 		Digest:    digest,
 	}
-	return s.proposer.Propose(p)
+	_, err := s.proposer.Propose(tCloseUpload, mustMarshal(p))
+	return err
 }
 
-func (s *blobStore) closeUpload(p cluster.Proposal) cluster.Response {
-	v := p.(*pCloseUpload)
-	return s.Blobs.CloseUpload(v.SessionID, v.Digest)
+func (s *blobStore) closeUpload(data []byte) (resp any, err error) {
+	v := new(pCloseUpload)
+	mustUnmarshal(data, v)
+	err = s.Blobs.CloseUpload(v.SessionID, v.Digest)
+	return
 }
 
 type pDeleteUpload struct {
-	cluster.ProposalBase
 	SessionID uuid.UUID
 }
 
@@ -190,10 +200,13 @@ func (s *blobStore) DeleteUpload(id uuid.UUID) error {
 	p := &pDeleteUpload{
 		SessionID: id,
 	}
-	return s.proposer.Propose(p)
+	_, err := s.proposer.Propose(tDeleteBlob, mustMarshal(p))
+	return err
 }
 
-func (s *blobStore) deleteUpload(p cluster.Proposal) cluster.Response {
-	v := p.(*pDeleteUpload)
-	return s.Blobs.DeleteUpload(v.SessionID)
+func (s *blobStore) deleteUpload(data []byte) (resp any, err error) {
+	v := new(pDeleteUpload)
+	mustUnmarshal(data, v)
+	err = s.Blobs.DeleteUpload(v.SessionID)
+	return
 }

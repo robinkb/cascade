@@ -19,6 +19,6 @@ type (
 
 	Peer struct {
 		ID   uint64
-		Host string
+		Addr string
 	}
 )

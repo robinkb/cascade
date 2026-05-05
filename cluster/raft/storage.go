@@ -23,8 +23,28 @@ func NewDiskStorage(db qwal.DB, snap cluster.Snapshotter) (*DiskStorage, error) 
 		snap: snap,
 	}
 
+	s.db.ReplayHook(s.replayHook())
+	s.db.CutHook(s.cutHook())
+	s.db.CompactHook(s.compactionHook())
+
 	if err := db.Replay(); err != nil {
 		return nil, err
+	}
+
+	if s.db.Count(TypeSnapshot) > 0 {
+		value, err := s.db.Last(TypeSnapshot)
+		if err != nil {
+			return nil, fmt.Errorf("failed to read snapshot: %w", err)
+		}
+
+		var snap raftpb.Snapshot
+		err = snap.Unmarshal(value)
+		if err != nil {
+			return nil, err
+		}
+
+		s.appliedIndex = snap.Metadata.Index
+		s.confState = snap.GetMetadata().ConfState
 	}
 
 	if s.db.Count(TypeEntry) > 0 {
@@ -45,110 +65,53 @@ func NewDiskStorage(db qwal.DB, snap cluster.Snapshotter) (*DiskStorage, error) 
 		}
 	}
 
-	if s.db.Count(TypeHardState) > 0 {
-		value, err := s.db.Last(TypeHardState)
-		if err != nil {
-			return nil, err
-		}
-
-		var hardState raftpb.HardState
-		err = hardState.Unmarshal(value)
-		if err != nil {
-			return nil, err
-		}
-
-		s.hardState = hardState
-	}
-
-	if s.db.Count(TypeSnapshot) > 0 {
-		value, err := s.db.Last(TypeSnapshot)
-		if err != nil {
-			return nil, err
-		}
-
-		var snapshot raftpb.Snapshot
-		err = snapshot.Unmarshal(value)
-		if err != nil {
-			return nil, err
-		}
-
-		s.snapshot = snapshot
-	}
-
-	// go func() {
-	// 	cs := &l.callStats
-	// 	for {
-	// 		time.Sleep(1 * time.Second)
-	// 		log.Printf(
-	// 			"[InitialState: %2d, Entries: %6d, Term: %6d, LastIndex: %7d, FirstIndex: %7d, Snapshot: %2d] [SetHardState: %6d, ApplySnapshot: %6d, Append: %6d, Compact: %6d]",
-	// 			cs.initialState, cs.entries, cs.term, cs.lastIndex, cs.firstIndex, cs.snapshot, cs.setHardState, cs.applySnapshot, cs.append, cs.compact,
-	// 		)
-	// 	}
-	// }()
-
-	s.db.CutHook(s.cutHook())
-	s.db.CompactHook(s.compactionHook())
-
 	return s, nil
 }
 
+// DiskStorage implements a disk-backed implementation of [raft.Storage].
 type DiskStorage struct {
-	db   qwal.DB
+	// db serves as the backing storage for this DiskStorage.
+	db qwal.DB
+	// snap is used for generating snapshots. Typically supplied
+	// by the application.
 	snap cluster.Snapshotter
+	// terms is a cache for the Terms of Entries. These are queried very often
+	// by the Raft state machine by the index of the Entry that they belong to.
+	terms []uint64
 
-	hardState raftpb.HardState
-	snapshot  raftpb.Snapshot
+	// confState is set by the node, and persisted in snapshots.
 	confState raftpb.ConfState
-	terms     []uint64
+	// appliedIndex is set by the node, and persisted in snapshots.
+	appliedIndex uint64
 
-	appliedIndex   uint64
-	firstEntry     raftpb.Entry
+	// firstEntry is the oldest Entry available in the storage.
+	firstEntry raftpb.Entry
+	// compactedEntry is the last Entry that was removed by compaction. It is preserved for
+	// consistency checking, because the first Entry in the storage needs a previous log index and term.
 	compactedEntry raftpb.Entry
+}
 
-	callStats struct {
-		// part of the raft.Storage interface, called by Raft Node
-		initialState int
-		entries      int
-		term         int
-		lastIndex    int
-		firstIndex   int
-		snapshot     int
+// InitialState implements [raft.Storage.InitialState].
+func (s *DiskStorage) InitialState() (hs raftpb.HardState, cs raftpb.ConfState, err error) {
+	if s.db.Count(TypeHardState) > 0 {
+		var data []byte
+		data, err = s.db.Last(TypeHardState)
+		if err != nil {
+			return
+		}
 
-		// methods called by the application
-		setHardState  int
-		applySnapshot int
-		append        int
-		compact       int
+		err = hs.Unmarshal(data)
+		if err != nil {
+			return
+		}
 	}
+
+	cs = s.confState
+	return
 }
 
-func (s *DiskStorage) InitialState() (raftpb.HardState, raftpb.ConfState, error) {
-	s.callStats.initialState++
-	return s.hardState, s.snapshot.Metadata.ConfState, nil
-}
-
-// Entries returns a slice of consecutive log entries in the range [lo, hi),
-// starting from lo. The maxSize limits the total size of the log entries
-// returned, but Entries returns at least one entry if any.
-//
-// The caller of Entries owns the returned slice, and may append to it. The
-// individual entries in the slice must not be mutated, neither by the Storage
-// implementation nor the caller. Note that raft may forward these entries
-// back to the application via Ready struct, so the corresponding handler must
-// not mutate entries either (see comments in Ready struct).
-//
-// Since the caller may append to the returned slice, Storage implementation
-// must protect its state from corruption that such appends may cause. For
-// example, common ways to do so are:
-//   - allocate the slice before returning it (safest option),
-//   - return a slice protected by Go full slice expression, which causes
-//     copying on appends (see MemoryStorage).
-//
-// Returns ErrCompacted if entry lo has been compacted, or ErrUnavailable if
-// encountered an unavailable entry in [lo, hi).
+// Entries implements [raft.Storage.Entries].
 func (s *DiskStorage) Entries(lo, hi, maxSize uint64) ([]raftpb.Entry, error) {
-	s.callStats.entries++
-
 	fi := s.firstIndex()
 	if lo < fi {
 		return nil, raft.ErrCompacted
@@ -160,7 +123,7 @@ func (s *DiskStorage) Entries(lo, hi, maxSize uint64) ([]raftpb.Entry, error) {
 	var size uint64
 	entries := make([]raftpb.Entry, 0)
 
-	for value, err := range s.db.Range(TypeEntry, int(lo), int(hi)) {
+	for value, err := range s.db.Range(TypeEntry, lo, hi) {
 		if err != nil {
 			return nil, fmt.Errorf("failed to get entries [lo: %d] [hi: %d]: %w", lo, hi, err)
 		}
@@ -182,12 +145,12 @@ func (s *DiskStorage) Entries(lo, hi, maxSize uint64) ([]raftpb.Entry, error) {
 	return entries, nil
 }
 
-// Term returns the term of entry i, which must be in the range
-// [FirstIndex()-1, LastIndex()]. The term of the entry before
-// FirstIndex is retained for matching purposes even though the
-// rest of that entry may not be available.
+// Term implements [raft.Storage.Term].
 func (s *DiskStorage) Term(i uint64) (uint64, error) {
-	s.callStats.term++
+	if i == s.compactedEntry.Index {
+		return s.compactedEntry.Term, nil
+	}
+
 	if i == 0 && s.db.Count(TypeEntry) == 0 {
 		return 0, nil
 	}
@@ -198,9 +161,6 @@ func (s *DiskStorage) Term(i uint64) (uint64, error) {
 	}
 
 	fi := s.firstIndex()
-	if i == fi-1 {
-		return s.compactedEntry.Term, nil
-	}
 	if i < fi || s.db.Count(TypeEntry) == 0 {
 		return 0, raft.ErrCompacted
 	}
@@ -210,9 +170,8 @@ func (s *DiskStorage) Term(i uint64) (uint64, error) {
 	return s.terms[i], nil
 }
 
-// LastIndex returns the index of the last entry in the log.
+// LastIndex implements [raft.Storage.LastIndex].
 func (s *DiskStorage) LastIndex() (uint64, error) {
-	s.callStats.lastIndex++
 	return s.lastIndex(), nil
 }
 
@@ -223,148 +182,178 @@ func (s *DiskStorage) lastIndex() uint64 {
 	return s.firstIndex() + uint64(s.db.Count(TypeEntry)) - 1
 }
 
-// FirstIndex returns the index of the first log entry that is
-// possibly available via Entries (older entries have been incorporated
-// into the latest Snapshot).
+// FirstIndex implements [raft.Storage.FirstIndex].
 func (s *DiskStorage) FirstIndex() (uint64, error) {
-	s.callStats.firstIndex++
 	return s.firstIndex(), nil
 }
 
-func (s *DiskStorage) AppliedIndex(i uint64) {
-	s.appliedIndex = i
-}
-
 func (s *DiskStorage) firstIndex() uint64 {
-	// Makes no sense, but here we are. This is how Raft's MemoryStorage works.
-	// The Raft Node will refuse to start up without it.
 	if s.db.Count(TypeEntry) == 0 {
-		return 1
+		return s.compactedEntry.Index + 1
 	}
 	return s.firstEntry.Index
 }
 
-// Snapshot returns the latest snapshot persisted to storage.
+// Snapshot implements [raft.Storage.Snapshot].
 func (s *DiskStorage) Snapshot() (raftpb.Snapshot, error) {
-	s.callStats.snapshot++
-	return s.snapshot, nil
+	if s.db.Count(TypeSnapshot) == 0 {
+		return raftpb.Snapshot{}, nil
+	}
+
+	var snap raftpb.Snapshot
+	data, err := s.db.Last(TypeSnapshot)
+	if err != nil {
+		return snap, err
+	}
+
+	err = snap.Unmarshal(data)
+	return snap, err
 }
 
-func (s *DiskStorage) Save(entries []raftpb.Entry, hardState raftpb.HardState, sync bool) error {
-	if len(entries) != 0 {
-		if s.db.Count(TypeEntry) == 0 {
-			s.firstEntry = raftpb.Entry{
-				Term:  entries[0].Term,
-				Index: entries[0].Index,
-			}
-		}
+func (s *DiskStorage) AppliedIndex() uint64 {
+	return s.appliedIndex
+}
 
-		for _, entry := range entries {
-			value, err := entry.Marshal()
-			if err != nil {
-				return err
-			}
-
-			err = s.db.Append(TypeEntry, value)
-			if err != nil {
-				return err
-			}
-
-			s.terms = append(s.terms, entry.Term)
+func (s *DiskStorage) SaveEntries(entries []raftpb.Entry) error {
+	if s.db.Count(TypeEntry) == 0 {
+		s.firstEntry = raftpb.Entry{
+			Term:  entries[0].Term,
+			Index: entries[0].Index,
 		}
 	}
 
-	if !raft.IsEmptyHardState(hardState) {
-		value, err := hardState.Marshal()
+	for _, entry := range entries {
+		value, err := entry.Marshal()
 		if err != nil {
 			return err
 		}
 
-		err = s.db.Append(TypeHardState, value)
+		err = s.db.Append(TypeEntry, value)
 		if err != nil {
 			return err
 		}
 
-		s.hardState = hardState
-	}
-
-	if sync {
-		return s.db.Sync()
+		s.terms = append(s.terms, entry.Term)
 	}
 
 	return nil
 }
 
-// SaveSnapshot writes the snapshot to persistent storage,
-// and makes it available through the Snapshot() method.
-func (s *DiskStorage) SaveSnapshot(snapshot raftpb.Snapshot) error {
-	s.callStats.applySnapshot++
+func (s *DiskStorage) SaveHardState(hs raftpb.HardState) error {
+	value, err := hs.Marshal()
+	if err != nil {
+		return err
+	}
+
+	return s.db.Append(TypeHardState, value)
+}
+
+// SetConfState stores the given ConfState in-memory.
+// It will be persisted to stable storage with the next snapshot.
+func (s *DiskStorage) SetConfState(cs raftpb.ConfState) {
+	s.confState = cs
+}
+
+// SetAppliedIndex stores the given index in-memory. The applied index indicates to which Raft entry
+// has been applied to the application's state machine. It will be persisted to stable storage
+// with the next snapshot.
+func (s *DiskStorage) SetAppliedIndex(i uint64) {
+	s.appliedIndex = i
+}
+
+func (s *DiskStorage) CreateSnapshot() error {
+	buf := new(bytes.Buffer)
+	err := s.snap.Snapshot(buf)
+	if err != nil {
+		return err
+	}
+
+	var term uint64 = 1
+	if len(s.terms) > 0 && s.appliedIndex > 0 {
+		term = s.terms[s.appliedIndex-s.firstIndex()]
+	}
+
+	snapshot := raftpb.Snapshot{
+		Data: buf.Bytes(),
+		Metadata: raftpb.SnapshotMetadata{
+			Index:     s.appliedIndex,
+			Term:      term,
+			ConfState: s.confState,
+		},
+	}
+
+	data, err := snapshot.Marshal()
+	if err != nil {
+		return err
+	}
+
+	return s.db.Append(TypeSnapshot, data)
+}
+
+func (s *DiskStorage) ApplySnapshot(snapshot raftpb.Snapshot) error {
+	// Clear the cut hook so that no automatic snapshots are created.
+	s.db.CutHook(nil)
+	defer s.db.CutHook(s.cutHook())
+
+	// Cut a fresh log to write our snapshot into.
+	if err := s.db.Cut(); err != nil {
+		return err
+	}
 
 	value := make([]byte, snapshot.Size())
-	_, err := snapshot.MarshalTo(value)
-	if err != nil {
+	if _, err := snapshot.MarshalTo(value); err != nil {
 		return err
 	}
 
-	err = s.db.Append(TypeSnapshot, value)
-	if err != nil {
+	if err := s.db.Append(TypeSnapshot, value); err != nil {
 		return err
 	}
 
-	s.snapshot = snapshot
+	// Discard all older logs.
+	if err := s.db.Discard(); err != nil {
+		return err
+	}
+
+	s.confState = snapshot.GetMetadata().ConfState
+	s.compactedEntry = raftpb.Entry{
+		Index: snapshot.Metadata.Index,
+		Term:  snapshot.Metadata.Term,
+	}
+	s.terms = []uint64{snapshot.Metadata.Term}
 
 	return s.db.Sync()
 }
 
-func (s *DiskStorage) SaveConfState(cs raftpb.ConfState) {
-	s.confState = cs
+func (s *DiskStorage) Sync() error {
+	return s.db.Sync()
 }
 
 func (s *DiskStorage) Close() error {
 	return s.db.Close()
 }
 
-func (s *DiskStorage) cutHook() qwal.CutHookFunc {
+func (s *DiskStorage) replayHook() qwal.ReplayHookFunc {
 	var entry raftpb.Entry
-	buf := new(bytes.Buffer)
 
+	return func(t qwal.Type, v []byte) error {
+		if t != TypeEntry {
+			return nil
+		}
+		if err := entry.Unmarshal(v); err != nil {
+			return err
+		}
+		s.terms = append(s.terms, entry.Term)
+		return nil
+	}
+}
+
+func (s *DiskStorage) cutHook() qwal.CutHookFunc {
+	desiredSnapshots := 3
 	return func(id qwal.LogID) error {
-		buf.Reset()
-
-		value, err := s.db.Get(TypeEntry, int(s.appliedIndex-s.firstIndex()))
-		if err != nil {
-			return err
+		maxLogs := s.db.Status().MaxLogCount
+		if int(id)%(maxLogs/desiredSnapshots) == 0 {
+			return s.CreateSnapshot()
 		}
-
-		if err := entry.Unmarshal(value); err != nil {
-			return err
-		}
-
-		if err := s.snap.Snapshot(buf); err != nil {
-			return err
-		}
-
-		snap := raftpb.Snapshot{
-			Metadata: raftpb.SnapshotMetadata{
-				Index:     entry.Index,
-				Term:      entry.Term,
-				ConfState: s.confState,
-			},
-			Data: buf.Bytes(),
-		}
-
-		data, err := snap.Marshal()
-		if err != nil {
-			return err
-		}
-
-		err = s.db.Append(TypeSnapshot, data)
-		if err != nil {
-			return err
-		}
-
-		s.snapshot = snap
-
 		return nil
 	}
 }
@@ -379,7 +368,7 @@ func (s *DiskStorage) compactionHook() qwal.CompactHookFunc {
 				continue
 			}
 
-			value, err := s.db.Get(TypeEntry, int(count-1))
+			value, err := s.db.Get(TypeEntry, count-1)
 			if err != nil {
 				return err
 			}
@@ -394,7 +383,7 @@ func (s *DiskStorage) compactionHook() qwal.CompactHookFunc {
 				Term:  entry.Term,
 			}
 
-			value, err = s.db.Get(TypeEntry, int(count))
+			value, err = s.db.Get(TypeEntry, count)
 			if err != nil {
 				return err
 			}

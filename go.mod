@@ -1,8 +1,6 @@
 module github.com/robinkb/cascade
 
-go 1.25.0
-
-toolchain go1.25.7
+go 1.26
 
 require (
 	github.com/gofrs/uuid/v5 v5.4.0
@@ -12,7 +10,7 @@ require (
 	github.com/opencontainers/image-spec v1.1.1
 	github.com/stretchr/testify v1.11.1
 	go.etcd.io/bbolt v1.4.3
-	go.etcd.io/raft/v3 v3.6.0
+	go.etcd.io/raft/v3 v3.6.0-beta.0.0.20260415131831-40f8be730b18
 	golang.org/x/crypto/x509roots/fallback v0.0.0-20260323153451-8400f4a93807
 	golang.org/x/exp v0.0.0-20260212183809-81e46e3db34a
 	golang.org/x/sync v0.20.0

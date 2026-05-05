@@ -19,8 +19,8 @@ type inventory struct {
 	records map[Type][]pointer
 }
 
-// Get returns the Pointer to a Record of Type t at index i.
-func (inv *inventory) Get(t Type, i int) (pointer, error) {
+// Get returns the pointer to a record of Type t at index i.
+func (inv *inventory) Get(t Type, i uint64) (pointer, error) {
 	inv.mu.RLock()
 	defer inv.mu.RUnlock()
 
@@ -29,14 +29,14 @@ func (inv *inventory) Get(t Type, i int) (pointer, error) {
 		return pointer{}, fmt.Errorf("%w: %d", ErrTypeUnknown, t)
 	}
 
-	if len(pointers) <= i || i < 0 {
+	if uint64(len(pointers)) <= i {
 		return pointer{}, fmt.Errorf("%w: length %d, index %d", ErrIndexOutOfBounds, len(pointers), i)
 	}
 
 	return pointers[i], nil
 }
 
-func (inv *inventory) Range(t Type, lo, hi int) ([]pointer, error) {
+func (inv *inventory) Range(t Type, lo, hi uint64) ([]pointer, error) {
 	inv.mu.RLock()
 	defer inv.mu.RUnlock()
 
@@ -49,13 +49,13 @@ func (inv *inventory) Range(t Type, lo, hi int) ([]pointer, error) {
 		return nil, fmt.Errorf("%w: %d", ErrTypeUnknown, t)
 	}
 
-	if len(pointers) < hi || lo < 0 {
+	if uint64(len(pointers)) < hi {
 		return nil, fmt.Errorf("%w: length %d, lo %d, hi %d", ErrIndexOutOfBounds, len(pointers), lo, hi)
 	}
 
 	result := make([]pointer, hi-lo)
 	for i := range len(result) {
-		result[i] = pointers[lo+i]
+		result[i] = pointers[lo+uint64(i)]
 	}
 	return result, nil
 }
@@ -63,11 +63,11 @@ func (inv *inventory) Range(t Type, lo, hi int) ([]pointer, error) {
 // Count returns the number of Pointers of the given RecordType.
 // If the Inventory contains no Pointers of a RecordType,
 // it returns 0 instead of panicking.
-func (inv *inventory) Count(t Type) int {
+func (inv *inventory) Count(t Type) uint64 {
 	inv.mu.RLock()
 	defer inv.mu.RUnlock()
 
-	return len(inv.records[t])
+	return uint64(len(inv.records[t]))
 }
 
 // Add appends a Pointer of a given RecordType to the Inventory.
@@ -78,14 +78,14 @@ func (inv *inventory) Add(t Type, p pointer) {
 	inv.records[t] = append(inv.records[t], p)
 }
 
-// Remove purges Records from the Inventory based on the given Counters.
-// It is called when a Log is compacted from DB, with the Counters
-// kept by the Log being compacted. The oldest Logs in the DB are always
-// compacted first, so we can assume that the Records belonging to that Log
-// are at the very beginning of the Inventory.
+// Remove purges records from the inventory based on the given counters.
+// It is called when a log is compacted from DB, with the counters
+// kept by the log being compacted. The oldest logs in the DB are always
+// compacted first, so we can assume that the records belonging to that log
+// are at the very beginning of the inventory.
 //
 // Any error encountered in this process indicates some kind of issue
-// in synchronizing the Inventory with the Log contents and should panic.
+// in synchronizing the inventory with the log contents and should panic.
 func (inv *inventory) Remove(c counters) {
 	inv.mu.Lock()
 	defer inv.mu.Unlock()

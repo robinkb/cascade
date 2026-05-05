@@ -5,8 +5,7 @@
 package mock
 
 import (
-	"context"
-	"net/netip"
+	"net/http"
 
 	"github.com/robinkb/cascade/cluster"
 	mock "github.com/stretchr/testify/mock"
@@ -41,103 +40,53 @@ func (_m *Node) EXPECT() *Node_Expecter {
 	return &Node_Expecter{mock: &_m.Mock}
 }
 
-// AddNode provides a mock function for the type Node
-func (_mock *Node) AddNode(ctx context.Context, peer cluster.Peer) error {
-	ret := _mock.Called(ctx, peer)
+// AddPeer provides a mock function for the type Node
+func (_mock *Node) AddPeer(peer cluster.Peer) error {
+	ret := _mock.Called(peer)
 
 	if len(ret) == 0 {
-		panic("no return value specified for AddNode")
+		panic("no return value specified for AddPeer")
 	}
 
 	var r0 error
-	if returnFunc, ok := ret.Get(0).(func(context.Context, cluster.Peer) error); ok {
-		r0 = returnFunc(ctx, peer)
+	if returnFunc, ok := ret.Get(0).(func(cluster.Peer) error); ok {
+		r0 = returnFunc(peer)
 	} else {
 		r0 = ret.Error(0)
 	}
 	return r0
 }
 
-// Node_AddNode_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'AddNode'
-type Node_AddNode_Call struct {
+// Node_AddPeer_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'AddPeer'
+type Node_AddPeer_Call struct {
 	*mock.Call
 }
 
-// AddNode is a helper method to define mock.On call
-//   - ctx context.Context
+// AddPeer is a helper method to define mock.On call
 //   - peer cluster.Peer
-func (_e *Node_Expecter) AddNode(ctx interface{}, peer interface{}) *Node_AddNode_Call {
-	return &Node_AddNode_Call{Call: _e.mock.On("AddNode", ctx, peer)}
+func (_e *Node_Expecter) AddPeer(peer interface{}) *Node_AddPeer_Call {
+	return &Node_AddPeer_Call{Call: _e.mock.On("AddPeer", peer)}
 }
 
-func (_c *Node_AddNode_Call) Run(run func(ctx context.Context, peer cluster.Peer)) *Node_AddNode_Call {
+func (_c *Node_AddPeer_Call) Run(run func(peer cluster.Peer)) *Node_AddPeer_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		var arg0 context.Context
+		var arg0 cluster.Peer
 		if args[0] != nil {
-			arg0 = args[0].(context.Context)
-		}
-		var arg1 cluster.Peer
-		if args[1] != nil {
-			arg1 = args[1].(cluster.Peer)
+			arg0 = args[0].(cluster.Peer)
 		}
 		run(
 			arg0,
-			arg1,
 		)
 	})
 	return _c
 }
 
-func (_c *Node_AddNode_Call) Return(err error) *Node_AddNode_Call {
+func (_c *Node_AddPeer_Call) Return(err error) *Node_AddPeer_Call {
 	_c.Call.Return(err)
 	return _c
 }
 
-func (_c *Node_AddNode_Call) RunAndReturn(run func(ctx context.Context, peer cluster.Peer) error) *Node_AddNode_Call {
-	_c.Call.Return(run)
-	return _c
-}
-
-// AddrPort provides a mock function for the type Node
-func (_mock *Node) AddrPort() netip.AddrPort {
-	ret := _mock.Called()
-
-	if len(ret) == 0 {
-		panic("no return value specified for AddrPort")
-	}
-
-	var r0 netip.AddrPort
-	if returnFunc, ok := ret.Get(0).(func() netip.AddrPort); ok {
-		r0 = returnFunc()
-	} else {
-		r0 = ret.Get(0).(netip.AddrPort)
-	}
-	return r0
-}
-
-// Node_AddrPort_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'AddrPort'
-type Node_AddrPort_Call struct {
-	*mock.Call
-}
-
-// AddrPort is a helper method to define mock.On call
-func (_e *Node_Expecter) AddrPort() *Node_AddrPort_Call {
-	return &Node_AddrPort_Call{Call: _e.mock.On("AddrPort")}
-}
-
-func (_c *Node_AddrPort_Call) Run(run func()) *Node_AddrPort_Call {
-	_c.Call.Run(func(args mock.Arguments) {
-		run()
-	})
-	return _c
-}
-
-func (_c *Node_AddrPort_Call) Return(addrPort netip.AddrPort) *Node_AddrPort_Call {
-	_c.Call.Return(addrPort)
-	return _c
-}
-
-func (_c *Node_AddrPort_Call) RunAndReturn(run func() netip.AddrPort) *Node_AddrPort_Call {
+func (_c *Node_AddPeer_Call) RunAndReturn(run func(peer cluster.Peer) error) *Node_AddPeer_Call {
 	_c.Call.Return(run)
 	return _c
 }
@@ -235,8 +184,8 @@ func (_c *Node_Bootstrap_Call) RunAndReturn(run func(peers ...cluster.Peer)) *No
 }
 
 // Handle provides a mock function for the type Node
-func (_mock *Node) Handle(p cluster.Proposal, f cluster.HandlerFunc) {
-	_mock.Called(p, f)
+func (_mock *Node) Handle(t cluster.ProposalType, f cluster.ProposalFunc) {
+	_mock.Called(t, f)
 	return
 }
 
@@ -246,21 +195,21 @@ type Node_Handle_Call struct {
 }
 
 // Handle is a helper method to define mock.On call
-//   - p cluster.Proposal
-//   - f cluster.HandlerFunc
-func (_e *Node_Expecter) Handle(p interface{}, f interface{}) *Node_Handle_Call {
-	return &Node_Handle_Call{Call: _e.mock.On("Handle", p, f)}
+//   - t cluster.ProposalType
+//   - f cluster.ProposalFunc
+func (_e *Node_Expecter) Handle(t interface{}, f interface{}) *Node_Handle_Call {
+	return &Node_Handle_Call{Call: _e.mock.On("Handle", t, f)}
 }
 
-func (_c *Node_Handle_Call) Run(run func(p cluster.Proposal, f cluster.HandlerFunc)) *Node_Handle_Call {
+func (_c *Node_Handle_Call) Run(run func(t cluster.ProposalType, f cluster.ProposalFunc)) *Node_Handle_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		var arg0 cluster.Proposal
+		var arg0 cluster.ProposalType
 		if args[0] != nil {
-			arg0 = args[0].(cluster.Proposal)
+			arg0 = args[0].(cluster.ProposalType)
 		}
-		var arg1 cluster.HandlerFunc
+		var arg1 cluster.ProposalFunc
 		if args[1] != nil {
-			arg1 = args[1].(cluster.HandlerFunc)
+			arg1 = args[1].(cluster.ProposalFunc)
 		}
 		run(
 			arg0,
@@ -275,8 +224,54 @@ func (_c *Node_Handle_Call) Return() *Node_Handle_Call {
 	return _c
 }
 
-func (_c *Node_Handle_Call) RunAndReturn(run func(p cluster.Proposal, f cluster.HandlerFunc)) *Node_Handle_Call {
+func (_c *Node_Handle_Call) RunAndReturn(run func(t cluster.ProposalType, f cluster.ProposalFunc)) *Node_Handle_Call {
 	_c.Run(run)
+	return _c
+}
+
+// Handler provides a mock function for the type Node
+func (_mock *Node) Handler() http.Handler {
+	ret := _mock.Called()
+
+	if len(ret) == 0 {
+		panic("no return value specified for Handler")
+	}
+
+	var r0 http.Handler
+	if returnFunc, ok := ret.Get(0).(func() http.Handler); ok {
+		r0 = returnFunc()
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(http.Handler)
+		}
+	}
+	return r0
+}
+
+// Node_Handler_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'Handler'
+type Node_Handler_Call struct {
+	*mock.Call
+}
+
+// Handler is a helper method to define mock.On call
+func (_e *Node_Expecter) Handler() *Node_Handler_Call {
+	return &Node_Handler_Call{Call: _e.mock.On("Handler")}
+}
+
+func (_c *Node_Handler_Call) Run(run func()) *Node_Handler_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run()
+	})
+	return _c
+}
+
+func (_c *Node_Handler_Call) Return(handler http.Handler) *Node_Handler_Call {
+	_c.Call.Return(handler)
+	return _c
+}
+
+func (_c *Node_Handler_Call) RunAndReturn(run func() http.Handler) *Node_Handler_Call {
+	_c.Call.Return(run)
 	return _c
 }
 
@@ -324,67 +319,32 @@ func (_c *Node_Name_Call) RunAndReturn(run func() string) *Node_Name_Call {
 	return _c
 }
 
-// NodeID provides a mock function for the type Node
-func (_mock *Node) NodeID() uint64 {
-	ret := _mock.Called()
-
-	if len(ret) == 0 {
-		panic("no return value specified for NodeID")
-	}
-
-	var r0 uint64
-	if returnFunc, ok := ret.Get(0).(func() uint64); ok {
-		r0 = returnFunc()
-	} else {
-		r0 = ret.Get(0).(uint64)
-	}
-	return r0
-}
-
-// Node_NodeID_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'NodeID'
-type Node_NodeID_Call struct {
-	*mock.Call
-}
-
-// NodeID is a helper method to define mock.On call
-func (_e *Node_Expecter) NodeID() *Node_NodeID_Call {
-	return &Node_NodeID_Call{Call: _e.mock.On("NodeID")}
-}
-
-func (_c *Node_NodeID_Call) Run(run func()) *Node_NodeID_Call {
-	_c.Call.Run(func(args mock.Arguments) {
-		run()
-	})
-	return _c
-}
-
-func (_c *Node_NodeID_Call) Return(v uint64) *Node_NodeID_Call {
-	_c.Call.Return(v)
-	return _c
-}
-
-func (_c *Node_NodeID_Call) RunAndReturn(run func() uint64) *Node_NodeID_Call {
-	_c.Call.Return(run)
-	return _c
-}
-
 // Propose provides a mock function for the type Node
-func (_mock *Node) Propose(p cluster.Proposal) cluster.Response {
-	ret := _mock.Called(p)
+func (_mock *Node) Propose(t cluster.ProposalType, data []byte) (any, error) {
+	ret := _mock.Called(t, data)
 
 	if len(ret) == 0 {
 		panic("no return value specified for Propose")
 	}
 
-	var r0 cluster.Response
-	if returnFunc, ok := ret.Get(0).(func(cluster.Proposal) cluster.Response); ok {
-		r0 = returnFunc(p)
+	var r0 any
+	var r1 error
+	if returnFunc, ok := ret.Get(0).(func(cluster.ProposalType, []byte) (any, error)); ok {
+		return returnFunc(t, data)
+	}
+	if returnFunc, ok := ret.Get(0).(func(cluster.ProposalType, []byte) any); ok {
+		r0 = returnFunc(t, data)
 	} else {
 		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(cluster.Response)
+			r0 = ret.Get(0).(any)
 		}
 	}
-	return r0
+	if returnFunc, ok := ret.Get(1).(func(cluster.ProposalType, []byte) error); ok {
+		r1 = returnFunc(t, data)
+	} else {
+		r1 = ret.Error(1)
+	}
+	return r0, r1
 }
 
 // Node_Propose_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'Propose'
@@ -393,36 +353,42 @@ type Node_Propose_Call struct {
 }
 
 // Propose is a helper method to define mock.On call
-//   - p cluster.Proposal
-func (_e *Node_Expecter) Propose(p interface{}) *Node_Propose_Call {
-	return &Node_Propose_Call{Call: _e.mock.On("Propose", p)}
+//   - t cluster.ProposalType
+//   - data []byte
+func (_e *Node_Expecter) Propose(t interface{}, data interface{}) *Node_Propose_Call {
+	return &Node_Propose_Call{Call: _e.mock.On("Propose", t, data)}
 }
 
-func (_c *Node_Propose_Call) Run(run func(p cluster.Proposal)) *Node_Propose_Call {
+func (_c *Node_Propose_Call) Run(run func(t cluster.ProposalType, data []byte)) *Node_Propose_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		var arg0 cluster.Proposal
+		var arg0 cluster.ProposalType
 		if args[0] != nil {
-			arg0 = args[0].(cluster.Proposal)
+			arg0 = args[0].(cluster.ProposalType)
+		}
+		var arg1 []byte
+		if args[1] != nil {
+			arg1 = args[1].([]byte)
 		}
 		run(
 			arg0,
+			arg1,
 		)
 	})
 	return _c
 }
 
-func (_c *Node_Propose_Call) Return(response cluster.Response) *Node_Propose_Call {
-	_c.Call.Return(response)
+func (_c *Node_Propose_Call) Return(resp any, err error) *Node_Propose_Call {
+	_c.Call.Return(resp, err)
 	return _c
 }
 
-func (_c *Node_Propose_Call) RunAndReturn(run func(p cluster.Proposal) cluster.Response) *Node_Propose_Call {
+func (_c *Node_Propose_Call) RunAndReturn(run func(t cluster.ProposalType, data []byte) (any, error)) *Node_Propose_Call {
 	_c.Call.Return(run)
 	return _c
 }
 
 // Receive provides a mock function for the type Node
-func (_mock *Node) Receive(m *raftpb.Message) error {
+func (_mock *Node) Receive(m raftpb.Message) error {
 	ret := _mock.Called(m)
 
 	if len(ret) == 0 {
@@ -430,7 +396,7 @@ func (_mock *Node) Receive(m *raftpb.Message) error {
 	}
 
 	var r0 error
-	if returnFunc, ok := ret.Get(0).(func(*raftpb.Message) error); ok {
+	if returnFunc, ok := ret.Get(0).(func(raftpb.Message) error); ok {
 		r0 = returnFunc(m)
 	} else {
 		r0 = ret.Error(0)
@@ -444,16 +410,16 @@ type Node_Receive_Call struct {
 }
 
 // Receive is a helper method to define mock.On call
-//   - m *raftpb.Message
+//   - m raftpb.Message
 func (_e *Node_Expecter) Receive(m interface{}) *Node_Receive_Call {
 	return &Node_Receive_Call{Call: _e.mock.On("Receive", m)}
 }
 
-func (_c *Node_Receive_Call) Run(run func(m *raftpb.Message)) *Node_Receive_Call {
+func (_c *Node_Receive_Call) Run(run func(m raftpb.Message)) *Node_Receive_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		var arg0 *raftpb.Message
+		var arg0 raftpb.Message
 		if args[0] != nil {
-			arg0 = args[0].(*raftpb.Message)
+			arg0 = args[0].(raftpb.Message)
 		}
 		run(
 			arg0,
@@ -467,64 +433,58 @@ func (_c *Node_Receive_Call) Return(err error) *Node_Receive_Call {
 	return _c
 }
 
-func (_c *Node_Receive_Call) RunAndReturn(run func(m *raftpb.Message) error) *Node_Receive_Call {
+func (_c *Node_Receive_Call) RunAndReturn(run func(m raftpb.Message) error) *Node_Receive_Call {
 	_c.Call.Return(run)
 	return _c
 }
 
-// RemoveNode provides a mock function for the type Node
-func (_mock *Node) RemoveNode(ctx context.Context, peer cluster.Peer) error {
-	ret := _mock.Called(ctx, peer)
+// RemovePeer provides a mock function for the type Node
+func (_mock *Node) RemovePeer(peer cluster.Peer) error {
+	ret := _mock.Called(peer)
 
 	if len(ret) == 0 {
-		panic("no return value specified for RemoveNode")
+		panic("no return value specified for RemovePeer")
 	}
 
 	var r0 error
-	if returnFunc, ok := ret.Get(0).(func(context.Context, cluster.Peer) error); ok {
-		r0 = returnFunc(ctx, peer)
+	if returnFunc, ok := ret.Get(0).(func(cluster.Peer) error); ok {
+		r0 = returnFunc(peer)
 	} else {
 		r0 = ret.Error(0)
 	}
 	return r0
 }
 
-// Node_RemoveNode_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'RemoveNode'
-type Node_RemoveNode_Call struct {
+// Node_RemovePeer_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'RemovePeer'
+type Node_RemovePeer_Call struct {
 	*mock.Call
 }
 
-// RemoveNode is a helper method to define mock.On call
-//   - ctx context.Context
+// RemovePeer is a helper method to define mock.On call
 //   - peer cluster.Peer
-func (_e *Node_Expecter) RemoveNode(ctx interface{}, peer interface{}) *Node_RemoveNode_Call {
-	return &Node_RemoveNode_Call{Call: _e.mock.On("RemoveNode", ctx, peer)}
+func (_e *Node_Expecter) RemovePeer(peer interface{}) *Node_RemovePeer_Call {
+	return &Node_RemovePeer_Call{Call: _e.mock.On("RemovePeer", peer)}
 }
 
-func (_c *Node_RemoveNode_Call) Run(run func(ctx context.Context, peer cluster.Peer)) *Node_RemoveNode_Call {
+func (_c *Node_RemovePeer_Call) Run(run func(peer cluster.Peer)) *Node_RemovePeer_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		var arg0 context.Context
+		var arg0 cluster.Peer
 		if args[0] != nil {
-			arg0 = args[0].(context.Context)
-		}
-		var arg1 cluster.Peer
-		if args[1] != nil {
-			arg1 = args[1].(cluster.Peer)
+			arg0 = args[0].(cluster.Peer)
 		}
 		run(
 			arg0,
-			arg1,
 		)
 	})
 	return _c
 }
 
-func (_c *Node_RemoveNode_Call) Return(err error) *Node_RemoveNode_Call {
+func (_c *Node_RemovePeer_Call) Return(err error) *Node_RemovePeer_Call {
 	_c.Call.Return(err)
 	return _c
 }
 
-func (_c *Node_RemoveNode_Call) RunAndReturn(run func(ctx context.Context, peer cluster.Peer) error) *Node_RemoveNode_Call {
+func (_c *Node_RemovePeer_Call) RunAndReturn(run func(peer cluster.Peer) error) *Node_RemovePeer_Call {
 	_c.Call.Return(run)
 	return _c
 }

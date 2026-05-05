@@ -35,7 +35,7 @@ services:
           selinux: Z
     depends_on:
       - node1
-      - node1
+      - node2
       - node3
 
   ui:

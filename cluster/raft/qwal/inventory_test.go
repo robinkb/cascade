@@ -51,13 +51,13 @@ func TestInventory(t *testing.T) {
 
 	t.Run("all pointers can be retrieved by record type", func(t *testing.T) {
 		for i, want := range pointers1 {
-			got, err := inv.Get(rtype1, i)
+			got, err := inv.Get(rtype1, uint64(i))
 			AssertNoError(t, err)
 			AssertDeepEqual(t, got, want)
 		}
 
 		for i, want := range pointers2 {
-			got, err := inv.Get(rtype2, i)
+			got, err := inv.Get(rtype2, uint64(i))
 			AssertNoError(t, err)
 			AssertDeepEqual(t, got, want)
 		}
@@ -69,15 +69,12 @@ func TestInventory(t *testing.T) {
 	})
 
 	t.Run("getting pointer with index out of bounds returns ErrIndexOutOfBounds", func(t *testing.T) {
-		_, err := inv.Get(rtype1, len(pointers1))
-		AssertErrorIs(t, err, ErrIndexOutOfBounds)
-
-		_, err = inv.Get(rtype1, -1)
+		_, err := inv.Get(rtype1, uint64(len(pointers1)))
 		AssertErrorIs(t, err, ErrIndexOutOfBounds)
 	})
 
 	t.Run("Range returns all pointers for a given type", func(t *testing.T) {
-		got, err := inv.Range(rtype1, 0, len(pointers1))
+		got, err := inv.Range(rtype1, 0, uint64(len(pointers1)))
 		AssertNoError(t, err)
 		AssertDeepEqual(t, got, pointers1)
 	})
@@ -90,12 +87,11 @@ func TestInventory(t *testing.T) {
 	t.Run("Range with invalid ranges returns an error", func(t *testing.T) {
 		tc := []struct {
 			name   string
-			lo, hi int
+			lo, hi uint64
 			want   error
 		}{
 			{"lo equal to hi", 1, 1, ErrRangeInvalid},
 			{"hi lower than lo", 1, 0, ErrRangeInvalid},
-			{"negative lo", -1, 1, ErrIndexOutOfBounds},
 			{"hi higher than number of pointers", 0, 100, ErrIndexOutOfBounds},
 		}
 
@@ -109,10 +105,10 @@ func TestInventory(t *testing.T) {
 
 	t.Run("Count(t) returns the number of pointers of a given type", func(t *testing.T) {
 		got := inv.Count(rtype1)
-		AssertEqual(t, got, len(pointers1))
+		AssertEqual(t, got, uint64(len(pointers1)))
 
 		got = inv.Count(rtype2)
-		AssertEqual(t, got, len(pointers2))
+		AssertEqual(t, got, uint64(len(pointers2)))
 	})
 
 	t.Run("Count of an unknown RecordType returns 0", func(t *testing.T) {
@@ -150,12 +146,12 @@ func TestInventory(t *testing.T) {
 
 		// Make sure that the last five pointers are still there.
 		for i := range len(pointers) - wantRemoved {
-			got, err := inv.Get(rtype, i)
+			got, err := inv.Get(rtype, uint64(i))
 			AssertNoError(t, err)
 			AssertDeepEqual(t, got, pointers[i+wantRemoved])
 		}
 
-		// THere is no sixth pointer.
+		// There is no sixth pointer.
 		_, err = inv.Get(rtype, 5)
 		AssertErrorIs(t, err, ErrIndexOutOfBounds)
 	})
@@ -188,7 +184,7 @@ func randomPointers(n int) []pointer {
 }
 
 func randomType() Type {
-	return Type(rand.Uint64())
+	return Type(rand.Uint32())
 }
 
 func randomPointer() pointer {

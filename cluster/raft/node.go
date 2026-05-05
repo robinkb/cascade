@@ -2,10 +2,10 @@ package raft
 
 import (
 	"bytes"
-	"context"
 	"fmt"
 	"log"
 	"net/http"
+	"slices"
 	"time"
 
 	"github.com/robinkb/cascade/cluster"
@@ -17,265 +17,177 @@ import (
 type (
 	Node interface {
 		process.Runnable
-
+		cluster.Proposer
 		Tick()
+		Status() raft.Status
 
-		NodeID() uint64
-		Host() string
 		AsPeer() cluster.Peer
 		Bootstrap(peers ...cluster.Peer)
-		AddNode(ctx context.Context, peer cluster.Peer) error
-		RemoveNode(ctx context.Context, peer cluster.Peer) error
-		Status() raft.Status
+		AddPeer(peer cluster.Peer) error
+		RemovePeer(peer cluster.Peer) error
 		Handler() http.Handler
-
-		// Messaging
-		Receive(m *raftpb.Message) error
-
-		cluster.Proposer
+		Receive(m raftpb.Message) error
 	}
 )
 
-// TODO: NewNode should return an error instead of panicking? Probably?
-func NewNode(id uint64, host string, storage *DiskStorage, restorer cluster.Restorer) Node {
-	conf := raft.Config{
-		// TODO: This may need to be set when restarting a node.
-		// But I'm not sure of how to persist it. It can only be saved _after_
-		// applying entries to the state machine. And etcd doesn't seem to set this either.
-		Applied: 0,
+func NewNode(id uint64, addr string, storage *DiskStorage, restorer cluster.Restorer) Node {
+	return &node{
+		conf: &raft.Config{
+			ID:            id,
+			HeartbeatTick: 1,
+			// HeartbeatTick * 10 is suggested by library
+			ElectionTick:    10,
+			Storage:         storage,
+			MaxSizePerMsg:   4096,
+			MaxInflightMsgs: 256,
 
-		ID:              id,
-		ElectionTick:    10,
-		HeartbeatTick:   1,
-		Storage:         storage,
-		MaxSizePerMsg:   1 << 20,
-		MaxInflightMsgs: 256,
+			StepDownOnRemoval: true,
+			PreVote:           true,
+		},
+		addr:     addr,
+		storage:  storage,
+		restorer: restorer,
 
-		// If weird stuff happens, I should check these toggles.
-		StepDownOnRemoval: true,
-		PreVote:           true,
-		CheckQuorum:       true,
+		ticker:     time.Tick(1 * time.Second),
+		manualTick: make(chan time.Time),
+
+		stop: make(chan struct{}),
+
+		proposalHandlers: make(map[cluster.ProposalType]cluster.ProposalFunc),
+		proposalReporter: NewReporter[result](),
+
+		clients:            cluster.NewClients[Client](),
+		confChangeReporter: NewReporter[error](),
 	}
-
-	node := &node{
-		id:          id,
-		host:        host,
-		raft:        raft.RestartNode(&conf),
-		storage:     storage,
-		ticker:      time.Tick(100 * time.Millisecond),
-		manualTick:  make(chan time.Time),
-		confChanges: newErrCs(),
-		clients:     cluster.NewClients[Client](),
-	}
-
-	node.proposer = newProposer(node.raft)
-	node.restorer = restorer
-
-	return node
 }
 
 type node struct {
-	id         uint64
-	host       string
-	raft       raft.Node
-	ticker     <-chan time.Time
-	manualTick chan time.Time
-	done       chan struct{}
-
-	confChanges errCs
-
-	*proposer
-	clients  cluster.Clients[Client]
+	addr     string
+	raft     raft.Node
+	conf     *raft.Config
 	storage  *DiskStorage
 	restorer cluster.Restorer
+
+	ticker     <-chan time.Time
+	manualTick chan time.Time
+
+	// stop is signaled when the node needs to shut down the raft state loop.
+	stop chan struct{}
+	// done waits for the node to finish shutting down the raft state loop.
+	done chan struct{}
+
+	// proposalHandlers is a registry of functions that handle proposals of a given type.
+	proposalHandlers map[cluster.ProposalType]cluster.ProposalFunc
+	// proposalReporter returns the result of proposal functions back to the caller.
+	proposalReporter Reporter[result]
+
+	clients            cluster.Clients[Client]
+	confChangeReporter Reporter[error]
 }
 
+// Name implements [process.Runnable.Name].
 func (n *node) Name() string {
-	return fmt.Sprintf("raft node %d", n.id)
+	return fmt.Sprintf("raft node %d", n.conf.ID)
 }
 
+// Name implements [process.Runnable.Run].
 func (n *node) Run() error {
-	n.done = make(chan struct{}, 1)
-	n.run()
-	return nil
-}
+	n.conf.Applied = n.storage.AppliedIndex()
+	n.raft = raft.RestartNode(n.conf)
+	cs := n.raft.ApplyConfChange(raftpb.ConfChange{
+		Type:   raftpb.ConfChangeAddNode,
+		NodeId: n.conf.ID,
+	}.AsV2())
+	n.storage.SetConfState(*cs)
 
-func (n *node) Shutdown() error {
-	n.raft.Stop()
-	// n.done <- struct{}{}
-	// close(n.done)
-	return nil
-}
-
-func (n *node) NodeID() uint64 {
-	return n.id
-}
-
-func (n *node) Host() string {
-	return n.host
-}
-
-func (n *node) AsPeer() cluster.Peer {
-	return cluster.Peer{
-		ID:   n.NodeID(),
-		Host: n.Host(),
-	}
-}
-
-// Bootstrap prepares a new Raft node. If this node will join a cluster,
-// at least the cluster's leader must be passed as a peer, but it is safer
-// to pass all known peers.
-func (n *node) Bootstrap(peers ...cluster.Peer) {
-	peers = append(peers, cluster.Peer{
-		ID:   n.raft.Status().ID,
-		Host: n.host,
-	})
-
-	for _, peer := range peers {
-		confState := n.raft.ApplyConfChange(raftpb.ConfChange{
-			Type:    raftpb.ConfChangeAddNode,
-			NodeID:  peer.ID,
-			Context: []byte(peer.Host),
-		}.AsV2())
-
-		n.storage.SaveConfState(*confState)
-
-		if n.id != peer.ID {
-			client := NewClient("http://" + peer.Host + "/cluster/raft")
-			if err := n.clients.Add(peer, client); err != nil {
-				log.Printf("failed to add client for peer with ID %d: %s", peer.ID, err)
-			}
-		}
-	}
-}
-
-// AddNode proposes adding the given Peer to the cluster.
-// It may be called on any node, not just the leader.
-// Proposals may be rejected by the cluster. AddNode blocks
-// until the Peer is added, an error is encountered,
-// or until the context is cancelled.
-// TODO: AddNode should have a timeout attached to it.
-// Could generate a context with timeout inside this method.
-// Not sure why it should be able to take a context as argument.
-func (n *node) AddNode(ctx context.Context, peer cluster.Peer) error {
-	return n.proposeConfChange(ctx, raftpb.ConfChange{
-		Type:    raftpb.ConfChangeAddNode,
-		NodeID:  peer.ID,
-		Context: []byte(peer.Host),
-	})
-}
-
-// RemoveNode proposes removing the given Peer from the cluster.
-// It may be called on any node, not just the leader.
-// Proposals may be rejected by the cluster. RemoveNode blocks
-// until the Peer is removed, an error is encountered,
-// or until the context is cancelled.
-func (n *node) RemoveNode(ctx context.Context, peer cluster.Peer) error {
-	return n.proposeConfChange(ctx, raftpb.ConfChange{
-		Type:    raftpb.ConfChangeRemoveNode,
-		NodeID:  peer.ID,
-		Context: []byte(peer.Host),
-	})
-}
-
-func (n *node) Status() raft.Status {
-	return n.raft.Status()
-}
-
-func (n *node) Handler() http.Handler {
-	h := new(Handler)
-
-	h.node = n
-
-	mux := http.NewServeMux()
-	mux.Handle("/message", http.HandlerFunc(h.messageHandler))
-
-	h.Handler = mux
-
-	return h
-}
-
-func (n *node) proposeConfChange(ctx context.Context, cc raftpb.ConfChange) error {
-	// TODO: Not really safe to use node ID as a key to track individual conf changes.
-	// Multiple conf changes about the same node may be underway at once.
-	// A unique ID should be generated per conf change instead.
-	errC := n.confChanges.create(cc.NodeID)
-	defer n.confChanges.delete(cc.NodeID)
-
-	err := n.raft.ProposeConfChange(ctx, cc.AsV2())
-	if err != nil {
-		return err
-	}
-
-	select {
-	case <-ctx.Done():
-		return context.Cause(ctx)
-	case err := <-errC:
-		return err
-	}
-}
-
-func (n *node) Tick() {
-	n.manualTick <- time.Now()
-}
-
-func (n *node) run() {
+	n.done = make(chan struct{})
 	for {
 		select {
 		case rd := <-n.raft.Ready():
-			n.saveToStorage(rd.HardState, rd.Entries, rd.Snapshot, rd.MustSync)
+			n.save(rd.Entries, rd.HardState, rd.Snapshot, rd.MustSync)
 			n.send(rd.Messages)
-			if !raft.IsEmptySnap(rd.Snapshot) {
-				n.processSnapshot(rd.Snapshot)
-			}
-			n.processEntries(rd.CommittedEntries)
+			n.restore(rd.Snapshot)
+			n.process(rd.CommittedEntries)
 			n.raft.Advance()
 		case <-n.ticker:
 			n.raft.Tick()
 		case <-n.manualTick:
 			n.raft.Tick()
-		case <-n.done:
-			return
+		case <-n.stop:
+			n.raft.Stop()
+			close(n.done)
+			return n.storage.CreateSnapshot()
+		}
+	}
+}
+
+func (n *node) save(ents []raftpb.Entry, hs raftpb.HardState, sp raftpb.Snapshot, mustSync bool) {
+	if !raft.IsEmptyHardState(hs) {
+		if err := n.storage.SaveHardState(hs); err != nil {
+			log.Fatal("failed to persist hard state:", err)
+		}
+	}
+
+	if len(ents) > 0 {
+		if err := n.storage.SaveEntries(ents); err != nil {
+			log.Fatal("failed to persist entries:", err)
+		}
+	}
+
+	if !raft.IsEmptySnap(sp) {
+		if err := n.storage.ApplySnapshot(sp); err != nil {
+			log.Fatal("failed to persist snapshot:", err)
+		}
+	}
+
+	if mustSync {
+		if err := n.storage.Sync(); err != nil {
+			log.Print("failed to sync disk storage:", err)
 		}
 	}
 }
 
 func (n *node) send(messages []raftpb.Message) {
 	for _, message := range messages {
-		defer func() {
-			if r := recover(); r != nil {
-				log.Printf("failed to send message to peer %d: %s", message.To, r)
-			}
-		}()
-
-		client, _ := n.clients.Get(message.To)
-		err := client.SendMessage(&message)
+		client, err := n.clients.Get(message.To)
 		if err != nil {
-			// n.raft.ReportUnreachable(message.To)
-			log.Println("failed to send message:", err)
+			log.Fatalf("%x no client for node %x", n.conf.ID, message.To)
+		}
+		err = client.SendMessage(&message)
+		if err != nil {
+			n.raft.ReportUnreachable(message.To)
+			log.Printf("%x failed to send message to %x: %s", n.conf.ID, message.To, err)
+		}
+		if message.Type == raftpb.MessageType_MsgSnap {
+			if err == nil {
+				n.raft.ReportSnapshot(message.To, raft.SnapshotFinish)
+			} else {
+				n.raft.ReportSnapshot(message.To, raft.SnapshotFailure)
+			}
 		}
 	}
 }
 
-func (n *node) processSnapshot(snap raftpb.Snapshot) {
-	leaderID := n.raft.Status().Lead
-	peer, err := n.clients.Peer(leaderID)
-	if err != nil {
-		log.Panic("failed to find leader in local clients")
-	}
-
-	buf := bytes.NewBuffer(snap.Data)
-	err = n.restorer.Restore(buf, peer)
-	if err != nil {
-		log.Printf("failed to restore snapshot: %s", err)
-		n.raft.ReportSnapshot(n.id, raft.SnapshotFailure)
+func (n *node) restore(sp raftpb.Snapshot) {
+	if raft.IsEmptySnap(sp) {
 		return
 	}
 
-	n.raft.ReportSnapshot(n.id, raft.SnapshotFinish)
+	leader := n.raft.Status().Lead
+	peer, err := n.clients.Peer(leader)
+	if err != nil {
+		log.Fatalf("%x no client for node %x", n.conf.ID, leader)
+	}
+
+	buf := bytes.NewBuffer(sp.Data)
+	err = n.restorer.Restore(buf, peer)
+	if err != nil {
+		log.Fatalf("failed to restore snapshot: %s", err)
+	}
 }
 
-func (n *node) processEntries(entries []raftpb.Entry) {
+func (n *node) process(entries []raftpb.Entry) {
+	entries = n.filter(entries)
 	if len(entries) == 0 {
 		return
 	}
@@ -283,70 +195,64 @@ func (n *node) processEntries(entries []raftpb.Entry) {
 	for _, entry := range entries {
 		switch entry.Type {
 		case raftpb.EntryNormal:
-			if entry.Data != nil {
-				n.commit(entry.Data)
-			}
+			n.applyProposal(entry.Data)
 		case raftpb.EntryConfChange:
-			panic("received EntryConfChange v1; must be v2")
+			var cc raftpb.ConfChange
+			if err := cc.Unmarshal(entry.Data); err != nil {
+				panic(err)
+			}
+			n.applyConfChange(cc.AsV2())
 		case raftpb.EntryConfChangeV2:
 			var cc raftpb.ConfChangeV2
 			if err := cc.Unmarshal(entry.Data); err != nil {
-				log.Panicf("could not read ConfChange entry: %s", err)
+				panic(err)
 			}
-
-			for _, change := range cc.Changes {
-				switch change.Type {
-				case raftpb.ConfChangeAddNode:
-					// TODO: Adding a client can error out, technically, in which case
-					// we should not call raft.ApplyConfChange because it did not get accepted.
-					host := string(cc.Context)
-					client := NewClient("http://" + host + "/cluster/raft")
-					peer := cluster.Peer{ID: change.NodeID, Host: host}
-					if err := n.clients.Add(peer, client); err != nil {
-						log.Printf("failed to add client for peer with ID %d: %s", change.NodeID, err)
-					}
-
-					log.Printf("%d added node with id %d and url %s", n.NodeID(), change.NodeID, host)
-
-				case raftpb.ConfChangeRemoveNode:
-					if change.NodeID == n.NodeID() {
-						log.Println("removed from the cluster; stopping...")
-						if err := n.Shutdown(); err != nil {
-							log.Fatalf("failed to stop node: %s", err)
-						}
-					} else {
-						log.Printf("%d removed node with id %d", n.NodeID(), change.NodeID)
-						n.clients.Remove(change.NodeID)
-					}
-				}
-
-				if errC, ok := n.confChanges.get(change.NodeID); ok {
-					errC <- nil
-				}
-			}
-			cs := n.raft.ApplyConfChange(cc)
-			n.storage.SaveConfState(*cs)
+			n.applyConfChange(cc)
 		}
 	}
 
-	// TODO: Commit should return an error or something to signal
-	// if the commit was successfully applied. We can't just set
-	// AppliedIndex to the last Entry's Index.
-	n.storage.AppliedIndex(entries[len(entries)-1].Index)
+	n.storage.SetAppliedIndex(entries[len(entries)-1].Index)
 }
 
-func (n *node) Receive(msg *raftpb.Message) error {
-	return n.raft.Step(context.TODO(), *msg)
+// filter removes entries for which no actions need to be taken.
+func (n *node) filter(entries []raftpb.Entry) []raftpb.Entry {
+	return slices.DeleteFunc(entries, func(e raftpb.Entry) bool {
+		// Heartbeats send empty entries, which we don't need to process.
+		return len(e.Data) == 0
+	})
 }
 
-func (n *node) saveToStorage(hardState raftpb.HardState, entries []raftpb.Entry, snapshot raftpb.Snapshot, mustSync bool) {
-	if err := n.storage.Save(entries, hardState, mustSync); err != nil {
-		log.Panicf("failed to append entries and hardstate to storage: %s", err)
+// Name implements [process.Runnable.Shutdown].
+func (n *node) Shutdown() error {
+	n.shutdown()
+	return nil
+}
+
+func (n *node) shutdown() {
+	if n.done == nil {
+		return
 	}
 
-	if !raft.IsEmptySnap(snapshot) {
-		if err := n.storage.SaveSnapshot(snapshot); err != nil {
-			log.Panicf("failed to apply snapshot: %s\n", err)
-		}
+	// The following is a copy from [raft.Node.Stop].
+	select {
+	case n.stop <- struct{}{}:
+		// Not already stopped, so trigger it
+	case <-n.done:
+		// Node has already been stopped - no need to do anything
+		return
 	}
+	// Block until the stop has been acknowledged by run()
+	<-n.done
+}
+
+func (n *node) Status() raft.Status {
+	// We've not started yet.
+	if n.done == nil {
+		return raft.Status{}
+	}
+	return n.raft.Status()
+}
+
+func (n *node) Tick() {
+	n.manualTick <- time.Now()
 }

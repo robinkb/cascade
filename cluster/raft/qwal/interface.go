@@ -12,17 +12,18 @@ type (
 		// Append writes a value to the DB.
 		Append(t Type, value []byte) error
 		// Get retrieves a value with Type t at index i.
-		Get(t Type, i int) ([]byte, error)
+		Get(t Type, i uint64) ([]byte, error)
 		// Count returns how many values with Type t are in DB.
-		Count(t Type) int
-		// First returns the first value of Type t in the DB. The value returned
-		// by this method changes after a compaction.
+		Count(t Type) uint64
+		// First returns the first value of Type t that was written to the DB.
+		// The value returned by this method changes after a compaction.
 		First(t Type) ([]byte, error)
 		// Last returns the last value of Type t that was written to the DB.
+		// The value returned by this method changes after an append.
 		Last(t Type) ([]byte, error)
 		// Range returns an iterator that ranges over all values of Type t
 		// in the range [lo, hi[.
-		Range(t Type, lo, hi int) iter.Seq2[[]byte, error]
+		Range(t Type, lo, hi uint64) iter.Seq2[[]byte, error]
 		// Replay restores the DB state by reading all values from the log files.
 		// Calling Replay after the first time is a no-op.
 		Replay() error
@@ -47,6 +48,10 @@ type (
 		// CompactHook registers CompactHook f, which is run whenever DB compacts a log.
 		// To clear the CompactHook, call CompactHook with a nil argument.
 		CompactHook(f CompactHookFunc)
+		// Discard discards all but the active log from the DB. It does not trigger CompactHook.
+		Discard() error
+		// Status returns information about the state of the DB.
+		Status() Status
 		// Sync calls syscall.Fdatasync on the active log, ensuring that buffered
 		// writes to it are flushed to disk. DB only syncs automatically when a log
 		// is cut and becomes read-only. Any more syncs are the application's responsibility.
@@ -83,6 +88,13 @@ type (
 	// removed from DB, meaning that its data can still be queried for the
 	// duration of CompactHookFunc.
 	CompactHookFunc func(c Counters) error
+
+	// Status represents the internal statistics returned by [DB.Status].
+	Status struct {
+		Options
+		// LogCount is the number of log files present in the DB.
+		LogCount int
+	}
 
 	// Options defines the configurable options of the DB.
 	Options struct {

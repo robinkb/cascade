@@ -137,13 +137,7 @@ func (d *db) appendWouldExceedLimits(log *logFile, r *record) bool {
 		uint64(d.maxLogRecordCount) <= log.counters.total()
 }
 
-// Sync implements [DB.Sync].
-func (d *db) Sync() error {
-	d.panicIfNotReplayed()
-	return d.activeLog().Sync()
-}
-
-func (d *db) Get(t Type, i int) ([]byte, error) {
+func (d *db) Get(t Type, i uint64) ([]byte, error) {
 	d.panicIfNotReplayed()
 
 	ptr, err := d.inventory.Get(t, i)
@@ -155,7 +149,7 @@ func (d *db) Get(t Type, i int) ([]byte, error) {
 }
 
 // Count implements [DB.Count].
-func (d *db) Count(t Type) int {
+func (d *db) Count(t Type) uint64 {
 	d.panicIfNotReplayed()
 	return d.inventory.Count(t)
 }
@@ -183,7 +177,7 @@ func (d *db) Last(t Type) ([]byte, error) {
 }
 
 // Range implements [DB.Range].
-func (d *db) Range(t Type, lo, hi int) iter.Seq2[[]byte, error] {
+func (d *db) Range(t Type, lo, hi uint64) iter.Seq2[[]byte, error] {
 	d.panicIfNotReplayed()
 	return func(yield func([]byte, error) bool) {
 		pointers, err := d.inventory.Range(t, lo, hi)
@@ -302,6 +296,37 @@ func (d *db) CompactHook(f CompactHookFunc) {
 	d.compactHook = f
 }
 
+func (d *db) Discard() error {
+	d.panicIfNotReplayed()
+
+	for range len(d.logs) - 1 {
+		err := d.remove(d.logs[0])
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+// Status implements [DB.Status].
+func (d *db) Status() Status {
+	return Status{
+		LogCount: len(d.logs),
+		Options: Options{
+			MaxLogSize:       d.maxLogSize,
+			MaxLogValueCount: d.maxLogSize,
+			MaxLogCount:      d.maxLogCount,
+		},
+	}
+}
+
+// Sync implements [DB.Sync].
+func (d *db) Sync() error {
+	d.panicIfNotReplayed()
+	return d.activeLog().Sync()
+}
+
 // Close implements [DB.Close].
 func (d *db) Close() error {
 	d.panicIfNotReplayed()
@@ -364,7 +389,7 @@ func (d *db) compact() error {
 
 	// The CompactHook is run _before_ compaction actually occurs
 	// so that the DB consumer has a full view of the data, including
-	// what is being removed. An errors encountered by compaction are surfaced
+	// what is being removed. Any errors encountered by compaction are surfaced
 	// to the application.
 	if d.compactHook != nil {
 		counters := log.Counters()
@@ -374,6 +399,10 @@ func (d *db) compact() error {
 		}
 	}
 
+	return d.remove(log)
+}
+
+func (d *db) remove(log *logFile) error {
 	if err := log.Close(); err != nil {
 		return err
 	}

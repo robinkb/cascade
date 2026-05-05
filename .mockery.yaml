@@ -5,6 +5,10 @@ pkgname: mock
 template: testify
 # Explicitly select which interfaces to generate mocks for.
 packages:
+  github.com/robinkb/cascade/cluster:
+    interfaces:
+      Snapshotter:
+      Restorer:
   github.com/robinkb/cascade/cluster/raft:
     interfaces:
       Node:
