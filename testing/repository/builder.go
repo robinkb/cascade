@@ -97,6 +97,18 @@ func (m *ImageManifest) References() store.References {
 	return refs
 }
 
+func (m *ImageManifest) AllDigests() []digest.Digest {
+	digests := []digest.Digest{
+		m.Digest,
+		m.References().Config,
+	}
+	digests = append(digests, m.LayersAsDigests()...)
+	if m.Manifest.Subject != nil {
+		digests = append(digests, m.Manifest.Subject.Digest)
+	}
+	return digests
+}
+
 func (m *ImageManifest) LayersAsDigests() []digest.Digest {
 	if len(m.Manifest.Layers) == 0 {
 		return nil

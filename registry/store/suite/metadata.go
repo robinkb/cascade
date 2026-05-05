@@ -10,7 +10,8 @@ import (
 	"github.com/opencontainers/go-digest"
 	v1 "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/robinkb/cascade/registry/store"
-	. "github.com/robinkb/cascade/testing" // nolint: staticcheck
+	. "github.com/robinkb/cascade/testing"            // nolint: staticcheck
+	. "github.com/robinkb/cascade/testing/repository" // nolint: staticcheck
 	"github.com/stretchr/testify/suite"
 )
 
@@ -939,7 +940,7 @@ func (s *MetadataSuite) TestTags() {
 		err := repo.PutManifest(digest, store.Manifest{}, store.References{})
 		AssertNoError(t, err)
 
-		err = repo.PutTag(tag, digest)
+		_, err = repo.PutTag(tag, digest)
 		AssertNoError(t, err)
 
 		got, err := repo.GetTag(tag)
@@ -953,7 +954,7 @@ func (s *MetadataSuite) TestTags() {
 
 		err := repo.PutManifest(digest, store.Manifest{}, store.References{})
 		AssertNoError(t, err)
-		err = repo.PutTag(tag, digest)
+		_, err = repo.PutTag(tag, digest)
 		AssertNoError(t, err)
 
 		_, err = repo.DeleteTag(tag)
@@ -969,7 +970,7 @@ func (s *MetadataSuite) TestTags() {
 
 		err := repo.PutManifest(digest, store.Manifest{}, store.References{})
 		AssertNoError(t, err)
-		err = repo.PutTag(tag, digest)
+		_, err = repo.PutTag(tag, digest)
 		AssertNoError(t, err)
 
 		deleted, err := repo.DeleteTag(tag)
@@ -988,7 +989,7 @@ func (s *MetadataSuite) TestTags() {
 		err := repo.PutManifest(digest, store.Manifest{}, store.References{})
 		AssertNoError(t, err)
 		for _, tag := range tags {
-			err = repo.PutTag(tag, digest)
+			_, err = repo.PutTag(tag, digest)
 			AssertNoError(t, err)
 		}
 
@@ -1001,6 +1002,54 @@ func (s *MetadataSuite) TestTags() {
 		}
 	})
 
+	s.T().Run("retagging deletes the original manifest", func(t *testing.T) {
+		repo := s.RepositoryConstructor(t)
+		oldDigest, newDigest := RandomDigest(), RandomDigest()
+		tag := RandomVersion()
+
+		// Place the old manifest and tag it.
+		err := repo.PutManifest(oldDigest, store.Manifest{}, store.References{})
+		AssertNoError(t, err)
+		_, err = repo.PutTag(tag, oldDigest)
+		AssertNoError(t, err)
+
+		// Now put the new manifest and move the tag.
+		err = repo.PutManifest(newDigest, store.Manifest{}, store.References{})
+		AssertNoError(t, err)
+		deleted, err := repo.PutTag(tag, newDigest)
+		AssertNoError(t, err)
+		AssertEqual(t, len(deleted), 1).Require()
+
+		// The old manifest should now be deleted.
+		_, err = repo.GetManifest(oldDigest)
+		AssertErrorIs(t, err, store.ErrManifestNotFound)
+	})
+
+	s.T().Run("retagging does not delete the original manifest if it has other tags", func(t *testing.T) {
+		repo := s.RepositoryConstructor(t)
+		oldDigest, newDigest := RandomDigest(), RandomDigest()
+		setTag, movingTag := RandomVersion(), RandomVersion()
+
+		// Place the old manifest and tag it with both the set and moving tag.
+		err := repo.PutManifest(oldDigest, store.Manifest{}, store.References{})
+		AssertNoError(t, err)
+		_, err = repo.PutTag(setTag, oldDigest)
+		AssertNoError(t, err)
+		_, err = repo.PutTag(movingTag, oldDigest)
+		AssertNoError(t, err)
+
+		// Now put the new manifest and tag it with the moving tag.
+		err = repo.PutManifest(newDigest, store.Manifest{}, store.References{})
+		AssertNoError(t, err)
+		deleted, err := repo.PutTag(movingTag, newDigest)
+		AssertNoError(t, err)
+		AssertEqual(t, len(deleted), 0)
+
+		// The old manifest should still be there.
+		_, err = repo.GetManifest(oldDigest)
+		AssertNoError(t, err)
+	})
+
 	s.T().Run("deleting unknown tag returns ErrTagNotFound", func(t *testing.T) {
 		repo := s.RepositoryConstructor(t)
 
@@ -1011,7 +1060,7 @@ func (s *MetadataSuite) TestTags() {
 	s.T().Run("tagging unknown manifest returns ErrManifestNotFound", func(t *testing.T) {
 		repo := s.RepositoryConstructor(t)
 
-		err := repo.PutTag(RandomVersion(), RandomDigest())
+		_, err := repo.PutTag(RandomVersion(), RandomDigest())
 		AssertErrorIs(t, err, store.ErrManifestNotFound)
 	})
 
@@ -1022,7 +1071,7 @@ func (s *MetadataSuite) TestTags() {
 		err := repo.PutBlob(digest)
 		AssertNoError(t, err)
 
-		err = repo.PutTag(RandomVersion(), digest)
+		_, err = repo.PutTag(RandomVersion(), digest)
 		AssertErrorIs(t, err, store.ErrManifestNotFound)
 	})
 }
@@ -1107,7 +1156,7 @@ func (s *MetadataSuite) TestListTags() {
 			AssertNoError(t, err).Require()
 
 			for _, tag := range tags {
-				err := repo.PutTag(tag, digest)
+				_, err := repo.PutTag(tag, digest)
 				AssertNoError(t, err).Require()
 			}
 
@@ -1172,6 +1221,32 @@ func (s *MetadataSuite) TestRecursiveGC() {
 		s.T().Skip()
 	}
 
+	s.T().Run("retagging deletes all blobs of the original manifest", func(t *testing.T) {
+		meta := s.Constructor(t)
+		name := RandomName()
+		repo, err := meta.CreateRepository(name)
+		AssertNoError(t, err)
+
+		tag := RandomVersion()
+		oldImage := NewImageManifestBuilder(t).WithLayers(2).Build()
+		PutManifestInto(t, repo, oldImage)
+		_, err = repo.PutTag(tag, oldImage.Digest)
+		AssertNoError(t, err)
+
+		newImage := NewImageManifestBuilder(t).WithLayers(2).Build()
+		PutManifestInto(t, repo, newImage)
+		deleted, err := repo.PutTag(tag, newImage.Digest)
+		AssertNoError(t, err)
+		oldImageDigests := oldImage.AllDigests()
+
+		slices.Sort(deleted)
+		slices.Sort(oldImageDigests)
+		AssertSlicesEqual(t, deleted, oldImageDigests)
+
+		blobs := slices.Collect(meta.Blobs())
+		AssertEqual(t, len(blobs), len(newImage.AllDigests()))
+	})
+
 	s.T().Run("deletes all blobs of tagged image manifest with referrer", func(t *testing.T) {
 		meta := s.Constructor(t)
 		name := RandomName()
@@ -1203,7 +1278,7 @@ func (s *MetadataSuite) TestRecursiveGC() {
 		AssertNoError(t, err)
 
 		tag := RandomVersion()
-		err = repo.PutTag(tag, manifestDigest)
+		_, err = repo.PutTag(tag, manifestDigest)
 		AssertNoError(t, err)
 
 		allDigests := slices.Concat(layerDigests, []digest.Digest{configDigest, manifestDigest, referrerDigest})
@@ -1298,4 +1373,20 @@ func RandomManifestMetadata() store.Manifest {
 		},
 		Size: rand.Int64(),
 	}
+}
+
+func PutManifestInto(t *testing.T, repo store.Repository, image ImageManifest) {
+	for _, id := range image.LayersAsDigests() {
+		err := repo.PutBlob(id)
+		AssertNoError(t, err).Require()
+	}
+
+	err := repo.PutBlob(image.Manifest.Config.Digest)
+	AssertNoError(t, err).Require()
+
+	err = repo.PutBlob(image.Digest)
+	AssertNoError(t, err).Require()
+
+	err = repo.PutManifest(image.Digest, image.Metadata(), image.References())
+	AssertNoError(t, err).Require()
 }

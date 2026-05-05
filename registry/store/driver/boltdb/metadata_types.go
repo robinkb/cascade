@@ -175,6 +175,10 @@ func (o manifest) tags() iter.Seq[string] {
 	}
 }
 
+func (o manifest) hasTags() bool {
+	return o.b.Bucket(_TAGS).Inspect().KeyN != 0
+}
+
 func (o manifest) addReferrer(id digest.Digest) {
 	must(o.b.Bucket(_REFERRERS).Put([]byte(id), nil))
 }

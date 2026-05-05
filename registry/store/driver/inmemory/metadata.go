@@ -371,15 +371,31 @@ func (r *repositoryStore) GetTag(tag string) (digest.Digest, error) {
 	return digest, nil
 }
 
-func (r *repositoryStore) PutTag(tag string, digest digest.Digest) error {
-	manifest, ok := r.repo.Manifests[digest]
+func (r *repositoryStore) PutTag(tag string, id digest.Digest) ([]digest.Digest, error) {
+	deleted := make([]digest.Digest, 0)
+	manifest, ok := r.repo.Manifests[id]
 	if !ok {
-		return fmt.Errorf("%w: %s", store.ErrManifestNotFound, digest)
+		return nil, fmt.Errorf("%w: %s", store.ErrManifestNotFound, id)
+	}
+
+	// If this tag already exists, remove it from the original manifest
+	// and garbage collect the manifest if it has no tags remaining.
+	if id, ok := r.repo.Tags[tag]; ok {
+		delete(r.repo.Manifests[id].Tags, tag)
+		if len(r.repo.Manifests[id].Tags) == 0 {
+			digests, err := r.DeleteManifest(id)
+			if err != nil {
+				if !errors.Is(err, store.ErrManifestInUse) {
+					return deleted, err
+				}
+			}
+			deleted = append(deleted, digests...)
+		}
 	}
 
 	manifest.Tags[tag] = nil
-	r.repo.Tags[tag] = digest
-	return nil
+	r.repo.Tags[tag] = id
+	return deleted, nil
 }
 
 func (r *repositoryStore) DeleteTag(tag string) ([]digest.Digest, error) {

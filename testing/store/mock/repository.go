@@ -742,20 +742,31 @@ func (_c *Repository_PutManifest_Call) RunAndReturn(run func(id digest.Digest, m
 }
 
 // PutTag provides a mock function for the type Repository
-func (_mock *Repository) PutTag(tag string, digest1 digest.Digest) error {
+func (_mock *Repository) PutTag(tag string, digest1 digest.Digest) ([]digest.Digest, error) {
 	ret := _mock.Called(tag, digest1)
 
 	if len(ret) == 0 {
 		panic("no return value specified for PutTag")
 	}
 
-	var r0 error
-	if returnFunc, ok := ret.Get(0).(func(string, digest.Digest) error); ok {
+	var r0 []digest.Digest
+	var r1 error
+	if returnFunc, ok := ret.Get(0).(func(string, digest.Digest) ([]digest.Digest, error)); ok {
+		return returnFunc(tag, digest1)
+	}
+	if returnFunc, ok := ret.Get(0).(func(string, digest.Digest) []digest.Digest); ok {
 		r0 = returnFunc(tag, digest1)
 	} else {
-		r0 = ret.Error(0)
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]digest.Digest)
+		}
 	}
-	return r0
+	if returnFunc, ok := ret.Get(1).(func(string, digest.Digest) error); ok {
+		r1 = returnFunc(tag, digest1)
+	} else {
+		r1 = ret.Error(1)
+	}
+	return r0, r1
 }
 
 // Repository_PutTag_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'PutTag'
@@ -788,12 +799,12 @@ func (_c *Repository_PutTag_Call) Run(run func(tag string, digest1 digest.Digest
 	return _c
 }
 
-func (_c *Repository_PutTag_Call) Return(err error) *Repository_PutTag_Call {
-	_c.Call.Return(err)
+func (_c *Repository_PutTag_Call) Return(digests []digest.Digest, err error) *Repository_PutTag_Call {
+	_c.Call.Return(digests, err)
 	return _c
 }
 
-func (_c *Repository_PutTag_Call) RunAndReturn(run func(tag string, digest1 digest.Digest) error) *Repository_PutTag_Call {
+func (_c *Repository_PutTag_Call) RunAndReturn(run func(tag string, digest1 digest.Digest) ([]digest.Digest, error)) *Repository_PutTag_Call {
 	_c.Call.Return(run)
 	return _c
 }

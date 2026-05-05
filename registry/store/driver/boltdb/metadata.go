@@ -502,12 +502,27 @@ func (r *repositoryStore) GetTag(tag string) (digest.Digest, error) {
 	return id, err
 }
 
-func (r *repositoryStore) PutTag(tag string, id digest.Digest) error {
-	return r.db.Update(func(tx *bolt.Tx) error {
+func (r *repositoryStore) PutTag(tag string, id digest.Digest) ([]digest.Digest, error) {
+	var deleted []digest.Digest
+	return deleted, r.db.Update(func(tx *bolt.Tx) error {
 		repo := r.repository(tx)
 		manifest := repo.manifests().manifest(id)
 		if !manifest.found() {
 			return fmt.Errorf("%w: %s", store.ErrManifestNotFound, id)
+		}
+
+		if id := repo.tags().tag(tag); id != "" {
+			manifest := repo.manifests().manifest(id)
+			manifest.removeTagOwner(tag)
+			if !manifest.hasTags() {
+				var err error
+				deleted, err = r.deleteManifest(tx, id)
+				if err != nil {
+					if !errors.Is(err, store.ErrManifestInUse) {
+						return err
+					}
+				}
+			}
 		}
 
 		manifest.addTagOwner(tag)
