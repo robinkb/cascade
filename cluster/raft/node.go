@@ -104,9 +104,9 @@ func (n *node) Run() error {
 	for {
 		select {
 		case rd := <-n.raft.Ready():
-			n.restore(rd.Snapshot)
-			n.save(rd.Entries, rd.HardState, rd.MustSync)
+			n.save(rd.Entries, rd.HardState, rd.Snapshot, rd.MustSync)
 			n.send(rd.Messages)
+			n.restore(rd.Snapshot)
 			n.process(rd.CommittedEntries)
 			n.raft.Advance()
 		case <-n.ticker:
@@ -121,38 +121,22 @@ func (n *node) Run() error {
 	}
 }
 
-func (n *node) restore(sp raftpb.Snapshot) {
-	if raft.IsEmptySnap(sp) {
-		return
-	}
-
-	if err := n.storage.ApplySnapshot(sp); err != nil {
-		log.Fatal("failed to persist snapshot:", err)
-	}
-
-	leader := n.raft.Status().Lead
-	peer, err := n.clients.Peer(leader)
-	if err != nil {
-		log.Fatalf("%x no client for node %x", n.conf.ID, leader)
-	}
-
-	buf := bytes.NewBuffer(sp.Data)
-	err = n.restorer.Restore(buf, peer)
-	if err != nil {
-		log.Fatalf("failed to restore snapshot: %s", err)
-	}
-}
-
-func (n *node) save(entries []raftpb.Entry, hardState raftpb.HardState, mustSync bool) {
-	if !raft.IsEmptyHardState(hardState) {
-		if err := n.storage.SaveHardState(hardState); err != nil {
+func (n *node) save(ents []raftpb.Entry, hs raftpb.HardState, sp raftpb.Snapshot, mustSync bool) {
+	if !raft.IsEmptyHardState(hs) {
+		if err := n.storage.SaveHardState(hs); err != nil {
 			log.Fatal("failed to persist hard state:", err)
 		}
 	}
 
-	if len(entries) > 0 {
-		if err := n.storage.SaveEntries(entries); err != nil {
+	if len(ents) > 0 {
+		if err := n.storage.SaveEntries(ents); err != nil {
 			log.Fatal("failed to persist entries:", err)
+		}
+	}
+
+	if !raft.IsEmptySnap(sp) {
+		if err := n.storage.ApplySnapshot(sp); err != nil {
+			log.Fatal("failed to persist snapshot:", err)
 		}
 	}
 
@@ -181,6 +165,24 @@ func (n *node) send(messages []raftpb.Message) {
 				n.raft.ReportSnapshot(message.To, raft.SnapshotFailure)
 			}
 		}
+	}
+}
+
+func (n *node) restore(sp raftpb.Snapshot) {
+	if raft.IsEmptySnap(sp) {
+		return
+	}
+
+	leader := n.raft.Status().Lead
+	peer, err := n.clients.Peer(leader)
+	if err != nil {
+		log.Fatalf("%x no client for node %x", n.conf.ID, leader)
+	}
+
+	buf := bytes.NewBuffer(sp.Data)
+	err = n.restorer.Restore(buf, peer)
+	if err != nil {
+		log.Fatalf("failed to restore snapshot: %s", err)
 	}
 }
 
