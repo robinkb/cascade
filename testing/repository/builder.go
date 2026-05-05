@@ -103,9 +103,6 @@ func (m *ImageManifest) AllDigests() []digest.Digest {
 		m.References().Config,
 	}
 	digests = append(digests, m.LayersAsDigests()...)
-	if m.Manifest.Subject != nil {
-		digests = append(digests, m.Manifest.Subject.Digest)
-	}
 	return digests
 }
 

@@ -1263,7 +1263,7 @@ func (s *MetadataSuite) TestRecursiveGC() {
 		_, err = repo.PutTag(tag, image.Digest)
 		AssertNoError(t, err)
 
-		allDigests := slices.Concat(image.LayersAsDigests(), []digest.Digest{image.References().Config, image.Digest, referrer.Digest, referrer.References().Config})
+		allDigests := slices.Concat(image.AllDigests(), referrer.AllDigests())
 		slices.Sort(allDigests)
 
 		blobs := slices.Collect(meta.Blobs())
