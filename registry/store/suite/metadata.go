@@ -1253,20 +1253,17 @@ func (s *MetadataSuite) TestRecursiveGC() {
 		repo, err := meta.CreateRepository(name)
 		AssertNoError(t, err)
 
-		manifest := NewImageManifestBuilder(t).WithLayers(5).Build()
-		PutManifestInto(t, repo, manifest)
+		image := NewImageManifestBuilder(t).WithLayers(5).Build()
+		PutManifestInto(t, repo, image)
 
-		referrerDigest := RandomDigest()
-		err = repo.PutManifest(referrerDigest, store.Manifest{}, store.References{
-			Subject: manifest.Digest,
-		})
-		AssertNoError(t, err)
+		referrer := NewImageManifestBuilder(t).WithSubject(image.Manifest).Build()
+		PutManifestInto(t, repo, referrer)
 
 		tag := RandomVersion()
-		_, err = repo.PutTag(tag, manifest.Digest)
+		_, err = repo.PutTag(tag, image.Digest)
 		AssertNoError(t, err)
 
-		allDigests := slices.Concat(manifest.LayersAsDigests(), []digest.Digest{manifest.References().Config, manifest.Digest, referrerDigest})
+		allDigests := slices.Concat(image.LayersAsDigests(), []digest.Digest{image.References().Config, image.Digest, referrer.Digest, referrer.References().Config})
 		slices.Sort(allDigests)
 
 		blobs := slices.Collect(meta.Blobs())
