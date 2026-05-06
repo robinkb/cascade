@@ -2,6 +2,8 @@ name: cascade
 
 services:
   node1:
+    image: ghcr.io/robinkb/cascade:latest
+    pull_policy: always
     build: ../
     command:
       - -raft-id=1
@@ -9,6 +11,8 @@ services:
       - -raft-peers=1:node1:3000,2:node2:3001,3:node3:3002
 
   node2:
+    image: ghcr.io/robinkb/cascade:latest
+    pull_policy: always
     build: ../
     command:
       - -raft-id=2
@@ -16,6 +20,8 @@ services:
       - -raft-peers=1:node1:3000,2:node2:3001,3:node3:3002
 
   node3:
+    image: ghcr.io/robinkb/cascade:latest
+    pull_policy: always
     build: ../
     command:
       - -raft-id=3
