@@ -3,7 +3,6 @@ name: cascade
 services:
   node1:
     image: ghcr.io/robinkb/cascade:latest
-    pull_policy: always
     build: ../
     command:
       - -raft-id=1
@@ -12,7 +11,6 @@ services:
 
   node2:
     image: ghcr.io/robinkb/cascade:latest
-    pull_policy: always
     build: ../
     command:
       - -raft-id=2
@@ -21,7 +19,6 @@ services:
 
   node3:
     image: ghcr.io/robinkb/cascade:latest
-    pull_policy: always
     build: ../
     command:
       - -raft-id=3
