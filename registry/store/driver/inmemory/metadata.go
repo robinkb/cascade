@@ -16,7 +16,7 @@ import (
 
 func NewMetadataStore() store.Metadata {
 	return &metadataStore{
-		SharedBlobs:  make(sharedBlobs),
+		BlobStore:    make(blobs),
 		Repositories: make(repositories),
 	}
 }
@@ -24,13 +24,13 @@ func NewMetadataStore() store.Metadata {
 type (
 	// metadataStore implements the store.Metadata interface
 	metadataStore struct {
-		SharedBlobs  sharedBlobs
+		BlobStore    blobs
 		Repositories repositories
 	}
-	// sharedBlobs represents the metadata of blobs in the shared blob store.
-	sharedBlobs map[digest.Digest]sharedBlobOwners
-	// sharedBlobOwners tracks which repositories own a shared blob.
-	sharedBlobOwners map[string]any
+	// blobs represents the metadata of blobs in the shared blob store.
+	blobs map[digest.Digest]blobOwners
+	// blobOwners tracks which repositories own a shared blob.
+	blobOwners map[string]any
 	// repositories contains all repositories in the metadata store..
 	repositories map[string]*repository
 )
@@ -69,18 +69,18 @@ func (m *metadataStore) CreateRepository(name string) (store.Repository, error) 
 	}
 
 	repo := &repository{
-		Blobs:     make(repoBlobs),
+		Links:     make(links),
 		Manifests: make(manifests),
 		Tags:      make(tags),
 		Sessions:  make(sessions),
 	}
 	m.Repositories[name] = repo
-	return newRepository(name, m.SharedBlobs, repo), nil
+	return newRepository(name, m.BlobStore, repo), nil
 }
 
 func (m *metadataStore) GetRepository(name string) (store.Repository, error) {
 	if repo, ok := m.Repositories[name]; ok {
-		return newRepository(name, m.SharedBlobs, repo), nil
+		return newRepository(name, m.BlobStore, repo), nil
 	}
 	return nil, fmt.Errorf("%w: %s", store.ErrRepositoryNotFound, name)
 }
@@ -91,10 +91,10 @@ func (m *metadataStore) DeleteRepository(name string) error {
 		return fmt.Errorf("%w: %s", store.ErrRepositoryNotFound, name)
 	}
 
-	for digest := range repo.Blobs {
-		delete(m.SharedBlobs[digest], name)
-		if len(m.SharedBlobs[digest]) == 0 {
-			delete(m.SharedBlobs, digest)
+	for digest := range repo.Links {
+		delete(m.BlobStore[digest], name)
+		if len(m.BlobStore[digest]) == 0 {
+			delete(m.BlobStore, digest)
 		}
 	}
 
@@ -104,7 +104,7 @@ func (m *metadataStore) DeleteRepository(name string) error {
 
 func (m *metadataStore) Blobs() iter.Seq[digest.Digest] {
 	return func(yield func(digest.Digest) bool) {
-		for digest := range m.SharedBlobs {
+		for digest := range m.BlobStore {
 			if !yield(digest) {
 				return
 			}
@@ -120,7 +120,7 @@ func (m *metadataStore) Restore(r io.Reader) error {
 	return gob.NewDecoder(r).Decode(m)
 }
 
-func newRepository(name string, blobs sharedBlobs, repo *repository) store.Repository {
+func newRepository(name string, blobs blobs, repo *repository) store.Repository {
 	return &repositoryStore{
 		name:  name,
 		blobs: blobs,
@@ -132,20 +132,20 @@ type (
 	// repository implements the store.Repository interface.
 	repositoryStore struct {
 		name  string
-		blobs sharedBlobs
+		blobs blobs
 		repo  *repository
 	}
 	// repository tracks the data of a repository in the metadata store.
 	repository struct {
-		Blobs     repoBlobs
+		Links     links
 		Manifests manifests
 		Tags      tags
 		Sessions  sessions
 	}
-	// repoBlobs tracks the blobs used by the repository.
-	repoBlobs map[digest.Digest]repoBlobOwners
-	// repoBlobOwners tracks which manifests reference a particular blob.
-	repoBlobOwners map[digest.Digest]any
+	// links tracks the blobs linked by the repository.
+	links map[digest.Digest]linkOwners
+	// linkOwners tracks which manifests reference a particular blob.
+	linkOwners map[digest.Digest]any
 	// manifests tracks the manifests in the repository.
 	manifests map[digest.Digest]manifest
 	// manifest contains the metadata of a manifest.
@@ -166,31 +166,31 @@ type (
 	sessions map[uuid.UUID]*store.UploadSession
 )
 
-func (r *repositoryStore) GetBlob(id digest.Digest) error {
-	_, ok := r.repo.Blobs[id]
+func (r *repositoryStore) GetLink(id digest.Digest) error {
+	_, ok := r.repo.Links[id]
 	if !ok {
-		return fmt.Errorf("%w: %s", store.ErrBlobNotFound, id)
+		return fmt.Errorf("%w: %s", store.ErrLinkNotFound, id)
 	}
 	return nil
 }
 
-func (r *repositoryStore) PutBlob(id digest.Digest) error {
+func (r *repositoryStore) PutLink(id digest.Digest) error {
 	_, ok := r.blobs[id]
 	if !ok {
-		r.blobs[id] = make(sharedBlobOwners)
+		r.blobs[id] = make(blobOwners)
 	}
 	r.blobs[id][r.name] = nil
-	r.repo.Blobs[id] = make(repoBlobOwners)
+	r.repo.Links[id] = make(linkOwners)
 	return nil
 }
 
-func (r *repositoryStore) DeleteBlob(id digest.Digest) error {
-	owners, ok := r.repo.Blobs[id]
+func (r *repositoryStore) DeleteLink(id digest.Digest) error {
+	owners, ok := r.repo.Links[id]
 	if !ok {
-		return fmt.Errorf("%w: %s", store.ErrBlobNotFound, id)
+		return fmt.Errorf("%w: %s", store.ErrLinkNotFound, id)
 	}
 	if len(owners) != 0 {
-		return fmt.Errorf("%w: %s", store.ErrBlobInUse, id)
+		return fmt.Errorf("%w: %s", store.ErrLinkInUse, id)
 	}
 
 	delete(r.blobs[id], r.name)
@@ -198,7 +198,7 @@ func (r *repositoryStore) DeleteBlob(id digest.Digest) error {
 		delete(r.blobs, id)
 	}
 
-	delete(r.repo.Blobs, id)
+	delete(r.repo.Links, id)
 	return nil
 }
 
@@ -214,7 +214,7 @@ func (r *repositoryStore) PutManifest(id digest.Digest, meta store.Manifest, ref
 	r.repo.Manifests[id] = newManifest(meta, refs)
 
 	if refs.Config != "" {
-		owners, ok := r.repo.Blobs[refs.Config]
+		owners, ok := r.repo.Links[refs.Config]
 		if !ok {
 			return fmt.Errorf("%w: %w: %s", store.ErrManifestInvalid, store.ErrManifestConfigNotFound, refs.Config)
 		}
@@ -222,7 +222,7 @@ func (r *repositoryStore) PutManifest(id digest.Digest, meta store.Manifest, ref
 	}
 
 	for _, layerDigest := range refs.Layers {
-		owners, ok := r.repo.Blobs[layerDigest]
+		owners, ok := r.repo.Links[layerDigest]
 		if !ok {
 			return fmt.Errorf("%w: %w: %s", store.ErrManifestInvalid, store.ErrManifestLayerNotFound, layerDigest)
 		}
@@ -245,11 +245,11 @@ func (r *repositoryStore) PutManifest(id digest.Digest, meta store.Manifest, ref
 		manifest.Referrers[id] = nil
 	}
 
-	if err := r.PutBlob(id); err != nil {
+	if err := r.PutLink(id); err != nil {
 		return err
 	}
 
-	r.repo.Blobs[id][id] = nil
+	r.repo.Links[id][id] = nil
 
 	return nil
 }
@@ -267,9 +267,9 @@ func (r *repositoryStore) DeleteManifest(id digest.Digest) ([]digest.Digest, err
 	deleted := make([]digest.Digest, 0)
 
 	if manifest.Refs.Config != "" {
-		delete(r.repo.Blobs[manifest.Refs.Config], id)
-		if err := r.DeleteBlob(manifest.Refs.Config); err != nil {
-			if !errors.Is(err, store.ErrBlobInUse) {
+		delete(r.repo.Links[manifest.Refs.Config], id)
+		if err := r.DeleteLink(manifest.Refs.Config); err != nil {
+			if !errors.Is(err, store.ErrLinkInUse) {
 				return deleted, err
 			}
 		} else {
@@ -278,10 +278,10 @@ func (r *repositoryStore) DeleteManifest(id digest.Digest) ([]digest.Digest, err
 	}
 
 	for _, layerDigest := range manifest.Refs.Layers {
-		delete(r.repo.Blobs[layerDigest], id)
-		if err := r.DeleteBlob(layerDigest); err != nil {
-			if errors.Is(err, store.ErrBlobInUse) ||
-				errors.Is(err, store.ErrBlobNotFound) {
+		delete(r.repo.Links[layerDigest], id)
+		if err := r.DeleteLink(layerDigest); err != nil {
+			if errors.Is(err, store.ErrLinkInUse) ||
+				errors.Is(err, store.ErrLinkNotFound) {
 				continue
 			}
 			return deleted, err
@@ -324,8 +324,8 @@ func (r *repositoryStore) DeleteManifest(id digest.Digest) ([]digest.Digest, err
 	delete(r.repo.Manifests, id)
 	deleted = append(deleted, id)
 
-	delete(r.repo.Blobs[id], id)
-	return deleted, r.DeleteBlob(id)
+	delete(r.repo.Links[id], id)
+	return deleted, r.DeleteLink(id)
 }
 
 func (r *repositoryStore) ListReferrers(subject digest.Digest) ([]digest.Digest, error) {
