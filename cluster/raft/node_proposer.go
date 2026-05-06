@@ -6,6 +6,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"log"
+	"time"
 
 	"github.com/robinkb/cascade/cluster"
 )
@@ -28,6 +29,28 @@ func (n *node) Propose(t cluster.ProposalType, data []byte) (resp any, err error
 
 	result := <-await
 	return result.resp, result.err
+}
+
+func (n *node) ReadState() error {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	id, await := n.readStateReporter.Await()
+	defer n.readStateReporter.Close(id)
+
+	rctx := make([]byte, 8)
+	binary.LittleEndian.PutUint64(rctx, id)
+	err := n.raft.ReadIndex(ctx, rctx)
+	if err != nil {
+		return err
+	}
+
+	select {
+	case <-ctx.Done():
+		return context.Cause(ctx)
+	case err := <-await:
+		return err
+	}
 }
 
 func encodeProposal(id uint64, t uint32, data []byte) []byte {
