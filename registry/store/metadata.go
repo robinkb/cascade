@@ -13,18 +13,19 @@ import (
 var (
 	ErrRepositoryNotFound = errors.New("repository not found")
 	ErrRepositoryExists   = errors.New("repository with the given name already exists")
-	ErrBlobNotFound       = errors.New("blob not found in repository")
+	ErrBlobNotFound       = errors.New("blob not found")
+	ErrLinkNotFound       = errors.New("blob not linked in repository")
 	ErrManifestNotFound   = errors.New("manifest not found")
 	ErrTagNotFound        = errors.New("tag not found")
 	ErrUploadNotFound     = errors.New("upload session not found")
 
-	ErrManifestInvalid         = errors.New("manifest invalid") // usually paired with more detailed errors below
+	ErrManifestInvalid         = errors.New("manifest invalid") // paired with more detailed errors below
 	ErrManifestConfigNotFound  = errors.New("blob referenced in manifest config descriptor not found")
 	ErrManifestLayerNotFound   = errors.New("blob referenced in manifest layers not found")
 	ErrManifestImageNotFound   = errors.New("manifest referenced in image index not found")
 	ErrManifestSubjectNotFound = errors.New("subject referenced in manifest not found")
 
-	ErrBlobInUse     = errors.New("blob cannot be deleted because it is in use")
+	ErrLinkInUse     = errors.New("blob cannot be unlinked because it is in use")
 	ErrManifestInUse = errors.New("manifest cannot be deleted because it is in use")
 )
 
@@ -50,9 +51,9 @@ type (
 	}
 
 	Repository interface {
-		GetBlob(id digest.Digest) error
-		PutBlob(id digest.Digest) error
-		DeleteBlob(id digest.Digest) error
+		GetLink(id digest.Digest) error
+		PutLink(id digest.Digest) error
+		DeleteLink(id digest.Digest) error
 
 		GetManifest(id digest.Digest) (Manifest, error)
 		PutManifest(id digest.Digest, meta Manifest, refs References) error

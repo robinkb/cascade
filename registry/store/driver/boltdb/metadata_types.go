@@ -13,39 +13,40 @@ import (
 )
 
 // Types for wrapping BoltDB queries to codify the database structure.
-// sharedBlobs contains the metadata of all the blobs in the blob store.
-type sharedBlobs struct {
+
+// blobs contains the metadata of all the blobs in the blob store.
+type blobs struct {
 	b *bolt.Bucket
 }
 
-func (o sharedBlobs) blob(id digest.Digest) sharedBlob {
-	return sharedBlob{o.b.Bucket([]byte(id))}
+func (o blobs) blob(id digest.Digest) blob {
+	return blob{o.b.Bucket([]byte(id))}
 }
 
-func (o sharedBlobs) addBlob(id digest.Digest) sharedBlob {
+func (o blobs) addBlob(id digest.Digest) blob {
 	b, _ := o.b.CreateBucketIfNotExists([]byte(id))
-	return sharedBlob{b}
+	return blob{b}
 }
 
-func (o sharedBlobs) removeBlob(id digest.Digest) {
+func (o blobs) removeBlob(id digest.Digest) {
 	must(o.b.DeleteBucket([]byte(id)))
 }
 
-// sharedBlob represents a single blob in the blob store.
+// blob represents a single blob in the blob store.
 // It tracks which repositories owns each blob.
-type sharedBlob struct {
+type blob struct {
 	b *bolt.Bucket
 }
 
-func (o sharedBlob) addOwner(name string) {
+func (o blob) addOwner(name string) {
 	must(o.b.Put([]byte(name), nil))
 }
 
-func (o sharedBlob) removeOwner(name string) {
+func (o blob) removeOwner(name string) {
 	must(o.b.Delete([]byte(name)))
 }
 
-func (o sharedBlob) hasOwners() bool {
+func (o blob) hasOwners() bool {
 	return o.b.Inspect().KeyN != 0
 }
 
@@ -54,8 +55,8 @@ type repository struct {
 	b *bolt.Bucket
 }
 
-func (o repository) blobs() repoBlobs {
-	return repoBlobs{o.b.Bucket(_BLOBS)}
+func (o repository) links() links {
+	return links{o.b.Bucket(_BLOBS)}
 }
 
 func (o repository) manifests() manifests {
@@ -70,40 +71,40 @@ func (o repository) uploads() uploads {
 	return uploads{o.b.Bucket(_UPLOADS)}
 }
 
-// repoBlobs contains metadata of blobs belonging to a specific repository.
-type repoBlobs struct {
+// links contains metadata of blobs linked in a repository.
+type links struct {
 	b *bolt.Bucket
 }
 
-func (o repoBlobs) blob(id digest.Digest) repoBlob {
-	return repoBlob{o.b.Bucket([]byte(id))}
+func (o links) link(id digest.Digest) link {
+	return link{o.b.Bucket([]byte(id))}
 }
 
-func (o repoBlobs) addBlob(id digest.Digest) repoBlob {
+func (o links) addLink(id digest.Digest) link {
 	b, _ := o.b.CreateBucket([]byte(id))
-	return repoBlob{b}
+	return link{b}
 
 }
 
-func (o repoBlobs) removeBlob(id digest.Digest) {
+func (o links) removeLink(id digest.Digest) {
 	must(o.b.DeleteBucket([]byte(id)))
 }
 
-type repoBlob struct {
+type link struct {
 	b *bolt.Bucket
 }
 
-func (o repoBlob) found() bool { return o.b != nil }
+func (o link) found() bool { return o.b != nil }
 
-func (o repoBlob) addOwner(id digest.Digest) {
+func (o link) addOwner(id digest.Digest) {
 	must(o.b.Put([]byte(id), nil))
 }
 
-func (o repoBlob) removeOwner(id digest.Digest) {
+func (o link) removeOwner(id digest.Digest) {
 	must(o.b.Delete([]byte(id)))
 }
 
-func (o repoBlob) hasOwners() bool {
+func (o link) hasOwners() bool {
 	return o.b.Inspect().KeyN != 0
 }
 

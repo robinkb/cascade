@@ -14,9 +14,9 @@ func (s *repositoryService) StatBlob(id string) (*store.BlobInfo, error) {
 		return nil, ErrBlobUnknown
 	}
 
-	err = s.repo.GetBlob(digest)
+	err = s.repo.GetLink(digest)
 	if err != nil {
-		if errors.Is(err, store.ErrBlobNotFound) {
+		if errors.Is(err, store.ErrLinkNotFound) {
 			err = ErrBlobUnknown
 		}
 		return nil, err
@@ -31,9 +31,9 @@ func (s *repositoryService) GetBlob(id string) (io.Reader, error) {
 		return nil, ErrBlobUnknown
 	}
 
-	err = s.repo.GetBlob(digest)
+	err = s.repo.GetLink(digest)
 	if err != nil {
-		if errors.Is(err, store.ErrBlobNotFound) {
+		if errors.Is(err, store.ErrLinkNotFound) {
 			err = ErrBlobUnknown
 		}
 		return nil, err
@@ -48,5 +48,5 @@ func (s *repositoryService) DeleteBlob(id string) error {
 		return ErrBlobUnknown
 	}
 
-	return s.repo.DeleteBlob(digest)
+	return s.repo.DeleteLink(digest)
 }

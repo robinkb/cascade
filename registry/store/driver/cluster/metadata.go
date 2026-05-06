@@ -10,8 +10,8 @@ import (
 const (
 	tCreateRepository cluster.ProposalType = iota + 100
 	tDeleteRepository
-	tPutBlobMeta
-	tDeleteBlobMeta
+	tPutLink
+	tDeleteLink
 	tPutManifest
 	tDeleteManifest
 	tPutTag
@@ -28,8 +28,8 @@ func NewMetadataStore(proposer cluster.Proposer, meta store.Metadata) store.Meta
 
 	proposer.Handle(tCreateRepository, s.createRepository)
 	proposer.Handle(tDeleteRepository, s.deleteRepository)
-	proposer.Handle(tPutBlobMeta, s.putBlob)
-	proposer.Handle(tDeleteBlobMeta, s.deleteBlob)
+	proposer.Handle(tPutLink, s.putLink)
+	proposer.Handle(tDeleteLink, s.deleteLink)
 	proposer.Handle(tPutManifest, s.putManifest)
 	proposer.Handle(tDeleteManifest, s.deleteManifest)
 	proposer.Handle(tPutTag, s.putTag)
@@ -109,53 +109,53 @@ type repositoryStore struct {
 	name     string
 }
 
-type pPutBlobMeta struct {
+type pPutLink struct {
 	Name string
 	ID   digest.Digest
 }
 
-func (s *repositoryStore) PutBlob(id digest.Digest) error {
-	p := &pPutBlobMeta{
+func (s *repositoryStore) PutLink(id digest.Digest) error {
+	p := &pPutLink{
 		Name: s.name,
 		ID:   id,
 	}
-	_, err := s.proposer.Propose(tPutBlobMeta, mustMarshal(p))
+	_, err := s.proposer.Propose(tPutLink, mustMarshal(p))
 	return err
 }
 
-func (m *metadataStore) putBlob(data []byte) (resp any, err error) {
-	v := new(pPutBlobMeta)
+func (m *metadataStore) putLink(data []byte) (resp any, err error) {
+	v := new(pPutLink)
 	mustUnmarshal(data, v)
 	repo, err := m.Metadata.GetRepository(v.Name)
 	if err != nil {
 		return nil, err
 	}
-	err = repo.PutBlob(v.ID)
+	err = repo.PutLink(v.ID)
 	return
 }
 
-type pDeleteBlobMeta struct {
+type pDeleteLink struct {
 	Name string
 	ID   digest.Digest
 }
 
-func (s *repositoryStore) DeleteBlob(id digest.Digest) error {
-	p := &pDeleteBlobMeta{
+func (s *repositoryStore) DeleteLink(id digest.Digest) error {
+	p := &pDeleteLink{
 		Name: s.name,
 		ID:   id,
 	}
-	_, err := s.proposer.Propose(tDeleteBlobMeta, mustMarshal(p))
+	_, err := s.proposer.Propose(tDeleteLink, mustMarshal(p))
 	return err
 }
 
-func (m *metadataStore) deleteBlob(data []byte) (resp any, err error) {
-	v := new(pDeleteBlobMeta)
+func (m *metadataStore) deleteLink(data []byte) (resp any, err error) {
+	v := new(pDeleteLink)
 	mustUnmarshal(data, v)
 	repo, err := m.Metadata.GetRepository(v.Name)
 	if err != nil {
 		return nil, err
 	}
-	err = repo.DeleteBlob(v.ID)
+	err = repo.DeleteLink(v.ID)
 	return
 }
 

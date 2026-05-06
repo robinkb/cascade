@@ -224,17 +224,17 @@ type repositoryStore struct {
 	db   *bolt.DB
 }
 
-func (r *repositoryStore) GetBlob(id digest.Digest) error {
+func (r *repositoryStore) GetLink(id digest.Digest) error {
 	return r.db.View(func(tx *bolt.Tx) error {
-		blob := r.repository(tx).blobs().blob(id)
+		blob := r.repository(tx).links().link(id)
 		if !blob.found() {
-			return fmt.Errorf("%w: %s", store.ErrBlobNotFound, id)
+			return fmt.Errorf("%w: %s", store.ErrLinkNotFound, id)
 		}
 		return nil
 	})
 }
 
-func (r *repositoryStore) PutBlob(id digest.Digest) error {
+func (r *repositoryStore) PutLink(id digest.Digest) error {
 	return r.db.Update(func(tx *bolt.Tx) error {
 		return r.putBlob(tx, id)
 	})
@@ -242,11 +242,11 @@ func (r *repositoryStore) PutBlob(id digest.Digest) error {
 
 func (r *repositoryStore) putBlob(tx *bolt.Tx, id digest.Digest) error {
 	r.blobs(tx).addBlob(id).addOwner(r.name)
-	r.repository(tx).blobs().addBlob(id)
+	r.repository(tx).links().addLink(id)
 	return nil
 }
 
-func (r *repositoryStore) DeleteBlob(id digest.Digest) error {
+func (r *repositoryStore) DeleteLink(id digest.Digest) error {
 	return r.db.Update(func(tx *bolt.Tx) error {
 		return r.deleteBlob(tx, id)
 	})
@@ -254,16 +254,16 @@ func (r *repositoryStore) DeleteBlob(id digest.Digest) error {
 
 func (r *repositoryStore) deleteBlob(tx *bolt.Tx, id digest.Digest) error {
 	{ // repository blobs
-		blobs := r.repository(tx).blobs()
-		blob := blobs.blob(id)
+		blobs := r.repository(tx).links()
+		blob := blobs.link(id)
 		if !blob.found() {
-			return fmt.Errorf("%w: %s", store.ErrBlobNotFound, id)
+			return fmt.Errorf("%w: %s", store.ErrLinkNotFound, id)
 		}
 		if blob.hasOwners() {
-			return fmt.Errorf("%w: %s", store.ErrBlobInUse, id)
+			return fmt.Errorf("%w: %s", store.ErrLinkInUse, id)
 		}
 
-		blobs.removeBlob(id)
+		blobs.removeLink(id)
 	}
 	{ // shared blobs
 		blobs := r.blobs(tx)
@@ -299,9 +299,9 @@ func (r *repositoryStore) PutManifest(id digest.Digest, meta store.Manifest, ref
 	return r.db.Update(func(tx *bolt.Tx) error {
 		repo := r.repository(tx)
 
-		blobs := repo.blobs()
+		blobs := repo.links()
 		if refs.Config != "" {
-			configBlob := blobs.blob(refs.Config)
+			configBlob := blobs.link(refs.Config)
 			if !configBlob.found() {
 				return fmt.Errorf("%w: %w: %s", store.ErrManifestInvalid, store.ErrManifestConfigNotFound, refs.Config)
 			}
@@ -309,7 +309,7 @@ func (r *repositoryStore) PutManifest(id digest.Digest, meta store.Manifest, ref
 		}
 
 		for _, layerDigest := range refs.Layers {
-			layerBlob := blobs.blob(layerDigest)
+			layerBlob := blobs.link(layerDigest)
 			if !layerBlob.found() {
 				return fmt.Errorf("%w: %w: %s", store.ErrManifestInvalid, store.ErrManifestLayerNotFound, layerDigest)
 			}
@@ -337,7 +337,7 @@ func (r *repositoryStore) PutManifest(id digest.Digest, meta store.Manifest, ref
 		if err := r.putBlob(tx, id); err != nil {
 			return err
 		}
-		blobs.blob(id).addOwner(id)
+		blobs.link(id).addOwner(id)
 		return nil
 	})
 }
@@ -375,11 +375,11 @@ func (r *repositoryStore) deleteManifest(tx *bolt.Tx, id digest.Digest) ([]diges
 
 	refs := manifest.references()
 
-	blobs := repo.blobs()
+	blobs := repo.links()
 	if refs.Config != "" {
-		blobs.blob(refs.Config).removeOwner(id)
+		blobs.link(refs.Config).removeOwner(id)
 		if err := r.deleteBlob(tx, refs.Config); err != nil {
-			if !errors.Is(err, store.ErrBlobInUse) {
+			if !errors.Is(err, store.ErrLinkInUse) {
 				return nil, err
 			}
 		} else {
@@ -388,14 +388,14 @@ func (r *repositoryStore) deleteManifest(tx *bolt.Tx, id digest.Digest) ([]diges
 	}
 
 	for _, layerDigest := range refs.Layers {
-		blob := blobs.blob(layerDigest)
+		blob := blobs.link(layerDigest)
 		if !blob.found() {
 			continue
 		}
 		blob.removeOwner(id)
 
 		if err := r.deleteBlob(tx, layerDigest); err != nil {
-			if errors.Is(err, store.ErrBlobInUse) {
+			if errors.Is(err, store.ErrLinkInUse) {
 				continue
 			}
 			return nil, err
@@ -442,7 +442,7 @@ func (r *repositoryStore) deleteManifest(tx *bolt.Tx, id digest.Digest) ([]diges
 
 	manifests.removeManifest(id)
 
-	blobs.blob(id).removeOwner(id)
+	blobs.link(id).removeOwner(id)
 	if err := r.deleteBlob(tx, id); err != nil {
 		return nil, err
 	}
@@ -582,8 +582,8 @@ func (r *repositoryStore) DeleteUploadSession(id uuid.UUID) error {
 	})
 }
 
-func (r *repositoryStore) blobs(tx *bolt.Tx) sharedBlobs {
-	return sharedBlobs{
+func (r *repositoryStore) blobs(tx *bolt.Tx) blobs {
+	return blobs{
 		b: tx.Bucket(_BLOBS),
 	}
 }

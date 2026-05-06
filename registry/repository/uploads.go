@@ -151,7 +151,7 @@ func (s *repositoryService) CloseUpload(sessionID, digest string) error {
 		return err
 	}
 
-	err = s.repo.PutBlob(calculatedId)
+	err = s.repo.PutLink(calculatedId)
 	if err != nil {
 		return err
 	}
