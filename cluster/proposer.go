@@ -24,5 +24,8 @@ type (
 		// Propose panics if a HandlerFunc has not been registered
 		// for the given proposal type using Handle.
 		Propose(t ProposalType, data []byte) (resp any, err error)
+		// ReadState waits until the Proposer is caught up with the rest of the cluster
+		// before proceeding.
+		ReadState() error
 	}
 )

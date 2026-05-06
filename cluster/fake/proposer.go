@@ -38,3 +38,7 @@ func (p *Proposer) Propose(t cluster.ProposalType, data []byte) (resp any, err e
 	p.Proposals++
 	return f(data)
 }
+
+func (p *Proposer) ReadState() error {
+	return nil
+}

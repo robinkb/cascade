@@ -2,6 +2,7 @@ package raft
 
 import (
 	"bytes"
+	"encoding/binary"
 	"fmt"
 	"log"
 	"net/http"
@@ -56,6 +57,9 @@ func NewNode(id uint64, addr string, storage *DiskStorage, restorer cluster.Rest
 		proposalHandlers: make(map[cluster.ProposalType]cluster.ProposalFunc),
 		proposalReporter: NewReporter[result](),
 
+		readStates:        make(map[uint64]uint64),
+		readStateReporter: NewReporter[error](),
+
 		clients:            cluster.NewClients[Client](),
 		confChangeReporter: NewReporter[error](),
 	}
@@ -80,6 +84,9 @@ type node struct {
 	proposalHandlers map[cluster.ProposalType]cluster.ProposalFunc
 	// proposalReporter returns the result of proposal functions back to the caller.
 	proposalReporter Reporter[result]
+
+	readStates        map[uint64]uint64
+	readStateReporter Reporter[error]
 
 	clients            cluster.Clients[Client]
 	confChangeReporter Reporter[error]
@@ -108,6 +115,7 @@ func (n *node) Run() error {
 			n.send(rd.Messages)
 			n.restore(rd.Snapshot)
 			n.process(rd.CommittedEntries)
+			n.check(rd.ReadStates)
 			n.raft.Advance()
 		case <-n.ticker:
 			n.raft.Tick()
@@ -220,6 +228,21 @@ func (n *node) filter(entries []raftpb.Entry) []raftpb.Entry {
 		// Heartbeats send empty entries, which we don't need to process.
 		return len(e.Data) == 0
 	})
+}
+
+func (n *node) check(rs []raft.ReadState) {
+	for _, state := range rs {
+		id := binary.LittleEndian.Uint64(state.RequestCtx)
+		n.readStates[id] = state.Index
+	}
+
+	for id, readIndex := range n.readStates {
+		if n.storage.AppliedIndex() >= readIndex {
+			if ch, ok := n.readStateReporter.Send(id); ok {
+				ch <- nil
+			}
+		}
+	}
 }
 
 // Name implements [process.Runnable.Shutdown].

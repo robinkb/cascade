@@ -272,6 +272,14 @@ func (m *metadataStore) deleteTag(data []byte) (resp any, err error) {
 	return
 }
 
+func (s *repositoryStore) GetUploadSession(id uuid.UUID) (*store.UploadSession, error) {
+	if err := s.proposer.ReadState(); err != nil {
+		return nil, err
+	}
+
+	return s.Repository.GetUploadSession(id)
+}
+
 type pPutUploadSession struct {
 	Name    string
 	Session *store.UploadSession
