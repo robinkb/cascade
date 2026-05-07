@@ -14,6 +14,7 @@ require (
 	golang.org/x/crypto/x509roots/fallback v0.0.0-20260323153451-8400f4a93807
 	golang.org/x/exp v0.0.0-20260212183809-81e46e3db34a
 	golang.org/x/sync v0.20.0
+	google.golang.org/protobuf v1.36.5
 )
 
 tool github.com/vektra/mockery/v3
@@ -57,6 +58,5 @@ require (
 	golang.org/x/term v0.40.0 // indirect
 	golang.org/x/text v0.34.0 // indirect
 	golang.org/x/tools v0.42.0 // indirect
-	google.golang.org/protobuf v1.36.5 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
