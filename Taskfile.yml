@@ -1,0 +1,71 @@
+# yaml-language-server: $schema=https://taskfile.dev/schema.json
+version: "3"
+
+set:
+  - errexit
+  - nounset
+  - pipefail
+
+tasks:
+  # Public tasks
+  clean:
+    desc: remove all build artifacts
+    cmds:
+      - rm -rf out/
+
+  build:
+    desc: compile the main binary
+    deps:
+      - out-dir
+    cmds:
+      - go build -o out/ ./cmd/cascade-registry
+
+  compose:
+    desc: start a cluster of registries
+    cmds:
+      - defer: podman compose -f compose/compose.yaml down
+      - cmd: podman compose -f compose/compose.yaml up
+
+  test:
+    desc: run tests
+    cmds:
+      - go test ./... -timeout=15s
+
+  coverage:
+    desc: calculate the total test coverage
+    deps:
+      - out-dir
+    cmds:
+      - cmd: go list ./... | grep -v 'mock' > out/cover-packages.txt
+      - cmd: go test ./... -timeout=15s -coverpkg=$(cat out/cover-packages.txt | paste -sd ,) -coverprofile=out/cover.txt > /dev/null
+      - cmd: go tool cover -func=out/cover.txt | grep "total:" | awk '{print $3}'
+
+  generate:
+    desc: build generated code
+    cmds:
+      - go tool mockery --log-level error
+      - buf generate
+
+  lint:
+    desc: run static quality checks
+    cmds:
+      - go mod tidy -diff
+      - buf format --write
+      - golangci-lint run ./... --fix
+
+  pr:
+    desc: run checks to validate a pull request
+    deps:
+      - generate
+      - lint
+      - test
+    cmds:
+      - git diff --exit-code
+
+  # Internal tasks
+  out-dir:
+    desc: ensures that the "out" dir exists for writing build artifacts
+    cmds:
+      - mkdir -p out
+    internal: true
+    silent: true
