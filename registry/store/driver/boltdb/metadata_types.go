@@ -1,8 +1,6 @@
 package boltdb
 
 import (
-	"bytes"
-	"encoding/gob"
 	"fmt"
 	"iter"
 
@@ -122,14 +120,8 @@ func (o manifests) addManifest(id digest.Digest, meta store.Manifest, refs store
 	for _, bucket := range manifestBuckets {
 		must(b.CreateBucketIfNotExists(bucket))
 	}
-
-	buf := new(bytes.Buffer)
-	must(gob.NewEncoder(buf).Encode(&meta))
-	must(b.Put(_METADATA, buf.Bytes()))
-
-	buf = new(bytes.Buffer)
-	must(gob.NewEncoder(buf).Encode(&refs))
-	must(b.Put(_REFERENCES, buf.Bytes()))
+	must(b.Put(_METADATA, meta.Marshal()))
+	must(b.Put(_REFERENCES, refs.Marshal()))
 
 	return manifest{b}
 }
@@ -146,15 +138,13 @@ func (o manifest) found() bool { return o.b != nil }
 
 func (o manifest) metadata() (meta store.Manifest) {
 	data := o.b.Get(_METADATA)
-	buf := bytes.NewBuffer(data)
-	must(gob.NewDecoder(buf).Decode(&meta))
+	meta.Unmarshal(data)
 	return
 }
 
 func (o manifest) references() (refs store.References) {
 	data := o.b.Get(_REFERENCES)
-	buf := bytes.NewBuffer(data)
-	must(gob.NewDecoder(buf).Decode(&refs))
+	refs.Unmarshal(data)
 	return
 }
 
@@ -228,21 +218,18 @@ type uploads struct {
 	b *bolt.Bucket
 }
 
-func (o uploads) upload(id uuid.UUID) *store.UploadSession {
+func (o uploads) upload(id uuid.UUID) (session *store.UploadSession) {
 	data := o.b.Get(id.Bytes())
 	if data == nil {
 		return nil
 	}
-	var upload *store.UploadSession
-	buf := bytes.NewBuffer(data)
-	must(gob.NewDecoder(buf).Decode(&upload))
-	return upload
+	session = new(store.UploadSession)
+	session.Unmarshal(data)
+	return
 }
 
 func (o uploads) putUpload(upload *store.UploadSession) {
-	buf := new(bytes.Buffer)
-	must(gob.NewEncoder(buf).Encode(upload))
-	must(o.b.Put(upload.ID.Bytes(), buf.Bytes()))
+	must(o.b.Put(upload.ID.Bytes(), upload.Marshal()))
 }
 
 func (o uploads) removeUpload(id uuid.UUID) {
