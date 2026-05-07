@@ -13,7 +13,8 @@ import (
 	"github.com/robinkb/cascade/cluster"
 	"github.com/robinkb/cascade/cluster/raft"
 	"github.com/robinkb/cascade/cluster/raft/qwal"
-	"github.com/robinkb/cascade/process"
+	"github.com/robinkb/cascade/pkg/process"
+	"github.com/robinkb/cascade/pkg/server"
 	"github.com/robinkb/cascade/registry"
 	registryapi "github.com/robinkb/cascade/registry/api/v2"
 	"github.com/robinkb/cascade/registry/store"
@@ -21,7 +22,6 @@ import (
 	"github.com/robinkb/cascade/registry/store/driver/boltdb"
 	clusterstore "github.com/robinkb/cascade/registry/store/driver/cluster"
 	"github.com/robinkb/cascade/registry/store/driver/fs"
-	"github.com/robinkb/cascade/server"
 
 	// Embed tzdata to run from scratch.
 	_ "time/tzdata"

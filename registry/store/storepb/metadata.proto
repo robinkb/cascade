@@ -1,0 +1,29 @@
+edition = "2024";
+package storepb;
+
+import "google/protobuf/timestamp.proto";
+
+option go_package = "registry/store/storepb";
+
+// Manifest is the Protobuf representation of [github.com/robinkb/cascade/registry/store.Manifest].
+message Manifest {
+  map<string, string> annotations = 1;
+  string artifact_type = 2;
+  string media_type = 3;
+  int64 size = 4;
+}
+
+// References is the Protobuf representation of [github.com/robinkb/cascade/registry/store.References].
+message References {
+  string config = 1;
+  repeated string layers = 2;
+  repeated string manifests = 3;
+  string subject = 4;
+}
+
+// UploadSession is the Protobuf representation of [github.com/robinkb/cascade/registry/store.UploadSession].
+message UploadSession {
+  bytes id = 1;
+  google.protobuf.Timestamp start_date = 2;
+  bytes hash_state = 3;
+}

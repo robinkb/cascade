@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/robinkb/cascade/cluster"
-	"github.com/robinkb/cascade/process"
+	"github.com/robinkb/cascade/pkg/process"
 	"go.etcd.io/raft/v3"
 	"go.etcd.io/raft/v3/raftpb"
 )
