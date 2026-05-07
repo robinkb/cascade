@@ -7,11 +7,12 @@
 package storepb
 
 import (
+	reflect "reflect"
+	unsafe "unsafe"
+
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	timestamppb "google.golang.org/protobuf/types/known/timestamppb"
-	reflect "reflect"
-	unsafe "unsafe"
 )
 
 const (
@@ -21,7 +22,7 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
-// Manifest represents the metadata of a manifest that is stored in the MetadataStore.
+// Manifest is the Protobuf representation of [github.com/robinkb/cascade/registry/store.Manifest].
 type Manifest struct {
 	state                   protoimpl.MessageState `protogen:"opaque.v1"`
 	xxx_hidden_Annotations  map[string]string      `protobuf:"bytes,1,rep,name=annotations" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
@@ -177,8 +178,7 @@ func (b0 Manifest_builder) Build() *Manifest {
 	return m0
 }
 
-// References defines the various ways in which a manifest can point to other objects in the registry.
-// These are mostly used to establish links between objects for garbage collection.
+// References is the Protobuf representation of [github.com/robinkb/cascade/registry/store.References].
 type References struct {
 	state                  protoimpl.MessageState `protogen:"opaque.v1"`
 	xxx_hidden_Config      *string                `protobuf:"bytes,1,opt,name=config"`
@@ -295,18 +295,10 @@ func (x *References) ClearSubject() {
 type References_builder struct {
 	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
 
-	// Config references a configuration object for a container like in an OCI Image Manifest.
-	// It is used for tracking links from image manifests to a blob for garbage collection.
-	Config *string
-	// Layers is a slice of digests pointing to blobs like in an OCI Image Manifest.
-	// It is used for tracking links from image manifests to blobs for garbage collection.
-	Layers []string
-	// Manifests is a slice of digests pointing to other manifests like in an OCI Image Index.
-	// It is used for tracking links from image index manifests to other manifests for garbage collection.
+	Config    *string
+	Layers    []string
 	Manifests []string
-	// Subject is a digest pointing to another manifest as used by the Referrers API.
-	// Besides being used for the Referrers API, it is also used for garbage collection.
-	Subject *string
+	Subject   *string
 }
 
 func (b0 References_builder) Build() *References {
@@ -326,6 +318,7 @@ func (b0 References_builder) Build() *References {
 	return m0
 }
 
+// UploadSession is the Protobuf representation of [github.com/robinkb/cascade/registry/store.UploadSession].
 type UploadSession struct {
 	state                  protoimpl.MessageState `protogen:"opaque.v1"`
 	xxx_hidden_Id          []byte                 `protobuf:"bytes,1,opt,name=id"`

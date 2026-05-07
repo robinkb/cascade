@@ -5,7 +5,7 @@ import "google/protobuf/timestamp.proto";
 
 option go_package = "registry/store/storepb";
 
-// Manifest represents the metadata of a manifest that is stored in the MetadataStore.
+// Manifest is the Protobuf representation of [github.com/robinkb/cascade/registry/store.Manifest].
 message Manifest {
   map<string, string> annotations = 1;
   string artifact_type = 2;
@@ -13,23 +13,15 @@ message Manifest {
   int64 size = 4;
 }
 
-// References defines the various ways in which a manifest can point to other objects in the registry.
-// These are mostly used to establish links between objects for garbage collection.
+// References is the Protobuf representation of [github.com/robinkb/cascade/registry/store.References].
 message References {
-  // Config references a configuration object for a container like in an OCI Image Manifest.
-  // It is used for tracking links from image manifests to a blob for garbage collection.
   string config = 1;
-  // Layers is a slice of digests pointing to blobs like in an OCI Image Manifest.
-  // It is used for tracking links from image manifests to blobs for garbage collection.
   repeated string layers = 2;
-  // Manifests is a slice of digests pointing to other manifests like in an OCI Image Index.
-  // It is used for tracking links from image index manifests to other manifests for garbage collection.
   repeated string manifests = 3;
-  // Subject is a digest pointing to another manifest as used by the Referrers API.
-  // Besides being used for the Referrers API, it is also used for garbage collection.
   string subject = 4;
 }
 
+// UploadSession is the Protobuf representation of [github.com/robinkb/cascade/registry/store.UploadSession].
 message UploadSession {
   bytes id = 1;
   google.protobuf.Timestamp start_date = 2;
