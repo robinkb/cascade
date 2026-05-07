@@ -7,10 +7,11 @@ import (
 
 	"github.com/gofrs/uuid/v5"
 	"github.com/opencontainers/go-digest"
+	tmock "github.com/stretchr/testify/mock"
+
 	"github.com/robinkb/cascade/registry/repository"
 	. "github.com/robinkb/cascade/testing"
 	"github.com/robinkb/cascade/testing/repository/mock"
-	tmock "github.com/stretchr/testify/mock"
 )
 
 func TestBlobUploadsMonolithic(t *testing.T) {

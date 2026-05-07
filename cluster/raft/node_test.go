@@ -7,12 +7,13 @@ import (
 	"testing"
 	"time"
 
+	"go.etcd.io/raft/v3"
+
 	"github.com/robinkb/cascade/cluster"
 	"github.com/robinkb/cascade/cluster/fake"
 	"github.com/robinkb/cascade/cluster/raft/qwal"
 	"github.com/robinkb/cascade/pkg/server"
 	. "github.com/robinkb/cascade/testing"
-	"go.etcd.io/raft/v3"
 )
 
 func TestNodeLifecycle(t *testing.T) {

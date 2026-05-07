@@ -7,6 +7,7 @@ import (
 	"strconv"
 
 	"github.com/opencontainers/go-digest"
+
 	"github.com/robinkb/cascade/registry/repository"
 )
 

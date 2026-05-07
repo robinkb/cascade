@@ -6,8 +6,9 @@ import (
 
 	"github.com/gofrs/uuid/v5"
 	"github.com/opencontainers/go-digest"
-	"github.com/robinkb/cascade/registry/store"
 	bolt "go.etcd.io/bbolt"
+
+	"github.com/robinkb/cascade/registry/store"
 )
 
 // Types for wrapping BoltDB queries to codify the database structure.

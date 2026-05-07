@@ -8,6 +8,7 @@ import (
 
 	"github.com/opencontainers/go-digest"
 	v1 "github.com/opencontainers/image-spec/specs-go/v1"
+
 	"github.com/robinkb/cascade/registry/store"
 	. "github.com/robinkb/cascade/testing"
 	. "github.com/robinkb/cascade/testing/repository"

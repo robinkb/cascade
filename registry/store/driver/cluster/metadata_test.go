@@ -3,11 +3,12 @@ package cluster
 import (
 	"testing"
 
+	"github.com/stretchr/testify/suite"
+
 	"github.com/robinkb/cascade/cluster/fake"
 	"github.com/robinkb/cascade/registry/store"
 	"github.com/robinkb/cascade/registry/store/driver/inmemory"
 	storesuite "github.com/robinkb/cascade/registry/store/suite"
-	"github.com/stretchr/testify/suite"
 )
 
 func TestMetadataSuite(t *testing.T) {

@@ -9,10 +9,11 @@ import (
 
 	"github.com/opencontainers/go-digest"
 	v1 "github.com/opencontainers/image-spec/specs-go/v1"
+	"github.com/stretchr/testify/suite"
+
 	"github.com/robinkb/cascade/registry/store"
 	. "github.com/robinkb/cascade/testing"            // nolint: staticcheck
 	. "github.com/robinkb/cascade/testing/repository" // nolint: staticcheck
-	"github.com/stretchr/testify/suite"
 )
 
 type MetadataStoreConstructor func(t *testing.T) store.Metadata

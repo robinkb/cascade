@@ -4,6 +4,7 @@ import (
 	"errors"
 
 	"github.com/opencontainers/go-digest"
+
 	"github.com/robinkb/cascade/registry/store"
 )
 
