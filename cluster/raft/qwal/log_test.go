@@ -7,8 +7,9 @@ import (
 	"syscall"
 	"testing"
 
-	. "github.com/robinkb/cascade/testing"
 	"golang.org/x/exp/mmap"
+
+	. "github.com/robinkb/cascade/testing"
 )
 
 func testReaderWriter(t testing.TB) (io.ReaderAt, io.WriteSeeker) {

@@ -8,10 +8,11 @@ import (
 
 	"github.com/gofrs/uuid/v5"
 	"github.com/opencontainers/go-digest"
-	"github.com/robinkb/cascade/pkg/pbutil"
-	"github.com/robinkb/cascade/registry/store/storepb"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
+
+	"github.com/robinkb/cascade/pkg/pbutil"
+	"github.com/robinkb/cascade/registry/store/storepb"
 )
 
 var (

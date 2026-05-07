@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	v1 "github.com/opencontainers/distribution-spec/specs-go/v1"
+
 	. "github.com/robinkb/cascade/testing"
 	testclient "github.com/robinkb/cascade/testing/client"
 	"github.com/robinkb/cascade/testing/registry/mock"

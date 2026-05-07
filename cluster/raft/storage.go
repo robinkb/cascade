@@ -4,10 +4,11 @@ import (
 	"bytes"
 	"fmt"
 
-	"github.com/robinkb/cascade/cluster"
-	"github.com/robinkb/cascade/cluster/raft/qwal"
 	"go.etcd.io/raft/v3"
 	"go.etcd.io/raft/v3/raftpb"
+
+	"github.com/robinkb/cascade/cluster"
+	"github.com/robinkb/cascade/cluster/raft/qwal"
 )
 
 const (

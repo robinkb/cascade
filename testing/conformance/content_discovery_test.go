@@ -7,6 +7,7 @@ import (
 
 	distributionv1 "github.com/opencontainers/distribution-spec/specs-go/v1"
 	imagev1 "github.com/opencontainers/image-spec/specs-go/v1"
+
 	"github.com/robinkb/cascade/registry"
 	v2 "github.com/robinkb/cascade/registry/api/v2"
 	"github.com/robinkb/cascade/registry/store/driver/inmemory"

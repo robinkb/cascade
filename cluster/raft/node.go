@@ -9,10 +9,11 @@ import (
 	"slices"
 	"time"
 
-	"github.com/robinkb/cascade/cluster"
-	"github.com/robinkb/cascade/pkg/process"
 	"go.etcd.io/raft/v3"
 	"go.etcd.io/raft/v3/raftpb"
+
+	"github.com/robinkb/cascade/cluster"
+	"github.com/robinkb/cascade/pkg/process"
 )
 
 type (

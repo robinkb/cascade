@@ -5,9 +5,10 @@ import (
 	"testing"
 
 	"github.com/opencontainers/go-digest"
+	"github.com/stretchr/testify/suite"
+
 	"github.com/robinkb/cascade/registry/store"
 	. "github.com/robinkb/cascade/testing" // nolint: staticcheck
-	"github.com/stretchr/testify/suite"
 )
 
 type ReconcilerSuite struct {

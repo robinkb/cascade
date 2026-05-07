@@ -6,9 +6,10 @@ import (
 	"log"
 	"os"
 
+	"go.etcd.io/raft/v3/raftpb"
+
 	"github.com/robinkb/cascade/cluster/raft"
 	"github.com/robinkb/cascade/cluster/raft/qwal"
-	"go.etcd.io/raft/v3/raftpb"
 )
 
 var (

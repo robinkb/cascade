@@ -11,6 +11,7 @@ import (
 
 	"github.com/gofrs/uuid/v5"
 	"github.com/opencontainers/go-digest"
+
 	"github.com/robinkb/cascade/registry/store"
 )
 

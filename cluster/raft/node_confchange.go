@@ -7,8 +7,9 @@ import (
 	"log"
 	"time"
 
-	"github.com/robinkb/cascade/cluster"
 	"go.etcd.io/raft/v3/raftpb"
+
+	"github.com/robinkb/cascade/cluster"
 )
 
 // AsPeer returns a [cluster.Peer] representing this node.

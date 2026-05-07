@@ -8,9 +8,10 @@ import (
 
 	"github.com/gofrs/uuid/v5"
 	"github.com/opencontainers/go-digest"
+	"github.com/stretchr/testify/suite"
+
 	"github.com/robinkb/cascade/registry/store"
 	. "github.com/robinkb/cascade/testing" // nolint: staticcheck
-	"github.com/stretchr/testify/suite"
 )
 
 type BlobStoreConstructor func(t *testing.T) store.Blobs
