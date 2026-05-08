@@ -1,4 +1,4 @@
-name: Pull Requests
+name: Pull Request
 
 on:
   pull_request:
@@ -22,6 +22,8 @@ jobs:
           go-version: "1.26"
       - name: Set up Buf
         uses: bufbuild/buf-action@fd21066df7214747548607aaa45548ba2b9bc1ff
+        with:
+          setup_only: true
       - name: Generate
         run: task generate
       - name: Check
@@ -44,6 +46,8 @@ jobs:
           install-only: true
       - name: Set up Buf
         uses: bufbuild/buf-action@fd21066df7214747548607aaa45548ba2b9bc1ff
+        with:
+          setup_only: true
       - name: Lint
         run: task lint
 
