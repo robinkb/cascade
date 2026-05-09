@@ -3,9 +3,9 @@ package controller
 import (
 	"testing"
 
-	"k8s.io/client-go/rest"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-func testReconcilerLeader(t *testing.T, config *rest.Config) {
+func testReconcilerLeader(t *testing.T, client client.Client) {
 
 }

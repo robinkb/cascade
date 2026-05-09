@@ -2,13 +2,11 @@ package controller
 
 import (
 	"context"
-	"strconv"
 	"time"
 
 	discoveryv1 "k8s.io/api/discovery/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	discoveryv1ac "k8s.io/client-go/applyconfigurations/discovery/v1"
 	"k8s.io/utils/ptr"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -52,22 +50,6 @@ func (r *nodeReconciler) Reconcile(ctx context.Context, req ctrl.Request) (resul
 			}
 		}
 	}
-
-	esac := discoveryv1ac.EndpointSlice(req.Name, req.Namespace).
-		WithAnnotations(map[string]string{
-			AnnotationCascadeNodeID: strconv.FormatUint(uint64(99999), 10),
-		}).
-		WithEndpoints(discoveryv1ac.Endpoint().
-			WithAddresses("1.1.1.1"),
-		).
-		WithPorts(discoveryv1ac.EndpointPort().
-			WithPort(42000),
-		)
-
-	err = r.client.Apply(ctx, esac, &client.ApplyOptions{
-		Force:        ptr.To(true),
-		FieldManager: "cascade-node-controller",
-	})
 
 	return
 }
