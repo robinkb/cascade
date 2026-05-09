@@ -2,10 +2,8 @@ package controller
 
 import (
 	"context"
-	"time"
 
 	discoveryv1 "k8s.io/api/discovery/v1"
-	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/utils/ptr"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -24,64 +22,55 @@ const (
 	AnnotationCascadeNodeID string = "registry.cascade.redbreast.systems/node-id"
 )
 
+func newNodeReconciler(c client.Client) *nodeReconciler {
+	return &nodeReconciler{
+		client: c,
+		events: make(chan event.GenericEvent),
+	}
+}
+
 type nodeReconciler struct {
 	client client.Client
 	node   raft.Node
+	events chan event.GenericEvent
 }
 
 func (r *nodeReconciler) Reconcile(ctx context.Context, req ctrl.Request) (result ctrl.Result, err error) {
-	es := new(discoveryv1.EndpointSlice)
-	err = r.client.Get(ctx, req.NamespacedName, es)
-	if err != nil {
-		if apierrors.IsNotFound(err) {
-			err = r.client.Create(ctx, &discoveryv1.EndpointSlice{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:            req.Name,
-					Namespace:       req.Namespace,
-					Annotations:     make(map[string]string),
-					OwnerReferences: make([]metav1.OwnerReference, 0),
-				},
-				AddressType: discoveryv1.AddressTypeIPv4,
-				Endpoints:   make([]discoveryv1.Endpoint, 0),
-				Ports:       make([]discoveryv1.EndpointPort, 0),
-			})
-			if err != nil {
-				return
-			}
-		}
-	}
+	err = r.client.Create(ctx, &discoveryv1.EndpointSlice{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:            req.Name,
+			Namespace:       req.Namespace,
+			Annotations:     make(map[string]string),
+			OwnerReferences: make([]metav1.OwnerReference, 0),
+		},
+		AddressType: discoveryv1.AddressTypeIPv4,
+		Endpoints:   make([]discoveryv1.Endpoint, 0),
+		Ports:       make([]discoveryv1.EndpointPort, 0),
+	})
 
 	return
 }
 
+// Enqueue manually triggers the reconciler.
+func (r *nodeReconciler) Enqueue() {
+	r.events <- event.GenericEvent{
+		Object: &discoveryv1.EndpointSlice{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "foo",
+				Namespace: "kube-system",
+			},
+		},
+	}
+}
+
 func (r *nodeReconciler) SetupWithManager(mgr manager.Manager) error {
-	events := make(chan event.GenericEvent)
-
-	go func() {
-		ticker := time.Tick(10 * time.Minute)
-		for {
-			events <- event.GenericEvent{
-				Object: &discoveryv1.EndpointSlice{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "foo",
-						Namespace: "kube-system",
-					},
-				},
-			}
-			<-ticker
-		}
-	}()
-
 	return ctrl.NewControllerManagedBy(mgr).
 		Named("cascade-node-controller").
 		WithOptions(controller.TypedOptions[reconcile.Request]{
 			NeedLeaderElection: ptr.To(false),
 		}).
-		// TODO: Am I being difficult here? Should I just create the object with a Kubernetes client
-		// before the manager starts? That seems much easier... And simpler. Just keep it simple.
-		// And then reconcile on CUD events to restore it to expected state.
 		WatchesRawSource(source.Channel(
-			events, &handler.EnqueueRequestForObject{},
+			r.events, &handler.EnqueueRequestForObject{},
 		)).
 		Complete(r)
 }

@@ -7,5 +7,6 @@ import (
 )
 
 func testReconcilerLeader(t *testing.T, client client.Client) {
+	t.Parallel()
 
 }

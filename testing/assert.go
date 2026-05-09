@@ -28,6 +28,17 @@ func (r *TestResult) Require() {
 	}
 }
 
+func Assert(t testing.TB, got bool) *TestResult {
+	t.Helper()
+
+	if !got {
+		t.Error("assertion failed")
+		return &TestResult{t, false}
+	}
+
+	return &TestResult{t, true}
+}
+
 // AssertErrorIs uses errors.Is to assert that the given error matches all of the given targets.
 func AssertErrorIs(t testing.TB, got error, want ...error) *TestResult {
 	t.Helper()
@@ -184,6 +195,16 @@ func AssertIndex(t testing.TB, got, want *v1.Index) *TestResult {
 	return &TestResult{t, true}
 }
 
+func descriptorSortFunc(a, b v1.Descriptor) int {
+	if a.Digest.String() < b.Digest.String() {
+		return -1
+	}
+	if a.Digest.String() > b.Digest.String() {
+		return 1
+	}
+	return 0
+}
+
 func AssertEqual[T comparable](t testing.TB, got, want T) *TestResult {
 	t.Helper()
 
@@ -237,14 +258,4 @@ func AssertDeepEqual(t testing.TB, got, want any) *TestResult {
 
 func httpStatusText(code int) string {
 	return fmt.Sprintf("%d %s", code, http.StatusText(code))
-}
-
-func descriptorSortFunc(a, b v1.Descriptor) int {
-	if a.Digest.String() < b.Digest.String() {
-		return -1
-	}
-	if a.Digest.String() > b.Digest.String() {
-		return 1
-	}
-	return 0
 }
