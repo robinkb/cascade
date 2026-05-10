@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/robinkb/cascade/cluster"
+	"github.com/robinkb/cascade/cluster/controller"
 	"github.com/robinkb/cascade/cluster/raft"
 	"github.com/robinkb/cascade/cluster/raft/qwal"
 	"github.com/robinkb/cascade/pkg/process"
@@ -108,6 +109,12 @@ func main() {
 
 		metadata = clusterstore.NewMetadataStore(node, metadata)
 		blobs = clusterstore.NewBlobStore(node, blobs)
+
+		controller, err := controller.New(node)
+		if err != nil {
+			log.Fatal(err)
+		}
+		mgr.Register(controller)
 	}
 
 	srv := server.New(server.Options{

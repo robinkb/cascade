@@ -20,7 +20,7 @@ func testReconcilerNode(t *testing.T, c client.Client) {
 		err := c.Get(ctx, req.NamespacedName, &es)
 		Assert(t, apierrors.IsNotFound(err))
 
-		r := newNodeReconciler(c)
+		r := newNodeReconciler(c, req.Namespace)
 		result, err := r.Reconcile(ctx, req)
 		Assert(t, result.IsZero())
 		AssertNoError(t, err)

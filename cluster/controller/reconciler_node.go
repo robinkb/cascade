@@ -22,17 +22,19 @@ const (
 	AnnotationCascadeNodeID string = "registry.cascade.redbreast.systems/node-id"
 )
 
-func newNodeReconciler(c client.Client) *nodeReconciler {
+func newNodeReconciler(c client.Client, namespace string) *nodeReconciler {
 	return &nodeReconciler{
-		client: c,
-		events: make(chan event.GenericEvent),
+		client:    c,
+		namespace: namespace,
+		events:    make(chan event.GenericEvent),
 	}
 }
 
 type nodeReconciler struct {
-	client client.Client
-	node   raft.Node
-	events chan event.GenericEvent
+	client    client.Client
+	namespace string
+	node      raft.Node
+	events    chan event.GenericEvent
 }
 
 func (r *nodeReconciler) Reconcile(ctx context.Context, req ctrl.Request) (result ctrl.Result, err error) {
@@ -57,7 +59,7 @@ func (r *nodeReconciler) Enqueue() {
 		Object: &discoveryv1.EndpointSlice{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      "foo",
-				Namespace: "kube-system",
+				Namespace: r.namespace,
 			},
 		},
 	}

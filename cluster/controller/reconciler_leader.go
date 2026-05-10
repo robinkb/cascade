@@ -14,6 +14,12 @@ import (
 	"github.com/robinkb/cascade/cluster/raft"
 )
 
+func newLeaderReconciler(c client.Client) *leaderReconciler {
+	return &leaderReconciler{
+		client: c,
+	}
+}
+
 type leaderReconciler struct {
 	client client.Client
 	node   raft.Node
