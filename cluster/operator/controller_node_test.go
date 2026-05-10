@@ -1,4 +1,4 @@
-package controller
+package operator
 
 import (
 	"testing"
@@ -10,7 +10,7 @@ import (
 	. "github.com/robinkb/cascade/testing"
 )
 
-func testReconcilerNode(t *testing.T, c client.Client) {
+func testControllerNode(t *testing.T, c client.Client) {
 	t.Parallel()
 
 	t.Run("creates its EndpointSlice when it does not exist", func(t *testing.T) {
@@ -20,7 +20,7 @@ func testReconcilerNode(t *testing.T, c client.Client) {
 		err := c.Get(ctx, req.NamespacedName, &es)
 		Assert(t, apierrors.IsNotFound(err))
 
-		r := newNodeReconciler(c, req.Namespace)
+		r := newNodeController(c, req.Namespace)
 		result, err := r.Reconcile(ctx, req)
 		Assert(t, result.IsZero())
 		AssertNoError(t, err)

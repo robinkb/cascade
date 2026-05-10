@@ -1,4 +1,4 @@
-package controller
+package operator
 
 import (
 	"math/rand/v2"
@@ -19,15 +19,15 @@ const (
 	namespaceCharset = "abcdefghijklmnopqrstuvwxyz"
 )
 
-func TestController(t *testing.T) {
+func TestOperator(t *testing.T) {
 	client := setupEnvTest(t)
 
-	t.Run("Node Reconciler", func(t *testing.T) {
-		testReconcilerNode(t, client)
+	t.Run("Node Controller", func(t *testing.T) {
+		testControllerNode(t, client)
 	})
 
-	t.Run("Leader Reconciler", func(t *testing.T) {
-		testReconcilerLeader(t, client)
+	t.Run("Leader Controller", func(t *testing.T) {
+		testControllerLeader(t, client)
 	})
 }
 

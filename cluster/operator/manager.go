@@ -1,4 +1,4 @@
-package controller
+package operator
 
 import (
 	"context"
@@ -16,7 +16,10 @@ func New(node raft.Node) (*Controller, error) {
 	log.SetLogger(zap.New())
 
 	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
-		Cache: cache.Options{}, // TODO: Configure cache to only watch current namespace
+		Cache:                   cache.Options{}, // TODO: Configure cache to only watch current namespace
+		LeaderElection:          true,
+		LeaderElectionID:        "cascade-registry-controller",
+		LeaderElectionNamespace: "default",
 	})
 	if err != nil {
 		return nil, err
@@ -27,7 +30,7 @@ func New(node raft.Node) (*Controller, error) {
 	// 	return nil, err
 	// }
 
-	nr := newNodeReconciler(mgr.GetClient(), "kube-system")
+	nr := newNodeController(mgr.GetClient(), "kube-system")
 	if err := nr.SetupWithManager(mgr); err != nil {
 		return nil, err
 	}
@@ -43,7 +46,7 @@ type Controller struct {
 	shutdown context.CancelFunc
 	done     chan struct{}
 
-	nr *nodeReconciler
+	nr *nodeController
 }
 
 func (m *Controller) Name() string {

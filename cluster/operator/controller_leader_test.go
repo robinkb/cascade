@@ -1,4 +1,4 @@
-package controller
+package operator
 
 import (
 	"testing"
@@ -6,7 +6,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-func testReconcilerLeader(t *testing.T, client client.Client) {
+func testControllerLeader(t *testing.T, client client.Client) {
 	t.Parallel()
 
 }

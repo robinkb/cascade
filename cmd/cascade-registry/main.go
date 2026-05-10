@@ -11,7 +11,7 @@ import (
 	"time"
 
 	"github.com/robinkb/cascade/cluster"
-	"github.com/robinkb/cascade/cluster/controller"
+	"github.com/robinkb/cascade/cluster/operator"
 	"github.com/robinkb/cascade/cluster/raft"
 	"github.com/robinkb/cascade/cluster/raft/qwal"
 	"github.com/robinkb/cascade/pkg/process"
@@ -98,7 +98,7 @@ func main() {
 		// And the node won't be running until the manager starts.
 		// And starting the manager is a blocking call.
 		go func() {
-			time.Sleep(10 * time.Millisecond)
+			time.Sleep(50 * time.Millisecond)
 			node.Bootstrap(peers...)
 		}()
 
@@ -110,11 +110,11 @@ func main() {
 		metadata = clusterstore.NewMetadataStore(node, metadata)
 		blobs = clusterstore.NewBlobStore(node, blobs)
 
-		controller, err := controller.New(node)
+		operator, err := operator.New(node)
 		if err != nil {
 			log.Fatal(err)
 		}
-		mgr.Register(controller)
+		mgr.Register(operator)
 	}
 
 	srv := server.New(server.Options{

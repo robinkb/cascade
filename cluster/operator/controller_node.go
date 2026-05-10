@@ -1,4 +1,4 @@
-package controller
+package operator
 
 import (
 	"context"
@@ -22,22 +22,22 @@ const (
 	AnnotationCascadeNodeID string = "registry.cascade.redbreast.systems/node-id"
 )
 
-func newNodeReconciler(c client.Client, namespace string) *nodeReconciler {
-	return &nodeReconciler{
+func newNodeController(c client.Client, namespace string) *nodeController {
+	return &nodeController{
 		client:    c,
 		namespace: namespace,
 		events:    make(chan event.GenericEvent),
 	}
 }
 
-type nodeReconciler struct {
+type nodeController struct {
 	client    client.Client
 	namespace string
 	node      raft.Node
 	events    chan event.GenericEvent
 }
 
-func (r *nodeReconciler) Reconcile(ctx context.Context, req ctrl.Request) (result ctrl.Result, err error) {
+func (r *nodeController) Reconcile(ctx context.Context, req ctrl.Request) (result ctrl.Result, err error) {
 	err = r.client.Create(ctx, &discoveryv1.EndpointSlice{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:            req.Name,
@@ -54,7 +54,7 @@ func (r *nodeReconciler) Reconcile(ctx context.Context, req ctrl.Request) (resul
 }
 
 // Enqueue manually triggers the reconciler.
-func (r *nodeReconciler) Enqueue() {
+func (r *nodeController) Enqueue() {
 	r.events <- event.GenericEvent{
 		Object: &discoveryv1.EndpointSlice{
 			ObjectMeta: metav1.ObjectMeta{
@@ -65,7 +65,7 @@ func (r *nodeReconciler) Enqueue() {
 	}
 }
 
-func (r *nodeReconciler) SetupWithManager(mgr manager.Manager) error {
+func (r *nodeController) SetupWithManager(mgr manager.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		Named("cascade-node-controller").
 		WithOptions(controller.TypedOptions[reconcile.Request]{

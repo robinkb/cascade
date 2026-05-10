@@ -1,4 +1,4 @@
-package controller
+package operator
 
 import (
 	"context"
@@ -14,18 +14,18 @@ import (
 	"github.com/robinkb/cascade/cluster/raft"
 )
 
-func newLeaderReconciler(c client.Client) *leaderReconciler {
-	return &leaderReconciler{
+func newLeaderController(c client.Client) *leaderController {
+	return &leaderController{
 		client: c,
 	}
 }
 
-type leaderReconciler struct {
+type leaderController struct {
 	client client.Client
 	node   raft.Node
 }
 
-func (r *leaderReconciler) Reconcile(ctx context.Context, req ctrl.Request) (result ctrl.Result, err error) {
+func (r *leaderController) Reconcile(ctx context.Context, req ctrl.Request) (result ctrl.Result, err error) {
 	es := new(discoveryv1.EndpointSlice)
 	err = r.client.Get(ctx, req.NamespacedName, es)
 	if err != nil {
@@ -43,7 +43,7 @@ func (r *leaderReconciler) Reconcile(ctx context.Context, req ctrl.Request) (res
 	return
 }
 
-func (r *leaderReconciler) SetupWithManager(mgr manager.Manager) error {
+func (r *leaderController) SetupWithManager(mgr manager.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		Named("cascade-leader-controller").
 		// TODO: Option to only reconcile in its own namespace.
