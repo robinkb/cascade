@@ -99,14 +99,10 @@ func (n *node) Name() string {
 }
 
 // Name implements [process.Runnable.Run].
+// [Node.Bootstrap] must be called before starting the Node.
 func (n *node) Run() error {
 	n.conf.Applied = n.storage.AppliedIndex()
 	n.raft = raft.RestartNode(n.conf)
-	cs := n.raft.ApplyConfChange(raftpb.ConfChange{
-		Type:   raftpb.ConfChangeAddNode,
-		NodeId: n.conf.ID,
-	}.AsV2())
-	n.storage.SetConfState(*cs)
 
 	n.done = make(chan struct{})
 	for {

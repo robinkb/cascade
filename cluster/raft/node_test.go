@@ -53,6 +53,7 @@ func TestSingleNode(t *testing.T) {
 	t.Run("can form single node cluster", func(t *testing.T) {
 		node := NewTestNode(t, 1)
 		Run(t, node)
+		node.Bootstrap(node.AsPeer())
 		SnapElections(node)
 
 		AssertRaftStatus(t, node.Status()).IsLeader().Voters(1)
@@ -61,6 +62,7 @@ func TestSingleNode(t *testing.T) {
 	t.Run("can handle proposals", func(t *testing.T) {
 		node := NewTestNode(t, 1)
 		Run(t, node)
+		node.Bootstrap(node.AsPeer())
 		SnapElections(node)
 
 		calls := 100
@@ -77,6 +79,7 @@ func TestSingleNode(t *testing.T) {
 	t.Run("retains state after restart", func(t *testing.T) {
 		node := NewTestNode(t, 1)
 		Run(t, node)
+		node.Bootstrap(node.AsPeer())
 		SnapElections(node)
 
 		calls := 100
@@ -97,6 +100,7 @@ func TestSingleNode(t *testing.T) {
 
 		oldNode := NewNode(1, "", storage, new(fake.Restorer))
 		Run(t, oldNode)
+		oldNode.Bootstrap(oldNode.AsPeer())
 		SnapElections(oldNode)
 
 		calls := 100
@@ -164,6 +168,7 @@ func TestClusterFormation(t *testing.T) {
 
 		// Form a single-node cluster first.
 		Run(t, node1)
+		node1.Bootstrap(node1.AsPeer())
 		SnapElections(node1)
 
 		// Now let's add a second node.
@@ -386,13 +391,9 @@ func NewTestCluster(t *testing.T, n int) []Node {
 		peers[i] = nodes[i].AsPeer()
 	}
 
-	for i := range n {
-		Run(t, nodes[i])
-		for j := range n {
-			if nodes[i].AsPeer().ID != peers[j].ID {
-				nodes[i].Bootstrap(peers[j])
-			}
-		}
+	for _, node := range nodes {
+		Run(t, node)
+		node.Bootstrap(peers...)
 	}
 
 	return nodes

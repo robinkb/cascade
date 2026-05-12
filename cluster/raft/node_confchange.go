@@ -33,11 +33,13 @@ func (n *node) Bootstrap(peers ...cluster.Peer) {
 		}.AsV2())
 		n.storage.SetConfState(*cs)
 
-		baseUrl := fmt.Sprintf("http://%s/cluster/raft", peer.Addr)
-		client := NewClient(baseUrl)
-		peer := cluster.Peer{ID: peer.ID, Addr: peer.Addr}
-		if err := n.clients.Add(peer, client); err != nil {
-			log.Fatal(err)
+		if peer.ID != n.conf.ID {
+			baseUrl := fmt.Sprintf("http://%s/cluster/raft", peer.Addr)
+			client := NewClient(baseUrl)
+			peer := cluster.Peer{ID: peer.ID, Addr: peer.Addr}
+			if err := n.clients.Add(peer, client); err != nil {
+				log.Fatal(err)
+			}
 		}
 	}
 }

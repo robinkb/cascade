@@ -17,19 +17,10 @@ func NewTestCluster(t testing.TB, n int, opts *TestNodeOptions) []TestNode {
 		peers[i] = nodes[i].Node.AsPeer()
 	}
 
-	var wg sync.WaitGroup
-	for i := range len(nodes) {
-		wg.Go(func() {
-			Run(t, nodes[i])
-			for j := range len(peers) {
-				if nodes[i].Node.AsPeer().ID != peers[j].ID {
-					nodes[i].Node.Bootstrap(peers[j])
-				}
-			}
-		})
+	for _, node := range nodes {
+		Run(t, node)
+		node.Node.Bootstrap(peers...)
 	}
-
-	wg.Wait()
 
 	return nodes
 }
