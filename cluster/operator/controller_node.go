@@ -2,6 +2,8 @@ package operator
 
 import (
 	"context"
+	"net/netip"
+	"strconv"
 
 	discoveryv1 "k8s.io/api/discovery/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -24,9 +26,10 @@ const (
 	AnnotationCascadeNodeID string = "registry.cascade.redbreast.systems/node-id"
 )
 
-func newNodeController(c client.Client, namespace string) *nodeController {
+func newNodeController(c client.Client, n raft.Node, namespace string) *nodeController {
 	return &nodeController{
 		client:    c,
+		node:      n,
 		namespace: namespace,
 		events:    make(chan event.GenericEvent),
 	}
@@ -41,21 +44,28 @@ type nodeController struct {
 
 func (r *nodeController) Reconcile(ctx context.Context, req ctrl.Request) (result ctrl.Result, err error) {
 	es := &discoveryv1.EndpointSlice{ObjectMeta: metav1.ObjectMeta{Namespace: req.Namespace, Name: req.Name}}
+	peer := r.node.AsPeer()
+	addr := netip.MustParseAddrPort(peer.Addr)
+
 	_, err = controllerutil.CreateOrPatch(ctx, r.client, es, func() error {
 		if es.Annotations == nil {
 			es.Annotations = make(map[string]string)
 		}
-		es.Annotations[AnnotationCascadeNodeID] = "1"
+		es.Annotations[AnnotationCascadeNodeID] = strconv.FormatUint(peer.ID, 10)
 		if es.Labels == nil {
 			es.Labels = make(map[string]string)
 		}
 		es.Labels = labels.Merge(es.Labels, commonLabels)
 		es.AddressType = discoveryv1.AddressTypeIPv4
-		if es.Endpoints == nil {
-			es.Endpoints = make([]discoveryv1.Endpoint, 0)
+		es.Endpoints = []discoveryv1.Endpoint{
+			discoveryv1.Endpoint{
+				Addresses: []string{addr.Addr().String()},
+			},
 		}
-		if es.Ports == nil {
-			es.Ports = make([]discoveryv1.EndpointPort, 0)
+		es.Ports = []discoveryv1.EndpointPort{
+			discoveryv1.EndpointPort{
+				Port: ptr.To(int32(addr.Port())),
+			},
 		}
 		return nil
 	})

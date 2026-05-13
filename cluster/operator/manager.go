@@ -30,7 +30,7 @@ func New(node raft.Node) (*Controller, error) {
 	// 	return nil, err
 	// }
 
-	nr := newNodeController(mgr.GetClient(), "kube-system")
+	nr := newNodeController(mgr.GetClient(), node, "kube-system")
 	if err := nr.SetupWithManager(mgr); err != nil {
 		return nil, err
 	}
