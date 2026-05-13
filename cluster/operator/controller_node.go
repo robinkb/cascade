@@ -5,6 +5,7 @@ import (
 
 	discoveryv1 "k8s.io/api/discovery/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/utils/ptr"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -45,6 +46,10 @@ func (r *nodeController) Reconcile(ctx context.Context, req ctrl.Request) (resul
 			es.Annotations = make(map[string]string)
 		}
 		es.Annotations[AnnotationCascadeNodeID] = "1"
+		if es.Labels == nil {
+			es.Labels = make(map[string]string)
+		}
+		es.Labels = labels.Merge(es.Labels, commonLabels)
 		es.AddressType = discoveryv1.AddressTypeIPv4
 		if es.Endpoints == nil {
 			es.Endpoints = make([]discoveryv1.Endpoint, 0)
