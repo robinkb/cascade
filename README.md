@@ -43,14 +43,14 @@ cascade-registry -p 5000
 You can also run Cascade in a cluster.
 
 ```bash
-docker-compose -f compose/compose.yaml up
+docker-compose -f hack/compose/compose.yaml up
 ```
 
 This will pull the images from GitHub Container Registry.
 If you want to build the images from source, you can add the `--build` flag.
 
 ```bash
-docker-compose -f compose/compose.yaml up --build
+docker-compose -f hack/compose/compose.yaml up --build
 ```
 
 The registry will be available on port 5000, fronted by a loadbalancer.

@@ -12,17 +12,39 @@ tasks:
     desc: remove all build artifacts
     cmd: rm -rf out/
 
-  build:
+  build:binary:
     desc: compile the main binary
     deps:
       - task: out-dir
     cmd: go build -o out/ ./cmd/cascade-registry
 
+  build:container:
+    desc: build container
+    cmd: podman build -t cascade-registry:dev -f Dockerfile .
+    sources:
+      - Dockerfile
+      - "**/*.go"
+      - go.mod
+      - go.sum
+
   compose:
     desc: start a cluster of registries
     cmds:
-      - defer: podman compose -f compose/compose.yaml down
-      - cmd: podman compose -f compose/compose.yaml up
+      - defer: podman compose -f hack/compose/compose.yaml down
+      - cmd: podman compose -f hack/compose/compose.yaml up
+
+  kind:create:
+    desc: create a kind cluster with registry installed as static pods
+    deps:
+      - task: build:container
+    cmds:
+      - cmd: kind create cluster --config hack/kind/config.yaml
+        if: if kind get clusters --quiet | grep -q cascade-testing; then exit 1; fi
+      - cmd: kind load docker-image --name cascade-testing localhost/cascade-registry:dev
+
+  kind:delete:
+    desc: deletes kind cluster provisioned by kind:create
+    cmd: kind delete clusters cascade-testing
 
   test:
     desc: run tests
