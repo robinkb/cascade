@@ -3,7 +3,7 @@
 hack/
 out/
 .gitignore
-.golangcy.yaml
+.golangci.yaml
 .mockery.yaml
 buf.yaml
 buf.gen.yaml

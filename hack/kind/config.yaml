@@ -9,11 +9,11 @@ nodes:
     extraMounts:
       - hostPath: hack/kind/pod.yaml
         containerPath: /etc/kubernetes/manifests/registry.yaml
-  # - role: control-plane
-  #   # extraMounts:
-  #   #   - hostPath: hack/kind/pod.yaml
-  #   #     containerPath: /etc/kubernetes/manifests/registry.yaml
-  # - role: control-plane
-  # extraMounts:
-  #   - hostPath: hack/kind/pod.yaml
-  #     containerPath: /etc/kubernetes/manifests/registry.yaml
+  - role: control-plane
+    extraMounts:
+      - hostPath: hack/kind/pod.yaml
+        containerPath: /etc/kubernetes/manifests/registry.yaml
+  - role: control-plane
+    extraMounts:
+      - hostPath: hack/kind/pod.yaml
+        containerPath: /etc/kubernetes/manifests/registry.yaml
