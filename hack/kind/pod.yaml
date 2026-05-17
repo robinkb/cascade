@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: registry
+  namespace: kube-system
+spec:
+  containers:
+    - name: registry
+      image: localhost/cascade-registry:dev
+      volumeMounts:
+        - mountPath: /etc/kubernetes/admin.conf
+          name: kubeconfig
+  volumes:
+    - hostPath:
+        path: /etc/kubernetes/admin.conf
+      name: kubeconfig

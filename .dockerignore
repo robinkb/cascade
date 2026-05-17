@@ -1,0 +1,10 @@
+.github/
+.task/
+hack/
+out/
+.gitignore
+.golangcy.yaml
+.mockery.yaml
+buf.yaml
+buf.gen.yaml
+Taskfile.yaml

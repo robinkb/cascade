@@ -1,0 +1,19 @@
+apiVersion: kind.x-k8s.io/v1alpha4
+kind: Cluster
+name: cascade-testing
+featureGates: {}
+runtimeConfig: {}
+networking: {}
+nodes:
+  - role: control-plane
+    extraMounts:
+      - hostPath: hack/kind/pod.yaml
+        containerPath: /etc/kubernetes/manifests/registry.yaml
+  # - role: control-plane
+  #   # extraMounts:
+  #   #   - hostPath: hack/kind/pod.yaml
+  #   #     containerPath: /etc/kubernetes/manifests/registry.yaml
+  # - role: control-plane
+  # extraMounts:
+  #   - hostPath: hack/kind/pod.yaml
+  #     containerPath: /etc/kubernetes/manifests/registry.yaml
