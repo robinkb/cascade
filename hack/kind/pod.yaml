@@ -10,6 +10,7 @@ spec:
       volumeMounts:
         - mountPath: /etc/kubernetes/admin.conf
           name: kubeconfig
+  hostNetwork: true
   volumes:
     - hostPath:
         path: /etc/kubernetes/admin.conf

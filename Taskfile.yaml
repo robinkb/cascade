@@ -63,7 +63,11 @@ tasks:
       - task: build:container
     cmds:
       - cmd: kind create cluster --config hack/kind/config.yaml
-        if: if kind get clusters --quiet | grep -q cascade-testing; then exit 1; fi
+        if: test !( kind get clusters --quiet | grep -q cascade-testing )
+      - cmd: kubectl -n kube-system scale deployment coredns --replicas=0
+        if: test $( kubectl -n kube-system get deployment coredns -o=jsonpath="{.spec.replicas}" ) -ne 0
+      - cmd: kubectl -n local-path-storage scale deployment local-path-provisioner --replicas=0
+        if: test $( kubectl -n local-path-storage get deployment local-path-provisioner -o=jsonpath="{.spec.replicas}" ) -ne 0
       - cmd: kind load docker-image --name cascade-testing localhost/cascade-registry:dev
 
   kind:delete:

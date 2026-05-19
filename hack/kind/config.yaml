@@ -3,7 +3,9 @@ kind: Cluster
 name: cascade-testing
 featureGates: {}
 runtimeConfig: {}
-networking: {}
+networking:
+  disableDefaultCNI: true
+  kubeProxyMode: none
 nodes:
   - role: control-plane
     extraMounts:
