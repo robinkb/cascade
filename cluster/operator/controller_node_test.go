@@ -8,6 +8,7 @@ import (
 	discoveryv1 "k8s.io/api/discovery/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -54,7 +55,7 @@ func testControllerNode(t *testing.T, c client.Client) {
 		err := c.Get(ctx, req.NamespacedName, es)
 		Assert(t, apierrors.IsNotFound(err))
 
-		r := newNodeController(c, node, req.Namespace)
+		r := newNodeController(c, node, req.NamespacedName)
 		result, err := r.Reconcile(ctx, req)
 		Assert(t, result.IsZero())
 		AssertNoError(t, err)
@@ -69,7 +70,12 @@ func testControllerNode(t *testing.T, c client.Client) {
 		Assert(t, ptr.Equal(es.Ports[0].Port, want.Ports[0].Port))
 	})
 
-	t.Run("created EndPointSlice contains expected fields", func(t *testing.T) {
-		// TODO: Fill in
+	t.Run("returns error for unexpected endpointslice", func(t *testing.T) {
+		ctx, req := t.Context(), request(randomNamespace(t, c), "foo")
+
+		r := newNodeController(c, nil, types.NamespacedName{Namespace: "a", Name: "b"})
+		result, err := r.Reconcile(ctx, req)
+		Assert(t, result.IsZero())
+		AssertErrorIs(t, err, ErrUnexpectedEndpointSlice)
 	})
 }

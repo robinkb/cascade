@@ -6,11 +6,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
-	"strconv"
-	"strings"
-	"time"
 
-	"github.com/robinkb/cascade/cluster"
 	"github.com/robinkb/cascade/cluster/operator"
 	"github.com/robinkb/cascade/cluster/raft"
 	"github.com/robinkb/cascade/cluster/raft/qwal"
@@ -41,7 +37,7 @@ var (
 func main() {
 	flag.IntVar(&port, "port", 5000, "port of the http server")
 	flag.Uint64Var(&raftId, "raft-id", 0, "internal id of raft node")
-	flag.StringVar(&raftHostPort, "raft-host", "", "host:port of this raft node")
+	flag.StringVar(&raftHostPort, "raft-host", "127.0.0.1:3000", "host:port of this raft node")
 	flag.StringVar(&raftPeers, "raft-peers", "", "comma-seperated list of raft peers")
 	flag.Parse()
 
@@ -64,20 +60,20 @@ func main() {
 			Addr: raftHostPort,
 		})
 
-		hosts := strings.Split(raftPeers, ",")
-		peers := make([]cluster.Peer, len(hosts))
-		for i := range hosts {
-			parts := strings.Split(hosts[i], ":")
-			id, err := strconv.ParseUint(parts[0], 10, 64)
-			if err != nil {
-				log.Fatal(err)
-			}
-			host := strings.Join(parts[1:3], ":")
-			peers[i] = cluster.Peer{
-				ID:   id,
-				Addr: host,
-			}
-		}
+		// hosts := strings.Split(raftPeers, ",")
+		// peers := make([]cluster.Peer, len(hosts))
+		// for i := range hosts {
+		// 	parts := strings.Split(hosts[i], ":")
+		// 	id, err := strconv.ParseUint(parts[0], 10, 64)
+		// 	if err != nil {
+		// 		log.Fatal(err)
+		// 	}
+		// 	host := strings.Join(parts[1:3], ":")
+		// 	peers[i] = cluster.Peer{
+		// 		ID:   id,
+		// 		Addr: host,
+		// 	}
+		// }
 
 		db, err := qwal.Open(filepath.Join(path, "raft"), nil)
 		if err != nil {
@@ -97,10 +93,10 @@ func main() {
 		// Shit, this is needed because the node has to be running.
 		// And the node won't be running until the manager starts.
 		// And starting the manager is a blocking call.
-		go func() {
-			time.Sleep(50 * time.Millisecond)
-			node.Bootstrap(peers...)
-		}()
+		// go func() {
+		// 	time.Sleep(50 * time.Millisecond)
+		// 	node.Bootstrap(peers...)
+		// }()
 
 		srv.Handle("/cluster/raft/", node.Handler())
 		srv.Handle("/store/", storeapi.New(blobs))
@@ -110,7 +106,7 @@ func main() {
 		metadata = clusterstore.NewMetadataStore(node, metadata)
 		blobs = clusterstore.NewBlobStore(node, blobs)
 
-		operator, err := operator.New(node)
+		operator, err := operator.New(node, "default", "node1")
 		if err != nil {
 			log.Fatal(err)
 		}
