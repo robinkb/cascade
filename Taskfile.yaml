@@ -76,7 +76,7 @@ tasks:
 
   generate:protobuf:
     desc: generate types from protobuf schemas
-    cmd: buf generate
+    cmd: go tool buf generate
     sources:
       - "**/*.proto"
     generates:
