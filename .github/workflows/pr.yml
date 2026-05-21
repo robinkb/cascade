@@ -20,10 +20,6 @@ jobs:
         uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c
         with:
           go-version: "1.26"
-      - name: Set up Buf
-        uses: bufbuild/buf-action@fd21066df7214747548607aaa45548ba2b9bc1ff
-        with:
-          setup_only: true
       - name: Generate
         run: task generate
       - name: Check
@@ -39,15 +35,6 @@ jobs:
         uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c
         with:
           go-version: "1.26"
-      - name: Set up golanci-lint
-        uses: golangci/golangci-lint-action@1e7e51e771db61008b38414a730f564565cf7c20
-        with:
-          version: latest
-          install-only: true
-      - name: Set up Buf
-        uses: bufbuild/buf-action@fd21066df7214747548607aaa45548ba2b9bc1ff
-        with:
-          setup_only: true
       - name: Lint
         run: task lint
 
