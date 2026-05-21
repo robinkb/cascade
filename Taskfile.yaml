@@ -76,7 +76,7 @@ tasks:
 
   generate:protobuf:
     desc: generate types from protobuf schemas
-    cmd: buf generate
+    cmd: go tool buf generate
     sources:
       - "**/*.proto"
     generates:
@@ -86,8 +86,8 @@ tasks:
     desc: run static quality checks
     cmds:
       - cmd: go mod tidy -diff
-      - cmd: buf format --write
-      - cmd: golangci-lint run ./... --fix
+      - cmd: go tool buf format --write
+      - cmd: go tool golangci-lint run ./... --fix
 
   pr:
     desc: run checks to validate a pull request

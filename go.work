@@ -1,0 +1,8 @@
+go 1.26.3
+
+use (
+	.
+	./tools/buf
+	./tools/golangci-lint
+	./tools/mockery
+)
