@@ -3,6 +3,8 @@ module github.com/robinkb/cascade
 go 1.26
 
 require (
+	github.com/alecthomas/kong v1.15.0
+	github.com/alecthomas/kong-yaml v0.2.0
 	github.com/gofrs/uuid/v5 v5.4.0
 	github.com/golang/protobuf v1.5.4
 	github.com/opencontainers/distribution-spec/specs-go v0.0.0-20260313153622-5e57cc0a07ea

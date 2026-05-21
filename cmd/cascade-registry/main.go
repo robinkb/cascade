@@ -1,7 +1,6 @@
 package main
 
 import (
-	"flag"
 	"fmt"
 	"log"
 	"os"
@@ -10,6 +9,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/alecthomas/kong"
+	kongyaml "github.com/alecthomas/kong-yaml"
 	"github.com/robinkb/cascade/cluster"
 	"github.com/robinkb/cascade/cluster/raft"
 	"github.com/robinkb/cascade/cluster/raft/qwal"
@@ -30,19 +31,20 @@ import (
 	_ "golang.org/x/crypto/x509roots/fallback"
 )
 
-var (
-	port         int
-	raftId       uint64
-	raftHostPort string
-	raftPeers    string
-)
+var cli struct {
+	Config kong.ConfigFlag `help:"File to load configuration from."`
+
+	Port         int      `help:"Port of the Registry HTTP server."`
+	RaftID       uint64   `help:"ID of this Raft node."`
+	RaftHostPort string   `help:"Host of this Raft node."`
+	RaftPeers    []string `help:"Comma-separated list of Raft peers."`
+}
 
 func main() {
-	flag.IntVar(&port, "port", 5000, "port of the http server")
-	flag.Uint64Var(&raftId, "raft-id", 0, "internal id of raft node")
-	flag.StringVar(&raftHostPort, "raft-host", "", "host:port of this raft node")
-	flag.StringVar(&raftPeers, "raft-peers", "", "comma-seperated list of raft peers")
-	flag.Parse()
+	kong.Parse(&cli,
+		kong.DefaultEnvars("cascade"),
+		kong.Configuration(kongyaml.Loader, "/etc/cascade/config.yaml"),
+	)
 
 	path, err := os.Getwd()
 	if err != nil {
@@ -57,16 +59,15 @@ func main() {
 	}
 	blobs := fs.NewBlobStore(path)
 
-	if raftId != 0 {
+	if cli.RaftID != 0 {
 		srv := server.New(server.Options{
 			Name: "cluster-server",
-			Addr: raftHostPort,
+			Addr: cli.RaftHostPort,
 		})
 
-		hosts := strings.Split(raftPeers, ",")
-		peers := make([]cluster.Peer, len(hosts))
-		for i := range hosts {
-			parts := strings.Split(hosts[i], ":")
+		peers := make([]cluster.Peer, len(cli.RaftPeers))
+		for i := range cli.RaftPeers {
+			parts := strings.Split(cli.RaftPeers[i], ":")
 			id, err := strconv.ParseUint(parts[0], 10, 64)
 			if err != nil {
 				log.Fatal(err)
@@ -92,7 +93,7 @@ func main() {
 			}
 		}()
 		restorer := store.NewRestorer(metadata, blobs)
-		node := raft.NewNode(raftId, raftHostPort, storage, restorer)
+		node := raft.NewNode(cli.RaftID, cli.RaftHostPort, storage, restorer)
 		// Shit, this is needed because the node has to be running.
 		// And the node won't be running until the manager starts.
 		// And starting the manager is a blocking call.
@@ -112,7 +113,7 @@ func main() {
 
 	srv := server.New(server.Options{
 		Name:          "oci-api",
-		Addr:          fmt.Sprintf("0.0.0.0:%d", port),
+		Addr:          fmt.Sprintf("0.0.0.0:%d", cli.Port),
 		LoggerEnabled: true,
 	})
 
