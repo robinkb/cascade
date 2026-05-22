@@ -3,27 +3,27 @@ name: cascade
 services:
   node1:
     image: ghcr.io/robinkb/cascade:latest
-    build: ../
-    command:
-      - -raft-id=1
-      - -raft-host=node1:3000
-      - -raft-peers=1:node1:3000,2:node2:3001,3:node3:3002
+    build: ../../
+    environment:
+      CASCADE_RAFT_ID: 1
+      CASCADE_RAFT_HOST_PORT: node1:3000
+      CASCADE_RAFT_PEERS: 1:node1:3000,2:node2:3000,3:node3:3000
 
   node2:
     image: ghcr.io/robinkb/cascade:latest
-    build: ../
-    command:
-      - -raft-id=2
-      - -raft-host=node2:3001
-      - -raft-peers=1:node1:3000,2:node2:3001,3:node3:3002
+    build: ../../
+    environment:
+      CASCADE_RAFT_ID: 2
+      CASCADE_RAFT_HOST_PORT: node2:3000
+      CASCADE_RAFT_PEERS: 1:node1:3000,2:node2:3000,3:node3:3000
 
   node3:
     image: ghcr.io/robinkb/cascade:latest
-    build: ../
-    command:
-      - -raft-id=3
-      - -raft-host=node3:3002
-      - -raft-peers=1:node1:3000,2:node2:3001,3:node3:3002
+    build: ../../
+    environment:
+      CASCADE_RAFT_ID: 3
+      CASCADE_RAFT_HOST_PORT: node3:3000
+      CASCADE_RAFT_PEERS: 1:node1:3000,2:node2:3000,3:node3:3000
 
   lb:
     image: docker.io/haproxytech/haproxy-alpine:3.3.6

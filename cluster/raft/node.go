@@ -163,7 +163,7 @@ func (n *node) send(messages []raftpb.Message) {
 			n.raft.ReportUnreachable(message.To)
 			log.Printf("%x failed to send message to %x: %s", n.conf.ID, message.To, err)
 		}
-		if message.Type == raftpb.MessageType_MsgSnap {
+		if message.Type == raftpb.MsgSnap {
 			if err == nil {
 				n.raft.ReportSnapshot(message.To, raft.SnapshotFinish)
 			} else {

@@ -2,7 +2,7 @@ FROM golang:1-alpine AS builder
 WORKDIR /app
 # Fetch dependencies first; they are less susceptible to change on every build
 # and will therefore be cached for speeding up the next build.
-COPY go.* .
+COPY go.mod go.sum ./
 RUN --mount=type=cache,target=/go/pkg/mod \
     go mod download
 COPY . ./

@@ -31,7 +31,7 @@ tasks:
     desc: start a cluster of registries
     cmds:
       - defer: podman compose -f hack/compose/compose.yaml down
-      - cmd: podman compose -f hack/compose/compose.yaml up
+      - cmd: podman compose -f hack/compose/compose.yaml up --build
 
   kind:create:
     desc: create a kind cluster with registry installed as static pods
@@ -104,7 +104,7 @@ tasks:
 
   generate:protobuf:
     desc: generate types from protobuf schemas
-    cmd: buf generate
+    cmd: go tool buf generate
     sources:
       - "**/*.proto"
     generates:
@@ -114,8 +114,8 @@ tasks:
     desc: run static quality checks
     cmds:
       - cmd: go mod tidy -diff
-      - cmd: buf format --write
-      - cmd: golangci-lint run ./... --fix
+      - cmd: go tool buf format --write
+      - cmd: go tool golangci-lint run ./... --fix
 
   pr:
     desc: run checks to validate a pull request
