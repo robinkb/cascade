@@ -2,15 +2,18 @@ package main
 
 import (
 	"fmt"
+	"io"
 	"log"
 	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
+	"unicode"
 
 	"github.com/alecthomas/kong"
-	kongyaml "github.com/alecthomas/kong-yaml"
+	"go.yaml.in/yaml/v4"
+
 	"github.com/robinkb/cascade/cluster"
 	"github.com/robinkb/cascade/cluster/raft"
 	"github.com/robinkb/cascade/cluster/raft/qwal"
@@ -34,16 +37,19 @@ import (
 var cli struct {
 	Config kong.ConfigFlag `help:"Path to a Cascade config file."`
 
-	Port         int      `help:"Port of the Registry HTTP server."`
-	RaftID       uint64   `help:"ID of this Raft node."`
-	RaftHostPort string   `help:"Host of this Raft node."`
-	RaftPeers    []string `help:"Comma-separated list of Raft peers."`
+	Port int `help:"Port of the Registry HTTP server."`
+
+	Raft struct {
+		ID       uint64   `help:"ID of this Raft node."`
+		HostPort string   `help:"Host of this Raft node."`
+		Peers    []string `help:"Comma-separated list of Raft peers."`
+	} `embed:"" prefix:"raft."`
 }
 
 func main() {
 	kong.Parse(&cli,
 		kong.DefaultEnvars("cascade"),
-		kong.Configuration(kongyaml.Loader, "/etc/cascade/config.yaml"),
+		kong.Configuration(yamlResolver, "/etc/cascade/config.yaml"),
 	)
 
 	path, err := os.Getwd()
@@ -59,15 +65,15 @@ func main() {
 	}
 	blobs := fs.NewBlobStore(path)
 
-	if cli.RaftID != 0 {
+	if cli.Raft.ID != 0 {
 		srv := server.New(server.Options{
 			Name: "cluster-server",
-			Addr: cli.RaftHostPort,
+			Addr: cli.Raft.HostPort,
 		})
 
-		peers := make([]cluster.Peer, len(cli.RaftPeers))
-		for i := range cli.RaftPeers {
-			parts := strings.Split(cli.RaftPeers[i], ":")
+		peers := make([]cluster.Peer, len(cli.Raft.Peers))
+		for i := range cli.Raft.Peers {
+			parts := strings.Split(cli.Raft.Peers[i], ":")
 			id, err := strconv.ParseUint(parts[0], 10, 64)
 			if err != nil {
 				log.Fatal(err)
@@ -93,7 +99,7 @@ func main() {
 			}
 		}()
 		restorer := store.NewRestorer(metadata, blobs)
-		node := raft.NewNode(cli.RaftID, cli.RaftHostPort, storage, restorer)
+		node := raft.NewNode(cli.Raft.ID, cli.Raft.HostPort, storage, restorer)
 		// Shit, this is needed because the node has to be running.
 		// And the node won't be running until the manager starts.
 		// And starting the manager is a blocking call.
@@ -125,4 +131,56 @@ func main() {
 	if err := mgr.Run(); err != nil {
 		log.Fatal(err)
 	}
+}
+
+func yamlResolver(r io.Reader) (kong.Resolver, error) {
+	values := map[string]any{}
+	err := yaml.NewDecoder(r).Decode(values)
+	if err != nil {
+		return nil, err
+	}
+
+	var f kong.ResolverFunc = func(context *kong.Context, parent *kong.Path, flag *kong.Flag) (any, error) {
+		name := kebabToCamel(flag.Name)
+		fmt.Println(name)
+		raw, ok := values[name]
+		if ok {
+			return raw, nil
+		}
+		raw = values
+		for _, part := range strings.Split(name, ".") {
+			if values, ok := raw.(map[string]any); ok {
+				raw, ok = values[part]
+				if !ok {
+					return nil, nil
+				}
+			} else {
+				return nil, nil
+			}
+		}
+		return raw, nil
+	}
+
+	return f, nil
+}
+
+func kebabToCamel(s string) string {
+	var b strings.Builder
+	upperNext := false
+
+	for _, r := range s {
+		if r == '-' {
+			upperNext = true
+			continue
+		}
+
+		if upperNext {
+			r = unicode.ToUpper(r)
+			upperNext = false
+		}
+
+		b.WriteRune(r)
+	}
+
+	return b.String()
 }
