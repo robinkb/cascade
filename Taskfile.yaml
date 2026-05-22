@@ -31,7 +31,7 @@ tasks:
     desc: start a cluster of registries
     cmds:
       - defer: podman compose -f hack/compose/compose.yaml down
-      - cmd: podman compose -f hack/compose/compose.yaml up
+      - cmd: podman compose -f hack/compose/compose.yaml up --build
 
   kind:create:
     desc: create a kind cluster with registry installed as static pods
