@@ -32,7 +32,7 @@ import (
 )
 
 var cli struct {
-	Config kong.ConfigFlag `help:"File to load configuration from."`
+	Config kong.ConfigFlag `help:"Path to a Cascade config file."`
 
 	Port         int      `help:"Port of the Registry HTTP server."`
 	RaftID       uint64   `help:"ID of this Raft node."`
