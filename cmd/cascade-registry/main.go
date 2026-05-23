@@ -37,12 +37,13 @@ import (
 var cli struct {
 	Config kong.ConfigFlag `help:"Path to a Cascade config file."`
 
-	Port int `help:"Port of the Registry HTTP server."`
+	Port int `help:"Port of the Registry HTTP server." default:"5000"`
 
 	Raft struct {
-		ID       uint64   `help:"ID of this Raft node."`
-		HostPort string   `help:"Host of this Raft node."`
-		Peers    []string `help:"Comma-separated list of Raft peers."`
+		ID    uint64   `help:"ID of this Raft node."`
+		Host  string   `help:"Host of this Raft node." default:"127.0.0.1"`
+		Port  int      `help:"Port of this Raft node." default:"3000"`
+		Peers []string `help:"Comma-separated list of Raft peers."`
 	} `embed:"" prefix:"raft."`
 }
 
@@ -66,9 +67,10 @@ func main() {
 	blobs := fs.NewBlobStore(path)
 
 	if cli.Raft.ID != 0 {
+		addr := fmt.Sprintf("%s:%d", cli.Raft.Host, cli.Raft.Port)
 		srv := server.New(server.Options{
 			Name: "cluster-server",
-			Addr: cli.Raft.HostPort,
+			Addr: addr,
 		})
 
 		peers := make([]cluster.Peer, len(cli.Raft.Peers))
@@ -99,7 +101,7 @@ func main() {
 			}
 		}()
 		restorer := store.NewRestorer(metadata, blobs)
-		node := raft.NewNode(cli.Raft.ID, cli.Raft.HostPort, storage, restorer)
+		node := raft.NewNode(cli.Raft.ID, addr, storage, restorer)
 		// Shit, this is needed because the node has to be running.
 		// And the node won't be running until the manager starts.
 		// And starting the manager is a blocking call.

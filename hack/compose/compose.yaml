@@ -6,7 +6,7 @@ services:
     build: ../../
     environment:
       CASCADE_RAFT_ID: 1
-      CASCADE_RAFT_HOST_PORT: node1:3000
+      CASCADE_RAFT_HOST: node1
       CASCADE_RAFT_PEERS: 1:node1:3000,2:node2:3000,3:node3:3000
 
   node2:
@@ -14,7 +14,7 @@ services:
     build: ../../
     environment:
       CASCADE_RAFT_ID: 2
-      CASCADE_RAFT_HOST_PORT: node2:3000
+      CASCADE_RAFT_HOST: node2
       CASCADE_RAFT_PEERS: 1:node1:3000,2:node2:3000,3:node3:3000
 
   node3:
@@ -22,7 +22,7 @@ services:
     build: ../../
     environment:
       CASCADE_RAFT_ID: 3
-      CASCADE_RAFT_HOST_PORT: node3:3000
+      CASCADE_RAFT_HOST: node3
       CASCADE_RAFT_PEERS: 1:node1:3000,2:node2:3000,3:node3:3000
 
   lb:
