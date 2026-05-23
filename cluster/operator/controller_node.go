@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"net/netip"
 	"strconv"
-	"time"
 
 	discoveryv1 "k8s.io/api/discovery/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -79,7 +78,6 @@ func (r *nodeController) Reconcile(ctx context.Context, req ctrl.Request) (resul
 			}
 			return nil
 		})
-		result.RequeueAfter = time.Nanosecond
 	}
 
 	es := new(discoveryv1.EndpointSlice)

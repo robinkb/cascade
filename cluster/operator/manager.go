@@ -62,7 +62,6 @@ func New(node raft.Node, namespace, name string) (*Operator, error) {
 type Operator struct {
 	mgr      manager.Manager
 	shutdown context.CancelFunc
-	done     chan struct{}
 
 	nr *nodeController
 }

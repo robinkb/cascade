@@ -2,7 +2,13 @@ package raft
 
 import (
 	"bytes"
+	"encoding/binary"
+	"errors"
 	"fmt"
+	"io"
+	"math/rand/v2"
+	"os"
+	"path/filepath"
 
 	"go.etcd.io/raft/v3"
 	"go.etcd.io/raft/v3/raftpb"
@@ -16,10 +22,13 @@ const (
 	TypeEntry qwal.Type = iota
 	TypeHardState
 	TypeSnapshot
+
+	idFile = "node-id"
 )
 
-func NewDiskStorage(db qwal.DB, snap cluster.Snapshotter) (*DiskStorage, error) {
+func NewDiskStorage(path string, db qwal.DB, snap cluster.Snapshotter) (*DiskStorage, error) {
 	s := &DiskStorage{
+		path: path,
 		db:   db,
 		snap: snap,
 	}
@@ -71,6 +80,8 @@ func NewDiskStorage(db qwal.DB, snap cluster.Snapshotter) (*DiskStorage, error) 
 
 // DiskStorage implements a disk-backed implementation of [raft.Storage].
 type DiskStorage struct {
+	// path is where DiskStorage saves state that is not managed by the DB.
+	path string
 	// db serves as the backing storage for this DiskStorage.
 	db qwal.DB
 	// snap is used for generating snapshots. Typically supplied
@@ -209,6 +220,30 @@ func (s *DiskStorage) Snapshot() (raftpb.Snapshot, error) {
 
 	err = snap.Unmarshal(data)
 	return snap, err
+}
+
+func (s *DiskStorage) NodeID() (uint64, error) {
+	buf := make([]byte, 8)
+
+	path := filepath.Join(s.path, idFile)
+	file, err := os.Open(path)
+	if err != nil {
+		if !errors.Is(err, os.ErrNotExist) {
+			return 0, err
+		}
+
+		id := rand.Uint64()
+		binary.LittleEndian.PutUint64(buf, id)
+		err = os.WriteFile(path, buf, 0o600)
+		return id, err
+	}
+
+	_, err = io.ReadFull(file, buf)
+	if err != nil {
+		return 0, err
+	}
+	id := binary.LittleEndian.Uint64(buf)
+	return id, nil
 }
 
 func (s *DiskStorage) AppliedIndex() uint64 {

@@ -101,6 +101,14 @@ func (n *node) Name() string {
 // Name implements [process.Runnable.Run].
 // [Node.Bootstrap] must be called before starting the Node.
 func (n *node) Run() error {
+	if n.conf.ID == 0 {
+		id, err := n.storage.NodeID()
+		if err != nil {
+			return fmt.Errorf("failed to get node ID: %w", err)
+		}
+		n.conf.ID = id
+	}
+
 	n.conf.Applied = n.storage.AppliedIndex()
 	n.raft = raft.RestartNode(n.conf)
 

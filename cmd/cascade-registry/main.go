@@ -1,12 +1,9 @@
 package main
 
 import (
-	"encoding/binary"
-	"errors"
 	"fmt"
 	"io"
 	"log"
-	"math/rand/v2"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -95,11 +92,12 @@ func main() {
 			}
 		}
 
-		db, err := qwal.Open(filepath.Join(path, "raft"), nil)
+		raftPath := filepath.Join(path, "raft")
+		db, err := qwal.Open(raftPath, nil)
 		if err != nil {
 			log.Fatal(err)
 		}
-		storage, err := raft.NewDiskStorage(db, metadata)
+		storage, err := raft.NewDiskStorage(raftPath, db, metadata)
 		if err != nil {
 			log.Fatal(err)
 		}
@@ -108,14 +106,6 @@ func main() {
 				log.Println("error while closing raft storage:", err)
 			}
 		}()
-
-		if cli.Raft.ID == 0 {
-			id, err := generateOrReadID()
-			if err != nil {
-				log.Fatal(err)
-			}
-			cli.Raft.ID = id
-		}
 
 		restorer := store.NewRestorer(metadata, blobs)
 		node := raft.NewNode(cli.Raft.ID, addr, storage, restorer)
@@ -208,27 +198,4 @@ func kebabToCamel(s string) string {
 	}
 
 	return b.String()
-}
-
-func generateOrReadID() (uint64, error) {
-	buf := make([]byte, 8)
-
-	file, err := os.Open("raft/node-id")
-	if err != nil {
-		if !errors.Is(err, os.ErrNotExist) {
-			log.Fatal(err)
-		}
-
-		id := rand.Uint64()
-		binary.LittleEndian.PutUint64(buf, id)
-		err = os.WriteFile("raft/node-id", buf, os.ModeAppend)
-		return id, err
-	}
-
-	_, err = io.ReadFull(file, buf)
-	if err != nil {
-		return 0, err
-	}
-	id := binary.LittleEndian.Uint64(buf)
-	return id, nil
 }

@@ -41,7 +41,7 @@ func NewTestNode(t testing.TB, id uint64, opts *TestNodeOptions) TestNode {
 	})
 	db, err := qwal.Open(dir, opts.DBOptions)
 	AssertNoError(t, err).Require()
-	storage, err := raft.NewDiskStorage(db, metadata)
+	storage, err := raft.NewDiskStorage(dir, db, metadata)
 	AssertNoError(t, err).Require()
 
 	restorer := store.NewRestorer(metadata, blobs)

@@ -47,6 +47,13 @@ func TestNodeLifecycle(t *testing.T) {
 		AssertNoError(t, err)
 		AssertRaftStatus(t, node.Status()).IsStopped()
 	})
+
+	t.Run("generates an ID when none is given", func(t *testing.T) {
+		node := NewTestNode(t, 0)
+		Run(t, node)
+
+		Assert(t, node.Status().ID != 0)
+	})
 }
 
 func TestSingleNode(t *testing.T) {
@@ -329,7 +336,7 @@ func NewTestNode(t *testing.T, id uint64) Node {
 	db, err := qwal.Open(dir, nil)
 	AssertNoError(t, err).Require()
 
-	storage, err := NewDiskStorage(db, new(fake.Snapshotter))
+	storage, err := NewDiskStorage(dir, db, new(fake.Snapshotter))
 	AssertNoError(t, err).Require()
 
 	addr := RandomHost()
@@ -510,11 +517,4 @@ func (a *RaftStatusAsserter) IsStopped() *RaftStatusAsserter {
 		a.t.Error("expected node to be stopped")
 	}
 	return a
-}
-
-// wait is used for waiting between ticks for Raft test cluster formation and state checks.
-// If tests that use wait() are timing out, the sleep interval likely needs to be _increased_.
-// Because if Raft ticks too quickly, the cluster will keep failing to elect a leader.
-func wait() {
-	time.Sleep(6 * time.Millisecond)
 }
