@@ -3,8 +3,10 @@ package operator
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/netip"
 	"strconv"
+	"time"
 
 	discoveryv1 "k8s.io/api/discovery/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -17,12 +19,11 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
-	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
-	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	"sigs.k8s.io/controller-runtime/pkg/source"
 
+	"github.com/robinkb/cascade/cluster"
 	"github.com/robinkb/cascade/cluster/raft"
 )
 
@@ -51,40 +52,50 @@ type nodeController struct {
 }
 
 func (r *nodeController) Reconcile(ctx context.Context, req ctrl.Request) (result ctrl.Result, err error) {
-	logger := log.FromContext(ctx).WithValues("endpointslice", req)
+	if req.NamespacedName == r.self {
+		es := &discoveryv1.EndpointSlice{ObjectMeta: metav1.ObjectMeta{Namespace: req.Namespace, Name: req.Name}}
+		peer := r.node.AsPeer()
+		addr := netip.MustParseAddrPort(peer.Addr)
 
-	if req.NamespacedName != r.self {
-		err = ErrUnexpectedEndpointSlice
-		logger.Error(ErrUnexpectedEndpointSlice, "")
+		_, err = controllerutil.CreateOrPatch(ctx, r.client, es, func() error {
+			if es.Annotations == nil {
+				es.Annotations = make(map[string]string)
+			}
+			es.Annotations[AnnotationCascadeNodeID] = strconv.FormatUint(peer.ID, 10)
+			if es.Labels == nil {
+				es.Labels = make(map[string]string)
+			}
+			es.Labels = labels.Merge(es.Labels, commonLabels)
+			es.AddressType = discoveryv1.AddressTypeIPv4
+			es.Endpoints = []discoveryv1.Endpoint{
+				discoveryv1.Endpoint{
+					Addresses: []string{addr.Addr().String()},
+				},
+			}
+			es.Ports = []discoveryv1.EndpointPort{
+				discoveryv1.EndpointPort{
+					Port: ptr.To(int32(addr.Port())),
+				},
+			}
+			return nil
+		})
+		result.RequeueAfter = time.Nanosecond
+	}
+
+	es := new(discoveryv1.EndpointSlice)
+	err = r.client.Get(ctx, req.NamespacedName, es)
+	if err != nil {
 		return
 	}
 
-	es := &discoveryv1.EndpointSlice{ObjectMeta: metav1.ObjectMeta{Namespace: req.Namespace, Name: req.Name}}
-	peer := r.node.AsPeer()
-	addr := netip.MustParseAddrPort(peer.Addr)
+	peer, err := peerFromEndpointSlice(es)
+	if err != nil {
+		return
+	}
 
-	_, err = controllerutil.CreateOrPatch(ctx, r.client, es, func() error {
-		if es.Annotations == nil {
-			es.Annotations = make(map[string]string)
-		}
-		es.Annotations[AnnotationCascadeNodeID] = strconv.FormatUint(peer.ID, 10)
-		if es.Labels == nil {
-			es.Labels = make(map[string]string)
-		}
-		es.Labels = labels.Merge(es.Labels, commonLabels)
-		es.AddressType = discoveryv1.AddressTypeIPv4
-		es.Endpoints = []discoveryv1.Endpoint{
-			discoveryv1.Endpoint{
-				Addresses: []string{addr.Addr().String()},
-			},
-		}
-		es.Ports = []discoveryv1.EndpointPort{
-			discoveryv1.EndpointPort{
-				Port: ptr.To(int32(addr.Port())),
-			},
-		}
-		return nil
-	})
+	if _, ok := r.node.Status().Config.Voters.IDs()[peer.ID]; !ok {
+		r.node.Bootstrap(peer)
+	}
 
 	return
 }
@@ -108,11 +119,24 @@ func (r *nodeController) SetupWithManager(mgr manager.Manager) error {
 		WithOptions(controller.TypedOptions[reconcile.Request]{
 			NeedLeaderElection: ptr.To(false),
 		}).
-		WithEventFilter(predicate.NewPredicateFuncs(func(object client.Object) bool {
-			return object.GetNamespace() == r.self.Namespace && object.GetName() == r.self.Name
-		})).
 		WatchesRawSource(source.Channel(
 			r.events, &handler.EnqueueRequestForObject{},
 		)).
 		Complete(r)
+}
+
+func peerFromEndpointSlice(es *discoveryv1.EndpointSlice) (cluster.Peer, error) {
+	var peer cluster.Peer
+
+	id, err := strconv.ParseUint(es.Annotations[AnnotationCascadeNodeID], 10, 64)
+	if err != nil {
+		return peer, err
+	}
+
+	host := es.Endpoints[0].Addresses[0]
+	port := *es.Ports[0].Port
+
+	peer.ID = id
+	peer.Addr = fmt.Sprintf("%s:%d", host, port)
+	return peer, nil
 }

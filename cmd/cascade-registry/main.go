@@ -1,9 +1,12 @@
 package main
 
 import (
+	"encoding/binary"
+	"errors"
 	"fmt"
 	"io"
 	"log"
+	"math/rand/v2"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -71,7 +74,7 @@ func main() {
 	}
 	blobs := fs.NewBlobStore(path)
 
-	if cli.Raft.ID != 0 {
+	if cli.Raft.ID != 0 || cli.Operator.PodName != "" {
 		addr := fmt.Sprintf("%s:%d", cli.Raft.Host, cli.Raft.Port)
 		srv := server.New(server.Options{
 			Name: "cluster-server",
@@ -105,6 +108,15 @@ func main() {
 				log.Println("error while closing raft storage:", err)
 			}
 		}()
+
+		if cli.Raft.ID == 0 {
+			id, err := generateOrReadID()
+			if err != nil {
+				log.Fatal(err)
+			}
+			cli.Raft.ID = id
+		}
+
 		restorer := store.NewRestorer(metadata, blobs)
 		node := raft.NewNode(cli.Raft.ID, addr, storage, restorer)
 		// Shit, this is needed because the node has to be running.
@@ -196,4 +208,27 @@ func kebabToCamel(s string) string {
 	}
 
 	return b.String()
+}
+
+func generateOrReadID() (uint64, error) {
+	buf := make([]byte, 8)
+
+	file, err := os.Open("raft/node-id")
+	if err != nil {
+		if !errors.Is(err, os.ErrNotExist) {
+			log.Fatal(err)
+		}
+
+		id := rand.Uint64()
+		binary.LittleEndian.PutUint64(buf, id)
+		err = os.WriteFile("raft/node-id", buf, os.ModeAppend)
+		return id, err
+	}
+
+	_, err = io.ReadFull(file, buf)
+	if err != nil {
+		return 0, err
+	}
+	id := binary.LittleEndian.Uint64(buf)
+	return id, nil
 }
