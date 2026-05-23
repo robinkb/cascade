@@ -20,7 +20,13 @@ func init() {
 
 func New(node raft.Node, namespace, name string) (*Operator, error) {
 	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
-		Cache:                   cache.Options{}, // TODO: Configure cache to only watch current namespace
+		Cache: cache.Options{
+			DefaultNamespaces: map[string]cache.Config{
+				namespace: cache.Config{
+					LabelSelector: commonLabels.AsSelector(),
+				},
+			},
+		},
 		LeaderElection:          true,
 		LeaderElectionID:        "cascade-registry-controller",
 		LeaderElectionNamespace: namespace,
@@ -37,7 +43,7 @@ func New(node raft.Node, namespace, name string) (*Operator, error) {
 		Name:      name,
 	}
 
-	// lr := newLeaderReconciler(mgr.GetClient())
+	// lr := newLeaderController(mgr.GetClient(), node)
 	// if err := lr.SetupWithManager(mgr); err != nil {
 	// 	return nil, err
 	// }

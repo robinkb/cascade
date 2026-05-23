@@ -14,9 +14,10 @@ import (
 	"github.com/robinkb/cascade/cluster/raft"
 )
 
-func newLeaderController(c client.Client) *leaderController {
+func newLeaderController(c client.Client, node raft.Node) *leaderController {
 	return &leaderController{
 		client: c,
+		node:   node,
 	}
 }
 
@@ -46,8 +47,6 @@ func (r *leaderController) Reconcile(ctx context.Context, req ctrl.Request) (res
 func (r *leaderController) SetupWithManager(mgr manager.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		Named("cascade-leader-controller").
-		// TODO: Option to only reconcile in its own namespace.
-		// TODO: Predicate to only reconcile EndpointSlice matching label selector.
 		For(&discoveryv1.EndpointSlice{}).
 		Complete(r)
 }

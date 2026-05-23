@@ -45,6 +45,11 @@ var cli struct {
 		Port  int      `help:"Port of this Raft node." default:"3000"`
 		Peers []string `help:"Comma-separated list of Raft peers."`
 	} `embed:"" prefix:"raft."`
+
+	Operator struct {
+		Namespace string `help:"Kubernetes namespace that the operator runs in." default:"default"`
+		PodName   string
+	} `embed:"" prefix:"operator."`
 }
 
 func main() {
@@ -118,7 +123,7 @@ func main() {
 		metadata = clusterstore.NewMetadataStore(node, metadata)
 		blobs = clusterstore.NewBlobStore(node, blobs)
 
-		operator, err := operator.New(node, "default", "node1")
+		operator, err := operator.New(node, cli.Operator.Namespace, cli.Operator.PodName)
 		if err != nil {
 			log.Fatal(err)
 		}
