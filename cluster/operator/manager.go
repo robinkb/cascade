@@ -9,6 +9,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
+	"sigs.k8s.io/controller-runtime/pkg/metrics/server"
 
 	"github.com/robinkb/cascade/cluster/raft"
 )
@@ -23,6 +24,9 @@ func New(node raft.Node, namespace, name string) (*Operator, error) {
 		LeaderElection:          true,
 		LeaderElectionID:        "cascade-registry-controller",
 		LeaderElectionNamespace: namespace,
+		Metrics: server.Options{
+			BindAddress: "0",
+		},
 	})
 	if err != nil {
 		return nil, err
