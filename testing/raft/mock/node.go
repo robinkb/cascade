@@ -432,7 +432,7 @@ func (_c *Node_ReadState_Call) RunAndReturn(run func() error) *Node_ReadState_Ca
 }
 
 // Receive provides a mock function for the type Node
-func (_mock *Node) Receive(m raftpb.Message) error {
+func (_mock *Node) Receive(m *raftpb.Message) error {
 	ret := _mock.Called(m)
 
 	if len(ret) == 0 {
@@ -440,7 +440,7 @@ func (_mock *Node) Receive(m raftpb.Message) error {
 	}
 
 	var r0 error
-	if returnFunc, ok := ret.Get(0).(func(raftpb.Message) error); ok {
+	if returnFunc, ok := ret.Get(0).(func(*raftpb.Message) error); ok {
 		r0 = returnFunc(m)
 	} else {
 		r0 = ret.Error(0)
@@ -454,16 +454,16 @@ type Node_Receive_Call struct {
 }
 
 // Receive is a helper method to define mock.On call
-//   - m raftpb.Message
+//   - m *raftpb.Message
 func (_e *Node_Expecter) Receive(m interface{}) *Node_Receive_Call {
 	return &Node_Receive_Call{Call: _e.mock.On("Receive", m)}
 }
 
-func (_c *Node_Receive_Call) Run(run func(m raftpb.Message)) *Node_Receive_Call {
+func (_c *Node_Receive_Call) Run(run func(m *raftpb.Message)) *Node_Receive_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		var arg0 raftpb.Message
+		var arg0 *raftpb.Message
 		if args[0] != nil {
-			arg0 = args[0].(raftpb.Message)
+			arg0 = args[0].(*raftpb.Message)
 		}
 		run(
 			arg0,
@@ -477,7 +477,7 @@ func (_c *Node_Receive_Call) Return(err error) *Node_Receive_Call {
 	return _c
 }
 
-func (_c *Node_Receive_Call) RunAndReturn(run func(m raftpb.Message) error) *Node_Receive_Call {
+func (_c *Node_Receive_Call) RunAndReturn(run func(m *raftpb.Message) error) *Node_Receive_Call {
 	_c.Call.Return(run)
 	return _c
 }

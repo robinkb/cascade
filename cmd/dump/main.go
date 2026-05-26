@@ -10,6 +10,7 @@ import (
 
 	"github.com/robinkb/cascade/cluster/raft"
 	"github.com/robinkb/cascade/cluster/raft/qwal"
+	"github.com/robinkb/cascade/pkg/pbutil"
 )
 
 var (
@@ -36,26 +37,17 @@ func main() {
 		switch t {
 		case raft.TypeEntry:
 			var entry raftpb.Entry
-			err = entry.Unmarshal(val)
-			if err != nil {
-				log.Fatalln(err)
-			}
+			pbutil.MustUnmarshal(val, &entry)
 			fmt.Printf("%8d:%-7d [entry   ] index %d, term %d, type %s\n", cursor, len(val), entry.Index, entry.Term, entry.Type.String())
 
 		case raft.TypeHardState:
 			var hs raftpb.HardState
-			err = hs.Unmarshal(val)
-			if err != nil {
-				log.Fatalln(err)
-			}
+			pbutil.MustUnmarshal(val, &hs)
 			fmt.Printf("%8d:%-7d [state   ] commit %d, term %d, vote %d\n", cursor, len(val), hs.Commit, hs.Term, hs.Vote)
 
 		case raft.TypeSnapshot:
 			var snap raftpb.Snapshot
-			err = snap.Unmarshal(val)
-			if err != nil {
-				log.Fatalln(err)
-			}
+			pbutil.MustUnmarshal(val, &snap)
 			fmt.Printf("%8d:%-7d [snapshot] index %d, term %d, confState %s\n", cursor, len(val), snap.Metadata.Index, snap.Metadata.Term, snap.Metadata.ConfState.String())
 		}
 

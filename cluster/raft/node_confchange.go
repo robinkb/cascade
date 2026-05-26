@@ -26,12 +26,12 @@ func (n *node) AsPeer() cluster.Peer {
 // and adds Peers directly into the Raft node's state.
 func (n *node) Bootstrap(peers ...cluster.Peer) {
 	for _, peer := range peers {
-		cs := n.raft.ApplyConfChange(raftpb.ConfChange{
-			Type:    raftpb.ConfChangeAddNode,
-			NodeId:  peer.ID,
+		cs := n.raft.ApplyConfChange((&raftpb.ConfChange{
+			Type:    raftpb.ConfChangeAddNode.Enum(),
+			NodeId:  &peer.ID,
 			Context: []byte(peer.Addr),
-		}.AsV2())
-		n.storage.SetConfState(*cs)
+		}).AsV2())
+		n.storage.SetConfState(cs)
 
 		if peer.ID != n.conf.ID {
 			baseUrl := fmt.Sprintf("http://%s/cluster/raft", peer.Addr)
@@ -85,11 +85,11 @@ func (n *node) proposeConfChange(cct raftpb.ConfChangeType, p cluster.Peer) erro
 		ID:    id,
 		Nodes: map[uint64]string{p.ID: p.Addr},
 	}
-	err := n.raft.ProposeConfChange(ctx, raftpb.ConfChange{
-		Type:    cct,
-		NodeId:  p.ID,
+	err := n.raft.ProposeConfChange(ctx, (&raftpb.ConfChange{
+		Type:    cct.Enum(),
+		NodeId:  &p.ID,
 		Context: ccc.MustMarshal(),
-	}.AsV2())
+	}).AsV2())
 	if err != nil {
 		return err
 	}
@@ -102,7 +102,7 @@ func (n *node) proposeConfChange(cct raftpb.ConfChangeType, p cluster.Peer) erro
 	}
 }
 
-func (n *node) applyConfChange(cc raftpb.ConfChangeV2) {
+func (n *node) applyConfChange(cc *raftpb.ConfChangeV2) {
 	var ccc ConfChangeContext
 	err := json.Unmarshal(cc.Context, &ccc)
 	if err != nil {
@@ -110,8 +110,8 @@ func (n *node) applyConfChange(cc raftpb.ConfChangeV2) {
 	}
 
 	for _, change := range cc.Changes {
-		switch change.Type {
-		case raftpb.ConfChangeAddNode:
+		switch change.Type.Enum() {
+		case raftpb.ConfChangeAddNode.Enum():
 			addr, ok := ccc.Nodes[change.GetNodeId()]
 			if !ok {
 				log.Panicf("node ID not found in conf change context: %x", change.GetNodeId())
@@ -122,7 +122,7 @@ func (n *node) applyConfChange(cc raftpb.ConfChangeV2) {
 			if err := n.clients.Add(peer, client); err != nil {
 				log.Fatal(err)
 			}
-		case raftpb.ConfChangeRemoveNode:
+		case raftpb.ConfChangeRemoveNode.Enum():
 			if change.GetNodeId() == n.conf.ID {
 				go n.shutdown()
 			} else {
@@ -132,7 +132,7 @@ func (n *node) applyConfChange(cc raftpb.ConfChangeV2) {
 	}
 
 	cs := n.raft.ApplyConfChange(cc)
-	n.storage.SetConfState(*cs)
+	n.storage.SetConfState(cs)
 
 	if ch, ok := n.confChangeReporter.Send(ccc.ID); ok {
 		ch <- nil
