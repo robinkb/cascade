@@ -47,12 +47,20 @@ func TestNodeLifecycle(t *testing.T) {
 		AssertNoError(t, err)
 		AssertRaftStatus(t, node.Status()).IsStopped()
 	})
+
+	t.Run("generates an ID when none is given", func(t *testing.T) {
+		node := NewTestNode(t, 0)
+		Run(t, node)
+
+		Assert(t, node.Status().ID != 0)
+	})
 }
 
 func TestSingleNode(t *testing.T) {
 	t.Run("can form single node cluster", func(t *testing.T) {
 		node := NewTestNode(t, 1)
 		Run(t, node)
+		node.Bootstrap(node.AsPeer())
 		SnapElections(node)
 
 		AssertRaftStatus(t, node.Status()).IsLeader().Voters(1)
@@ -61,6 +69,7 @@ func TestSingleNode(t *testing.T) {
 	t.Run("can handle proposals", func(t *testing.T) {
 		node := NewTestNode(t, 1)
 		Run(t, node)
+		node.Bootstrap(node.AsPeer())
 		SnapElections(node)
 
 		calls := 100
@@ -77,6 +86,7 @@ func TestSingleNode(t *testing.T) {
 	t.Run("retains state after restart", func(t *testing.T) {
 		node := NewTestNode(t, 1)
 		Run(t, node)
+		node.Bootstrap(node.AsPeer())
 		SnapElections(node)
 
 		calls := 100
@@ -97,6 +107,7 @@ func TestSingleNode(t *testing.T) {
 
 		oldNode := NewNode(1, "", storage, new(fake.Restorer))
 		Run(t, oldNode)
+		oldNode.Bootstrap(oldNode.AsPeer())
 		SnapElections(oldNode)
 
 		calls := 100
@@ -164,6 +175,7 @@ func TestClusterFormation(t *testing.T) {
 
 		// Form a single-node cluster first.
 		Run(t, node1)
+		node1.Bootstrap(node1.AsPeer())
 		SnapElections(node1)
 
 		// Now let's add a second node.
@@ -208,7 +220,6 @@ func TestClusterFormation(t *testing.T) {
 		AssertNoError(t, err)
 
 		SnapElections(nodes[0:1]...)
-		wait()
 		AssertRaftStatus(t, nodes[0].Status()).Voters(2)
 		AssertRaftStatus(t, nodes[1].Status()).Voters(2)
 		AssertRaftStatus(t, nodes[2].Status()).IsStopped()
@@ -325,7 +336,7 @@ func NewTestNode(t *testing.T, id uint64) Node {
 	db, err := qwal.Open(dir, nil)
 	AssertNoError(t, err).Require()
 
-	storage, err := NewDiskStorage(db, new(fake.Snapshotter))
+	storage, err := NewDiskStorage(dir, db, new(fake.Snapshotter))
 	AssertNoError(t, err).Require()
 
 	addr := RandomHost()
@@ -387,13 +398,9 @@ func NewTestCluster(t *testing.T, n int) []Node {
 		peers[i] = nodes[i].AsPeer()
 	}
 
-	for i := range n {
-		Run(t, nodes[i])
-		for j := range n {
-			if nodes[i].AsPeer().ID != peers[j].ID {
-				nodes[i].Bootstrap(peers[j])
-			}
-		}
+	for _, node := range nodes {
+		Run(t, node)
+		node.Bootstrap(peers...)
 	}
 
 	return nodes
@@ -510,11 +517,4 @@ func (a *RaftStatusAsserter) IsStopped() *RaftStatusAsserter {
 		a.t.Error("expected node to be stopped")
 	}
 	return a
-}
-
-// wait is used for waiting between ticks for Raft test cluster formation and state checks.
-// If tests that use wait() are timing out, the sleep interval likely needs to be _increased_.
-// Because if Raft ticks too quickly, the cluster will keep failing to elect a leader.
-func wait() {
-	time.Sleep(6 * time.Millisecond)
 }

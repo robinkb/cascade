@@ -35,11 +35,39 @@ tasks:
 
   kind:create:
     desc: create a kind cluster with registry installed as static pods
+    summary: |
+      Creates a Kubernetes cluster using Kind, with Cascade deployed to the control plane nodes
+      as a static pod.
+
+      Troubleshooting:
+        * kind complains about setting systemd property "Delegate=yes":
+          -> This is usually set by default, but your desktop environment may be overriding it.
+             Find out your desktop environment's systemd service with `cat /proc/self/cgroup`.
+             It should be the last part of the path. Then create an override for it:
+
+             $ systemctl --user edit org.gnome.Shell@user.service # If you use GNOME shell
+             [Service]
+             Delegate=cpu memory pids
+
+        * kind fails to bring up all nodes:
+          -> Use `podman exec <container_name> journalctl -u kubelet` to inspect the logs
+             of that node's Kubelet. If it shows errors like "inotify_init: too many open files",
+             the inotify limit must be raised. Create a `.conf` file under `/etc/sysctl.d`
+             with the following content:
+
+             fs.inotify.max_user_watches=524288
+             fs.inotify.max_user_instances=512
+
+             Then reload sysctl with `sudo sysctl --system`.
     deps:
       - task: build:container
     cmds:
       - cmd: kind create cluster --config hack/kind/config.yaml
-        if: if kind get clusters --quiet | grep -q cascade-testing; then exit 1; fi
+        if: test !( kind get clusters --quiet | grep -q cascade-testing )
+      - cmd: kubectl -n kube-system scale deployment coredns --replicas=0
+        if: test $( kubectl -n kube-system get deployment coredns -o=jsonpath="{.spec.replicas}" ) -ne 0
+      - cmd: kubectl -n local-path-storage scale deployment local-path-provisioner --replicas=0
+        if: test $( kubectl -n local-path-storage get deployment local-path-provisioner -o=jsonpath="{.spec.replicas}" ) -ne 0
       - cmd: kind load docker-image --name cascade-testing localhost/cascade-registry:dev
 
   kind:delete:

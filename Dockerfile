@@ -6,10 +6,11 @@ COPY go.mod go.sum ./
 RUN --mount=type=cache,target=/go/pkg/mod \
     go mod download
 COPY . ./
-# CGO_ENABLED=0 == Don't depend on libc (bigger but more independent binary)
+# Don't depend on libc (bigger but more independent binary)
+ENV CGO_ENABLED=0
 RUN --mount=type=cache,target=/root/.cache/go-build \
     --mount=type=cache,target=/go/pkg/mod \
-    env CGO_ENABLED=0 go build ./cmd/cascade-registry
+    go build ./cmd/cascade-registry
 
 FROM scratch
 WORKDIR /app

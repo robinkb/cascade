@@ -3,17 +3,19 @@ kind: Cluster
 name: cascade-testing
 featureGates: {}
 runtimeConfig: {}
-networking: {}
+networking:
+  disableDefaultCNI: true
+  kubeProxyMode: none
 nodes:
   - role: control-plane
     extraMounts:
       - hostPath: hack/kind/pod.yaml
         containerPath: /etc/kubernetes/manifests/registry.yaml
-  # - role: control-plane
-  #   # extraMounts:
-  #   #   - hostPath: hack/kind/pod.yaml
-  #   #     containerPath: /etc/kubernetes/manifests/registry.yaml
-  # - role: control-plane
-  # extraMounts:
-  #   - hostPath: hack/kind/pod.yaml
-  #     containerPath: /etc/kubernetes/manifests/registry.yaml
+  - role: control-plane
+    extraMounts:
+      - hostPath: hack/kind/pod.yaml
+        containerPath: /etc/kubernetes/manifests/registry.yaml
+  - role: control-plane
+    extraMounts:
+      - hostPath: hack/kind/pod.yaml
+        containerPath: /etc/kubernetes/manifests/registry.yaml

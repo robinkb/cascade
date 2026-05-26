@@ -99,14 +99,18 @@ func (n *node) Name() string {
 }
 
 // Name implements [process.Runnable.Run].
+// [Node.Bootstrap] must be called before starting the Node.
 func (n *node) Run() error {
+	if n.conf.ID == 0 {
+		id, err := n.storage.NodeID()
+		if err != nil {
+			return fmt.Errorf("failed to get node ID: %w", err)
+		}
+		n.conf.ID = id
+	}
+
 	n.conf.Applied = n.storage.AppliedIndex()
 	n.raft = raft.RestartNode(n.conf)
-	cs := n.raft.ApplyConfChange(raftpb.ConfChange{
-		Type:   raftpb.ConfChangeAddNode,
-		NodeId: n.conf.ID,
-	}.AsV2())
-	n.storage.SetConfState(*cs)
 
 	n.done = make(chan struct{})
 	for {
@@ -167,7 +171,7 @@ func (n *node) send(messages []raftpb.Message) {
 			n.raft.ReportUnreachable(message.To)
 			log.Printf("%x failed to send message to %x: %s", n.conf.ID, message.To, err)
 		}
-		if message.Type == raftpb.MessageType_MsgSnap {
+		if message.Type == raftpb.MsgSnap {
 			if err == nil {
 				n.raft.ReportSnapshot(message.To, raft.SnapshotFinish)
 			} else {

@@ -18,6 +18,18 @@ import (
 	"github.com/robinkb/cascade/testing/cluster/mock"
 )
 
+func TestStorageNodeID(t *testing.T) {
+	store := newTestStore(t, t.TempDir())
+
+	id1, err := store.NodeID()
+	AssertNoError(t, err)
+	Assert(t, id1 != 0)
+
+	id2, err := store.NodeID()
+	AssertNoError(t, err)
+	AssertEqual(t, id1, id2)
+}
+
 func TestStorageEntries(t *testing.T) {
 	entries := index(3).terms(3, 4, 5, 5, 6, 7, 7, 7, 7, 8)
 	store := newTestStore(t, t.TempDir())
@@ -211,9 +223,10 @@ func TestStorageSaveHardState(t *testing.T) {
 
 func TestStorageSnapshot(t *testing.T) {
 	t.Run("creates a snapshot with correct contents", func(t *testing.T) {
-		db := testDB(t, t.TempDir(), nil)
+		dir := t.TempDir()
+		db := testDB(t, dir, nil)
 		snapshotter := mock.NewSnapshotter(t)
-		store, err := NewDiskStorage(db, snapshotter)
+		store, err := NewDiskStorage(dir, db, snapshotter)
 		AssertNoError(t, err).Require()
 
 		entries := index(3).terms(2, 2, 2, 2, 2)
@@ -359,8 +372,9 @@ func TestStorageSnapshot(t *testing.T) {
 }
 
 func TestStorageCompaction(t *testing.T) {
-	db := testDB(t, t.TempDir(), nil)
-	store, err := NewDiskStorage(db, new(fake.Snapshotter))
+	dir := t.TempDir()
+	db := testDB(t, dir, nil)
+	store, err := NewDiskStorage(dir, db, new(fake.Snapshotter))
 	AssertNoError(t, err).Require()
 
 	oldEntries := index(1).terms(1, 1)
@@ -440,7 +454,7 @@ func testDB(t *testing.T, dir string, opts *qwal.Options) qwal.DB {
 }
 
 func newTestStore(t *testing.T, dir string) *DiskStorage {
-	store, err := NewDiskStorage(testDB(t, dir, nil), new(fake.Snapshotter))
+	store, err := NewDiskStorage(dir, testDB(t, dir, nil), new(fake.Snapshotter))
 	AssertNoError(t, err).Require()
 	return store
 }

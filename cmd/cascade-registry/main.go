@@ -8,13 +8,13 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
-	"time"
 	"unicode"
 
 	"github.com/alecthomas/kong"
 	"go.yaml.in/yaml/v4"
 
 	"github.com/robinkb/cascade/cluster"
+	"github.com/robinkb/cascade/cluster/operator"
 	"github.com/robinkb/cascade/cluster/raft"
 	"github.com/robinkb/cascade/cluster/raft/qwal"
 	"github.com/robinkb/cascade/pkg/process"
@@ -37,13 +37,19 @@ import (
 var cli struct {
 	Config kong.ConfigFlag `help:"Path to a Cascade config file."`
 
-	Port int `help:"Port of the Registry HTTP server."`
+	Port int `help:"Port of the Registry HTTP server." default:"5000"`
 
 	Raft struct {
-		ID       uint64   `help:"ID of this Raft node."`
-		HostPort string   `help:"Host of this Raft node."`
-		Peers    []string `help:"Comma-separated list of Raft peers."`
+		ID    uint64   `help:"ID of this Raft node."`
+		Host  string   `help:"Host of this Raft node." default:"127.0.0.1"`
+		Port  int      `help:"Port of this Raft node." default:"3000"`
+		Peers []string `help:"Comma-separated list of Raft peers."`
 	} `embed:"" prefix:"raft."`
+
+	Operator struct {
+		Namespace string `help:"Kubernetes namespace that the operator runs in." default:"default"`
+		PodName   string
+	} `embed:"" prefix:"operator."`
 }
 
 func main() {
@@ -65,10 +71,11 @@ func main() {
 	}
 	blobs := fs.NewBlobStore(path)
 
-	if cli.Raft.ID != 0 {
+	if cli.Raft.ID != 0 || cli.Operator.PodName != "" {
+		addr := fmt.Sprintf("%s:%d", cli.Raft.Host, cli.Raft.Port)
 		srv := server.New(server.Options{
 			Name: "cluster-server",
-			Addr: cli.Raft.HostPort,
+			Addr: addr,
 		})
 
 		peers := make([]cluster.Peer, len(cli.Raft.Peers))
@@ -85,11 +92,12 @@ func main() {
 			}
 		}
 
-		db, err := qwal.Open(filepath.Join(path, "raft"), nil)
+		raftPath := filepath.Join(path, "raft")
+		db, err := qwal.Open(raftPath, nil)
 		if err != nil {
 			log.Fatal(err)
 		}
-		storage, err := raft.NewDiskStorage(db, metadata)
+		storage, err := raft.NewDiskStorage(raftPath, db, metadata)
 		if err != nil {
 			log.Fatal(err)
 		}
@@ -98,15 +106,16 @@ func main() {
 				log.Println("error while closing raft storage:", err)
 			}
 		}()
+
 		restorer := store.NewRestorer(metadata, blobs)
-		node := raft.NewNode(cli.Raft.ID, cli.Raft.HostPort, storage, restorer)
+		node := raft.NewNode(cli.Raft.ID, addr, storage, restorer)
 		// Shit, this is needed because the node has to be running.
 		// And the node won't be running until the manager starts.
 		// And starting the manager is a blocking call.
-		go func() {
-			time.Sleep(10 * time.Millisecond)
-			node.Bootstrap(peers...)
-		}()
+		// go func() {
+		// 	time.Sleep(50 * time.Millisecond)
+		// 	node.Bootstrap(peers...)
+		// }()
 
 		srv.Handle("/cluster/raft/", node.Handler())
 		srv.Handle("/store/", storeapi.New(blobs))
@@ -115,6 +124,12 @@ func main() {
 
 		metadata = clusterstore.NewMetadataStore(node, metadata)
 		blobs = clusterstore.NewBlobStore(node, blobs)
+
+		operator, err := operator.New(node, cli.Operator.Namespace, cli.Operator.PodName)
+		if err != nil {
+			log.Fatal(err)
+		}
+		mgr.Register(operator)
 	}
 
 	srv := server.New(server.Options{
