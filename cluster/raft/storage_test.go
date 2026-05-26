@@ -11,6 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.etcd.io/raft/v3"
 	"go.etcd.io/raft/v3/raftpb"
+	"google.golang.org/protobuf/proto"
 
 	"github.com/robinkb/cascade/cluster/fake"
 	"github.com/robinkb/cascade/cluster/raft/qwal"
@@ -39,7 +40,7 @@ func TestStorageEntries(t *testing.T) {
 	tc := []struct {
 		name        string
 		lo, hi      uint64
-		wantEntries []raftpb.Entry
+		wantEntries []*raftpb.Entry
 		wantErr     error
 	}{
 		{"get the first entry",
@@ -61,7 +62,9 @@ func TestStorageEntries(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			got, err := store.Entries(tt.lo, tt.hi, math.MaxUint64)
 			AssertErrorIs(t, err, tt.wantErr)
-			AssertDeepEqual(t, got, tt.wantEntries)
+			for i := range got {
+				AssertProtoEqual(t, got[i], tt.wantEntries[i])
+			}
 		})
 	}
 }
@@ -129,7 +132,7 @@ func TestStorageEntries2(t *testing.T) {
 		lo, hi, maxsize uint64
 
 		werr     error
-		wentries []raftpb.Entry
+		wentries []*raftpb.Entry
 	}{
 		{2, 6, math.MaxUint64, raft.ErrCompacted, nil},
 		{3, 4, math.MaxUint64, raft.ErrCompacted, nil},
@@ -139,12 +142,12 @@ func TestStorageEntries2(t *testing.T) {
 		// even if maxsize is zero, the first entry should be returned
 		{4, 7, 0, nil, index(4).terms(4)},
 		// limit to 2
-		{4, 7, uint64(ents[1].Size() + ents[2].Size()), nil, index(4).terms(4, 5)},
+		{4, 7, uint64(proto.Size(ents[1]) + proto.Size(ents[2])), nil, index(4).terms(4, 5)},
 		// limit to 2
-		{4, 7, uint64(ents[1].Size() + ents[2].Size() + ents[3].Size()/2), nil, index(4).terms(4, 5)},
-		{4, 7, uint64(ents[1].Size() + ents[2].Size() + ents[3].Size() - 1), nil, index(4).terms(4, 5)},
+		{4, 7, uint64(proto.Size(ents[1]) + proto.Size(ents[2]) + proto.Size(ents[3])/2), nil, index(4).terms(4, 5)},
+		{4, 7, uint64(proto.Size(ents[1]) + proto.Size(ents[2]) + proto.Size(ents[3]) - 1), nil, index(4).terms(4, 5)},
 		// all
-		{4, 7, uint64(ents[1].Size() + ents[2].Size() + ents[3].Size()), nil, index(4).terms(4, 5, 6)},
+		{4, 7, uint64(proto.Size(ents[1]) + proto.Size(ents[2]) + proto.Size(ents[3])), nil, index(4).terms(4, 5, 6)},
 	}
 
 	for _, tt := range tests {
@@ -168,8 +171,8 @@ func TestStorageLastIndex(t *testing.T) {
 	AssertNoError(t, err).Require()
 	AssertEqual(t, got, want)
 
-	entries := index(3).terms(3, 4, want)
-	want = entries[len(entries)-1].Index
+	entries := index(3).terms(3, 4, 5)
+	want = entries[len(entries)-1].GetIndex()
 	err = store.SaveEntries(entries)
 	AssertNoError(t, err)
 
@@ -194,7 +197,7 @@ func TestStorageFirstIndex(t *testing.T) {
 
 	t.Run("first index of a storage with entries is the index of the first entry", func(t *testing.T) {
 		entries := index(want).terms(5, 5, 6, 6, 7, 8)
-		want = entries[0].Index
+		want = entries[0].GetIndex()
 		err := store.SaveEntries(entries)
 		AssertNoError(t, err)
 
@@ -207,10 +210,10 @@ func TestStorageFirstIndex(t *testing.T) {
 func TestStorageSaveHardState(t *testing.T) {
 	store := newTestStore(t, t.TempDir())
 
-	want := raftpb.HardState{
-		Term:   rand.Uint64(),
-		Vote:   rand.Uint64(),
-		Commit: rand.Uint64(),
+	want := &raftpb.HardState{
+		Term:   ptr(rand.Uint64()),
+		Vote:   ptr(rand.Uint64()),
+		Commit: ptr(rand.Uint64()),
 	}
 
 	err := store.SaveHardState(want)
@@ -218,7 +221,7 @@ func TestStorageSaveHardState(t *testing.T) {
 
 	got, _, err := store.InitialState()
 	AssertNoError(t, err)
-	AssertDeepEqual(t, got, want)
+	AssertProtoEqual(t, got, want)
 }
 
 func TestStorageSnapshot(t *testing.T) {
@@ -233,7 +236,10 @@ func TestStorageSnapshot(t *testing.T) {
 		wantData := RandomBytes(64)
 		wantApliedIndex := entries[0].GetIndex()
 		wantTerm := entries[0].GetTerm()
-		wantConfState := raftpb.ConfState{AutoLeave: true, Voters: []uint64{rand.Uint64(), rand.Uint64(), rand.Uint64()}}
+		wantConfState := &raftpb.ConfState{
+			AutoLeave: ptr(true),
+			Voters:    []uint64{rand.Uint64(), rand.Uint64(), rand.Uint64()},
+		}
 
 		snapshotter.EXPECT().
 			Snapshot(tmock.Anything).
@@ -254,9 +260,9 @@ func TestStorageSnapshot(t *testing.T) {
 		got, err := store.Snapshot()
 		AssertNoError(t, err)
 		AssertSlicesEqual(t, got.Data, wantData)
-		AssertEqual(t, got.GetMetadata().Index, wantApliedIndex)
-		AssertEqual(t, got.GetMetadata().Term, wantTerm)
-		AssertDeepEqual(t, got.GetMetadata().ConfState, wantConfState)
+		AssertEqual(t, got.GetMetadata().GetIndex(), wantApliedIndex)
+		AssertEqual(t, got.GetMetadata().GetTerm(), wantTerm)
+		AssertProtoEqual(t, got.GetMetadata().ConfState, wantConfState)
 	})
 
 	t.Run("overrides state from snapshot", func(t *testing.T) {
@@ -266,15 +272,15 @@ func TestStorageSnapshot(t *testing.T) {
 		err := store.SaveEntries(entries)
 		AssertNoError(t, err).Require()
 		store.SetAppliedIndex(2)
-		store.SetConfState(raftpb.ConfState{Voters: []uint64{rand.Uint64()}})
+		store.SetConfState(&raftpb.ConfState{Voters: []uint64{rand.Uint64()}})
 
 		// Craft a Snapshot to apply to it.
-		want := raftpb.Snapshot{
+		want := &raftpb.Snapshot{
 			Data: RandomBytes(64),
-			Metadata: raftpb.SnapshotMetadata{
-				Index:     10,
-				Term:      5,
-				ConfState: raftpb.ConfState{Voters: RandomIntN[uint64](3)},
+			Metadata: &raftpb.SnapshotMetadata{
+				Index:     ptr(uint64(10)),
+				Term:      ptr(uint64(5)),
+				ConfState: &raftpb.ConfState{Voters: RandomIntN[uint64](3)},
 			},
 		}
 
@@ -284,17 +290,17 @@ func TestStorageSnapshot(t *testing.T) {
 		// Snapshot should be retrievable.
 		got, err := store.Snapshot()
 		AssertNoError(t, err)
-		AssertDeepEqual(t, got, want)
+		AssertProtoEqual(t, got, want)
 
 		// First index should now match the snapshot + 1.
 		fi, err := store.FirstIndex()
 		AssertNoError(t, err)
-		AssertEqual(t, fi, want.GetMetadata().Index+1)
+		AssertEqual(t, fi, want.GetMetadata().GetIndex()+1)
 
 		// Term of that snapshot index should also match the snapshot.
 		term, err := store.Term(10)
 		AssertNoError(t, err)
-		AssertEqual(t, term, want.GetMetadata().Term)
+		AssertEqual(t, term, want.GetMetadata().GetTerm())
 
 		// But Term of the first index should be unavailable.
 		_, err = store.Term(11)
@@ -303,7 +309,7 @@ func TestStorageSnapshot(t *testing.T) {
 		// ConfState returned from InitialState should match the snapshot.
 		_, cs, err := store.InitialState()
 		AssertNoError(t, err)
-		AssertDeepEqual(t, cs, want.GetMetadata().ConfState)
+		AssertProtoEqual(t, cs, want.GetMetadata().ConfState)
 
 		// Entries from before the snapshot should be compacted.
 		_, err = store.Entries(3, 7, math.MaxUint)
@@ -316,8 +322,8 @@ func TestStorageSnapshot(t *testing.T) {
 		oldStore := newTestStore(t, dir)
 
 		entries := index(3).terms(1, 2, 3, 4, 5)
-		wantAppliedIndex := entries[len(entries)-1].Index
-		wantConfState := raftpb.ConfState{Voters: []uint64{rand.Uint64()}}
+		wantAppliedIndex := entries[len(entries)-1].GetIndex()
+		wantConfState := &raftpb.ConfState{Voters: []uint64{rand.Uint64()}}
 		err := oldStore.SaveEntries(entries)
 		AssertNoError(t, err).Require()
 		oldStore.SetAppliedIndex(wantAppliedIndex)
@@ -336,12 +342,12 @@ func TestStorageSnapshot(t *testing.T) {
 		// Ensure that the previous snapshot is restored from disk.
 		got, err := newStore.Snapshot()
 		AssertNoError(t, err)
-		AssertDeepEqual(t, got, want)
+		AssertProtoEqual(t, got, want)
 
 		// ConfState is restored from the snapshot.
 		_, gotConfState, err := newStore.InitialState()
 		AssertNoError(t, err)
-		AssertDeepEqual(t, gotConfState, wantConfState)
+		AssertProtoEqual(t, gotConfState, wantConfState)
 		// Applied Index is restored from the snapshot.
 		gotAppliedIndex := newStore.AppliedIndex()
 		AssertEqual(t, gotAppliedIndex, wantAppliedIndex)
@@ -349,12 +355,12 @@ func TestStorageSnapshot(t *testing.T) {
 		// First index should still be available.
 		fi, err := newStore.FirstIndex()
 		AssertNoError(t, err)
-		AssertEqual(t, fi, entries[0].Index)
+		AssertEqual(t, fi, entries[0].GetIndex())
 
 		// Term of that snapshot index should also be available.
 		term, err := newStore.Term(fi)
 		AssertNoError(t, err)
-		AssertEqual(t, term, entries[0].Term)
+		AssertEqual(t, term, entries[0].GetTerm())
 	})
 
 	t.Run("empty store returns an empty snapshot", func(t *testing.T) {
@@ -380,17 +386,17 @@ func TestStorageCompaction(t *testing.T) {
 	oldEntries := index(1).terms(1, 1)
 	err = store.SaveEntries(oldEntries)
 	AssertNoError(t, err).Require()
-	store.SetAppliedIndex(oldEntries[1].Index)
+	store.SetAppliedIndex(oldEntries[1].GetIndex())
 
 	// Ensure that FirstIndex returns the Index of the Entry that we just put in.
 	fi, err := store.FirstIndex()
 	AssertNoError(t, err)
-	AssertEqual(t, fi, oldEntries[0].Index)
+	AssertEqual(t, fi, oldEntries[0].GetIndex())
 
 	// We should be able to retrieve our Entry.
 	got1, err := store.Entries(1, 2, math.MaxUint64)
 	AssertNoError(t, err)
-	AssertDeepEqual(t, got1[0], oldEntries[0])
+	AssertProtoEqual(t, got1[0], oldEntries[0])
 
 	// Cut a new Log.
 	err = db.Cut()
@@ -400,7 +406,7 @@ func TestStorageCompaction(t *testing.T) {
 	newEntries := index(3).terms(2, 2, 2)
 	err = store.SaveEntries(newEntries)
 	AssertNoError(t, err).Require()
-	store.SetAppliedIndex(newEntries[2].Index)
+	store.SetAppliedIndex(newEntries[2].GetIndex())
 
 	// Compact, which should remove the first Log containing the first Entry.
 	err = db.Compact()
@@ -409,12 +415,12 @@ func TestStorageCompaction(t *testing.T) {
 	// FirstIndex should now return the Index of our new Entry.
 	fi, err = store.FirstIndex()
 	AssertNoError(t, err)
-	AssertEqual(t, fi, newEntries[0].Index)
+	AssertEqual(t, fi, newEntries[0].GetIndex())
 
 	// LastIndex returns the index of the last new entry.
 	li, err := store.LastIndex()
 	AssertNoError(t, err)
-	AssertEqual(t, li, newEntries[len(newEntries)-1].Index)
+	AssertEqual(t, li, newEntries[len(newEntries)-1].GetIndex())
 
 	// The Entry that was pushed earlier should be unavailable.
 	_, err = store.Entries(1, 2, math.MaxUint64)
@@ -423,12 +429,12 @@ func TestStorageCompaction(t *testing.T) {
 	// The new Entry should also be available.
 	got2, err := store.Entries(3, 4, math.MaxUint64)
 	AssertNoError(t, err).Require()
-	AssertDeepEqual(t, got2[0], newEntries[0])
+	AssertProtoEqual(t, got2[0], newEntries[0])
 
 	// Term of the last compacted entry should still be available as well.
 	term, err := store.Term(fi - 1)
 	AssertNoError(t, err)
-	AssertEqual(t, term, oldEntries[0].Index)
+	AssertEqual(t, term, oldEntries[0].GetIndex())
 }
 
 // index is a helper type for generating slices of raftpb.Entry. The value of index
@@ -437,11 +443,12 @@ type index uint64
 
 // terms generates a slice of entries at indices [index, index+len(terms)), with
 // the given terms of each entry. Terms must be non-decreasing.
-func (i index) terms(terms ...uint64) []raftpb.Entry {
+func (i index) terms(terms ...uint64) []*raftpb.Entry {
 	index := uint64(i)
-	entries := make([]raftpb.Entry, 0, len(terms))
+	entries := make([]*raftpb.Entry, 0, len(terms))
 	for _, term := range terms {
-		entries = append(entries, raftpb.Entry{Term: term, Index: index})
+		ni := index
+		entries = append(entries, &raftpb.Entry{Term: &term, Index: &ni})
 		index++
 	}
 	return entries
@@ -457,4 +464,8 @@ func newTestStore(t *testing.T, dir string) *DiskStorage {
 	store, err := NewDiskStorage(dir, testDB(t, dir, nil), new(fake.Snapshotter))
 	AssertNoError(t, err).Require()
 	return store
+}
+
+func ptr[T any](v T) *T {
+	return &v
 }

@@ -13,6 +13,8 @@ import (
 	"go.etcd.io/raft/v3"
 	"go.etcd.io/raft/v3/raftpb"
 
+	"google.golang.org/protobuf/proto"
+
 	"github.com/robinkb/cascade/cluster"
 	"github.com/robinkb/cascade/cluster/raft/qwal"
 )
@@ -31,6 +33,8 @@ func NewDiskStorage(path string, db qwal.DB, snap cluster.Snapshotter) (*DiskSto
 		path: path,
 		db:   db,
 		snap: snap,
+
+		confState: new(raftpb.ConfState),
 	}
 
 	s.db.ReplayHook(s.replayHook())
@@ -47,14 +51,14 @@ func NewDiskStorage(path string, db qwal.DB, snap cluster.Snapshotter) (*DiskSto
 			return nil, fmt.Errorf("failed to read snapshot: %w", err)
 		}
 
-		var snap raftpb.Snapshot
-		err = snap.Unmarshal(value)
+		snap := new(raftpb.Snapshot)
+		err = proto.Unmarshal(value, snap)
 		if err != nil {
 			return nil, err
 		}
 
-		s.appliedIndex = snap.Metadata.Index
-		s.confState = snap.GetMetadata().ConfState
+		s.appliedIndex = *snap.GetMetadata().Index
+		s.confState = snap.GetMetadata().GetConfState()
 	}
 
 	if s.db.Count(TypeEntry) > 0 {
@@ -63,8 +67,8 @@ func NewDiskStorage(path string, db qwal.DB, snap cluster.Snapshotter) (*DiskSto
 			return nil, fmt.Errorf("failed to read first entry: %w", err)
 		}
 
-		var entry raftpb.Entry
-		err = entry.Unmarshal(value)
+		entry := new(raftpb.Entry)
+		err = proto.Unmarshal(value, entry)
 		if err != nil {
 			return nil, fmt.Errorf("failed to unmarshal first entry: %w", err)
 		}
@@ -92,7 +96,7 @@ type DiskStorage struct {
 	terms []uint64
 
 	// confState is set by the node, and persisted in snapshots.
-	confState raftpb.ConfState
+	confState *raftpb.ConfState
 	// appliedIndex is set by the node, and persisted in snapshots.
 	appliedIndex uint64
 
@@ -104,7 +108,7 @@ type DiskStorage struct {
 }
 
 // InitialState implements [raft.Storage.InitialState].
-func (s *DiskStorage) InitialState() (hs raftpb.HardState, cs raftpb.ConfState, err error) {
+func (s *DiskStorage) InitialState() (hs *raftpb.HardState, cs *raftpb.ConfState, err error) {
 	if s.db.Count(TypeHardState) > 0 {
 		var data []byte
 		data, err = s.db.Last(TypeHardState)
@@ -112,7 +116,8 @@ func (s *DiskStorage) InitialState() (hs raftpb.HardState, cs raftpb.ConfState, 
 			return
 		}
 
-		err = hs.Unmarshal(data)
+		hs = new(raftpb.HardState)
+		err = proto.Unmarshal(data, hs)
 		if err != nil {
 			return
 		}
@@ -123,7 +128,7 @@ func (s *DiskStorage) InitialState() (hs raftpb.HardState, cs raftpb.ConfState, 
 }
 
 // Entries implements [raft.Storage.Entries].
-func (s *DiskStorage) Entries(lo, hi, maxSize uint64) ([]raftpb.Entry, error) {
+func (s *DiskStorage) Entries(lo, hi, maxSize uint64) ([]*raftpb.Entry, error) {
 	fi := s.firstIndex()
 	if lo < fi {
 		return nil, raft.ErrCompacted
@@ -133,7 +138,7 @@ func (s *DiskStorage) Entries(lo, hi, maxSize uint64) ([]raftpb.Entry, error) {
 	hi -= fi
 
 	var size uint64
-	entries := make([]raftpb.Entry, 0)
+	entries := make([]*raftpb.Entry, 0)
 
 	for value, err := range s.db.Range(TypeEntry, lo, hi) {
 		if err != nil {
@@ -145,8 +150,8 @@ func (s *DiskStorage) Entries(lo, hi, maxSize uint64) ([]raftpb.Entry, error) {
 			return entries, nil
 		}
 
-		var entry raftpb.Entry
-		err = entry.Unmarshal(value)
+		entry := new(raftpb.Entry)
+		err = proto.Unmarshal(value, entry)
 		if err != nil {
 			return nil, err
 		}
@@ -159,8 +164,8 @@ func (s *DiskStorage) Entries(lo, hi, maxSize uint64) ([]raftpb.Entry, error) {
 
 // Term implements [raft.Storage.Term].
 func (s *DiskStorage) Term(i uint64) (uint64, error) {
-	if i == s.compactedEntry.Index {
-		return s.compactedEntry.Term, nil
+	if i == s.compactedEntry.GetIndex() {
+		return s.compactedEntry.GetTerm(), nil
 	}
 
 	if i == 0 && s.db.Count(TypeEntry) == 0 {
@@ -189,7 +194,7 @@ func (s *DiskStorage) LastIndex() (uint64, error) {
 
 func (s *DiskStorage) lastIndex() uint64 {
 	if s.db.Count(TypeEntry) == 0 {
-		return s.firstEntry.Index
+		return s.firstEntry.GetIndex()
 	}
 	return s.firstIndex() + uint64(s.db.Count(TypeEntry)) - 1
 }
@@ -201,24 +206,24 @@ func (s *DiskStorage) FirstIndex() (uint64, error) {
 
 func (s *DiskStorage) firstIndex() uint64 {
 	if s.db.Count(TypeEntry) == 0 {
-		return s.compactedEntry.Index + 1
+		return s.compactedEntry.GetIndex() + 1
 	}
-	return s.firstEntry.Index
+	return s.firstEntry.GetIndex()
 }
 
 // Snapshot implements [raft.Storage.Snapshot].
-func (s *DiskStorage) Snapshot() (raftpb.Snapshot, error) {
+func (s *DiskStorage) Snapshot() (*raftpb.Snapshot, error) {
 	if s.db.Count(TypeSnapshot) == 0 {
-		return raftpb.Snapshot{}, nil
+		return nil, nil
 	}
 
-	var snap raftpb.Snapshot
+	snap := new(raftpb.Snapshot)
 	data, err := s.db.Last(TypeSnapshot)
 	if err != nil {
 		return snap, err
 	}
 
-	err = snap.Unmarshal(data)
+	err = proto.Unmarshal(data, snap)
 	return snap, err
 }
 
@@ -250,7 +255,7 @@ func (s *DiskStorage) AppliedIndex() uint64 {
 	return s.appliedIndex
 }
 
-func (s *DiskStorage) SaveEntries(entries []raftpb.Entry) error {
+func (s *DiskStorage) SaveEntries(entries []*raftpb.Entry) error {
 	if s.db.Count(TypeEntry) == 0 {
 		s.firstEntry = raftpb.Entry{
 			Term:  entries[0].Term,
@@ -259,7 +264,7 @@ func (s *DiskStorage) SaveEntries(entries []raftpb.Entry) error {
 	}
 
 	for _, entry := range entries {
-		value, err := entry.Marshal()
+		value, err := proto.Marshal(entry)
 		if err != nil {
 			return err
 		}
@@ -269,14 +274,14 @@ func (s *DiskStorage) SaveEntries(entries []raftpb.Entry) error {
 			return err
 		}
 
-		s.terms = append(s.terms, entry.Term)
+		s.terms = append(s.terms, entry.GetTerm())
 	}
 
 	return nil
 }
 
-func (s *DiskStorage) SaveHardState(hs raftpb.HardState) error {
-	value, err := hs.Marshal()
+func (s *DiskStorage) SaveHardState(hs *raftpb.HardState) error {
+	value, err := proto.Marshal(hs)
 	if err != nil {
 		return err
 	}
@@ -286,7 +291,7 @@ func (s *DiskStorage) SaveHardState(hs raftpb.HardState) error {
 
 // SetConfState stores the given ConfState in-memory.
 // It will be persisted to stable storage with the next snapshot.
-func (s *DiskStorage) SetConfState(cs raftpb.ConfState) {
+func (s *DiskStorage) SetConfState(cs *raftpb.ConfState) {
 	s.confState = cs
 }
 
@@ -309,16 +314,16 @@ func (s *DiskStorage) CreateSnapshot() error {
 		term = s.terms[s.appliedIndex-s.firstIndex()]
 	}
 
-	snapshot := raftpb.Snapshot{
+	snapshot := &raftpb.Snapshot{
 		Data: buf.Bytes(),
-		Metadata: raftpb.SnapshotMetadata{
-			Index:     s.appliedIndex,
-			Term:      term,
+		Metadata: &raftpb.SnapshotMetadata{
+			Index:     &s.appliedIndex,
+			Term:      &term,
 			ConfState: s.confState,
 		},
 	}
 
-	data, err := snapshot.Marshal()
+	data, err := proto.Marshal(snapshot)
 	if err != nil {
 		return err
 	}
@@ -326,7 +331,7 @@ func (s *DiskStorage) CreateSnapshot() error {
 	return s.db.Append(TypeSnapshot, data)
 }
 
-func (s *DiskStorage) ApplySnapshot(snapshot raftpb.Snapshot) error {
+func (s *DiskStorage) ApplySnapshot(snapshot *raftpb.Snapshot) error {
 	// Clear the cut hook so that no automatic snapshots are created.
 	s.db.CutHook(nil)
 	defer s.db.CutHook(s.cutHook())
@@ -336,8 +341,8 @@ func (s *DiskStorage) ApplySnapshot(snapshot raftpb.Snapshot) error {
 		return err
 	}
 
-	value := make([]byte, snapshot.Size())
-	if _, err := snapshot.MarshalTo(value); err != nil {
+	value, err := proto.Marshal(snapshot)
+	if err != nil {
 		return err
 	}
 
@@ -355,7 +360,7 @@ func (s *DiskStorage) ApplySnapshot(snapshot raftpb.Snapshot) error {
 		Index: snapshot.Metadata.Index,
 		Term:  snapshot.Metadata.Term,
 	}
-	s.terms = []uint64{snapshot.Metadata.Term}
+	s.terms = []uint64{snapshot.Metadata.GetTerm()}
 
 	return s.db.Sync()
 }
@@ -369,16 +374,16 @@ func (s *DiskStorage) Close() error {
 }
 
 func (s *DiskStorage) replayHook() qwal.ReplayHookFunc {
-	var entry raftpb.Entry
+	entry := new(raftpb.Entry)
 
 	return func(t qwal.Type, v []byte) error {
 		if t != TypeEntry {
 			return nil
 		}
-		if err := entry.Unmarshal(v); err != nil {
+		if err := proto.Unmarshal(v, entry); err != nil {
 			return err
 		}
-		s.terms = append(s.terms, entry.Term)
+		s.terms = append(s.terms, entry.GetTerm())
 		return nil
 	}
 }
@@ -395,7 +400,7 @@ func (s *DiskStorage) cutHook() qwal.CutHookFunc {
 }
 
 func (s *DiskStorage) compactionHook() qwal.CompactHookFunc {
-	var entry raftpb.Entry
+	entry := new(raftpb.Entry)
 
 	return func(c qwal.Counters) error {
 		for t, count := range c {
@@ -409,7 +414,7 @@ func (s *DiskStorage) compactionHook() qwal.CompactHookFunc {
 				return err
 			}
 
-			err = entry.Unmarshal(value)
+			err = proto.Unmarshal(value, entry)
 			if err != nil {
 				return err
 			}
@@ -424,7 +429,7 @@ func (s *DiskStorage) compactionHook() qwal.CompactHookFunc {
 				return err
 			}
 
-			err = entry.Unmarshal(value)
+			err = proto.Unmarshal(value, entry)
 			if err != nil {
 				return err
 			}

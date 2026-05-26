@@ -44,13 +44,13 @@ func (h *Handler) postMessageHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var message raftpb.Message
-	if err := proto.Unmarshal(data, &message); err != nil {
+	msg := new(raftpb.Message)
+	if err := proto.Unmarshal(data, msg); err != nil {
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
 
-	if err := h.node.Receive(message); err != nil {
+	if err := h.node.Receive(msg); err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
@@ -58,6 +58,6 @@ func (h *Handler) postMessageHandler(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 }
 
-func (n *node) Receive(msg raftpb.Message) error {
+func (n *node) Receive(msg *raftpb.Message) error {
 	return n.raft.Step(context.TODO(), msg)
 }

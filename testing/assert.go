@@ -14,6 +14,7 @@ import (
 	"testing"
 
 	v1 "github.com/opencontainers/image-spec/specs-go/v1"
+	"google.golang.org/protobuf/proto"
 )
 
 type TestResult struct {
@@ -250,6 +251,17 @@ func AssertDeepEqual(t testing.TB, got, want any) *TestResult {
 
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("structs are not equal;\ngot:\n%+v\nwant:\n%+v", got, want)
+		return &TestResult{t, false}
+	}
+
+	return &TestResult{t, true}
+}
+
+func AssertProtoEqual(t testing.TB, got, want proto.Message) *TestResult {
+	t.Helper()
+
+	if !proto.Equal(got, want) {
+		t.Errorf("proto messages are not equal; \ngot:\n%+v\nwant:\n%+v", got, want)
 		return &TestResult{t, false}
 	}
 

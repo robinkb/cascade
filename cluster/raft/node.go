@@ -13,6 +13,7 @@ import (
 	"go.etcd.io/raft/v3/raftpb"
 
 	"github.com/robinkb/cascade/cluster"
+	"github.com/robinkb/cascade/pkg/pbutil"
 	"github.com/robinkb/cascade/pkg/process"
 )
 
@@ -28,7 +29,7 @@ type (
 		AddPeer(peer cluster.Peer) error
 		RemovePeer(peer cluster.Peer) error
 		Handler() http.Handler
-		Receive(m raftpb.Message) error
+		Receive(m *raftpb.Message) error
 	}
 )
 
@@ -134,7 +135,7 @@ func (n *node) Run() error {
 	}
 }
 
-func (n *node) save(ents []raftpb.Entry, hs raftpb.HardState, sp raftpb.Snapshot, mustSync bool) {
+func (n *node) save(ents []*raftpb.Entry, hs *raftpb.HardState, sp *raftpb.Snapshot, mustSync bool) {
 	if !raft.IsEmptyHardState(hs) {
 		if err := n.storage.SaveHardState(hs); err != nil {
 			log.Fatal("failed to persist hard state:", err)
@@ -160,28 +161,28 @@ func (n *node) save(ents []raftpb.Entry, hs raftpb.HardState, sp raftpb.Snapshot
 	}
 }
 
-func (n *node) send(messages []raftpb.Message) {
+func (n *node) send(messages []*raftpb.Message) {
 	for _, message := range messages {
-		client, err := n.clients.Get(message.To)
+		client, err := n.clients.Get(message.GetTo())
 		if err != nil {
 			log.Fatalf("%x no client for node %x", n.conf.ID, message.To)
 		}
-		err = client.SendMessage(&message)
+		err = client.SendMessage(message)
 		if err != nil {
-			n.raft.ReportUnreachable(message.To)
+			n.raft.ReportUnreachable(message.GetTo())
 			log.Printf("%x failed to send message to %x: %s", n.conf.ID, message.To, err)
 		}
-		if message.Type == raftpb.MsgSnap {
+		if message.Type == raftpb.MessageType_MsgSnap.Enum() {
 			if err == nil {
-				n.raft.ReportSnapshot(message.To, raft.SnapshotFinish)
+				n.raft.ReportSnapshot(message.GetTo(), raft.SnapshotFinish)
 			} else {
-				n.raft.ReportSnapshot(message.To, raft.SnapshotFailure)
+				n.raft.ReportSnapshot(message.GetTo(), raft.SnapshotFailure)
 			}
 		}
 	}
 }
 
-func (n *node) restore(sp raftpb.Snapshot) {
+func (n *node) restore(sp *raftpb.Snapshot) {
 	if raft.IsEmptySnap(sp) {
 		return
 	}
@@ -199,37 +200,35 @@ func (n *node) restore(sp raftpb.Snapshot) {
 	}
 }
 
-func (n *node) process(entries []raftpb.Entry) {
+func (n *node) process(entries []*raftpb.Entry) {
 	entries = n.filter(entries)
 	if len(entries) == 0 {
 		return
 	}
 
 	for _, entry := range entries {
-		switch entry.Type {
+		switch entry.GetType() {
 		case raftpb.EntryNormal:
 			n.applyProposal(entry.Data)
+
 		case raftpb.EntryConfChange:
-			var cc raftpb.ConfChange
-			if err := cc.Unmarshal(entry.Data); err != nil {
-				panic(err)
-			}
+			cc := new(raftpb.ConfChange)
+			pbutil.MustUnmarshal(entry.Data, cc)
 			n.applyConfChange(cc.AsV2())
+
 		case raftpb.EntryConfChangeV2:
-			var cc raftpb.ConfChangeV2
-			if err := cc.Unmarshal(entry.Data); err != nil {
-				panic(err)
-			}
+			cc := new(raftpb.ConfChangeV2)
+			pbutil.MustUnmarshal(entry.Data, cc)
 			n.applyConfChange(cc)
 		}
 	}
 
-	n.storage.SetAppliedIndex(entries[len(entries)-1].Index)
+	n.storage.SetAppliedIndex(entries[len(entries)-1].GetIndex())
 }
 
 // filter removes entries for which no actions need to be taken.
-func (n *node) filter(entries []raftpb.Entry) []raftpb.Entry {
-	return slices.DeleteFunc(entries, func(e raftpb.Entry) bool {
+func (n *node) filter(entries []*raftpb.Entry) []*raftpb.Entry {
+	return slices.DeleteFunc(entries, func(e *raftpb.Entry) bool {
 		// Heartbeats send empty entries, which we don't need to process.
 		return len(e.Data) == 0
 	})

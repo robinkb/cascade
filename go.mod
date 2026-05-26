@@ -11,7 +11,7 @@ require (
 	github.com/opencontainers/image-spec v1.1.1
 	github.com/stretchr/testify v1.11.1
 	go.etcd.io/bbolt v1.4.3
-	go.etcd.io/raft/v3 v3.6.0
+	go.etcd.io/raft/v3 v3.7.0-beta.0
 	go.yaml.in/yaml/v4 v4.0.0-rc.4
 	golang.org/x/crypto/x509roots/fallback v0.0.0-20260323153451-8400f4a93807
 	golang.org/x/exp v0.0.0-20260410095643-746e56fc9e2f
@@ -22,8 +22,6 @@ require (
 	k8s.io/utils v0.0.0-20260507154919-ff6756f316d2
 	sigs.k8s.io/controller-runtime v0.24.1
 )
-
-replace go.etcd.io/raft/v3 v3.6.0 => go.etcd.io/raft/v3 v3.6.0-beta.0.0.20260415131831-40f8be730b18
 
 require (
 	github.com/beorn7/perks v1.0.1 // indirect
@@ -49,7 +47,6 @@ require (
 	github.com/go-openapi/swag/stringutils v0.26.0 // indirect
 	github.com/go-openapi/swag/typeutils v0.26.0 // indirect
 	github.com/go-openapi/swag/yamlutils v0.26.0 // indirect
-	github.com/gogo/protobuf v1.3.2 // indirect
 	github.com/google/gnostic-models v0.7.1 // indirect
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/json-iterator/go v1.1.12 // indirect
