@@ -79,6 +79,9 @@ func (r *nodeController) Reconcile(ctx context.Context, req ctrl.Request) (resul
 			return nil
 		})
 	}
+	if err != nil {
+		return
+	}
 
 	es := new(discoveryv1.EndpointSlice)
 	err = r.client.Get(ctx, req.NamespacedName, es)

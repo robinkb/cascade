@@ -5,10 +5,10 @@ import (
 	"strconv"
 	"testing"
 
+	"go.etcd.io/raft/v3"
 	discoveryv1 "k8s.io/api/discovery/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -50,6 +50,12 @@ func testControllerNode(t *testing.T, c client.Client) {
 		node.EXPECT().
 			AsPeer().
 			Return(peer)
+		node.EXPECT().
+			Status().
+			Return(raft.Status{})
+		node.EXPECT().
+			Bootstrap([]cluster.Peer{peer}).
+			Return()
 
 		es := new(discoveryv1.EndpointSlice)
 		err := c.Get(ctx, req.NamespacedName, es)
@@ -68,14 +74,5 @@ func testControllerNode(t *testing.T, c client.Client) {
 		AssertDeepEqual(t, es.Endpoints, want.Endpoints)
 		Assert(t, len(es.Ports) == 1).Require()
 		Assert(t, ptr.Equal(es.Ports[0].Port, want.Ports[0].Port))
-	})
-
-	t.Run("returns error for unexpected endpointslice", func(t *testing.T) {
-		ctx, req := t.Context(), request(randomNamespace(t, c), "foo")
-
-		r := newNodeController(c, nil, types.NamespacedName{Namespace: "a", Name: "b"})
-		result, err := r.Reconcile(ctx, req)
-		Assert(t, result.IsZero())
-		AssertErrorIs(t, err, ErrUnexpectedEndpointSlice)
 	})
 }

@@ -43,11 +43,6 @@ func New(node raft.Node, namespace, name string) (*Operator, error) {
 		Name:      name,
 	}
 
-	// lr := newLeaderController(mgr.GetClient(), node)
-	// if err := lr.SetupWithManager(mgr); err != nil {
-	// 	return nil, err
-	// }
-
 	nr := newNodeController(mgr.GetClient(), node, tname)
 	if err := nr.SetupWithManager(mgr); err != nil {
 		return nil, err

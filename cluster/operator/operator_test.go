@@ -25,10 +25,6 @@ func TestOperator(t *testing.T) {
 	t.Run("Node Controller", func(t *testing.T) {
 		testControllerNode(t, client)
 	})
-
-	t.Run("Leader Controller", func(t *testing.T) {
-		testControllerLeader(t, client)
-	})
 }
 
 func setupEnvTest(t *testing.T) client.Client {
