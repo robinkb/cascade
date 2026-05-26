@@ -110,8 +110,8 @@ func (n *node) applyConfChange(cc *raftpb.ConfChangeV2) {
 	}
 
 	for _, change := range cc.Changes {
-		switch change.Type.Enum() {
-		case raftpb.ConfChangeAddNode.Enum():
+		switch change.GetType() {
+		case raftpb.ConfChangeAddNode:
 			addr, ok := ccc.Nodes[change.GetNodeId()]
 			if !ok {
 				log.Panicf("node ID not found in conf change context: %x", change.GetNodeId())
@@ -122,7 +122,7 @@ func (n *node) applyConfChange(cc *raftpb.ConfChangeV2) {
 			if err := n.clients.Add(peer, client); err != nil {
 				log.Fatal(err)
 			}
-		case raftpb.ConfChangeRemoveNode.Enum():
+		case raftpb.ConfChangeRemoveNode:
 			if change.GetNodeId() == n.conf.ID {
 				go n.shutdown()
 			} else {

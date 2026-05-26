@@ -207,22 +207,19 @@ func (n *node) process(entries []*raftpb.Entry) {
 	}
 
 	for _, entry := range entries {
-		switch entry.Type {
-		case raftpb.EntryNormal.Enum():
+		switch entry.GetType() {
+		case raftpb.EntryNormal:
 			n.applyProposal(entry.Data)
 
-		case raftpb.EntryConfChange.Enum():
+		case raftpb.EntryConfChange:
 			cc := new(raftpb.ConfChange)
 			pbutil.MustUnmarshal(entry.Data, cc)
 			n.applyConfChange(cc.AsV2())
 
-		case raftpb.EntryConfChangeV2.Enum():
+		case raftpb.EntryConfChangeV2:
 			cc := new(raftpb.ConfChangeV2)
 			pbutil.MustUnmarshal(entry.Data, cc)
 			n.applyConfChange(cc)
-
-		default:
-			panic("unexpected entry type")
 		}
 	}
 

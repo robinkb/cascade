@@ -442,9 +442,7 @@ type RaftStatusAsserter struct {
 // Equals attempts to compare two Raft statuses.
 func (a *RaftStatusAsserter) Equals(want raft.Status) *RaftStatusAsserter {
 	AssertEqual(a.t, a.got.ID, want.ID)
-	AssertEqual(a.t, a.got.Term, want.Term)
-	AssertEqual(a.t, a.got.Vote, want.Vote)
-	AssertEqual(a.t, a.got.Commit, want.Commit)
+	AssertProtoEqual(a.t, a.got.HardState, want.HardState)
 	// Comparing the AppliedIndex is flaky in some tests.
 	// Maybe those tests can be adjusted, but the assertion
 	// is disabled for now.

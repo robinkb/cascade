@@ -23,8 +23,6 @@ require (
 	sigs.k8s.io/controller-runtime v0.24.1
 )
 
-replace go.etcd.io/raft/v3 v3.6.0 => go.etcd.io/raft/v3 v3.6.0-beta.0.0.20260415131831-40f8be730b18
-
 require (
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
