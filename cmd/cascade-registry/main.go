@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"time"
 	"unicode"
 
 	"github.com/alecthomas/kong"
@@ -112,10 +113,12 @@ func main() {
 		// Shit, this is needed because the node has to be running.
 		// And the node won't be running until the manager starts.
 		// And starting the manager is a blocking call.
-		// go func() {
-		// 	time.Sleep(50 * time.Millisecond)
-		// 	node.Bootstrap(peers...)
-		// }()
+		if len(peers) != 0 {
+			go func() {
+				time.Sleep(50 * time.Millisecond)
+				node.Bootstrap(peers...)
+			}()
+		}
 
 		srv.Handle("/cluster/raft/", node.Handler())
 		srv.Handle("/store/", storeapi.New(blobs))
@@ -125,11 +128,13 @@ func main() {
 		metadata = clusterstore.NewMetadataStore(node, metadata)
 		blobs = clusterstore.NewBlobStore(node, blobs)
 
-		operator, err := operator.New(node, cli.Operator.Namespace, cli.Operator.PodName)
-		if err != nil {
-			log.Fatal(err)
+		if cli.Operator.PodName != "" {
+			operator, err := operator.New(node, cli.Operator.Namespace, cli.Operator.PodName)
+			if err != nil {
+				log.Fatal(err)
+			}
+			mgr.Register(operator)
 		}
-		mgr.Register(operator)
 	}
 
 	srv := server.New(server.Options{
