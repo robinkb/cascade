@@ -26,14 +26,9 @@ func (n *node) Emit(ctx context.Context, receiver string) <-chan Event {
 	n.receivers[receiver] = make(chan Event, 1)
 
 	go func() {
-		for {
-			select {
-			case <-ctx.Done():
-				close(n.receivers[receiver])
-				delete(n.receivers, receiver)
-				return
-			}
-		}
+		<-ctx.Done()
+		close(n.receivers[receiver])
+		delete(n.receivers, receiver)
 	}()
 
 	return n.receivers[receiver]

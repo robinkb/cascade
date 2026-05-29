@@ -3,10 +3,11 @@ package operator
 import (
 	"context"
 
-	"github.com/robinkb/cascade/cluster/raft"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/util/workqueue"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
+
+	"github.com/robinkb/cascade/cluster/raft"
 )
 
 // RaftEventSource implements ["sigs.k8s.io/controller-runtime/pkg/source".Source],

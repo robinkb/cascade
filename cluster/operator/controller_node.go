@@ -7,8 +7,6 @@ import (
 	"net/netip"
 	"strconv"
 
-	"github.com/robinkb/cascade/cluster"
-	"github.com/robinkb/cascade/cluster/raft"
 	discoveryv1 "k8s.io/api/discovery/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
@@ -20,6 +18,9 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
+
+	"github.com/robinkb/cascade/cluster"
+	"github.com/robinkb/cascade/cluster/raft"
 )
 
 const (
