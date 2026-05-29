@@ -5,11 +5,13 @@
 package mock
 
 import (
+	"context"
 	"net/http"
 
 	"github.com/robinkb/cascade/cluster"
+	"github.com/robinkb/cascade/cluster/raft"
 	mock "github.com/stretchr/testify/mock"
-	"go.etcd.io/raft/v3"
+	raft0 "go.etcd.io/raft/v3"
 	"go.etcd.io/raft/v3/raftpb"
 )
 
@@ -180,6 +182,65 @@ func (_c *Node_Bootstrap_Call) Return() *Node_Bootstrap_Call {
 
 func (_c *Node_Bootstrap_Call) RunAndReturn(run func(peers ...cluster.Peer)) *Node_Bootstrap_Call {
 	_c.Run(run)
+	return _c
+}
+
+// Emit provides a mock function for the type Node
+func (_mock *Node) Emit(ctx context.Context, receiver string) <-chan raft.Event {
+	ret := _mock.Called(ctx, receiver)
+
+	if len(ret) == 0 {
+		panic("no return value specified for Emit")
+	}
+
+	var r0 <-chan raft.Event
+	if returnFunc, ok := ret.Get(0).(func(context.Context, string) <-chan raft.Event); ok {
+		r0 = returnFunc(ctx, receiver)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(<-chan raft.Event)
+		}
+	}
+	return r0
+}
+
+// Node_Emit_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'Emit'
+type Node_Emit_Call struct {
+	*mock.Call
+}
+
+// Emit is a helper method to define mock.On call
+//   - ctx context.Context
+//   - receiver string
+func (_e *Node_Expecter) Emit(ctx interface{}, receiver interface{}) *Node_Emit_Call {
+	return &Node_Emit_Call{Call: _e.mock.On("Emit", ctx, receiver)}
+}
+
+func (_c *Node_Emit_Call) Run(run func(ctx context.Context, receiver string)) *Node_Emit_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		var arg0 context.Context
+		if args[0] != nil {
+			arg0 = args[0].(context.Context)
+		}
+		var arg1 string
+		if args[1] != nil {
+			arg1 = args[1].(string)
+		}
+		run(
+			arg0,
+			arg1,
+		)
+	})
+	return _c
+}
+
+func (_c *Node_Emit_Call) Return(eventCh <-chan raft.Event) *Node_Emit_Call {
+	_c.Call.Return(eventCh)
+	return _c
+}
+
+func (_c *Node_Emit_Call) RunAndReturn(run func(ctx context.Context, receiver string) <-chan raft.Event) *Node_Emit_Call {
+	_c.Call.Return(run)
 	return _c
 }
 
@@ -622,18 +683,18 @@ func (_c *Node_Shutdown_Call) RunAndReturn(run func() error) *Node_Shutdown_Call
 }
 
 // Status provides a mock function for the type Node
-func (_mock *Node) Status() raft.Status {
+func (_mock *Node) Status() raft0.Status {
 	ret := _mock.Called()
 
 	if len(ret) == 0 {
 		panic("no return value specified for Status")
 	}
 
-	var r0 raft.Status
-	if returnFunc, ok := ret.Get(0).(func() raft.Status); ok {
+	var r0 raft0.Status
+	if returnFunc, ok := ret.Get(0).(func() raft0.Status); ok {
 		r0 = returnFunc()
 	} else {
-		r0 = ret.Get(0).(raft.Status)
+		r0 = ret.Get(0).(raft0.Status)
 	}
 	return r0
 }
@@ -655,12 +716,12 @@ func (_c *Node_Status_Call) Run(run func()) *Node_Status_Call {
 	return _c
 }
 
-func (_c *Node_Status_Call) Return(status raft.Status) *Node_Status_Call {
+func (_c *Node_Status_Call) Return(status raft0.Status) *Node_Status_Call {
 	_c.Call.Return(status)
 	return _c
 }
 
-func (_c *Node_Status_Call) RunAndReturn(run func() raft.Status) *Node_Status_Call {
+func (_c *Node_Status_Call) RunAndReturn(run func() raft0.Status) *Node_Status_Call {
 	_c.Call.Return(run)
 	return _c
 }

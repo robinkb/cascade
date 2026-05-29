@@ -27,9 +27,6 @@ func New(node raft.Node, namespace, name string) (*Operator, error) {
 				},
 			},
 		},
-		LeaderElection:          true,
-		LeaderElectionID:        "cascade-registry-controller",
-		LeaderElectionNamespace: namespace,
 		Metrics: server.Options{
 			BindAddress: "0",
 		},
@@ -50,15 +47,12 @@ func New(node raft.Node, namespace, name string) (*Operator, error) {
 
 	return &Operator{
 		mgr: mgr,
-		nr:  nr,
 	}, nil
 }
 
 type Operator struct {
 	mgr      manager.Manager
 	shutdown context.CancelFunc
-
-	nr *nodeController
 }
 
 func (o *Operator) Name() string {
@@ -69,8 +63,6 @@ func (o *Operator) Run() error {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	o.shutdown = cancel
-
-	go o.nr.Enqueue()
 
 	return o.mgr.Start(ctx)
 }

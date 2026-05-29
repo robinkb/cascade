@@ -16,11 +16,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
-	"sigs.k8s.io/controller-runtime/pkg/event"
-	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
-	"sigs.k8s.io/controller-runtime/pkg/source"
 
 	"github.com/robinkb/cascade/cluster"
 	"github.com/robinkb/cascade/cluster/raft"
@@ -39,7 +36,6 @@ func newNodeController(c client.Client, n raft.Node, name types.NamespacedName) 
 		client: c,
 		node:   n,
 		self:   name,
-		events: make(chan event.GenericEvent),
 	}
 }
 
@@ -47,7 +43,6 @@ type nodeController struct {
 	client client.Client
 	self   types.NamespacedName
 	node   raft.Node
-	events chan event.GenericEvent
 }
 
 func (r *nodeController) Reconcile(ctx context.Context, req ctrl.Request) (result ctrl.Result, err error) {
@@ -101,18 +96,6 @@ func (r *nodeController) Reconcile(ctx context.Context, req ctrl.Request) (resul
 	return
 }
 
-// Enqueue manually triggers the reconciler.
-func (r *nodeController) Enqueue() {
-	r.events <- event.GenericEvent{
-		Object: &discoveryv1.EndpointSlice{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      r.self.Name,
-				Namespace: r.self.Namespace,
-			},
-		},
-	}
-}
-
 func (r *nodeController) SetupWithManager(mgr manager.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		Named("cascade-node-controller").
@@ -120,9 +103,7 @@ func (r *nodeController) SetupWithManager(mgr manager.Manager) error {
 		WithOptions(controller.TypedOptions[reconcile.Request]{
 			NeedLeaderElection: ptr.To(false),
 		}).
-		WatchesRawSource(source.Channel(
-			r.events, &handler.EnqueueRequestForObject{},
-		)).
+		WatchesRawSource(&RaftEventSource{r.self, r.node}).
 		Complete(r)
 }
 
