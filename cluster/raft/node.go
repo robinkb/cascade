@@ -2,9 +2,9 @@ package raft
 
 import (
 	"bytes"
+	"context"
 	"encoding/binary"
 	"fmt"
-	"iter"
 	"log"
 	"net/http"
 	"slices"
@@ -31,7 +31,7 @@ type (
 		RemovePeer(peer cluster.Peer) error
 		Handler() http.Handler
 		Receive(m *raftpb.Message) error
-		Subscribe(string) iter.Seq[Event]
+		Emit(ctx context.Context, receiver string) <-chan Event
 	}
 )
 
@@ -67,7 +67,7 @@ func NewNode(id uint64, addr string, storage *DiskStorage, restorer cluster.Rest
 		clients:            cluster.NewClients[Client](),
 		confChangeReporter: NewReporter[error](),
 
-		subscribers: make(map[string]chan Event),
+		receivers: make(map[string]chan Event),
 	}
 }
 
@@ -97,7 +97,7 @@ type node struct {
 	clients            cluster.Clients[Client]
 	confChangeReporter Reporter[error]
 
-	subscribers map[string]chan Event
+	receivers map[string]chan Event
 }
 
 // Name implements [process.Runnable.Name].

@@ -1,7 +1,7 @@
 package raft
 
 import (
-	"iter"
+	"context"
 	"log"
 )
 
@@ -18,29 +18,33 @@ const (
 	ReasonStateChanged EventReason = "StateChanged"
 )
 
-func (n *node) Subscribe(name string) iter.Seq[Event] {
-	if _, ok := n.subscribers[name]; ok {
-		log.Panicf("subscriber %q already exists", name)
+func (n *node) Emit(ctx context.Context, receiver string) <-chan Event {
+	if ch, ok := n.receivers[receiver]; ok {
+		return ch
 	}
 
-	n.subscribers[name] = make(chan Event, 1)
+	n.receivers[receiver] = make(chan Event, 1)
 
-	return func(yield func(Event) bool) {
-		for e := range n.subscribers[name] {
-			if !yield(e) {
-				close(n.subscribers[name])
-				delete(n.subscribers, name)
+	go func() {
+		for {
+			select {
+			case <-ctx.Done():
+				close(n.receivers[receiver])
+				delete(n.receivers, receiver)
 				return
 			}
 		}
-	}
+	}()
+
+	return n.receivers[receiver]
 }
+
 func (n *node) emit(e Event) {
-	for name, ch := range n.subscribers {
+	for name, ch := range n.receivers {
 		select {
 		case ch <- e:
 		default:
-			log.Printf("dropped event due to slow subscriber: %s", name)
+			log.Printf("dropped event due to slow receiver: %s", name)
 		}
 	}
 }
