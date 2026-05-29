@@ -5,9 +5,11 @@
 package mock
 
 import (
+	"iter"
 	"net/http"
 
 	"github.com/robinkb/cascade/cluster"
+	raft0 "github.com/robinkb/cascade/cluster/raft"
 	mock "github.com/stretchr/testify/mock"
 	"go.etcd.io/raft/v3"
 	"go.etcd.io/raft/v3/raftpb"
@@ -661,6 +663,59 @@ func (_c *Node_Status_Call) Return(status raft.Status) *Node_Status_Call {
 }
 
 func (_c *Node_Status_Call) RunAndReturn(run func() raft.Status) *Node_Status_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// Subscribe provides a mock function for the type Node
+func (_mock *Node) Subscribe(s string) iter.Seq[raft0.Event] {
+	ret := _mock.Called(s)
+
+	if len(ret) == 0 {
+		panic("no return value specified for Subscribe")
+	}
+
+	var r0 iter.Seq[raft0.Event]
+	if returnFunc, ok := ret.Get(0).(func(string) iter.Seq[raft0.Event]); ok {
+		r0 = returnFunc(s)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(iter.Seq[raft0.Event])
+		}
+	}
+	return r0
+}
+
+// Node_Subscribe_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'Subscribe'
+type Node_Subscribe_Call struct {
+	*mock.Call
+}
+
+// Subscribe is a helper method to define mock.On call
+//   - s string
+func (_e *Node_Expecter) Subscribe(s interface{}) *Node_Subscribe_Call {
+	return &Node_Subscribe_Call{Call: _e.mock.On("Subscribe", s)}
+}
+
+func (_c *Node_Subscribe_Call) Run(run func(s string)) *Node_Subscribe_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		var arg0 string
+		if args[0] != nil {
+			arg0 = args[0].(string)
+		}
+		run(
+			arg0,
+		)
+	})
+	return _c
+}
+
+func (_c *Node_Subscribe_Call) Return(seq iter.Seq[raft0.Event]) *Node_Subscribe_Call {
+	_c.Call.Return(seq)
+	return _c
+}
+
+func (_c *Node_Subscribe_Call) RunAndReturn(run func(s string) iter.Seq[raft0.Event]) *Node_Subscribe_Call {
 	_c.Call.Return(run)
 	return _c
 }

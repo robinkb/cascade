@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/binary"
 	"fmt"
+	"iter"
 	"log"
 	"net/http"
 	"slices"
@@ -30,6 +31,7 @@ type (
 		RemovePeer(peer cluster.Peer) error
 		Handler() http.Handler
 		Receive(m *raftpb.Message) error
+		Subscribe(string) iter.Seq[Event]
 	}
 )
 
@@ -64,6 +66,8 @@ func NewNode(id uint64, addr string, storage *DiskStorage, restorer cluster.Rest
 
 		clients:            cluster.NewClients[Client](),
 		confChangeReporter: NewReporter[error](),
+
+		subscribers: make(map[string]chan Event),
 	}
 }
 
@@ -92,6 +96,8 @@ type node struct {
 
 	clients            cluster.Clients[Client]
 	confChangeReporter Reporter[error]
+
+	subscribers map[string]chan Event
 }
 
 // Name implements [process.Runnable.Name].
@@ -117,10 +123,11 @@ func (n *node) Run() error {
 	for {
 		select {
 		case rd := <-n.raft.Ready():
+			n.publish(rd.SoftState)
 			n.save(rd.Entries, rd.HardState, rd.Snapshot, rd.MustSync)
 			n.send(rd.Messages)
 			n.restore(rd.Snapshot)
-			n.process(rd.CommittedEntries)
+			n.apply(rd.CommittedEntries)
 			n.check(rd.ReadStates)
 			n.raft.Advance()
 		case <-n.ticker:
@@ -133,6 +140,17 @@ func (n *node) Run() error {
 			return n.storage.CreateSnapshot()
 		}
 	}
+}
+
+func (n *node) publish(ss *raft.SoftState) {
+	if ss == nil {
+		return
+	}
+
+	n.emit(Event{
+		Reason:  ReasonStateChanged,
+		Message: fmt.Sprintf("Node state changed to %s", ss.RaftState.String()),
+	})
 }
 
 func (n *node) save(ents []*raftpb.Entry, hs *raftpb.HardState, sp *raftpb.Snapshot, mustSync bool) {
@@ -172,7 +190,7 @@ func (n *node) send(messages []*raftpb.Message) {
 			n.raft.ReportUnreachable(message.GetTo())
 			log.Printf("%x failed to send message to %x: %s", n.conf.ID, message.To, err)
 		}
-		if message.Type == raftpb.MessageType_MsgSnap.Enum() {
+		if message.GetType() == raftpb.MessageType_MsgSnap {
 			if err == nil {
 				n.raft.ReportSnapshot(message.GetTo(), raft.SnapshotFinish)
 			} else {
@@ -200,7 +218,7 @@ func (n *node) restore(sp *raftpb.Snapshot) {
 	}
 }
 
-func (n *node) process(entries []*raftpb.Entry) {
+func (n *node) apply(entries []*raftpb.Entry) {
 	entries = n.filter(entries)
 	if len(entries) == 0 {
 		return
