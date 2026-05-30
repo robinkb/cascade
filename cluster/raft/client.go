@@ -6,8 +6,8 @@ import (
 	"io"
 	"net/http"
 
-	"github.com/golang/protobuf/proto"
 	"go.etcd.io/raft/v3/raftpb"
+	"google.golang.org/protobuf/proto"
 )
 
 func NewClient(baseUrl string) *Client {
