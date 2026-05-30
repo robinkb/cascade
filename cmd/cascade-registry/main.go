@@ -168,7 +168,7 @@ func yamlResolver(r io.Reader) (kong.Resolver, error) {
 			return raw, nil
 		}
 		raw = values
-		for _, part := range strings.Split(name, ".") {
+		for part := range strings.SplitSeq(name, ".") {
 			if values, ok := raw.(map[string]any); ok {
 				raw, ok = values[part]
 				if !ok {
