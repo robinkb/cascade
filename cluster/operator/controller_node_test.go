@@ -42,7 +42,7 @@ func testControllerNode(t *testing.T, c client.Client) {
 			},
 			Ports: []discoveryv1.EndpointPort{
 				discoveryv1.EndpointPort{
-					Port: ptr.To(int32(port)),
+					Port: new(int32(port)),
 				},
 			},
 		}

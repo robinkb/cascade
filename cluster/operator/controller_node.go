@@ -11,7 +11,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/utils/ptr"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
@@ -68,7 +67,7 @@ func (r *nodeController) Reconcile(ctx context.Context, req ctrl.Request) (resul
 			}
 			es.Ports = []discoveryv1.EndpointPort{
 				discoveryv1.EndpointPort{
-					Port: ptr.To(int32(addr.Port())),
+					Port: new(int32(addr.Port())),
 				},
 			}
 			return nil
@@ -101,7 +100,7 @@ func (r *nodeController) SetupWithManager(mgr manager.Manager) error {
 		Named("cascade-node-controller").
 		For(&discoveryv1.EndpointSlice{}).
 		WithOptions(controller.TypedOptions[reconcile.Request]{
-			NeedLeaderElection: ptr.To(false),
+			NeedLeaderElection: new(false),
 		}).
 		WatchesRawSource(&RaftEventSource{r.self, r.node}).
 		Complete(r)

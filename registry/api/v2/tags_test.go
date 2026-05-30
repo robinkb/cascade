@@ -43,7 +43,7 @@ func TestListTags(t *testing.T) {
 		client := NewTestClientForRepository(t, name, repo)
 
 		resp := client.ListTags(name, &testclient.ListOptions{
-			N:    testclient.Pointer(count),
+			N:    new(count),
 			Last: last,
 		})
 

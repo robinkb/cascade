@@ -113,6 +113,7 @@ tasks:
   lint:
     desc: run static quality checks
     cmds:
+      - cmd: go fix -diff ./...
       - cmd: go mod tidy -diff
       - cmd: go tool buf format --write
       - cmd: go tool golangci-lint run ./... --fix

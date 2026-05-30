@@ -237,10 +237,6 @@ func (c *Client) Do(method string, path string, headers http.Header, body io.Rea
 	return resp.Result()
 }
 
-func Pointer[K any](val K) *K {
-	return &val
-}
-
 type ListOptions struct {
 	N    *int
 	Last string

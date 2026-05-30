@@ -211,9 +211,9 @@ func TestStorageSaveHardState(t *testing.T) {
 	store := newTestStore(t, t.TempDir())
 
 	want := &raftpb.HardState{
-		Term:   ptr(rand.Uint64()),
-		Vote:   ptr(rand.Uint64()),
-		Commit: ptr(rand.Uint64()),
+		Term:   new(rand.Uint64()),
+		Vote:   new(rand.Uint64()),
+		Commit: new(rand.Uint64()),
 	}
 
 	err := store.SaveHardState(want)
@@ -237,7 +237,7 @@ func TestStorageSnapshot(t *testing.T) {
 		wantApliedIndex := entries[0].GetIndex()
 		wantTerm := entries[0].GetTerm()
 		wantConfState := &raftpb.ConfState{
-			AutoLeave: ptr(true),
+			AutoLeave: new(true),
 			Voters:    []uint64{rand.Uint64(), rand.Uint64(), rand.Uint64()},
 		}
 
@@ -278,8 +278,8 @@ func TestStorageSnapshot(t *testing.T) {
 		want := &raftpb.Snapshot{
 			Data: RandomBytes(64),
 			Metadata: &raftpb.SnapshotMetadata{
-				Index:     ptr(uint64(10)),
-				Term:      ptr(uint64(5)),
+				Index:     new(uint64(10)),
+				Term:      new(uint64(5)),
 				ConfState: &raftpb.ConfState{Voters: RandomIntN[uint64](3)},
 			},
 		}
@@ -464,8 +464,4 @@ func newTestStore(t *testing.T, dir string) *DiskStorage {
 	store, err := NewDiskStorage(dir, testDB(t, dir, nil), new(fake.Snapshotter))
 	AssertNoError(t, err).Require()
 	return store
-}
-
-func ptr[T any](v T) *T {
-	return &v
 }

@@ -62,7 +62,7 @@ func TestContentDiscovery(t *testing.T) {
 
 			// In addition to fetching the whole list of tags, a subset of the tags can be fetched by providing the n query parameter.
 			resp := client.ListTags(repository, &testclient.ListOptions{
-				N: testclient.Pointer(10),
+				N: new(10),
 			})
 			AssertResponseCode(t, resp, http.StatusOK)
 			var tagsList distributionv1.TagList
@@ -77,7 +77,7 @@ func TestContentDiscovery(t *testing.T) {
 
 			// The response to such a request MAY return fewer than <int> results, but only when the total number of tags attached to the repository is less than <int> or a Link header is provided.
 			resp := client.ListTags(repository, &testclient.ListOptions{
-				N: testclient.Pointer(len(tags) + 10),
+				N: new(len(tags) + 10),
 			})
 			AssertResponseCode(t, resp, http.StatusOK)
 			var tagsList distributionv1.TagList
@@ -90,7 +90,7 @@ func TestContentDiscovery(t *testing.T) {
 			client := testclient.NewForHandler(t, srv)
 
 			resp := client.ListTags(repository, &testclient.ListOptions{
-				N: testclient.Pointer(0),
+				N: new(0),
 			})
 
 			AssertResponseCode(t, resp, http.StatusOK)
@@ -111,7 +111,7 @@ func TestContentDiscovery(t *testing.T) {
 
 			resp := client.ListTags(repository, &testclient.ListOptions{
 				Last: lastTag,
-				N:    testclient.Pointer(n),
+				N:    new(n),
 			})
 
 			AssertResponseCode(t, resp, http.StatusOK)

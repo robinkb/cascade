@@ -43,7 +43,7 @@ func TestListRepositories(t *testing.T) {
 		client := testclient.NewForHandler(t, srv)
 
 		resp := client.ListRepositories(&testclient.ListOptions{
-			N:    testclient.Pointer(count),
+			N:    new(count),
 			Last: last,
 		})
 

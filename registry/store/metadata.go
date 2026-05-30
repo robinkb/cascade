@@ -8,7 +8,6 @@ import (
 
 	"github.com/gofrs/uuid/v5"
 	"github.com/opencontainers/go-digest"
-	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/robinkb/cascade/pkg/pbutil"
@@ -124,8 +123,8 @@ type References struct {
 
 func (r *References) Marshal() []byte {
 	b := storepb.References_builder{
-		Config:  proto.String(r.Config.String()),
-		Subject: proto.String(r.Subject.String()),
+		Config:  new(r.Config.String()),
+		Subject: new(r.Subject.String()),
 	}
 	for _, id := range r.Layers {
 		b.Layers = append(b.Layers, id.String())
