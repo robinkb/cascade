@@ -9,7 +9,7 @@ require (
 	github.com/opencontainers/go-digest v1.0.0
 	github.com/opencontainers/image-spec v1.1.1
 	github.com/stretchr/testify v1.11.1
-	go.etcd.io/bbolt v1.4.3
+	go.etcd.io/bbolt v1.5.0
 	go.etcd.io/raft/v3 v3.7.0
 	go.yaml.in/yaml/v4 v4.0.0-rc.6
 	golang.org/x/crypto/x509roots/fallback v0.0.0-20260323153451-8400f4a93807
