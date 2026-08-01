@@ -4,7 +4,7 @@ go 1.26.0
 
 require (
 	github.com/alecthomas/kong v1.16.0
-	github.com/gofrs/uuid/v5 v5.4.0
+	github.com/gofrs/uuid/v5 v5.5.0
 	github.com/opencontainers/distribution-spec/specs-go v0.0.0-20260313153622-5e57cc0a07ea
 	github.com/opencontainers/go-digest v1.0.0
 	github.com/opencontainers/image-spec v1.1.1
