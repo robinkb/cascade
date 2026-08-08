@@ -12,6 +12,7 @@ import (
 	"github.com/gofrs/uuid/v5"
 	"github.com/opencontainers/go-digest"
 
+	"github.com/robinkb/cascade/pkg/set"
 	"github.com/robinkb/cascade/registry/store"
 )
 
@@ -31,7 +32,7 @@ type (
 	// blobs represents the metadata of blobs in the shared blob store.
 	blobs map[digest.Digest]blobOwners
 	// blobOwners tracks which repositories own a shared blob.
-	blobOwners map[string]struct{}
+	blobOwners = set.Of[string]
 	// repositories contains all repositories in the metadata store..
 	repositories map[string]*repository
 )
@@ -93,8 +94,8 @@ func (m *metadataStore) DeleteRepository(name string) error {
 	}
 
 	for digest := range repo.Links {
-		delete(m.BlobStore[digest], name)
-		if len(m.BlobStore[digest]) == 0 {
+		m.BlobStore[digest].Remove(name)
+		if m.BlobStore[digest].IsEmpty() {
 			delete(m.BlobStore, digest)
 		}
 	}
@@ -146,7 +147,7 @@ type (
 	// links tracks the blobs linked by the repository.
 	links map[digest.Digest]linkOwners
 	// linkOwners tracks which manifests reference a particular blob.
-	linkOwners map[digest.Digest]struct{}
+	linkOwners = set.Of[digest.Digest]
 	// manifests tracks the manifests in the repository.
 	manifests map[digest.Digest]manifest
 	// manifest contains the metadata of a manifest.
@@ -154,12 +155,12 @@ type (
 		manifestOwners
 		Metadata  store.Manifest
 		Refs      store.References
-		Referrers map[digest.Digest]struct{}
+		Referrers set.Of[digest.Digest]
 	}
 	// manifestOwners tracks which manifests and tags reference a particular manifest.
 	manifestOwners struct {
-		Manifests map[digest.Digest]struct{}
-		Tags      map[string]struct{}
+		Manifests set.Of[digest.Digest]
+		Tags      set.Of[string]
 	}
 	// tags tracks the tags in the repository.
 	tags map[string]digest.Digest
@@ -178,10 +179,10 @@ func (r *repositoryStore) GetLink(id digest.Digest) error {
 func (r *repositoryStore) PutLink(id digest.Digest) error {
 	_, ok := r.blobs[id]
 	if !ok {
-		r.blobs[id] = make(blobOwners)
+		r.blobs[id] = set.New[string]()
 	}
-	r.blobs[id][r.name] = struct{}{}
-	r.repo.Links[id] = make(linkOwners)
+	r.blobs[id].Add(r.name)
+	r.repo.Links[id] = set.New[digest.Digest]()
 	return nil
 }
 
@@ -190,12 +191,12 @@ func (r *repositoryStore) DeleteLink(id digest.Digest) error {
 	if !ok {
 		return fmt.Errorf("%w: %s", store.ErrLinkNotFound, id)
 	}
-	if len(owners) != 0 {
+	if !owners.IsEmpty() {
 		return fmt.Errorf("%w: %s", store.ErrLinkInUse, id)
 	}
 
-	delete(r.blobs[id], r.name)
-	if len(r.blobs[id]) == 0 {
+	r.blobs[id].Remove(r.name)
+	if r.blobs[id].IsEmpty() {
 		delete(r.blobs, id)
 	}
 
@@ -219,7 +220,7 @@ func (r *repositoryStore) PutManifest(id digest.Digest, meta store.Manifest, ref
 		if !ok {
 			return fmt.Errorf("%w: %w: %s", store.ErrManifestInvalid, store.ErrManifestConfigNotFound, refs.Config)
 		}
-		owners[id] = struct{}{}
+		owners.Add(id)
 	}
 
 	for _, layerDigest := range refs.Layers {
@@ -227,7 +228,7 @@ func (r *repositoryStore) PutManifest(id digest.Digest, meta store.Manifest, ref
 		if !ok {
 			return fmt.Errorf("%w: %w: %s", store.ErrManifestInvalid, store.ErrManifestLayerNotFound, layerDigest)
 		}
-		owners[id] = struct{}{}
+		owners.Add(id)
 	}
 
 	for _, manifestDigest := range refs.Manifests {
@@ -235,7 +236,7 @@ func (r *repositoryStore) PutManifest(id digest.Digest, meta store.Manifest, ref
 		if !ok {
 			return fmt.Errorf("%w: %w: %s", store.ErrManifestInvalid, store.ErrManifestImageNotFound, manifestDigest)
 		}
-		manifest.Manifests[id] = struct{}{}
+		manifest.Manifests.Add(id)
 	}
 
 	if refs.Subject != "" {
@@ -243,14 +244,14 @@ func (r *repositoryStore) PutManifest(id digest.Digest, meta store.Manifest, ref
 		if !ok {
 			return fmt.Errorf("%w: %w: %s", store.ErrManifestInvalid, store.ErrManifestSubjectNotFound, refs.Subject)
 		}
-		manifest.Referrers[id] = struct{}{}
+		manifest.Referrers.Add(id)
 	}
 
 	if err := r.PutLink(id); err != nil {
 		return err
 	}
 
-	r.repo.Links[id][id] = struct{}{}
+	r.repo.Links[id].Add(id)
 
 	return nil
 }
@@ -261,14 +262,14 @@ func (r *repositoryStore) DeleteManifest(id digest.Digest) ([]digest.Digest, err
 		return nil, store.ErrManifestNotFound
 	}
 
-	if len(manifest.Manifests) != 0 {
+	if !manifest.Manifests.IsEmpty() {
 		return nil, fmt.Errorf("%w: %s", store.ErrManifestInUse, id)
 	}
 
 	deleted := make([]digest.Digest, 0)
 
 	if manifest.Refs.Config != "" {
-		delete(r.repo.Links[manifest.Refs.Config], id)
+		r.repo.Links[manifest.Refs.Config].Remove(id)
 		if err := r.DeleteLink(manifest.Refs.Config); err != nil {
 			if !errors.Is(err, store.ErrLinkInUse) {
 				return deleted, err
@@ -279,7 +280,7 @@ func (r *repositoryStore) DeleteManifest(id digest.Digest) ([]digest.Digest, err
 	}
 
 	for _, layerDigest := range manifest.Refs.Layers {
-		delete(r.repo.Links[layerDigest], id)
+		r.repo.Links[layerDigest].Remove(id)
 		if err := r.DeleteLink(layerDigest); err != nil {
 			if errors.Is(err, store.ErrLinkInUse) ||
 				errors.Is(err, store.ErrLinkNotFound) {
@@ -291,7 +292,7 @@ func (r *repositoryStore) DeleteManifest(id digest.Digest) ([]digest.Digest, err
 	}
 
 	for _, manifestDigest := range manifest.Refs.Manifests {
-		delete(r.repo.Manifests[manifestDigest].Manifests, id)
+		r.repo.Manifests[manifestDigest].Manifests.Remove(id)
 		digests, err := r.DeleteManifest(manifestDigest)
 		if err != nil {
 			if errors.Is(err, store.ErrManifestInUse) ||
@@ -304,10 +305,10 @@ func (r *repositoryStore) DeleteManifest(id digest.Digest) ([]digest.Digest, err
 	}
 
 	if manifest.Refs.Subject != "" {
-		delete(r.repo.Manifests[manifest.Refs.Subject].Referrers, id)
+		r.repo.Manifests[manifest.Refs.Subject].Referrers.Remove(id)
 	}
 
-	for referrerDigest := range manifest.Referrers {
+	for referrerDigest := range manifest.Referrers.All() {
 		digests, err := r.DeleteManifest(referrerDigest)
 		if err != nil {
 			if errors.Is(err, store.ErrManifestInUse) {
@@ -318,20 +319,20 @@ func (r *repositoryStore) DeleteManifest(id digest.Digest) ([]digest.Digest, err
 		deleted = append(deleted, digests...)
 	}
 
-	for tag := range manifest.Tags {
+	for tag := range manifest.Tags.All() {
 		delete(r.repo.Tags, tag)
 	}
 
 	delete(r.repo.Manifests, id)
 	deleted = append(deleted, id)
 
-	delete(r.repo.Links[id], id)
+	r.repo.Links[id].Remove(id)
 	return deleted, r.DeleteLink(id)
 }
 
 func (r *repositoryStore) ListReferrers(subject digest.Digest) ([]digest.Digest, error) {
 	referrers := slices.Collect(
-		maps.Keys(r.repo.Manifests[subject].Referrers),
+		r.repo.Manifests[subject].Referrers.All(),
 	)
 	return referrers, nil
 }
@@ -382,8 +383,8 @@ func (r *repositoryStore) PutTag(tag string, id digest.Digest) ([]digest.Digest,
 	// If this tag already exists, remove it from the original manifest
 	// and garbage collect the manifest if it has no tags remaining.
 	if id, ok := r.repo.Tags[tag]; ok {
-		delete(r.repo.Manifests[id].Tags, tag)
-		if len(r.repo.Manifests[id].Tags) == 0 {
+		r.repo.Manifests[id].Tags.Remove(tag)
+		if r.repo.Manifests[id].Tags.IsEmpty() {
 			digests, err := r.DeleteManifest(id)
 			if err != nil {
 				if !errors.Is(err, store.ErrManifestInUse) {
@@ -394,7 +395,7 @@ func (r *repositoryStore) PutTag(tag string, id digest.Digest) ([]digest.Digest,
 		}
 	}
 
-	manifest.Tags[tag] = struct{}{}
+	manifest.Tags.Add(tag)
 	r.repo.Tags[tag] = id
 	return deleted, nil
 }
@@ -406,7 +407,7 @@ func (r *repositoryStore) DeleteTag(tag string) ([]digest.Digest, error) {
 
 	digest := r.repo.Tags[tag]
 	delete(r.repo.Tags, tag)
-	delete(r.repo.Manifests[digest].Tags, tag)
+	r.repo.Manifests[digest].Tags.Remove(tag)
 
 	return r.DeleteManifest(digest)
 }
@@ -437,9 +438,9 @@ func newManifest(meta store.Manifest, refs store.References) manifest {
 		Metadata: meta,
 		Refs:     refs,
 		manifestOwners: manifestOwners{
-			Manifests: make(map[digest.Digest]struct{}),
-			Tags:      make(map[string]struct{}),
+			Manifests: set.New[digest.Digest](),
+			Tags:      set.New[string](),
 		},
-		Referrers: make(map[digest.Digest]struct{}),
+		Referrers: set.New[digest.Digest](),
 	}
 }
