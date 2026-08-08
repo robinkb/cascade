@@ -31,7 +31,7 @@ type (
 	// blobs represents the metadata of blobs in the shared blob store.
 	blobs map[digest.Digest]blobOwners
 	// blobOwners tracks which repositories own a shared blob.
-	blobOwners map[string]any
+	blobOwners map[string]struct{}
 	// repositories contains all repositories in the metadata store..
 	repositories map[string]*repository
 )
@@ -146,7 +146,7 @@ type (
 	// links tracks the blobs linked by the repository.
 	links map[digest.Digest]linkOwners
 	// linkOwners tracks which manifests reference a particular blob.
-	linkOwners map[digest.Digest]any
+	linkOwners map[digest.Digest]struct{}
 	// manifests tracks the manifests in the repository.
 	manifests map[digest.Digest]manifest
 	// manifest contains the metadata of a manifest.
@@ -154,12 +154,12 @@ type (
 		manifestOwners
 		Metadata  store.Manifest
 		Refs      store.References
-		Referrers map[digest.Digest]any
+		Referrers map[digest.Digest]struct{}
 	}
 	// manifestOwners tracks which manifests and tags reference a particular manifest.
 	manifestOwners struct {
-		Manifests map[digest.Digest]any
-		Tags      map[string]any
+		Manifests map[digest.Digest]struct{}
+		Tags      map[string]struct{}
 	}
 	// tags tracks the tags in the repository.
 	tags map[string]digest.Digest
@@ -180,7 +180,7 @@ func (r *repositoryStore) PutLink(id digest.Digest) error {
 	if !ok {
 		r.blobs[id] = make(blobOwners)
 	}
-	r.blobs[id][r.name] = nil
+	r.blobs[id][r.name] = struct{}{}
 	r.repo.Links[id] = make(linkOwners)
 	return nil
 }
@@ -219,7 +219,7 @@ func (r *repositoryStore) PutManifest(id digest.Digest, meta store.Manifest, ref
 		if !ok {
 			return fmt.Errorf("%w: %w: %s", store.ErrManifestInvalid, store.ErrManifestConfigNotFound, refs.Config)
 		}
-		owners[id] = nil
+		owners[id] = struct{}{}
 	}
 
 	for _, layerDigest := range refs.Layers {
@@ -227,7 +227,7 @@ func (r *repositoryStore) PutManifest(id digest.Digest, meta store.Manifest, ref
 		if !ok {
 			return fmt.Errorf("%w: %w: %s", store.ErrManifestInvalid, store.ErrManifestLayerNotFound, layerDigest)
 		}
-		owners[id] = nil
+		owners[id] = struct{}{}
 	}
 
 	for _, manifestDigest := range refs.Manifests {
@@ -235,7 +235,7 @@ func (r *repositoryStore) PutManifest(id digest.Digest, meta store.Manifest, ref
 		if !ok {
 			return fmt.Errorf("%w: %w: %s", store.ErrManifestInvalid, store.ErrManifestImageNotFound, manifestDigest)
 		}
-		manifest.Manifests[id] = nil
+		manifest.Manifests[id] = struct{}{}
 	}
 
 	if refs.Subject != "" {
@@ -243,14 +243,14 @@ func (r *repositoryStore) PutManifest(id digest.Digest, meta store.Manifest, ref
 		if !ok {
 			return fmt.Errorf("%w: %w: %s", store.ErrManifestInvalid, store.ErrManifestSubjectNotFound, refs.Subject)
 		}
-		manifest.Referrers[id] = nil
+		manifest.Referrers[id] = struct{}{}
 	}
 
 	if err := r.PutLink(id); err != nil {
 		return err
 	}
 
-	r.repo.Links[id][id] = nil
+	r.repo.Links[id][id] = struct{}{}
 
 	return nil
 }
@@ -394,7 +394,7 @@ func (r *repositoryStore) PutTag(tag string, id digest.Digest) ([]digest.Digest,
 		}
 	}
 
-	manifest.Tags[tag] = nil
+	manifest.Tags[tag] = struct{}{}
 	r.repo.Tags[tag] = id
 	return deleted, nil
 }
@@ -437,9 +437,9 @@ func newManifest(meta store.Manifest, refs store.References) manifest {
 		Metadata: meta,
 		Refs:     refs,
 		manifestOwners: manifestOwners{
-			Manifests: make(map[digest.Digest]any),
-			Tags:      make(map[string]any),
+			Manifests: make(map[digest.Digest]struct{}),
+			Tags:      make(map[string]struct{}),
 		},
-		Referrers: make(map[digest.Digest]any),
+		Referrers: make(map[digest.Digest]struct{}),
 	}
 }
