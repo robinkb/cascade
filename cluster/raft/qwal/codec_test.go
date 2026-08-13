@@ -150,11 +150,14 @@ func TestEncodeDecodeErrorDetection(t *testing.T) {
 		_, err := newEncoder(w).Encode(want)
 		AssertNoError(t, err).Require()
 
-		// Corrupt the record by writing to the middle of it.
-		_, err = w.(*os.File).WriteAt(
-			[]byte{byte(255)},
-			int64(len(want.Value)-10),
-		)
+		offset := int64(len(want.Value) - 10)
+		b := make([]byte, 1)
+		_, err = r.(*os.File).ReadAt(b, offset)
+		AssertNoError(t, err).Require()
+
+		// Modify the byte and write it back to corrupt the record.
+		b[0] = b[0] << 1
+		_, err = w.(*os.File).WriteAt(b, offset)
 		AssertNoError(t, err).Require()
 
 		_, err = newDecoder(r).RecordAt(got, 0)
