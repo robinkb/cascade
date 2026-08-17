@@ -8,7 +8,7 @@ require (
 	github.com/opencontainers/distribution-spec/specs-go v0.0.0-20260313153622-5e57cc0a07ea
 	github.com/opencontainers/go-digest v1.0.0
 	github.com/opencontainers/image-spec v1.1.1
-	github.com/stretchr/testify v1.11.1
+	github.com/stretchr/testify v1.12.0
 	go.etcd.io/bbolt v1.5.0
 	go.etcd.io/raft/v3 v3.7.0
 	go.yaml.in/yaml/v4 v4.0.0-rc.6
