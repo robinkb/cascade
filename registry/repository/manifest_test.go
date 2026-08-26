@@ -15,6 +15,37 @@ import (
 	"github.com/robinkb/cascade/testing/store/mock"
 )
 
+func TestStatManifest(t *testing.T) {
+	t.Run("returns manifest metadata", func(t *testing.T) {
+		id, data := loadTestimageManifest(t)
+		want := store.Manifest{
+			Annotations: map[string]string{
+				"org.opencontainers.image.base.digest": "",
+				"org.opencontainers.image.base.name":   "",
+				"org.opencontainers.image.created":     "2026-04-01T07:53:33.547482297Z",
+			},
+			ArtifactType: "application/vnd.oci.image.config.v1+json",
+			MediaType:    "application/vnd.oci.image.manifest.v1+json",
+			Size:         int64(len(data)),
+		}
+
+		blobs := mock.NewBlobs(t)
+		blobs.EXPECT().
+			StatBlob(id).
+			Return(nil, nil)
+
+		repo := mock.NewRepository(t)
+		repo.EXPECT().
+			GetManifest(id).
+			Return(want, nil)
+
+		svc := New(blobs, repo)
+		got, err := svc.StatManifest(string(id))
+		AssertNoError(t, err)
+		AssertDeepEqual(t, got, &want)
+	})
+}
+
 func TestPutManifest(t *testing.T) {
 	t.Run("processes an image manifest", func(t *testing.T) {
 		id, data := loadTestimageManifest(t)

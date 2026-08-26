@@ -14,7 +14,7 @@ type (
 		GetBlob(digest string) (io.Reader, error)
 		DeleteBlob(digest string) error
 
-		StatManifest(reference string) (*store.BlobInfo, error)
+		StatManifest(reference string) (*store.Manifest, error)
 		GetManifest(reference string) (*store.Manifest, []byte, error)
 		PutManifest(reference string, content []byte) (digest.Digest, error)
 		DeleteManifest(reference string) error
