@@ -8,13 +8,22 @@ An OCI artifact consists of:
 * **Filesystem layers**: To the registry, filesystem layers are just binary blobs.
 * **Configuration**: A JSON file that contains metadata about the artifact.
 * **Image manifest**: A JSON file that references the configuration and layers that make up the artifact by their digests.
-An image manifest may also point to another image manifest to form a weak association.
 * **Image index**: A JSON file that references other manifests.
 
 All of the above are identified by their digest.
 A digest is a combination of an algorithm and a hash in the format `<algorithm>:<hash>`.
 For example, if a manifest was hashed with the SHA256 algorithm, its digest would be something like `sha256:3b9ad...`.
 Manifests refer to other objects by their digests, and a manifest is itself referenced by its digest.
+
+An image manifest may also point to another image manifest to form a weak association.
+This is called a referrer.
+If an image manifest is part of a container image, then the referrer may contain metadata about that image, like a Software Bill-Of-Materials (SBOM).
+A referrer points to its own layers and configuration.
+
+Image indices are typically used for multi-platform container images.
+For example, if the container image supports AMD64 and ARM64, those are actually two separate sets of layers with their own config and manifest.
+An index manifest then points to those two manifests.
+A client will pull the index manifest, and use it to resolve the container image for the client's platform.
 
 Putting it all together, we get a dependency graph that looks like this:
 
@@ -23,10 +32,20 @@ graph RL
     Config
     Layers["Layer 0..n"]
     ImageManifest["Image Manifest"]
+    ImageIndex["Image Index"]
+    Referrer
+    ReferrerConfig["Config"]
+    ReferrerLayers["Layers 0..n"]
 
     ImageManifest --> Config
     ImageManifest --> Layers
+    ImageIndex -..-> ImageManifest
+    Referrer -.-> ImageManifest
+    Referrer --> ReferrerConfig
+    Referrer --> ReferrerLayers
 ```
+
+Dotted lines indicate optional dependencies.
 
 Manifests are typically tagged to make referring to them easier.
 Often tags are semantic versions, but to the registry, they are arbitrary strings (with some limitations).
