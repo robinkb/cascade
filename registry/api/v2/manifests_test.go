@@ -17,33 +17,44 @@ import (
 
 func TestStatManifests(t *testing.T) {
 	name := RandomName()
-	digest, _, content := RandomManifest()
+	digest, manifest, content := RandomManifest()
 	length := len(content)
 	tag := RandomVersion()
 
-	t.Run("Stat existing manifest returns 200 with correct size in Content-Length header", func(t *testing.T) {
+	t.Run("Stat existing manifest returns 200 with correct headers", func(t *testing.T) {
+		want := store.Manifest{
+			MediaType: manifest.MediaType,
+			Size:      int64(length),
+		}
 		repo := mock.NewService(t)
 		repo.EXPECT().
 			StatManifest(digest.String()).
-			Return(&store.BlobInfo{Size: int64(length)}, nil)
+			Return(&want, nil)
 
 		client := NewTestClientForRepository(t, name, repo)
 
 		resp := client.CheckManifestByDigest(name, digest)
 
 		AssertResponseCode(t, resp, http.StatusOK)
-		AssertResponseHeader(t, resp, HeaderContentLength, strconv.Itoa(len(content)))
+		AssertResponseHeader(t, resp, HeaderContentLength, strconv.Itoa(int(want.Size)))
+		AssertResponseHeader(t, resp, HeaderContentType, want.MediaType)
+		AssertResponseHeader(t, resp, HeaderDockerContentDigest, digest.String())
 		AssertResponseBodyEquals(t, resp, nil)
 	})
 
 	t.Run("Stat existing manifest by tag returns 200 with correct size in Content-Length header", func(t *testing.T) {
+		want := store.Manifest{
+			MediaType: manifest.MediaType,
+			Size:      int64(length),
+		}
+
 		repo := mock.NewService(t)
 		repo.EXPECT().
 			GetTag(tag).
 			Return(digest.String(), nil)
 		repo.EXPECT().
 			StatManifest(digest.String()).
-			Return(&store.BlobInfo{Size: int64(length)}, nil)
+			Return(&want, nil)
 
 		client := NewTestClientForRepository(t, name, repo)
 

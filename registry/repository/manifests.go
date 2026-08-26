@@ -10,23 +10,23 @@ import (
 	"github.com/robinkb/cascade/registry/store"
 )
 
-func (s *repositoryService) StatManifest(id string) (*store.BlobInfo, error) {
+func (s *repositoryService) StatManifest(id string) (*store.Manifest, error) {
 	digest, err := digest.Parse(id)
 	if err != nil {
 		return nil, ErrManifestUnknown
 	}
 
-	_, err = s.repo.GetManifest(digest)
+	info, err := s.repo.GetManifest(digest)
 	if err != nil {
 		return nil, ErrManifestUnknown
 	}
 
-	info, err := s.blobs.StatBlob(digest)
+	_, err = s.blobs.StatBlob(digest)
 	if errors.Is(err, store.ErrBlobNotFound) {
 		return nil, ErrManifestUnknown
 	}
 
-	return info, err
+	return &info, err
 }
 
 func (s *repositoryService) GetManifest(id string) (*store.Manifest, []byte, error) {
