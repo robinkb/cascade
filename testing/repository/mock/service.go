@@ -882,23 +882,23 @@ func (_c *Service_StatBlob_Call) RunAndReturn(run func(digest1 string) (*store.B
 }
 
 // StatManifest provides a mock function for the type Service
-func (_mock *Service) StatManifest(reference string) (*store.BlobInfo, error) {
+func (_mock *Service) StatManifest(reference string) (*store.Manifest, error) {
 	ret := _mock.Called(reference)
 
 	if len(ret) == 0 {
 		panic("no return value specified for StatManifest")
 	}
 
-	var r0 *store.BlobInfo
+	var r0 *store.Manifest
 	var r1 error
-	if returnFunc, ok := ret.Get(0).(func(string) (*store.BlobInfo, error)); ok {
+	if returnFunc, ok := ret.Get(0).(func(string) (*store.Manifest, error)); ok {
 		return returnFunc(reference)
 	}
-	if returnFunc, ok := ret.Get(0).(func(string) *store.BlobInfo); ok {
+	if returnFunc, ok := ret.Get(0).(func(string) *store.Manifest); ok {
 		r0 = returnFunc(reference)
 	} else {
 		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(*store.BlobInfo)
+			r0 = ret.Get(0).(*store.Manifest)
 		}
 	}
 	if returnFunc, ok := ret.Get(1).(func(string) error); ok {
@@ -933,12 +933,12 @@ func (_c *Service_StatManifest_Call) Run(run func(reference string)) *Service_St
 	return _c
 }
 
-func (_c *Service_StatManifest_Call) Return(blobInfo *store.BlobInfo, err error) *Service_StatManifest_Call {
-	_c.Call.Return(blobInfo, err)
+func (_c *Service_StatManifest_Call) Return(manifest *store.Manifest, err error) *Service_StatManifest_Call {
+	_c.Call.Return(manifest, err)
 	return _c
 }
 
-func (_c *Service_StatManifest_Call) RunAndReturn(run func(reference string) (*store.BlobInfo, error)) *Service_StatManifest_Call {
+func (_c *Service_StatManifest_Call) RunAndReturn(run func(reference string) (*store.Manifest, error)) *Service_StatManifest_Call {
 	_c.Call.Return(run)
 	return _c
 }
