@@ -79,10 +79,10 @@ graph RL
     ImageManifestA["Image Manifest A"]
     ImageManifestB["Image Manifest B"]
     
-    ImageManifestA --> LayerBase
     ImageManifestA --> LayerA
-    ImageManifestB --> LayerBase
+    ImageManifestA --> LayerBase
     ImageManifestB --> LayerB
+    ImageManifestB --> LayerBase
 ```
 
 Clients can check if a layer is already present on the registry before deciding to upload it.
