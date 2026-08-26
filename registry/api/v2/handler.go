@@ -20,6 +20,9 @@ const (
 	HeaderLocation      = "Location"
 	HeaderRange         = "Range"
 
+	// Legacy headers
+	HeaderDockerContentDigest = "Docker-Content-Digest"
+
 	// Distribution headers
 	HeaderOCIFiltersApplied = "OCI-Filters-Applied"
 	HeaderOCISubject        = "OCI-Subject"

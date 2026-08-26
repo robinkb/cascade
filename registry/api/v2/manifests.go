@@ -53,6 +53,8 @@ func (h *Handler) statManifestsHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set(HeaderContentLength, strconv.Itoa(int(info.Size)))
+	w.Header().Set(HeaderContentType, info.MediaType)
+	w.Header().Set(HeaderDockerContentDigest, reference)
 	w.WriteHeader(http.StatusOK)
 }
 
