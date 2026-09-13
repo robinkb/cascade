@@ -1,17 +1,15 @@
 # Storage
 
-## Problem Statement
+## OCI Artifact Structure
 
 To understand why and how the registry stores its data, we need to understand how that data is structured.
-
-### OCI Artifact
 
 The format of an OCI artifact is defined in the [OCI Image spec][1].
 This section contains a summary of the details necessary to understand how a registry handles artifacts.
 
 An OCI artifact consists of:
 
-* **Filesystem layers**: To the registry, filesystem layers are just binary blobs.
+* **Filesystem layers**: One of more TAR archives that may hold complete filesystems, or just individual files.
 * **Configuration**: A JSON file that contains metadata about the artifact.
 * **Image manifest**: A JSON file that references the configuration and layers that make up the artifact by their digests.
 * **Image index**: A JSON file that references other manifests.
@@ -21,8 +19,11 @@ A digest is a combination of an algorithm and a hash in the format `<algorithm>:
 For example, if a manifest was hashed with the SHA256 algorithm, its digest would be something like `sha256:3b9ad...`.
 Manifests refer to other objects by their digests, and a manifest is itself referenced by its digest.
 
-An image manifest may also point to another image manifest to form a weak association.
-This is called a referrer.
+To the registry, filesystem layers are just binary blobs.
+They are never read or inspected beyond calculating hashes to verify their integrity.
+
+An image manifest may also point to another image manifest (called a subject) to form a weak association.
+These manifests are called referrers.
 If an image manifest is part of a container image, then the referrer may contain metadata about that image, like a Software Bill-Of-Materials (SBOM).
 A referrer points to its own layers and configuration.
 
@@ -55,19 +56,19 @@ Dotted lines indicate optional dependencies.
 
 Manifests are typically tagged to make referring to them easier.
 Often tags are semantic versions, but to the registry, they are arbitrary strings (with some limitations) that point to a manifest digest.
-Tags can only every point to a single manifest, but they may be moved to another manifest.
+Tags can only point to a single manifest, but they may be moved to another manifest.
 
 Clients of the registry typically fetch a tag to get the digest of a manifest.
 The manifest is then read to fetch the configuration and layers by their digests.
 Clients may also fetch manifest by their digest directly, without first using a tag to resolve it.
 This is often done for security, as a manifest digest is immutable, while tags are often mutable.
 
-### Deduplication
+## Deduplication
 
 Because OCI artifacts are made up out of layers, it is possible that two artifacts use some of the same layers.
 For example, two container images might be built on top of the same Ubuntu base image.
+Some base images can be quite large, leading to a lot duplicated data.
 It would be wasteful to upload the same data to the registry multiple times.
-Some base images can be quite large, making this especially important.
 That's why the registry deduplicates image layers.
 Each layer is stored only once, identified by its digest.
 
@@ -78,7 +79,7 @@ graph RL
     LayerB["Layer B"]
     ImageManifestA["Image Manifest A"]
     ImageManifestB["Image Manifest B"]
-    
+
     ImageManifestA --> LayerA
     ImageManifestA --> LayerBase
     ImageManifestB --> LayerB
@@ -87,7 +88,7 @@ graph RL
 
 Clients can check if a layer is already present on the registry before deciding to upload it.
 
-### Repositories
+## Repositories
 
 In the registry, OCI artifacts are organized into repositories.
 Given the container name `example.com/nginx:v1.2.3`:
@@ -96,10 +97,12 @@ Given the container name `example.com/nginx:v1.2.3`:
 * `nginx` is the repository name.
 * `v.1.2.3` is the version.
 
-Each repository can hold multiple manifests.
+Each repository can hold multiple artifacts, usually identified with tags.
+Continuing the example, a repository might hold multiple versions of NGINX.
 
-* Layer uploaded to one repository should not be accessible through another
-* However, we do want deduplication across repositories for efficiency
-* That's why we have links
+Repositories serve as scopes for OCI artifacts, and for upload sessions.
+Objects uploaded to one repository should not be accessible from another.
+
+Deleting a repository deletes all OCI artifacts within it.
 
 [1]:https://github.com/opencontainers/image-spec/blob/main/spec.md
