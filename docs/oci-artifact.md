@@ -11,7 +11,7 @@ An OCI artifact consists of:
 
 * **Filesystem layers**: One of more TAR archives that may hold complete filesystems, or just individual files.
 * **Configuration**: A JSON file that contains metadata about the artifact.
-* **Image manifest**: A JSON file that references the configuration and layers that make up the artifact by their digests.
+* **Image manifest**: A JSON file that references the layers and configuration that make up the artifact by their digests.
 * **Image index**: A JSON file that references other manifests.
 
 All of the above are identified by their digest.
@@ -101,8 +101,52 @@ Each repository can hold multiple artifacts, usually identified with tags.
 Continuing the example, a repository might hold multiple versions of NGINX.
 
 Repositories serve as scopes for OCI artifacts, and for upload sessions.
+Deleting a repository deletes all OCI artifacts within it.
 Objects uploaded to one repository should not be accessible from another.
 
-Deleting a repository deletes all OCI artifacts within it.
+We do still want to make sure that layers can be shared across repositories.
+That is why the registry has a shared blob store.
+When a layer is uploaded to a repository, the layer is stored into the blob store, and the repository mounts the layer from the blob store.
+If a layer is uploaded again to another repository, the data is effectively discarded once the upload is complete, and only a mount is created in the repository.
+
+```mermaid
+graph RL
+    subgraph Blobs["Blob Store"]
+        direction RL
+        LayerA["Layer A"]
+        LayerBase["Base Layer"]
+        LayerB["Layer B"]
+    end
+    
+    subgraph RepositoryA["Repository A"]
+        direction RL
+
+        MountBaseA["Base Mount"]
+        MountA["Mount A"]
+        ConfigA["Config A"]
+        ImageManifestA["Image Manifest A"]
+    end
+    
+    subgraph RepositoryB["Repository B"]
+        direction RL
+
+        MountBaseB["Base Mount"]
+        MountB["Mount B"]
+        ConfigB["Config B"]
+        ImageManifestB["Image Manifest B"]
+    end
+    
+    MountA --> LayerA
+    MountBaseA --> LayerBase
+    ImageManifestA --> MountBaseA
+    ImageManifestA --> MountA
+    ImageManifestA --> ConfigA
+    
+    MountB --> LayerB
+    MountBaseB --> LayerBase
+    ImageManifestB --> MountBaseB
+    ImageManifestB --> MountB
+    ImageManifestB --> ConfigB
+```
 
 [1]:https://github.com/opencontainers/image-spec/blob/main/spec.md
