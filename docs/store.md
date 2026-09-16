@@ -1,47 +1,188 @@
 # Store
 
-Describing the various stores in use in the registry.
+A foundational description of how the registry stores its data, and the reasons behind it.
 
-## Metadata
+## Data Structure
 
-- Blobs
-  - <digest>
-    - owners
-        - <repository>
-- Repositories
-  - Blobs
-  - Manifests
-  - Tags
+To understand why and how the registry stores its data, we need to understand how that data is structured.
 
-Tags reference manifests.
-Tags only exist as metadata.
-Manifests reference blobs through `Layers` field, a config file through the `Config` field, or other manifests (through `Subject` field).
-There's also the case of index manifests, which reference other manifests through the `Manifests` field.
-Manifests themselves are blobs in the blob store.
-Blobs in the repository reference blobs in the blob store.
+### OCI Artifact
 
-The top-level blobs tracks all blobs that are present in the shared blob store.
+The format of an OCI artifact is defined in the [OCI Image spec][1].
+This section contains a summary of the details necessary to understand how a registry handles artifacts.
 
-The model of the metadata store is heavily influenced by the goal of achieving online garbage collection.
-Online garbage collection means that any unused resources are automatically cleaned up.
-In other words, if a user deletes a tag in a repository, the manifest that it points to is deleted.
-The blobs that the manifest points to are also deleted automatically.
+An OCI artifact consists of:
 
-Online garbage collection is enabled by tracking ownership between entities in the metadata store.
-This "ownership" model is loosely inspired by Rust.
+* **Filesystem layers**: One of more TAR archives that may hold complete filesystems, or just individual files.
+* **Configuration**: A [JSON file][2] that contains metadata about the artifact.
+* **Image manifest**: A [JSON file][3] that references the layers and configuration that make up the artifact by their digests.
+* **Image index**: A [JSON file][4] that references other manifests.
 
-Tags are generally deleted by a user.
-Automatic cleanup could be built for use cases such as:
+All of the above are identified by their digest.
+A digest is a combination of an algorithm and a hash in the format `<algorithm>:<hash>`.
+For example, if a manifest was hashed with the SHA256 algorithm, its digest would be something like `sha256:3b9ad...`.
+Manifests refer to other objects by their digests, and a manifest is itself referenced by its digest.
 
-- Deleted a tag if it hasn't been pulled in N days.
-- Delete a tag that does not match a pattern after N days.
+To the registry, filesystem layers are just binary blobs.
+They are never read or inspected beyond calculating hashes to verify their integrity.
 
-Manifests or blobs are generally not deleted by users.
-In fact, they should not be.
-If a manifest gets deleted directly, all tags that point to it would become invalid.
-If a blob gets deleted directly, all manifests that point to it would become invalid.
-The spec allows it, but this only makes sense for registries without built-in garbage collection.
-In such cases, an external process would have to scan the registry to perform garbage collection.
-It makes sense that if automatic garbage collection is enabled, that manual manifest and blob deletion is disabled.
-Or there could be extra checks to confirm that no manifests or tags would become orphaned by a deletion.
-But that is more complex and more compulationally expensive, and I see no real reason for it to exist.
+An image manifest may also point to another image manifest (called a subject) to form a weak association.
+These manifests are called referrers, and they can be retrieved with the Referrers API.
+If an image manifest is part of a container image, then the referrer may contain metadata about that image, like a Software Bill-Of-Materials (SBOM).
+A referrer points to its own layers and configuration.
+Quering an image manifest with the Referrers API can then easily retrieve additional information about that image, like the mentioned SBOM example.
+
+Image indices are typically used for multi-platform container images.
+For example, if the container image supports AMD64 and ARM64, those are actually two separate sets of layers with their own config and manifest.
+An index manifest then points to those two manifests.
+A client will pull the index manifest, and use it to resolve the container image for the client's platform.
+
+Putting it all together, we get a dependency graph that looks like this:
+
+```mermaid
+graph RL
+    Config
+    Layers["Layer 0..n"]
+    ImageManifest["Image Manifest"]
+    ImageIndex["Image Index"]
+    Referrer
+    ReferrerConfig["Config"]
+    ReferrerLayers["Layers 0..n"]
+
+    ImageManifest --> Config
+    ImageManifest --> Layers
+    ImageIndex -..-> ImageManifest
+    Referrer -.-> ImageManifest
+    Referrer --> ReferrerConfig
+    Referrer --> ReferrerLayers
+```
+
+Dotted lines indicate optional dependencies.
+
+Manifests are typically tagged to make referring to them easier.
+Often tags are semantic versions, but to the registry, they are arbitrary strings (with some limitations) that point to a manifest digest.
+Tags can only point to a single manifest, but they may be moved to another manifest.
+
+Clients of the registry typically fetch a tag to get the digest of a manifest.
+The manifest is then read to fetch the configuration and layers by their digests.
+Clients may also fetch manifest by their digest directly, without first using a tag to resolve it.
+This is often done for security, as a manifest digest is immutable, while tags are often mutable.
+
+### Deduplication
+
+Because OCI artifacts are made up out of layers, it is possible that two artifacts use some of the same layers.
+For example, two container images might be built on top of the same Ubuntu base image.
+Some base images can be quite large, leading to a lot duplicated data.
+It would be wasteful to upload the same data to the registry multiple times.
+That's why the registry deduplicates image layers.
+Each layer is stored only once, identified by its digest.
+
+```mermaid
+graph RL
+    LayerBase["Base Layer"]
+    LayerA["Layer A"]
+    LayerB["Layer B"]
+    ImageManifestA["Image Manifest A"]
+    ImageManifestB["Image Manifest B"]
+
+    ImageManifestA --> LayerA
+    ImageManifestA --> LayerBase
+    ImageManifestB --> LayerB
+    ImageManifestB --> LayerBase
+```
+
+Clients can check if a layer is already present on the registry before deciding to upload it.
+
+### Repositories
+
+In the registry, OCI artifacts are organized into repositories.
+Given the container name `example.com/nginx:v1.2.3`:
+
+* `example.com` is the registry host.
+* `nginx` is the repository name.
+* `v.1.2.3` is the version.
+
+Each repository can hold multiple artifacts, usually identified with tags.
+Continuing the example, a repository might hold multiple versions of NGINX.
+
+Repositories serve as scopes for OCI artifacts, and for upload sessions.
+Deleting a repository deletes all OCI artifacts within it.
+Objects uploaded to one repository should not be accessible from another.
+
+We do still want to make sure that layers can be shared across repositories.
+That is why the registry has a shared blob store.
+When a layer is uploaded to a repository, the layer is stored into the blob store, and the repository mounts the layer from the blob store.
+If a layer is uploaded again to another repository, the data is effectively discarded once the upload is complete, and only a mount is created in the repository.
+It is through mounts that the registry tricks which blobs were uploaded to which repositories, and thus which repositories have access to which layers.
+
+```mermaid
+graph RL
+    subgraph Blobs["Blob Store"]
+        direction RL
+        LayerA["Layer A"]
+        LayerBase["Base Layer"]
+        LayerB["Layer B"]
+    end
+    
+    subgraph RepositoryA["Repository A"]
+        direction RL
+
+        MountBaseA["Base Mount"]
+        MountA["Mount A"]
+        ConfigA["Config A"]
+        ImageManifestA["Image Manifest A"]
+    end
+    
+    subgraph RepositoryB["Repository B"]
+        direction RL
+
+        MountBaseB["Base Mount"]
+        MountB["Mount B"]
+        ConfigB["Config B"]
+        ImageManifestB["Image Manifest B"]
+    end
+    
+    MountA --> LayerA
+    MountBaseA --> LayerBase
+    ImageManifestA --> MountBaseA
+    ImageManifestA --> MountA
+    ImageManifestA --> ConfigA
+    
+    MountB --> LayerB
+    MountBaseB --> LayerBase
+    ImageManifestB --> MountBaseB
+    ImageManifestB --> MountB
+    ImageManifestB --> ConfigB
+```
+
+## Blobs and Metadata
+
+Given all of these requirements, the registry implements two separate stores: blobs and metadata.
+
+### Blob Store
+
+The blob store is simple content-addressible storage.
+It stores blobs identified by their digest, and upload data identified by the upload session ID.
+Because blobs are identified by their digest, they are naturally immutable.
+Upload data is necessarily mutable, but append-only.
+Once an upload is complete, the digest is computed on the server side and against the client-provided digest.
+If the verification succeeds, the upload data becomes retrievable by its digest.
+
+All data uploaded by registry clients is stored in the blob store.
+Not only layers, but also image manifests, index manifests, and configurations.
+
+Exactly how blobs are stored on disk or in an external system is up to the implementation.
+
+### Metadata Store
+
+The metadata store acts as an index of the blob store, and tracks all repository metadata.
+For each repository, it tracks layer mounts, uploaded manifests, and tags, as well as the active upload sessions.
+Additionally, it tracks relationships between objects for purposes like the Referrers API.
+
+The implementation of the metadata store must be ACID compliant.
+
+
+[1]: https://github.com/opencontainers/image-spec/blob/main/spec.md
+[2]: https://github.com/opencontainers/image-spec/blob/main/config.md
+[3]: https://github.com/opencontainers/image-spec/blob/main/manifest.md
+[4]: https://github.com/opencontainers/image-spec/blob/main/image-index.md
