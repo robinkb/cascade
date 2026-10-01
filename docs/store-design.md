@@ -1,4 +1,4 @@
-# Store
+# Store Design
 
 A foundational description of how the registry stores its data, and the reasons behind it.
 
@@ -176,7 +176,7 @@ Exactly how blobs are stored on disk or in an external system is up to the imple
 ### Metadata Store
 
 The metadata store acts as an index of the blob store, and tracks all repository metadata.
-For each repository, it tracks layer mounts, uploaded manifests, and tags, as well as the active upload sessions.
+For each repository, it tracks layer mounts, uploaded manifests, tags, and active upload sessions.
 Additionally, it tracks relationships between objects for purposes like the Referrers API.
 
 The implementation of the metadata store must be ACID compliant.
