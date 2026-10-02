@@ -225,17 +225,17 @@ type repositoryStore struct {
 	db   *bolt.DB
 }
 
-func (r *repositoryStore) GetLink(id digest.Digest) error {
+func (r *repositoryStore) GetMount(id digest.Digest) error {
 	return r.db.View(func(tx *bolt.Tx) error {
-		blob := r.repository(tx).links().link(id)
+		blob := r.repository(tx).mounts().mount(id)
 		if !blob.found() {
-			return fmt.Errorf("%w: %s", store.ErrLinkNotFound, id)
+			return fmt.Errorf("%w: %s", store.ErrMountNotFound, id)
 		}
 		return nil
 	})
 }
 
-func (r *repositoryStore) PutLink(id digest.Digest) error {
+func (r *repositoryStore) PutMount(id digest.Digest) error {
 	return r.db.Update(func(tx *bolt.Tx) error {
 		return r.putBlob(tx, id)
 	})
@@ -243,11 +243,11 @@ func (r *repositoryStore) PutLink(id digest.Digest) error {
 
 func (r *repositoryStore) putBlob(tx *bolt.Tx, id digest.Digest) error {
 	r.blobs(tx).addBlob(id).addOwner(r.name)
-	r.repository(tx).links().addLink(id)
+	r.repository(tx).mounts().addMount(id)
 	return nil
 }
 
-func (r *repositoryStore) DeleteLink(id digest.Digest) error {
+func (r *repositoryStore) DeleteMount(id digest.Digest) error {
 	return r.db.Update(func(tx *bolt.Tx) error {
 		return r.deleteBlob(tx, id)
 	})
@@ -255,16 +255,16 @@ func (r *repositoryStore) DeleteLink(id digest.Digest) error {
 
 func (r *repositoryStore) deleteBlob(tx *bolt.Tx, id digest.Digest) error {
 	{ // repository blobs
-		blobs := r.repository(tx).links()
-		blob := blobs.link(id)
+		blobs := r.repository(tx).mounts()
+		blob := blobs.mount(id)
 		if !blob.found() {
-			return fmt.Errorf("%w: %s", store.ErrLinkNotFound, id)
+			return fmt.Errorf("%w: %s", store.ErrMountNotFound, id)
 		}
 		if blob.hasOwners() {
-			return fmt.Errorf("%w: %s", store.ErrLinkInUse, id)
+			return fmt.Errorf("%w: %s", store.ErrMountInUse, id)
 		}
 
-		blobs.removeLink(id)
+		blobs.removeMount(id)
 	}
 	{ // shared blobs
 		blobs := r.blobs(tx)
@@ -300,9 +300,9 @@ func (r *repositoryStore) PutManifest(id digest.Digest, meta store.Manifest, ref
 	return r.db.Update(func(tx *bolt.Tx) error {
 		repo := r.repository(tx)
 
-		blobs := repo.links()
+		blobs := repo.mounts()
 		if refs.Config != "" {
-			configBlob := blobs.link(refs.Config)
+			configBlob := blobs.mount(refs.Config)
 			if !configBlob.found() {
 				return fmt.Errorf("%w: %w: %s", store.ErrManifestInvalid, store.ErrManifestConfigNotFound, refs.Config)
 			}
@@ -310,7 +310,7 @@ func (r *repositoryStore) PutManifest(id digest.Digest, meta store.Manifest, ref
 		}
 
 		for _, layerDigest := range refs.Layers {
-			layerBlob := blobs.link(layerDigest)
+			layerBlob := blobs.mount(layerDigest)
 			if !layerBlob.found() {
 				return fmt.Errorf("%w: %w: %s", store.ErrManifestInvalid, store.ErrManifestLayerNotFound, layerDigest)
 			}
@@ -338,7 +338,7 @@ func (r *repositoryStore) PutManifest(id digest.Digest, meta store.Manifest, ref
 		if err := r.putBlob(tx, id); err != nil {
 			return err
 		}
-		blobs.link(id).addOwner(id)
+		blobs.mount(id).addOwner(id)
 		return nil
 	})
 }
@@ -376,11 +376,11 @@ func (r *repositoryStore) deleteManifest(tx *bolt.Tx, id digest.Digest) ([]diges
 
 	refs := manifest.references()
 
-	blobs := repo.links()
+	blobs := repo.mounts()
 	if refs.Config != "" {
-		blobs.link(refs.Config).removeOwner(id)
+		blobs.mount(refs.Config).removeOwner(id)
 		if err := r.deleteBlob(tx, refs.Config); err != nil {
-			if !errors.Is(err, store.ErrLinkInUse) {
+			if !errors.Is(err, store.ErrMountInUse) {
 				return nil, err
 			}
 		} else {
@@ -389,14 +389,14 @@ func (r *repositoryStore) deleteManifest(tx *bolt.Tx, id digest.Digest) ([]diges
 	}
 
 	for _, layerDigest := range refs.Layers {
-		blob := blobs.link(layerDigest)
+		blob := blobs.mount(layerDigest)
 		if !blob.found() {
 			continue
 		}
 		blob.removeOwner(id)
 
 		if err := r.deleteBlob(tx, layerDigest); err != nil {
-			if errors.Is(err, store.ErrLinkInUse) {
+			if errors.Is(err, store.ErrMountInUse) {
 				continue
 			}
 			return nil, err
@@ -443,7 +443,7 @@ func (r *repositoryStore) deleteManifest(tx *bolt.Tx, id digest.Digest) ([]diges
 
 	manifests.removeManifest(id)
 
-	blobs.link(id).removeOwner(id)
+	blobs.mount(id).removeOwner(id)
 	if err := r.deleteBlob(tx, id); err != nil {
 		return nil, err
 	}

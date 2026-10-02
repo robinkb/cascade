@@ -54,8 +54,8 @@ type repository struct {
 	b *bolt.Bucket
 }
 
-func (o repository) links() links {
-	return links{o.b.Bucket(_BLOBS)}
+func (o repository) mounts() mounts {
+	return mounts{o.b.Bucket(_BLOBS)}
 }
 
 func (o repository) manifests() manifests {
@@ -70,40 +70,40 @@ func (o repository) uploads() uploads {
 	return uploads{o.b.Bucket(_UPLOADS)}
 }
 
-// links contains metadata of blobs linked in a repository.
-type links struct {
+// mounts contains metadata of blobs mounted in a repository.
+type mounts struct {
 	b *bolt.Bucket
 }
 
-func (o links) link(id digest.Digest) link {
-	return link{o.b.Bucket([]byte(id))}
+func (o mounts) mount(id digest.Digest) mount {
+	return mount{o.b.Bucket([]byte(id))}
 }
 
-func (o links) addLink(id digest.Digest) link {
+func (o mounts) addMount(id digest.Digest) mount {
 	b, _ := o.b.CreateBucket([]byte(id))
-	return link{b}
+	return mount{b}
 
 }
 
-func (o links) removeLink(id digest.Digest) {
+func (o mounts) removeMount(id digest.Digest) {
 	must(o.b.DeleteBucket([]byte(id)))
 }
 
-type link struct {
+type mount struct {
 	b *bolt.Bucket
 }
 
-func (o link) found() bool { return o.b != nil }
+func (o mount) found() bool { return o.b != nil }
 
-func (o link) addOwner(id digest.Digest) {
+func (o mount) addOwner(id digest.Digest) {
 	must(o.b.Put([]byte(id), nil))
 }
 
-func (o link) removeOwner(id digest.Digest) {
+func (o mount) removeOwner(id digest.Digest) {
 	must(o.b.Delete([]byte(id)))
 }
 
-func (o link) hasOwners() bool {
+func (o mount) hasOwners() bool {
 	return o.b.Inspect().KeyN != 0
 }
 

@@ -18,7 +18,7 @@ var (
 	ErrRepositoryNotFound = errors.New("repository not found")
 	ErrRepositoryExists   = errors.New("repository with the given name already exists")
 	ErrBlobNotFound       = errors.New("blob not found")
-	ErrLinkNotFound       = errors.New("blob not linked in repository")
+	ErrMountNotFound      = errors.New("blob not mounted in repository")
 	ErrManifestNotFound   = errors.New("manifest not found")
 	ErrTagNotFound        = errors.New("tag not found")
 	ErrUploadNotFound     = errors.New("upload session not found")
@@ -29,7 +29,7 @@ var (
 	ErrManifestImageNotFound   = errors.New("manifest referenced in image index not found")
 	ErrManifestSubjectNotFound = errors.New("subject referenced in manifest not found")
 
-	ErrLinkInUse     = errors.New("blob cannot be unlinked because it is in use")
+	ErrMountInUse    = errors.New("blob cannot be unmounted because it is in use")
 	ErrManifestInUse = errors.New("manifest cannot be deleted because it is in use")
 )
 
@@ -55,9 +55,9 @@ type (
 	}
 
 	Repository interface {
-		GetLink(id digest.Digest) error
-		PutLink(id digest.Digest) error
-		DeleteLink(id digest.Digest) error
+		GetMount(id digest.Digest) error
+		PutMount(id digest.Digest) error
+		DeleteMount(id digest.Digest) error
 
 		GetManifest(id digest.Digest) (Manifest, error)
 		PutManifest(id digest.Digest, meta Manifest, refs References) error

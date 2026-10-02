@@ -22,7 +22,7 @@ func TestStatBlob(t *testing.T) {
 			Return(info, nil)
 		repo := mock.NewRepository(t)
 		repo.EXPECT().
-			GetLink(id).
+			GetMount(id).
 			Return(nil)
 
 		r := New(blobs, repo)

@@ -34,7 +34,7 @@ func (s *ReconcilerSuite) TestReconcile() {
 			id, content := RandomBlob(32)
 			want = append(want, id)
 
-			err := repo.PutLink(id)
+			err := repo.PutMount(id)
 			AssertNoError(t, err).Require()
 
 			err = src.PutBlob(id, content)
