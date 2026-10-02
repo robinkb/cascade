@@ -38,57 +38,6 @@ func (_m *Repository) EXPECT() *Repository_Expecter {
 	return &Repository_Expecter{mock: &_m.Mock}
 }
 
-// DeleteLink provides a mock function for the type Repository
-func (_mock *Repository) DeleteLink(id digest.Digest) error {
-	ret := _mock.Called(id)
-
-	if len(ret) == 0 {
-		panic("no return value specified for DeleteLink")
-	}
-
-	var r0 error
-	if returnFunc, ok := ret.Get(0).(func(digest.Digest) error); ok {
-		r0 = returnFunc(id)
-	} else {
-		r0 = ret.Error(0)
-	}
-	return r0
-}
-
-// Repository_DeleteLink_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'DeleteLink'
-type Repository_DeleteLink_Call struct {
-	*mock.Call
-}
-
-// DeleteLink is a helper method to define mock.On call
-//   - id digest.Digest
-func (_e *Repository_Expecter) DeleteLink(id interface{}) *Repository_DeleteLink_Call {
-	return &Repository_DeleteLink_Call{Call: _e.mock.On("DeleteLink", id)}
-}
-
-func (_c *Repository_DeleteLink_Call) Run(run func(id digest.Digest)) *Repository_DeleteLink_Call {
-	_c.Call.Run(func(args mock.Arguments) {
-		var arg0 digest.Digest
-		if args[0] != nil {
-			arg0 = args[0].(digest.Digest)
-		}
-		run(
-			arg0,
-		)
-	})
-	return _c
-}
-
-func (_c *Repository_DeleteLink_Call) Return(err error) *Repository_DeleteLink_Call {
-	_c.Call.Return(err)
-	return _c
-}
-
-func (_c *Repository_DeleteLink_Call) RunAndReturn(run func(id digest.Digest) error) *Repository_DeleteLink_Call {
-	_c.Call.Return(run)
-	return _c
-}
-
 // DeleteManifest provides a mock function for the type Repository
 func (_mock *Repository) DeleteManifest(id digest.Digest) ([]digest.Digest, error) {
 	ret := _mock.Called(id)
@@ -147,6 +96,57 @@ func (_c *Repository_DeleteManifest_Call) Return(digests []digest.Digest, err er
 }
 
 func (_c *Repository_DeleteManifest_Call) RunAndReturn(run func(id digest.Digest) ([]digest.Digest, error)) *Repository_DeleteManifest_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// DeleteMount provides a mock function for the type Repository
+func (_mock *Repository) DeleteMount(id digest.Digest) error {
+	ret := _mock.Called(id)
+
+	if len(ret) == 0 {
+		panic("no return value specified for DeleteMount")
+	}
+
+	var r0 error
+	if returnFunc, ok := ret.Get(0).(func(digest.Digest) error); ok {
+		r0 = returnFunc(id)
+	} else {
+		r0 = ret.Error(0)
+	}
+	return r0
+}
+
+// Repository_DeleteMount_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'DeleteMount'
+type Repository_DeleteMount_Call struct {
+	*mock.Call
+}
+
+// DeleteMount is a helper method to define mock.On call
+//   - id digest.Digest
+func (_e *Repository_Expecter) DeleteMount(id interface{}) *Repository_DeleteMount_Call {
+	return &Repository_DeleteMount_Call{Call: _e.mock.On("DeleteMount", id)}
+}
+
+func (_c *Repository_DeleteMount_Call) Run(run func(id digest.Digest)) *Repository_DeleteMount_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		var arg0 digest.Digest
+		if args[0] != nil {
+			arg0 = args[0].(digest.Digest)
+		}
+		run(
+			arg0,
+		)
+	})
+	return _c
+}
+
+func (_c *Repository_DeleteMount_Call) Return(err error) *Repository_DeleteMount_Call {
+	_c.Call.Return(err)
+	return _c
+}
+
+func (_c *Repository_DeleteMount_Call) RunAndReturn(run func(id digest.Digest) error) *Repository_DeleteMount_Call {
 	_c.Call.Return(run)
 	return _c
 }
@@ -264,57 +264,6 @@ func (_c *Repository_DeleteUploadSession_Call) RunAndReturn(run func(id uuid.UUI
 	return _c
 }
 
-// GetLink provides a mock function for the type Repository
-func (_mock *Repository) GetLink(id digest.Digest) error {
-	ret := _mock.Called(id)
-
-	if len(ret) == 0 {
-		panic("no return value specified for GetLink")
-	}
-
-	var r0 error
-	if returnFunc, ok := ret.Get(0).(func(digest.Digest) error); ok {
-		r0 = returnFunc(id)
-	} else {
-		r0 = ret.Error(0)
-	}
-	return r0
-}
-
-// Repository_GetLink_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetLink'
-type Repository_GetLink_Call struct {
-	*mock.Call
-}
-
-// GetLink is a helper method to define mock.On call
-//   - id digest.Digest
-func (_e *Repository_Expecter) GetLink(id interface{}) *Repository_GetLink_Call {
-	return &Repository_GetLink_Call{Call: _e.mock.On("GetLink", id)}
-}
-
-func (_c *Repository_GetLink_Call) Run(run func(id digest.Digest)) *Repository_GetLink_Call {
-	_c.Call.Run(func(args mock.Arguments) {
-		var arg0 digest.Digest
-		if args[0] != nil {
-			arg0 = args[0].(digest.Digest)
-		}
-		run(
-			arg0,
-		)
-	})
-	return _c
-}
-
-func (_c *Repository_GetLink_Call) Return(err error) *Repository_GetLink_Call {
-	_c.Call.Return(err)
-	return _c
-}
-
-func (_c *Repository_GetLink_Call) RunAndReturn(run func(id digest.Digest) error) *Repository_GetLink_Call {
-	_c.Call.Return(run)
-	return _c
-}
-
 // GetManifest provides a mock function for the type Repository
 func (_mock *Repository) GetManifest(id digest.Digest) (store.Manifest, error) {
 	ret := _mock.Called(id)
@@ -371,6 +320,57 @@ func (_c *Repository_GetManifest_Call) Return(manifest store.Manifest, err error
 }
 
 func (_c *Repository_GetManifest_Call) RunAndReturn(run func(id digest.Digest) (store.Manifest, error)) *Repository_GetManifest_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// GetMount provides a mock function for the type Repository
+func (_mock *Repository) GetMount(id digest.Digest) error {
+	ret := _mock.Called(id)
+
+	if len(ret) == 0 {
+		panic("no return value specified for GetMount")
+	}
+
+	var r0 error
+	if returnFunc, ok := ret.Get(0).(func(digest.Digest) error); ok {
+		r0 = returnFunc(id)
+	} else {
+		r0 = ret.Error(0)
+	}
+	return r0
+}
+
+// Repository_GetMount_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetMount'
+type Repository_GetMount_Call struct {
+	*mock.Call
+}
+
+// GetMount is a helper method to define mock.On call
+//   - id digest.Digest
+func (_e *Repository_Expecter) GetMount(id interface{}) *Repository_GetMount_Call {
+	return &Repository_GetMount_Call{Call: _e.mock.On("GetMount", id)}
+}
+
+func (_c *Repository_GetMount_Call) Run(run func(id digest.Digest)) *Repository_GetMount_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		var arg0 digest.Digest
+		if args[0] != nil {
+			arg0 = args[0].(digest.Digest)
+		}
+		run(
+			arg0,
+		)
+	})
+	return _c
+}
+
+func (_c *Repository_GetMount_Call) Return(err error) *Repository_GetMount_Call {
+	_c.Call.Return(err)
+	return _c
+}
+
+func (_c *Repository_GetMount_Call) RunAndReturn(run func(id digest.Digest) error) *Repository_GetMount_Call {
 	_c.Call.Return(run)
 	return _c
 }
@@ -627,57 +627,6 @@ func (_c *Repository_ListTags_Call) RunAndReturn(run func(count int, last string
 	return _c
 }
 
-// PutLink provides a mock function for the type Repository
-func (_mock *Repository) PutLink(id digest.Digest) error {
-	ret := _mock.Called(id)
-
-	if len(ret) == 0 {
-		panic("no return value specified for PutLink")
-	}
-
-	var r0 error
-	if returnFunc, ok := ret.Get(0).(func(digest.Digest) error); ok {
-		r0 = returnFunc(id)
-	} else {
-		r0 = ret.Error(0)
-	}
-	return r0
-}
-
-// Repository_PutLink_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'PutLink'
-type Repository_PutLink_Call struct {
-	*mock.Call
-}
-
-// PutLink is a helper method to define mock.On call
-//   - id digest.Digest
-func (_e *Repository_Expecter) PutLink(id interface{}) *Repository_PutLink_Call {
-	return &Repository_PutLink_Call{Call: _e.mock.On("PutLink", id)}
-}
-
-func (_c *Repository_PutLink_Call) Run(run func(id digest.Digest)) *Repository_PutLink_Call {
-	_c.Call.Run(func(args mock.Arguments) {
-		var arg0 digest.Digest
-		if args[0] != nil {
-			arg0 = args[0].(digest.Digest)
-		}
-		run(
-			arg0,
-		)
-	})
-	return _c
-}
-
-func (_c *Repository_PutLink_Call) Return(err error) *Repository_PutLink_Call {
-	_c.Call.Return(err)
-	return _c
-}
-
-func (_c *Repository_PutLink_Call) RunAndReturn(run func(id digest.Digest) error) *Repository_PutLink_Call {
-	_c.Call.Return(run)
-	return _c
-}
-
 // PutManifest provides a mock function for the type Repository
 func (_mock *Repository) PutManifest(id digest.Digest, meta store.Manifest, refs store.References) error {
 	ret := _mock.Called(id, meta, refs)
@@ -737,6 +686,57 @@ func (_c *Repository_PutManifest_Call) Return(err error) *Repository_PutManifest
 }
 
 func (_c *Repository_PutManifest_Call) RunAndReturn(run func(id digest.Digest, meta store.Manifest, refs store.References) error) *Repository_PutManifest_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// PutMount provides a mock function for the type Repository
+func (_mock *Repository) PutMount(id digest.Digest) error {
+	ret := _mock.Called(id)
+
+	if len(ret) == 0 {
+		panic("no return value specified for PutMount")
+	}
+
+	var r0 error
+	if returnFunc, ok := ret.Get(0).(func(digest.Digest) error); ok {
+		r0 = returnFunc(id)
+	} else {
+		r0 = ret.Error(0)
+	}
+	return r0
+}
+
+// Repository_PutMount_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'PutMount'
+type Repository_PutMount_Call struct {
+	*mock.Call
+}
+
+// PutMount is a helper method to define mock.On call
+//   - id digest.Digest
+func (_e *Repository_Expecter) PutMount(id interface{}) *Repository_PutMount_Call {
+	return &Repository_PutMount_Call{Call: _e.mock.On("PutMount", id)}
+}
+
+func (_c *Repository_PutMount_Call) Run(run func(id digest.Digest)) *Repository_PutMount_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		var arg0 digest.Digest
+		if args[0] != nil {
+			arg0 = args[0].(digest.Digest)
+		}
+		run(
+			arg0,
+		)
+	})
+	return _c
+}
+
+func (_c *Repository_PutMount_Call) Return(err error) *Repository_PutMount_Call {
+	_c.Call.Return(err)
+	return _c
+}
+
+func (_c *Repository_PutMount_Call) RunAndReturn(run func(id digest.Digest) error) *Repository_PutMount_Call {
 	_c.Call.Return(run)
 	return _c
 }

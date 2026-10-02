@@ -207,13 +207,13 @@ func (s *MetadataSuite) TestBlobs() {
 		repo := s.RepositoryConstructor(t)
 		digest := RandomDigest()
 
-		err := repo.GetLink(digest)
-		AssertErrorIs(t, err, store.ErrLinkNotFound)
+		err := repo.GetMount(digest)
+		AssertErrorIs(t, err, store.ErrMountNotFound)
 
-		err = repo.PutLink(digest)
+		err = repo.PutMount(digest)
 		AssertNoError(t, err)
 
-		err = repo.GetLink(digest)
+		err = repo.GetMount(digest)
 		AssertNoError(t, err)
 	})
 
@@ -221,25 +221,25 @@ func (s *MetadataSuite) TestBlobs() {
 		repo := s.RepositoryConstructor(t)
 		digest := RandomDigest()
 
-		err := repo.PutLink(digest)
+		err := repo.PutMount(digest)
 		AssertNoError(t, err)
 
-		err = repo.GetLink(digest)
+		err = repo.GetMount(digest)
 		AssertNoError(t, err)
 
-		err = repo.DeleteLink(digest)
+		err = repo.DeleteMount(digest)
 		AssertNoError(t, err)
 
-		err = repo.GetLink(digest)
-		AssertErrorIs(t, err, store.ErrLinkNotFound)
+		err = repo.GetMount(digest)
+		AssertErrorIs(t, err, store.ErrMountNotFound)
 	})
 
-	s.T().Run("deleting unknown blob returns ErrLinkNotFound", func(t *testing.T) {
+	s.T().Run("deleting unknown blob returns ErrMountNotFound", func(t *testing.T) {
 		repo := s.RepositoryConstructor(t)
 		digest := RandomDigest()
 
-		err := repo.DeleteLink(digest)
-		AssertErrorIs(t, err, store.ErrLinkNotFound)
+		err := repo.DeleteMount(digest)
+		AssertErrorIs(t, err, store.ErrMountNotFound)
 	})
 }
 
@@ -259,7 +259,7 @@ func (s *MetadataSuite) TestListBlobs() {
 			AssertNoError(t, err).Require()
 
 			want[i] = RandomDigest()
-			err = repo.PutLink(want[i])
+			err = repo.PutMount(want[i])
 			AssertNoError(t, err).Require()
 		}
 
@@ -279,14 +279,14 @@ func (s *MetadataSuite) TestListBlobs() {
 		repo, err := meta.CreateRepository(name)
 		AssertNoError(t, err).Require()
 
-		err = repo.PutLink(digest)
+		err = repo.PutMount(digest)
 		AssertNoError(t, err).Require()
 
 		blobs := slices.Collect(meta.Blobs())
 		AssertEqual(t, len(blobs), 1).Require()
 		AssertEqual(t, blobs[0], digest)
 
-		err = repo.DeleteLink(digest)
+		err = repo.DeleteMount(digest)
 		AssertNoError(t, err).Require()
 
 		blobs = slices.Collect(meta.Blobs())
@@ -304,12 +304,12 @@ func (s *MetadataSuite) TestListBlobs() {
 		for i := range repos {
 			repos[i], err = meta.CreateRepository(RandomName())
 			AssertNoError(t, err).Require()
-			err = repos[i].PutLink(digest)
+			err = repos[i].PutMount(digest)
 			AssertNoError(t, err).Require()
 		}
 
 		for i := range count / 2 {
-			err = repos[i].DeleteLink(digest)
+			err = repos[i].DeleteMount(digest)
 			AssertNoError(t, err).Require()
 		}
 
@@ -324,7 +324,7 @@ func (s *MetadataSuite) TestListBlobs() {
 		repo, err := meta.CreateRepository(name)
 		AssertNoError(t, err)
 
-		err = repo.PutLink(RandomDigest())
+		err = repo.PutMount(RandomDigest())
 		AssertNoError(t, err)
 
 		blobs := slices.Collect(meta.Blobs())
@@ -346,9 +346,9 @@ func (s *MetadataSuite) TestListBlobs() {
 		repoB, err := meta.CreateRepository(nameB)
 		AssertNoError(t, err)
 
-		err = repoA.PutLink(digest)
+		err = repoA.PutMount(digest)
 		AssertNoError(t, err)
-		err = repoB.PutLink(digest)
+		err = repoB.PutMount(digest)
 		AssertNoError(t, err)
 
 		blobs := slices.Collect(meta.Blobs())
@@ -386,13 +386,13 @@ func (s *MetadataSuite) TestManifests() {
 		repo := s.RepositoryConstructor(t)
 		digest := RandomDigest()
 
-		err := repo.GetLink(digest)
-		AssertErrorIs(t, err, store.ErrLinkNotFound)
+		err := repo.GetMount(digest)
+		AssertErrorIs(t, err, store.ErrMountNotFound)
 
 		err = repo.PutManifest(digest, store.Manifest{}, store.References{})
 		AssertNoError(t, err)
 
-		err = repo.GetLink(digest)
+		err = repo.GetMount(digest)
 		AssertNoError(t, err)
 	})
 
@@ -422,14 +422,14 @@ func (s *MetadataSuite) TestManifests() {
 		err := repo.PutManifest(digest, store.Manifest{}, store.References{})
 		AssertNoError(t, err)
 
-		err = repo.GetLink(digest)
+		err = repo.GetMount(digest)
 		AssertNoError(t, err)
 
 		_, err = repo.DeleteManifest(digest)
 		AssertNoError(t, err)
 
-		err = repo.GetLink(digest)
-		AssertErrorIs(t, err, store.ErrLinkNotFound)
+		err = repo.GetMount(digest)
+		AssertErrorIs(t, err, store.ErrMountNotFound)
 	})
 
 	s.T().Run("manifest owns its own blob", func(t *testing.T) {
@@ -439,8 +439,8 @@ func (s *MetadataSuite) TestManifests() {
 		err := repo.PutManifest(id, store.Manifest{}, store.References{})
 		AssertNoError(t, err)
 
-		err = repo.DeleteLink(id)
-		AssertErrorIs(t, err, store.ErrLinkInUse)
+		err = repo.DeleteMount(id)
+		AssertErrorIs(t, err, store.ErrMountInUse)
 	})
 
 	s.T().Run("deleting unknown manifest returns ErrManifestNotFound", func(t *testing.T) {
@@ -468,7 +468,7 @@ func (s *MetadataSuite) TestManifests() {
 			configDigest, manifestDigest,
 		}
 
-		err := repo.PutLink(configDigest)
+		err := repo.PutMount(configDigest)
 		AssertNoError(t, err)
 
 		err = repo.PutManifest(manifestDigest, store.Manifest{}, store.References{
@@ -482,8 +482,8 @@ func (s *MetadataSuite) TestManifests() {
 		slices.Sort(digests)
 		AssertSlicesEqual(t, deleted, digests)
 
-		err = repo.GetLink(configDigest)
-		AssertErrorIs(t, err, store.ErrLinkNotFound)
+		err = repo.GetMount(configDigest)
+		AssertErrorIs(t, err, store.ErrMountNotFound)
 	})
 
 	// This case does not happen under normal circumstances; a config blob is unique to each manifest.
@@ -494,7 +494,7 @@ func (s *MetadataSuite) TestManifests() {
 		digests := []digest.Digest{manifestDigestB, configDigest}
 		slices.Sort(digests)
 
-		err := repo.PutLink(configDigest)
+		err := repo.PutMount(configDigest)
 		AssertNoError(t, err)
 
 		err = repo.PutManifest(manifestDigestA, store.Manifest{}, store.References{
@@ -531,15 +531,15 @@ func (s *MetadataSuite) TestManifests() {
 		repo := s.RepositoryConstructor(t)
 		manifestDigest, configDigest := RandomDigest(), RandomDigest()
 
-		err := repo.PutLink(configDigest)
+		err := repo.PutMount(configDigest)
 		AssertNoError(t, err)
 		err = repo.PutManifest(manifestDigest, store.Manifest{}, store.References{
 			Config: configDigest,
 		})
 		AssertNoError(t, err)
 
-		err = repo.DeleteLink(configDigest)
-		AssertErrorIs(t, err, store.ErrLinkInUse)
+		err = repo.DeleteMount(configDigest)
+		AssertErrorIs(t, err, store.ErrMountInUse)
 	})
 
 	s.T().Run("deletes referenced layers when deleting manifest", func(t *testing.T) {
@@ -550,7 +550,7 @@ func (s *MetadataSuite) TestManifests() {
 		for range 5 {
 			id := RandomDigest()
 			layerDigests = append(layerDigests, id)
-			err := repo.PutLink(id)
+			err := repo.PutMount(id)
 			AssertNoError(t, err)
 		}
 		digests := slices.Concat([]digest.Digest{manifestDigest}, layerDigests)
@@ -567,8 +567,8 @@ func (s *MetadataSuite) TestManifests() {
 		AssertSlicesEqual(t, deleted, digests)
 
 		for _, digest := range layerDigests {
-			err = repo.GetLink(digest)
-			AssertErrorIs(t, err, store.ErrLinkNotFound)
+			err = repo.GetMount(digest)
+			AssertErrorIs(t, err, store.ErrMountNotFound)
 		}
 	})
 
@@ -580,7 +580,7 @@ func (s *MetadataSuite) TestManifests() {
 			manifestDigestB, layerDigest,
 		}
 
-		err := repo.PutLink(layerDigest)
+		err := repo.PutMount(layerDigest)
 		AssertNoError(t, err)
 
 		err = repo.PutManifest(manifestDigestA, store.Manifest{}, store.References{
@@ -597,7 +597,7 @@ func (s *MetadataSuite) TestManifests() {
 		AssertEqual(t, len(deleted), 1).Require()
 		AssertEqual(t, deleted[0], manifestDigestA)
 
-		err = repo.GetLink(layerDigest)
+		err = repo.GetMount(layerDigest)
 		AssertNoError(t, err)
 
 		deleted, err = repo.DeleteManifest(manifestDigestB)
@@ -606,8 +606,8 @@ func (s *MetadataSuite) TestManifests() {
 		slices.Sort(wantDeleted)
 		AssertSlicesEqual(t, deleted, wantDeleted)
 
-		err = repo.GetLink(layerDigest)
-		AssertErrorIs(t, err, store.ErrLinkNotFound)
+		err = repo.GetMount(layerDigest)
+		AssertErrorIs(t, err, store.ErrMountNotFound)
 	})
 
 	s.T().Run("does not error when deleting manifest with 'duplicate' layers", func(t *testing.T) {
@@ -616,7 +616,7 @@ func (s *MetadataSuite) TestManifests() {
 		wantDeleted := []digest.Digest{manifestDigest, layerDigest}
 		slices.Sort(wantDeleted)
 
-		err := repo.PutLink(layerDigest)
+		err := repo.PutMount(layerDigest)
 		AssertNoError(t, err)
 		err = repo.PutManifest(manifestDigest, store.Manifest{}, store.References{
 			Layers: []digest.Digest{layerDigest, layerDigest},
@@ -629,19 +629,19 @@ func (s *MetadataSuite) TestManifests() {
 		AssertSlicesEqual(t, deleted, wantDeleted)
 	})
 
-	s.T().Run("deleting referenced layer blob returns ErrLinkInUse", func(t *testing.T) {
+	s.T().Run("deleting referenced layer blob returns ErrMountInUse", func(t *testing.T) {
 		repo := s.RepositoryConstructor(t)
 		manifestDigest, layerDigest := RandomDigest(), RandomDigest()
 
-		err := repo.PutLink(layerDigest)
+		err := repo.PutMount(layerDigest)
 		AssertNoError(t, err)
 		err = repo.PutManifest(manifestDigest, store.Manifest{}, store.References{
 			Layers: []digest.Digest{layerDigest},
 		})
 		AssertNoError(t, err)
 
-		err = repo.DeleteLink(layerDigest)
-		AssertErrorIs(t, err, store.ErrLinkInUse)
+		err = repo.DeleteMount(layerDigest)
+		AssertErrorIs(t, err, store.ErrMountInUse)
 	})
 
 	s.T().Run("creating manifest referencing unknown layer blob returns ErrManifestLayerNotFound", func(t *testing.T) {
@@ -680,8 +680,8 @@ func (s *MetadataSuite) TestManifests() {
 		for _, digest := range imageDigests {
 			_, err = repo.GetManifest(digest)
 			AssertErrorIs(t, err, store.ErrManifestNotFound)
-			err = repo.GetLink(digest)
-			AssertErrorIs(t, err, store.ErrLinkNotFound)
+			err = repo.GetMount(digest)
+			AssertErrorIs(t, err, store.ErrMountNotFound)
 		}
 	})
 
@@ -1069,7 +1069,7 @@ func (s *MetadataSuite) TestTags() {
 		repo := s.RepositoryConstructor(t)
 		digest := RandomDigest()
 
-		err := repo.PutLink(digest)
+		err := repo.PutMount(digest)
 		AssertNoError(t, err)
 
 		_, err = repo.PutTag(RandomVersion(), digest)
@@ -1297,7 +1297,7 @@ func (s *MetadataSuite) TestSnapshotRestore() {
 		repo, err := snapshotStore.CreateRepository(name)
 		AssertNoError(t, err).Require()
 
-		err = repo.PutLink(digest)
+		err = repo.PutMount(digest)
 		AssertNoError(t, err).Require()
 
 		snapshot := new(bytes.Buffer)
@@ -1310,7 +1310,7 @@ func (s *MetadataSuite) TestSnapshotRestore() {
 		repo, err = restoreStore.GetRepository(name)
 		AssertNoError(t, err).Require()
 
-		err = repo.GetLink(digest)
+		err = repo.GetMount(digest)
 		AssertNoError(t, err).Require()
 	})
 
@@ -1320,20 +1320,20 @@ func (s *MetadataSuite) TestSnapshotRestore() {
 
 		repo, err := meta.CreateRepository(name)
 		AssertNoError(t, err).Require()
-		err = repo.PutLink(digest)
+		err = repo.PutMount(digest)
 		AssertNoError(t, err).Require()
 
-		err = repo.GetLink(digest)
+		err = repo.GetMount(digest)
 		AssertNoError(t, err).Require()
 
 		err = meta.Snapshot(snapshot)
 		AssertNoError(t, err).Require()
 
-		err = repo.DeleteLink(digest)
+		err = repo.DeleteMount(digest)
 		AssertNoError(t, err).Require()
 
-		err = repo.GetLink(digest)
-		AssertErrorIs(t, err, store.ErrLinkNotFound)
+		err = repo.GetMount(digest)
+		AssertErrorIs(t, err, store.ErrMountNotFound)
 
 		err = meta.Restore(snapshot)
 		AssertNoError(t, err).Require()
@@ -1341,7 +1341,7 @@ func (s *MetadataSuite) TestSnapshotRestore() {
 		repo, err = meta.GetRepository(name)
 		AssertNoError(t, err).Require()
 
-		err = repo.GetLink(digest)
+		err = repo.GetMount(digest)
 		AssertNoError(t, err).Require()
 	})
 }
@@ -1360,14 +1360,14 @@ func RandomManifestMetadata() store.Manifest {
 
 func PutManifestInto(t *testing.T, repo store.Repository, image ImageManifest) {
 	for _, id := range image.LayersAsDigests() {
-		err := repo.PutLink(id)
+		err := repo.PutMount(id)
 		AssertNoError(t, err).Require()
 	}
 
-	err := repo.PutLink(image.Manifest.Config.Digest)
+	err := repo.PutMount(image.Manifest.Config.Digest)
 	AssertNoError(t, err).Require()
 
-	err = repo.PutLink(image.Digest)
+	err = repo.PutMount(image.Digest)
 	AssertNoError(t, err).Require()
 
 	err = repo.PutManifest(image.Digest, image.Metadata(), image.References())
