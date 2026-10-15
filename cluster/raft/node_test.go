@@ -61,8 +61,9 @@ func TestSingleNode(t *testing.T) {
 		node := NewTestNode(t, 1)
 		Run(t, node)
 		node.Bootstrap(node.AsPeer())
-		SnapElections(node)
+		AssertRaftStatus(t, node.Status()).HasVoter(node.AsPeer().ID)
 
+		SnapElections(node)
 		AssertRaftStatus(t, node.Status()).IsLeader().Voters(1)
 	})
 
@@ -501,6 +502,16 @@ func (a *RaftStatusAsserter) Voters(n int) *RaftStatusAsserter {
 	return a
 }
 
+// HasVoter asserts that there is a voter with the given ID.
+func (a *RaftStatusAsserter) HasVoter(id uint64) *RaftStatusAsserter {
+	a.t.Helper()
+	if _, ok := a.got.Config.Voters.IDs()[id]; !ok {
+		a.t.Errorf("expected node to be a voter: %d", id)
+	}
+	return a
+}
+
+// IsRunning asserts that the node is running.
 func (a *RaftStatusAsserter) IsRunning() *RaftStatusAsserter {
 	a.t.Helper()
 	if a.got.ID == 0 {
@@ -509,6 +520,7 @@ func (a *RaftStatusAsserter) IsRunning() *RaftStatusAsserter {
 	return a
 }
 
+// IsStopped asserts that the node is stopped.
 func (a *RaftStatusAsserter) IsStopped() *RaftStatusAsserter {
 	a.t.Helper()
 	if a.got.ID != 0 {
